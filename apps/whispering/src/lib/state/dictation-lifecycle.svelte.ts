@@ -30,6 +30,7 @@ export type DictationCapture =
 export type DictationOutcome =
 	| { kind: 'none' }
 	| { kind: 'transcribing' }
+	| { kind: 'polishing' }
 	| { kind: 'delivered'; reach: DeliveryReach }
 	| ({ kind: 'failed' } & DictationFailure);
 
@@ -100,6 +101,18 @@ function createDictationLifecycle() {
 		markTranscribing(): void {
 			clearDeliveredTimer();
 			outcome = { kind: 'transcribing' };
+		},
+
+		/**
+		 * The transcript landed and the always-on Polish pass is now running over it
+		 * (ADR 0052). Held until `markDelivered`, with a `ship-raw` control on the
+		 * pill to skip it. Only entered when a Polish pass actually runs (a usable
+		 * provider, Polish on); speed mode goes straight from transcribing to
+		 * delivered.
+		 */
+		markPolishing(): void {
+			clearDeliveredTimer();
+			outcome = { kind: 'polishing' };
 		},
 
 		/**

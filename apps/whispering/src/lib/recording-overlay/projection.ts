@@ -32,7 +32,10 @@ export function projectLifecycleToStatus(
 			phase: 'recording',
 			trigger: 'vad',
 			speaking: capture.vadState === 'SPEECH_DETECTED',
-			transcribing: outcome.kind === 'transcribing',
+			// The previous utterance's transcribe or its Polish pass both read as
+			// "still working on the last phrase" beside the live meter.
+			transcribing:
+				outcome.kind === 'transcribing' || outcome.kind === 'polishing',
 		};
 	}
 
@@ -43,6 +46,8 @@ export function projectLifecycleToStatus(
 			return null;
 		case 'transcribing':
 			return { phase: 'transcribing' };
+		case 'polishing':
+			return { phase: 'polishing' };
 		case 'delivered':
 			return { phase: 'delivered', reach: outcome.reach };
 		case 'failed':

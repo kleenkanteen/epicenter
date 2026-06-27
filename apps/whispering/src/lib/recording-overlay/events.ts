@@ -61,6 +61,11 @@ export const FAILURE_LABEL = {
  * so every surface renders them identically without re-deriving. Success and
  * failure earn no signal: success is the landing text, and a VAD failure goes to
  * the OS notification and the recordings row, not the pill (ADR-0039).
+ *
+ * The `polishing` phase is the always-on AI cleanup running between transcribe
+ * and delivery (ADR 0052): the pill holds the same spot, showing a "Polishing…"
+ * HUD with a single `ship-raw` control to skip the pass and take the raw
+ * transcript now. Unlike the other post-capture phases it carries an action.
  */
 export type RecordingOverlayStatus =
 	| { phase: 'recording'; trigger: 'manual' }
@@ -73,15 +78,17 @@ export type RecordingOverlayStatus =
 			transcribing: boolean;
 	  }
 	| { phase: 'transcribing' }
+	| { phase: 'polishing' }
 	| { phase: 'delivered'; reach: DeliveryReach }
 	| { phase: 'failed'; tier: DictationFailureTier };
 
 /**
  * The control the user invoked from the overlay. `stop`/`cancel` act on a live
- * capture. There is no retry here: a failed dictation is retried from its
- * recordings row, not the pill (ADR-0039).
+ * capture; `ship-raw` cancels the in-flight Polish pass and delivers the raw
+ * transcript immediately (ADR 0052). There is no retry here: a failed dictation
+ * is retried from its recordings row, not the pill (ADR-0039).
  */
-export type RecordingOverlayAction = 'stop' | 'cancel';
+export type RecordingOverlayAction = 'stop' | 'cancel' | 'ship-raw';
 
 /** main -> overlay: what to display, or that the overlay is shown. */
 export const recordingOverlayStatus = defineWindowEvent<RecordingOverlayStatus>(

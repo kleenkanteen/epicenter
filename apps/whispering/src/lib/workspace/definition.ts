@@ -74,7 +74,14 @@ const recordings = defineTable({
 	title: field.string(),
 	recordedAt: field.instant(),
 	recordedAtZone: field.string<IanaTimeZone>(),
+	// The raw transcript, exactly as the transcriber produced it. Polish layers
+	// correction on top and delivers the polished text, but the raw words stay
+	// here underneath so "show original" is always one click away. See ADR 0052.
 	transcript: field.string(),
+	// The delivered polished text, when a Polish pass ran. Null in speed mode and
+	// on a polish-failure fallback, where no polished version exists. The history
+	// shows this (what was actually delivered) and falls back to `transcript`.
+	polishedTranscript: nullable(field.string()),
 	duration: nullable(field.number()),
 	transcription: nullable(field.json(TranscriptionOutcome)),
 });
@@ -354,6 +361,28 @@ const dictionary = {
 	dictionary: defineKv(Type.Array(Type.String()), (): string[] => []),
 } as const;
 
+/** Default Polish instruction. Kept faithful: fix mechanics, preserve wording. */
+const DEFAULT_POLISH_INSTRUCTIONS =
+	'Fix grammar and punctuation. Keep my wording.';
+
+/**
+ * Polish: the always-on, meaning-preserving AI base, run once after every
+ * transcription. One optional pass that fixes grammar and punctuation while
+ * keeping the user's wording. On by default, but it only fires when the selected
+ * provider can actually serve a completion (a runtime gate, not a flag), so a
+ * fresh unconfigured install never pays a surprise cost. Turn `enabled` off for
+ * speed mode: the raw transcript ships instantly with no AI call. `instructions`
+ * is editable under Advanced. Polish is not a Recipe; it is the base layer every
+ * Recipe stands on. See ADR 0052.
+ */
+const polish = {
+	'polish.enabled': defineKv(field.boolean(), () => true),
+	'polish.instructions': defineKv(
+		field.string(),
+		() => DEFAULT_POLISH_INSTRUCTIONS,
+	),
+} as const;
+
 /** Anonymized event logging toggle (Aptabase). */
 const analytics = {
 	'analytics.enabled': defineKv(field.boolean(), () => true),
@@ -457,6 +486,7 @@ export function createWhispering({
 		...transformation,
 		...completion,
 		...dictionary,
+		...polish,
 		...analytics,
 		...shortcuts,
 	};

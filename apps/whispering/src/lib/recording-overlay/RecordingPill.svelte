@@ -25,6 +25,7 @@
 		level,
 		onStop,
 		onCancel,
+		onShipRaw,
 		onReveal,
 	}: {
 		/** What to display, or `null` when the dictation is idle (hidden). */
@@ -35,6 +36,8 @@
 		onStop: () => void;
 		/** Discard the live manual recording. */
 		onCancel: () => void;
+		/** Skip the in-flight Polish pass and deliver the raw transcript now. */
+		onShipRaw: () => void;
 		/** Reveal Whispering by raising the main window (desktop). Omitted on web,
 		 * where the app window is already in front. */
 		onReveal?: () => void;
@@ -76,7 +79,10 @@
 	} as const satisfies Record<DeliveryReach, Chip>;
 
 	const chip = $derived.by((): Chip | null => {
-		if (!status || status.phase === 'recording') return null;
+		// `recording` renders the meter and `polishing` its own HUD (with an action),
+		// so neither is a plain chip.
+		if (!status || status.phase === 'recording' || status.phase === 'polishing')
+			return null;
 		switch (status.phase) {
 			case 'transcribing':
 				return {
@@ -113,6 +119,11 @@
 	function handleCancel(event: MouseEvent) {
 		event.stopPropagation();
 		onCancel();
+	}
+
+	function handleShipRaw(event: MouseEvent) {
+		event.stopPropagation();
+		onShipRaw();
 	}
 </script>
 
@@ -219,6 +230,23 @@
 					<SquareIcon class="size-3.5" />
 				</button>
 			</div>
+		{:else if status?.phase === 'polishing'}
+			<!-- The Polish HUD holds the same spot as a chip: a spinner and "Polishing…"
+			     mask the ~1s AI pass, with a single ship-raw control to skip it and take
+			     the raw transcript now (ADR 0052). Unlike a chip, it carries an action. -->
+			<div class="flex items-center text-white/80">
+				<LoaderCircleIcon class="size-4 animate-spin" />
+			</div>
+			<span class="min-w-0 truncate text-[13px] font-medium">Polishing…</span>
+			<button
+				type="button"
+				class={cn(actionBase, 'hover:bg-[#faa2ca]/20 hover:text-[#ffd2e4]')}
+				aria-label="Ship raw transcript now"
+				title="Ship raw transcript now"
+				onclick={handleShipRaw}
+			>
+				<XIcon class="size-4" />
+			</button>
 		{:else if chip}
 			<!-- One chip block for every non-recording phase. A failure is glanceable
 			     by design: the terse label, no action; detail and retry live on the
