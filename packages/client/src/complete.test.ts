@@ -159,4 +159,26 @@ describe('complete over the OpenAI chat wire', () => {
 		expect(data).toBeNull();
 		expect(error?.name).toBe('Malformed');
 	});
+
+	test('forwards an abort signal into the underlying request', async () => {
+		const seen = captureRequest(
+			new Response(
+				JSON.stringify({ choices: [{ message: { content: 'ok' } }] }),
+				{ status: 200 },
+			),
+		);
+		const controller = new AbortController();
+
+		await complete(resolveConnection({ baseUrl: 'http://localhost:11434/v1' }), {
+			model: 'llama3',
+			systemPrompt: '',
+			userPrompt: 'hi',
+			signal: controller.signal,
+		});
+
+		// The signal rides on the real request init, so the HTTP call is genuinely
+		// cancellable: the Polish HUD's "ship raw" aborts the in-flight completion
+		// instead of merely abandoning the promise.
+		expect(seen[0]?.init?.signal).toBe(controller.signal);
+	});
 });
