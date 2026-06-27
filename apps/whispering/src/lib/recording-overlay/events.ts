@@ -63,7 +63,7 @@ export const FAILURE_LABEL = {
  * the OS notification and the recordings row, not the pill (ADR-0039).
  *
  * The `polishing` phase is the always-on AI cleanup running between transcribe
- * and delivery (ADR 0052): the pill holds the same spot, showing a "Polishing…"
+ * and delivery (ADR-0074): the pill holds the same spot, showing a "Polishing…"
  * HUD with a single `ship-raw` control to skip the pass and take the raw
  * transcript now. Unlike the other post-capture phases it carries an action.
  */
@@ -85,7 +85,7 @@ export type RecordingOverlayStatus =
 /**
  * The control the user invoked from the overlay. `stop`/`cancel` act on a live
  * capture; `ship-raw` cancels the in-flight Polish pass and delivers the raw
- * transcript immediately (ADR 0052). There is no retry here: a failed dictation
+ * transcript immediately (ADR-0074). There is no retry here: a failed dictation
  * is retried from its recordings row, not the pill (ADR-0039).
  */
 export type RecordingOverlayAction = 'stop' | 'cancel' | 'ship-raw';

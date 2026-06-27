@@ -233,7 +233,7 @@
 		{:else if status?.phase === 'polishing'}
 			<!-- The Polish HUD holds the same spot as a chip: a spinner and "Polishing…"
 			     mask the ~1s AI pass, with a single ship-raw control to skip it and take
-			     the raw transcript now (ADR 0052). Unlike a chip, it carries an action. -->
+			     the raw transcript now (ADR-0074). Unlike a chip, it carries an action. -->
 			<div class="flex items-center text-white/80">
 				<LoaderCircleIcon class="size-4 animate-spin" />
 			</div>

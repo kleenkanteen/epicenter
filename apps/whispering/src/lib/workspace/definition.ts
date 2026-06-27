@@ -76,7 +76,7 @@ const recordings = defineTable({
 	recordedAtZone: field.string<IanaTimeZone>(),
 	// The raw transcript, exactly as the transcriber produced it. Polish layers
 	// correction on top and delivers the polished text, but the raw words stay
-	// here underneath so "show original" is always one click away. See ADR 0052.
+	// here underneath so "show original" is always one click away. See ADR-0074.
 	transcript: field.string(),
 	// The delivered polished text, when a Polish pass ran. Null in speed mode and
 	// on a polish-failure fallback, where no polished version exists. The history
@@ -94,7 +94,7 @@ export type Recording = InferTableRow<typeof recordings>;
  * whatever text the host hands it (text in, text out). Recipes are the portable,
  * plural, on-demand reshape library; they know nothing about voice and carry no
  * correction plumbing (that is Polish's job, run once before any Recipe). See
- * ADR 0052.
+ * ADR-0074.
  *
  * Deliberately tiny: no pre/post replacements, no system/user prompt split, no
  * `{{input}}` placeholder, no per-Recipe model or provider (model comes from the
@@ -260,7 +260,7 @@ const completion = {
  * domain terms ("Kubernetes", "Braden"). Injection-only: the runtime composes
  * these terms into every AI prompt (via `buildSystemPrompt`) and, where the
  * transcription model accepts one, into its `initial_prompt`. It is not
- * find/replace and not an algorithm; the AI is the matcher. See ADR 0052.
+ * find/replace and not an algorithm; the AI is the matcher. See ADR-0074.
  */
 const dictionary = {
 	dictionary: defineKv(Type.Array(Type.String()), (): string[] => []),
@@ -278,7 +278,7 @@ const DEFAULT_POLISH_INSTRUCTIONS =
  * fresh unconfigured install never pays a surprise cost. Turn `enabled` off for
  * speed mode: the raw transcript ships instantly with no AI call. `instructions`
  * is editable under Advanced. Polish is not a Recipe; it is the base layer every
- * Recipe stands on. See ADR 0052.
+ * Recipe stands on. See ADR-0074.
  */
 const polish = {
 	'polish.enabled': defineKv(field.boolean(), () => true),

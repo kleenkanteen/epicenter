@@ -361,7 +361,7 @@ export function prewarmLocalModel(): void {
  * toward, so appending the terms as a glossary nudges it to spell proper nouns
  * and jargon the way the user wrote them. Composition stays here in the app, not
  * in `@epicenter/client`: the wire just carries one prompt string. An empty
- * Dictionary returns the prompt unchanged. See ADR-0052.
+ * Dictionary returns the prompt unchanged. See ADR-0074.
  */
 function withDictionaryTerms(prompt: string, dictionary: string[]): string {
 	if (dictionary.length === 0) return prompt;
