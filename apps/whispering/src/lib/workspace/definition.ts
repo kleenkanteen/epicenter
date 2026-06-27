@@ -83,6 +83,27 @@ const recordings = defineTable({
 export type Recording = InferTableRow<typeof recordings>;
 
 /**
+ * A reusable text action: a name and a single instruction, run on demand over
+ * whatever text the host hands it (text in, text out). Recipes are the portable,
+ * plural, on-demand reshape library; they know nothing about voice and carry no
+ * correction plumbing (that is Polish's job, run once before any Recipe). See
+ * ADR 0052.
+ *
+ * Deliberately tiny: no pre/post replacements, no system/user prompt split, no
+ * `{{input}}` placeholder, no per-Recipe model or provider (model comes from the
+ * global `completion.*` default). `icon` is optional; null until one is assigned.
+ */
+const recipes = defineTable({
+	id: field.string(),
+	name: field.string(),
+	instructions: field.string(),
+	icon: nullable(field.string()),
+});
+
+/** Recipe row type inferred from the workspace table schema. */
+export type Recipe = InferTableRow<typeof recipes>;
+
+/**
  * A single deterministic find/replace pair. A list of these runs offline (no API
  * key) before the prompt (`preReplacements`) and after it (`postReplacements`):
  * a small dictionary ("new paragraph" to a newline, filler stripping, proper-noun
@@ -322,6 +343,17 @@ const completion = {
 	'completion.model': defineKv(field.string(), () => 'gemini-2.5-flash'),
 } as const;
 
+/**
+ * Dictionary: a flat list of words Whispering should know, proper nouns and
+ * domain terms ("Kubernetes", "Braden"). Injection-only: the runtime composes
+ * these terms into every AI prompt (via `buildSystemPrompt`) and, where the
+ * transcription model accepts one, into its `initial_prompt`. It is not
+ * find/replace and not an algorithm; the AI is the matcher. See ADR 0052.
+ */
+const dictionary = {
+	dictionary: defineKv(Type.Array(Type.String()), (): string[] => []),
+} as const;
+
 /** Anonymized event logging toggle (Aptabase). */
 const analytics = {
 	'analytics.enabled': defineKv(field.boolean(), () => true),
@@ -424,6 +456,7 @@ export function createWhispering({
 		...defineTranscriptionSettings(defaultTranscriptionService),
 		...transformation,
 		...completion,
+		...dictionary,
 		...analytics,
 		...shortcuts,
 	};
@@ -435,6 +468,7 @@ export function createWhispering({
 		id: 'epicenter-whispering',
 		tables: {
 			recordings,
+			recipes,
 			transformations,
 			transformationRuns,
 		},
