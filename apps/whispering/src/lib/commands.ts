@@ -6,6 +6,7 @@ import {
 	toggleManualRecording,
 	toggleVadRecording,
 } from '$lib/operations/recording';
+import { runRecipeOnClipboard } from '$lib/operations/recipe-clipboard';
 import { runTransformationOnClipboard } from '$lib/operations/transformation-clipboard';
 import type { Reach } from '$lib/utils/key-binding';
 
@@ -116,6 +117,14 @@ const sharedCommands = [
 		reach: 'global',
 		on: ['Pressed'],
 		run: () => runTransformationOnClipboard(),
+	},
+	{
+		id: 'runRecipeOnClipboard',
+		title: 'Run recipe on clipboard',
+		category: 'Recipe',
+		reach: 'global',
+		on: ['Pressed'],
+		run: () => runRecipeOnClipboard(),
 	},
 	{
 		id: 'openSettings',

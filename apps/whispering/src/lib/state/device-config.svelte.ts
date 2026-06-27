@@ -57,6 +57,8 @@ export const DEFAULT_GLOBAL_BINDINGS = {
 	toggleVadRecording: null,
 	openTransformationPicker: null,
 	runTransformationOnClipboard: null,
+	openRecipePicker: null,
+	runRecipeOnClipboard: null,
 	// Focused-reach command (ADR-0052): its reach ceiling clamps any key to the
 	// in-app store, so the router never writes this global slot. It stays here only
 	// so the system backend's all-commands sync keeps one entry per command;
@@ -172,6 +174,14 @@ const DEVICE_DEFINITIONS = {
 	'shortcuts.global.runTransformationOnClipboard': defineEntry(
 		globalBinding,
 		DEFAULT_GLOBAL_BINDINGS.runTransformationOnClipboard,
+	),
+	'shortcuts.global.openRecipePicker': defineEntry(
+		globalBinding,
+		DEFAULT_GLOBAL_BINDINGS.openRecipePicker,
+	),
+	'shortcuts.global.runRecipeOnClipboard': defineEntry(
+		globalBinding,
+		DEFAULT_GLOBAL_BINDINGS.runRecipeOnClipboard,
 	),
 	// Always null: `openSettings` is focused-reach, so the router never routes a
 	// write here. Present only to keep one global slot per command for the system

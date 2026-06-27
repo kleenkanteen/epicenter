@@ -13,6 +13,7 @@ const soundSettingKeyMap = {
 	'vad-stop': 'sound.vadStop',
 	transcriptionComplete: 'sound.transcriptionComplete',
 	transformationComplete: 'sound.transformationComplete',
+	recipeComplete: 'sound.recipeComplete',
 } as const satisfies Record<WhisperingSoundNames, string>;
 
 export const sound = {

@@ -16,4 +16,7 @@ export const soundSources = {
 	'vad-stop': stopVadSoundSrc,
 	transcriptionComplete: transcriptionCompleteSoundSrc,
 	transformationComplete: transformationCompleteSoundSrc,
+	// Reuses the transformation-complete chime; a Recipe run is the same "AI
+	// reshaped your text" beat.
+	recipeComplete: transformationCompleteSoundSrc,
 } satisfies Record<WhisperingSoundNames, string>;

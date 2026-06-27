@@ -1,4 +1,5 @@
 import type { SatisfiedCommand, ShortcutEventState } from '$lib/commands';
+import { openRecipePicker } from '$lib/operations/recipe-picker';
 import { openTransformationPicker } from '$lib/operations/transformation-picker';
 
 /**
@@ -23,6 +24,22 @@ export const platformCommands = [
 		run: (state?: ShortcutEventState) => {
 			if (state === 'Released' || state === undefined)
 				openTransformationPicker();
+		},
+	},
+	{
+		id: 'openRecipePicker',
+		title: 'Open recipe picker',
+		category: 'Recipe',
+		reach: 'global',
+		// Fire on release, not press: the global accelerator carries a Cmd/Ctrl+Shift
+		// chord, and capturing on press synthesizes Cmd/Ctrl+C while that chord is
+		// still held, so the foreground app sees Cmd+Shift+C instead of a clean copy.
+		// Register both states (not Released-only) because the local shortcut manager
+		// only arms a command on keydown when `on` includes 'Pressed'; without it the
+		// in-app shortcut would never fire. The handler guard runs once, on release.
+		on: ['Pressed', 'Released'],
+		run: (state?: ShortcutEventState) => {
+			if (state === 'Released' || state === undefined) openRecipePicker();
 		},
 	},
 ] as const satisfies SatisfiedCommand[];

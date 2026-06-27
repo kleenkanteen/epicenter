@@ -217,6 +217,7 @@ const sound = {
 	'sound.vadStop': defineKv(field.boolean(), () => true),
 	'sound.transcriptionComplete': defineKv(field.boolean(), () => true),
 	'sound.transformationComplete': defineKv(field.boolean(), () => true),
+	'sound.recipeComplete': defineKv(field.boolean(), () => true),
 } as const;
 
 /**
@@ -243,6 +244,9 @@ const output = {
 	'output.transformation.clipboard': defineKv(field.boolean(), () => true),
 	'output.transformation.cursor': defineKv(field.boolean(), () => false),
 	'output.transformation.enter': defineKv(field.boolean(), () => false),
+	'output.recipe.clipboard': defineKv(field.boolean(), () => true),
+	'output.recipe.cursor': defineKv(field.boolean(), () => false),
+	'output.recipe.enter': defineKv(field.boolean(), () => false),
 } as const;
 
 /**
@@ -452,6 +456,17 @@ const shortcuts = {
 	'shortcut.runTransformationOnClipboard': defineKv(
 		nullable(field.json(KeyBindingSchema)),
 		(): KeyBinding | null => ({ modifiers: [], keys: ['keyR'] }),
+	),
+	// Recipe picker twins of the transformation shortcuts above. Default to unset
+	// while the transformation shortcuts still own `keyT`/`keyR`; W6 removes the
+	// transformation shortcuts and promotes these to those defaults.
+	'shortcut.openRecipePicker': defineKv(
+		nullable(field.json(KeyBindingSchema)),
+		(): KeyBinding | null => null,
+	),
+	'shortcut.runRecipeOnClipboard': defineKv(
+		nullable(field.json(KeyBindingSchema)),
+		(): KeyBinding | null => null,
 	),
 	// Navigation, focused by nature: Cmd+, (the platform "open preferences"
 	// gesture) opens settings in-app. A chord on a `focused` command still clamps
