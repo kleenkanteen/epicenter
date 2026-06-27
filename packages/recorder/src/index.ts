@@ -14,6 +14,13 @@ export {
 } from './device-stream';
 export { foldMicLevel } from './level';
 export {
+	createVadRecorder,
+	type StartActiveListeningOptions,
+	type VadRecorder,
+	type VadRecorderError,
+	type VadState,
+} from './vad-recorder';
+export {
 	type CpalRecordingParams,
 	type NavigatorRecordingParams,
 	RecorderError,

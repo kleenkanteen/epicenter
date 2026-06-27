@@ -410,9 +410,7 @@ The services barrel (`src/lib/services/index.ts`) imports the platform-split ser
 ### Cross-platform (`services/`)
 
 - `recorder/index.tauri.ts` - Desktop manual recording through the native CPAL backend
-- `recorder/index.browser.ts` - Web manual recording through MediaRecorder
-- `recorder/types.ts` - Shared `RecorderService` interface, error types, params
-- `device-stream.ts` - `getRecordingStream` and `enumerateDevices` used by the navigator recorder and VAD (CPAL records natively through Rust)
+- `recorder/index.browser.ts` - Browser branch of the `#platform/recorder` seam: instantiates `@epicenter/recorder`'s `createBrowserRecorder()` (the `RecorderService` contract, error types, params, browser stream acquisition, and VAD all live in that package now)
 - `local-shortcut-manager.ts` - In-window keyboard shortcuts
 - `text/` - Clipboard operations
 - `blob-store/` - Audio blob persistence (IndexedDB on web, fs on desktop)

@@ -14,7 +14,8 @@
 		"epicenter"
 	],
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./vad-assets": "./src/vad-assets.ts"
 	},
 	"dependencies": {
 		"@ricky0123/vad-web": "catalog:",

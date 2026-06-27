@@ -3,8 +3,8 @@
  * at runtime, only used as compile-time types.
  */
 
-// The recorder lifecycle state now lives in `@epicenter/recorder`; alias it to
-// the app's existing name so in-app consumers keep their import.
+// The recorder lifecycle and VAD state now live in `@epicenter/recorder`; alias
+// the recorder state to the app's existing name so in-app consumers keep their
+// import.
 export type { RecordingState as WhisperingRecordingState } from '@epicenter/recorder';
-
-export type VadState = 'IDLE' | 'LISTENING' | 'SPEECH_DETECTED';
+export type { VadState } from '@epicenter/recorder';

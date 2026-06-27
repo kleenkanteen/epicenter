@@ -219,11 +219,11 @@ Each wave is one independently-green commit (`bun typecheck` clean repo-wide). W
 
 ### Phase 3: VAD + decouplings + assets
 
-- [ ] **3.1** Move `vad-recorder.svelte.ts` into the package as `createVadRecorder` (callback core).
-- [ ] **3.2** Replace the `deviceConfig.get(...)` read with a `deviceId` parameter.
-- [ ] **3.3** Replace `defineQuery`-based enumeration with the package's plain `enumerateDevices()`; re-wrap in Whispering's query layer at the call site.
-- [ ] **3.4** Move the Silero assets into the package; expose `assetBaseUrl` (default `/vad/`); document the static-copy step (or ship a copy script).
-- [ ] **3.5** `bun typecheck`; smoke Whispering VAD recording.
+- [x] **3.1** Move the VAD logic into the package as `createVadRecorder` (callback core, `vad-recorder.ts`): no `$state`, no `defineQuery`, no settings read. Whispering keeps a thin reactive wrapper (`vad-recorder.svelte.ts`) that mirrors the speech callbacks into a `$state` field.
+- [x] **3.2** Replaced the `deviceConfig.get(...)` read with a `deviceId` option on `startActiveListening`; the Whispering wrapper resolves it from `deviceConfig` and passes it in.
+- [x] **3.3** Replaced `defineQuery`-based enumeration with the package's plain `enumerateDevices()`; the Whispering wrapper re-wraps it in `defineQuery`.
+- [x] **3.4** The package owns the VAD assets: `assetBaseUrl` (default `/vad/`) on the core, and a Node subexport `@epicenter/recorder/vad-assets` resolves the asset source paths from the package's pinned deps. Whispering's `vite.config.ts` imports it; the direct `@ricky0123/vad-web` dep is dropped from Whispering.
+- [x] **3.5** `bun typecheck` green; web build copies all four VAD assets to `build/vad/`; verified the resolver finds the source files on disk.
 
 ### Phase 4: Vocab consumes it (payoff)
 

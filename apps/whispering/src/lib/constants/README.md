@@ -9,7 +9,7 @@ This directory holds immutable, cross-cutting values that more than one part of 
 A constant lives with the code that owns its meaning. Only put something here when it is **pure data** and **shared across modules** with no natural home. Everything else lives next to its owner:
 
 - **Logic and functions** (formatters, guards, validators, normalizers) live in `$lib/utils` or `$lib/services`, never here. Example: shortcut parsing, labeling, and matching live in `$lib/utils/key-binding.ts`.
-- **Types owned by one module** live in that module. Example: `DeviceAcquisitionOutcome` lives in `$lib/services/recorder/types.ts`.
+- **Types owned by one module** live in that module. Example: `DeviceAcquisitionOutcome` lives in the `@epicenter/recorder` package, which owns the recorder contract.
 - **Registries with behavior** live next to their service. The transcription and inference registries stay here only because their service-ID enums are shared vocabulary the workspace schema validates against.
 - **Build-target values** (platform identity) live behind the `#platform/*` seam (see below).
 
