@@ -7,7 +7,6 @@ import {
 	toggleVadRecording,
 } from '$lib/operations/recording';
 import { runRecipeOnClipboard } from '$lib/operations/recipe-clipboard';
-import { runTransformationOnClipboard } from '$lib/operations/transformation-clipboard';
 import type { Reach } from '$lib/utils/key-binding';
 
 /**
@@ -20,8 +19,8 @@ import type { Reach } from '$lib/utils/key-binding';
  * command registry.
  *
  * Platform split: `sharedCommands` exist in every build. Desktop-only commands
- * (the transformation picker, which captures a selection from another app and
- * opens a Tauri window) come from the `#platform/commands` seam, so a browser
+ * (the recipe picker, which captures a selection from another app and raises the
+ * in-app palette over it) come from the `#platform/commands` seam, so a browser
  * build never imports their Tauri-only code and never offers them as shortcuts.
  */
 
@@ -109,14 +108,6 @@ const sharedCommands = [
 		reach: 'global',
 		on: ['Pressed'],
 		run: () => toggleVadRecording(),
-	},
-	{
-		id: 'runTransformationOnClipboard',
-		title: 'Run transformation on clipboard',
-		category: 'Transformation',
-		reach: 'global',
-		on: ['Pressed'],
-		run: () => runTransformationOnClipboard(),
 	},
 	{
 		id: 'runRecipeOnClipboard',

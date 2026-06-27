@@ -449,24 +449,13 @@ const shortcuts = {
 		nullable(field.json(KeyBindingSchema)),
 		(): KeyBinding | null => ({ modifiers: [], keys: ['keyV'] }),
 	),
-	'shortcut.openTransformationPicker': defineKv(
+	'shortcut.openRecipePicker': defineKv(
 		nullable(field.json(KeyBindingSchema)),
 		(): KeyBinding | null => ({ modifiers: [], keys: ['keyT'] }),
 	),
-	'shortcut.runTransformationOnClipboard': defineKv(
-		nullable(field.json(KeyBindingSchema)),
-		(): KeyBinding | null => ({ modifiers: [], keys: ['keyR'] }),
-	),
-	// Recipe picker twins of the transformation shortcuts above. Default to unset
-	// while the transformation shortcuts still own `keyT`/`keyR`; W6 removes the
-	// transformation shortcuts and promotes these to those defaults.
-	'shortcut.openRecipePicker': defineKv(
-		nullable(field.json(KeyBindingSchema)),
-		(): KeyBinding | null => null,
-	),
 	'shortcut.runRecipeOnClipboard': defineKv(
 		nullable(field.json(KeyBindingSchema)),
-		(): KeyBinding | null => null,
+		(): KeyBinding | null => ({ modifiers: [], keys: ['keyR'] }),
 	),
 	// Navigation, focused by nature: Cmd+, (the platform "open preferences"
 	// gesture) opens settings in-app. A chord on a `focused` command still clamps
