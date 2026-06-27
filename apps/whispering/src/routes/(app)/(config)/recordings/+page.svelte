@@ -51,7 +51,6 @@
 	import { deleteRecordingsWithConfirmation } from '$lib/operations/recordings';
 	import { type Recording, recordings } from '$lib/state/recordings.svelte';
 	import { createCopyFn } from '$lib/utils/createCopyFn';
-	import LatestTransformationRunOutputByRecordingId from './LatestTransformationRunOutputByRecordingId.svelte';
 	import RecordingTranscriptCell from './RecordingTranscriptCell.svelte';
 	import RenderAudioUrl from './RenderAudioUrl.svelte';
 	import TranscriptionStatusBadge from './TranscriptionStatusBadge.svelte';
@@ -165,22 +164,6 @@
 				}),
 			cell: ({ row }) =>
 				renderComponent(RecordingTranscriptCell, { recordingId: row.id }),
-		},
-		{
-			id: 'latestTransformationRunOutput',
-			meta: { label: 'Latest Transformation Run Output' },
-			accessorFn: ({ id }) => id,
-			header: ({ column }) =>
-				renderComponent(SortableTableHeader, {
-					column,
-					headerText: 'Latest Transformation Run Output',
-				}),
-			cell: ({ getValue }) => {
-				const recordingId = getValue<string>();
-				return renderComponent(LatestTransformationRunOutputByRecordingId, {
-					recordingId,
-				});
-			},
 		},
 		{
 			id: 'audio',

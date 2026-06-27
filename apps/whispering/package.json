@@ -108,7 +108,6 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"@anthropic-ai/sdk": "^0.55.0",
 		"@aptabase/tauri": "^0.4.1",
 		"@aptabase/web": "^0.4.3",
 		"@epicenter/client": "workspace:*",
@@ -116,7 +115,6 @@
 		"@epicenter/field": "workspace:*",
 		"@epicenter/svelte": "workspace:*",
 		"@epicenter/workspace": "workspace:*",
-		"@google/generative-ai": "^0.24.1",
 		"@mistralai/mistralai": "^1.9.18",
 		"@ricky0123/vad-web": "^0.0.30",
 		"@standard-schema/spec": "catalog:",
@@ -142,7 +140,6 @@
 		"bits-ui": "catalog:",
 		"date-fns": "catalog:",
 		"dexie": "^4.0.11",
-		"diff": "^8.0.3",
 		"dompurify": "^3.4.10",
 		"elevenlabs": "^1.59.0",
 		"fflate": "catalog:",

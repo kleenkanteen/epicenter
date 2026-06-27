@@ -12,7 +12,6 @@ const soundSettingKeyMap = {
 	'vad-capture': 'sound.vadCapture',
 	'vad-stop': 'sound.vadStop',
 	transcriptionComplete: 'sound.transcriptionComplete',
-	transformationComplete: 'sound.transformationComplete',
 	recipeComplete: 'sound.recipeComplete',
 } as const satisfies Record<WhisperingSoundNames, string>;
 

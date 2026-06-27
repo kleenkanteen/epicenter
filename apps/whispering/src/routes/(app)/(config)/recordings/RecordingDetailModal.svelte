@@ -21,13 +21,11 @@
 	import { createCopyFn } from '$lib/utils/createCopyFn';
 	import DownloadRecordingButton from './actions/DownloadRecordingButton.svelte';
 	import TranscribeRecordingButton from './actions/TranscribeRecordingButton.svelte';
-	import TransformationPicker from './actions/TransformationPicker.svelte';
-	import ViewTransformationRunsDialog from './actions/ViewTransformationRunsDialog.svelte';
 
 	/**
 	 * The single detail surface for one recording: play it back, read and edit
-	 * its transcript and metadata, run transcription or a transformation,
-	 * download it, copy the transcript, or delete it.
+	 * its transcript and metadata, run transcription, download it, copy the
+	 * transcript, or delete it.
 	 *
 	 * The opener is supplied by the caller via the `trigger` snippet, so the
 	 * same modal can be reached from the transcript cell (the textarea preview)
@@ -165,7 +163,7 @@
 		<Modal.Header>
 			<Modal.Title>{recording.title || 'Untitled recording'}</Modal.Title>
 			<Modal.Description>
-				Play it back, edit the transcript, transcribe, transform, or download.
+				Play it back, edit the transcript, transcribe, or download.
 			</Modal.Description>
 		</Modal.Header>
 
@@ -197,18 +195,6 @@
 			<div class="flex flex-wrap gap-2">
 				<TranscribeRecordingButton
 					{recording}
-					variant="outline"
-					size="sm"
-					showLabel
-				/>
-				<TransformationPicker
-					recordingId={recording.id}
-					variant="outline"
-					size="sm"
-					showLabel
-				/>
-				<ViewTransformationRunsDialog
-					recordingId={recording.id}
 					variant="outline"
 					size="sm"
 					showLabel

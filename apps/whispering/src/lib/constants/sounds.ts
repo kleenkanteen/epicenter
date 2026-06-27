@@ -10,5 +10,4 @@ export type WhisperingSoundNames =
 	| 'vad-capture'
 	| 'vad-stop'
 	| 'transcriptionComplete'
-	| 'transformationComplete'
 	| 'recipeComplete';
