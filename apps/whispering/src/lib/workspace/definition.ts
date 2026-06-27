@@ -308,6 +308,20 @@ const transformation = {
 	),
 } as const;
 
+/**
+ * The single global AI default used for completions: which inference provider
+ * and model the Polish pass and every Recipe run against. There is no per-Recipe
+ * model or provider; this is the one place it lives. API keys and endpoints stay
+ * in deviceConfig (local, never synced); only the provider/model choice roams.
+ */
+const completion = {
+	'completion.provider': defineKv(
+		field.select(INFERENCE_PROVIDER_IDS),
+		() => 'Google' as const,
+	),
+	'completion.model': defineKv(field.string(), () => 'gemini-2.5-flash'),
+} as const;
+
 /** Anonymized event logging toggle (Aptabase). */
 const analytics = {
 	'analytics.enabled': defineKv(field.boolean(), () => true),
@@ -409,6 +423,7 @@ export function createWhispering({
 		...recording,
 		...defineTranscriptionSettings(defaultTranscriptionService),
 		...transformation,
+		...completion,
 		...analytics,
 		...shortcuts,
 	};
