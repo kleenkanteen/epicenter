@@ -12,7 +12,7 @@ import {
 	cleanupRecordingStream,
 	enumerateDevices,
 	getRecordingStream,
-} from '$lib/services/device-stream';
+} from '@epicenter/recorder';
 import { asDeviceIdentifier } from '$lib/services/recorder/types';
 import { deviceConfig } from '$lib/state/device-config.svelte';
 

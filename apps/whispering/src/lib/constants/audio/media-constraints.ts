@@ -4,11 +4,6 @@
 
 export const TIMESLICE_MS = 1000;
 
-/**
- * Whisper API recommended media track constraints
- * Mono channel at 16kHz for optimal transcription
- */
-export const WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS = {
-	channelCount: { ideal: 1 },
-	sampleRate: { ideal: 16_000 },
-} satisfies MediaTrackConstraints;
+// The recommended capture constraints moved into `@epicenter/recorder` with the
+// browser device-stream code; re-export so the constants barrel keeps the name.
+export { WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS } from '@epicenter/recorder';

@@ -1,0 +1,31 @@
+{
+	"name": "@epicenter/recorder",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"description": "Portable browser audio capture and voice-activity detection: stream acquisition, MediaRecorder, and Silero VAD.",
+	"keywords": [
+		"audio",
+		"recorder",
+		"microphone",
+		"voice-activity-detection",
+		"VAD",
+		"MediaRecorder",
+		"epicenter"
+	],
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ricky0123/vad-web": "catalog:",
+		"wellcrafted": "catalog:"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"typescript": "catalog:"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"license": "AGPL-3.0-or-later"
+}

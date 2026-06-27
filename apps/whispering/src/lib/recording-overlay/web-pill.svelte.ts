@@ -1,4 +1,4 @@
-import { foldMicLevel } from '$lib/recording-overlay/level';
+import { foldMicLevel } from '@epicenter/recorder';
 
 /**
  * Reactive mic level for the web pill. On desktop the level travels over a Tauri

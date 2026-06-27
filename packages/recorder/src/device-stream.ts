@@ -4,15 +4,23 @@ import {
 	type InferErrors,
 } from 'wellcrafted/error';
 import { Err, Ok, type Result, tryAsync } from 'wellcrafted/result';
-import { WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS } from '$lib/constants/audio';
-import type {
-	Device,
-	DeviceAcquisitionOutcome,
-	DeviceIdentifier,
-} from '$lib/services/recorder/types';
-import { asDeviceIdentifier } from '$lib/services/recorder/types';
+import {
+	asDeviceIdentifier,
+	type Device,
+	type DeviceAcquisitionOutcome,
+	type DeviceIdentifier,
+} from './devices';
 
-const DeviceStreamError = defineErrors({
+/**
+ * Whisper API recommended media track constraints: mono channel at 16kHz for
+ * optimal transcription. Applied to every `getUserMedia` call this module makes.
+ */
+export const WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS = {
+	channelCount: { ideal: 1 },
+	sampleRate: { ideal: 16_000 },
+} satisfies MediaTrackConstraints;
+
+export const DeviceStreamError = defineErrors({
 	PermissionDenied: ({ cause }: { cause: unknown }) => ({
 		message: `We need permission to see your microphones. Check your browser settings and try again. ${extractErrorMessage(cause)}`,
 		cause,
@@ -37,7 +45,7 @@ const DeviceStreamError = defineErrors({
 			"We couldn't connect to any microphones. Make sure they're plugged in and try again!",
 	}),
 });
-type DeviceStreamError = InferErrors<typeof DeviceStreamError>;
+export type DeviceStreamError = InferErrors<typeof DeviceStreamError>;
 
 export async function enumerateDevices(): Promise<
 	Result<Device[], DeviceStreamError>

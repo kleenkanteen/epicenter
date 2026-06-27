@@ -7,7 +7,7 @@ import {
 	cleanupRecordingStream,
 	enumerateDevices,
 	getRecordingStream,
-} from '$lib/services/device-stream';
+} from '@epicenter/recorder';
 import { categorizeBrowserStreamError } from './categorize-error';
 import type {
 	NavigatorRecordingParams,
