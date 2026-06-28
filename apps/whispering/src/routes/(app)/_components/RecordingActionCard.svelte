@@ -51,9 +51,8 @@
 
 <div
 	class={cn(
-		'w-full overflow-hidden rounded-lg border border-border/70 bg-card/60 text-foreground shadow-sm ring-1 ring-foreground/5 transition-[background-color,border-color,box-shadow,color] duration-200 hover:border-primary/55 hover:bg-card/75 hover:shadow-md hover:ring-primary/25',
-		controller.active &&
-			'border-destructive/45 bg-card/70 hover:border-destructive/60 hover:bg-destructive/10 hover:ring-destructive/25',
+		'w-full overflow-hidden rounded-3xl bg-card text-foreground shadow-sm transition-[box-shadow] duration-200',
+		controller.active && 'shadow-md ring-1 ring-destructive/15',
 	)}
 >
 	<Button
@@ -65,27 +64,36 @@
 		onclick={controller.toggle}
 		variant="ghost"
 		class={cn(
-			'min-h-24 w-full justify-start gap-3 rounded-none bg-transparent px-3.5 py-3.5 text-left hover:bg-card/70 sm:gap-4 sm:px-4',
+			'group h-auto w-full justify-start gap-3 rounded-none bg-transparent px-5 pt-5 pb-4 text-left hover:bg-transparent dark:hover:bg-transparent sm:gap-4',
 			controller.pending && 'cursor-wait',
 		)}
 	>
+		<!-- The glyph slot is the record CTA: idle = the brand --primary circle (this
+		app's primary action), active = a --destructive (red) circle, mirroring the
+		colors the floating pill already uses for live/stop. The icon (mic -> stop
+		square) and the active flag both come from the controller; this only paints.
+		Hover feedback lives on this circle (a slight scale + lift via group-hover),
+		not a fill behind the row: the button spans only the top zone, so a row fill
+		would cut a hard horizontal edge across the rounded card above the footer. -->
 		<span
 			aria-hidden="true"
 			class={cn(
-				'relative flex size-14 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background/70 text-foreground shadow-inner transition-colors duration-200 sm:size-16',
-				controller.active &&
-					'border-destructive/45 bg-destructive/10 text-destructive',
+				'relative flex size-14 shrink-0 items-center justify-center rounded-full shadow-lg ring-4 transition-[transform,box-shadow,colors] duration-200 group-hover:scale-[1.04] group-hover:shadow-xl sm:size-16',
+				controller.active
+					? 'bg-destructive text-white shadow-destructive/30 ring-destructive/15'
+					: 'bg-primary text-primary-foreground shadow-primary/25 ring-primary/10',
 			)}
 		>
 			{#if controller.pending}
-				<Spinner class="size-7" />
+				<Spinner class="size-7 text-current" />
 			{:else if controller.active && showsLiveMeter}
 				<!-- Live capture: the glyph slot becomes the meter, the same bars the
-				floating pill draws, scaled to fit the box. -->
+				floating pill draws, scaled to fit the box. White bars read on the red
+				(--destructive) recording circle. -->
 				<LevelMeter
 					level={webPillLevel.level}
 					class="gap-[2px]"
-					barClass="w-[2px] bg-destructive"
+					barClass="w-[2px] bg-white"
 					minPx={3}
 					maxPx={28}
 				/>
@@ -102,9 +110,9 @@
 					>
 						<VadIndicator
 							signals={controller.vad}
-							dimClass="bg-destructive/40"
-							litClass="bg-destructive"
-							spinnerClass="text-muted-foreground"
+							dimClass="bg-white/40"
+							litClass="bg-white"
+							spinnerClass="text-white/70"
 						/>
 					</span>
 				{/if}
@@ -156,9 +164,7 @@
 	its live footer is empty and the slot collapses. -->
 	{#if controller.active}
 		{#if controller.cancel}
-			<div
-				class="flex justify-center border-t border-border/60 bg-background/20 px-3 py-2"
-			>
+			<div class="flex justify-center px-5 pb-5 pt-1">
 				<Button
 					tooltip="Cancel recording and discard audio"
 					onclick={() => controller.cancel?.()}
@@ -171,7 +177,7 @@
 			</div>
 		{/if}
 	{:else if footer}
-		<div class="border-t border-border/60 bg-background/20 px-3 py-2">
+		<div class="px-5 pb-5 pt-1">
 			{@render footer()}
 		</div>
 	{/if}
