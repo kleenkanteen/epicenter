@@ -24,11 +24,11 @@ import { BUILTIN_RECIPES } from '$lib/state/builtin-recipes';
 import type { Recipe } from '$lib/workspace';
 
 function createRecipes() {
-	const map = fromTable(whispering.tables.recipes);
+	const view = fromTable(whispering.tables.recipes);
 
 	// Memoize sorted array with $derived for referential stability.
 	const sorted = $derived(
-		[...map.values()].sort((a, b) => a.name.localeCompare(b.name)),
+		view.all.toSorted((a, b) => a.name.localeCompare(b.name)),
 	);
 
 	// Built-ins first, then the user's own (alphabetical). This is the list the
@@ -36,10 +36,6 @@ function createRecipes() {
 	const pickable = $derived([...BUILTIN_RECIPES, ...sorted]);
 
 	return {
-		[Symbol.dispose]() {
-			map[Symbol.dispose]();
-		},
-
 		/**
 		 * Every recipe the user can pick: built-ins first, then their own. This is
 		 * what the picker and the library list. Memoized via `$derived`.
@@ -48,7 +44,7 @@ function createRecipes() {
 			return pickable;
 		},
 
-		/** Create or update a recipe. Writes to Yjs, observer updates the SvelteMap. */
+		/** Create or update a recipe. Writes to Yjs; the view re-reads on the observer signal. */
 		set(recipe: Recipe) {
 			whispering.tables.recipes.set(recipe);
 		},
@@ -61,10 +57,6 @@ function createRecipes() {
 }
 
 export const recipes = createRecipes();
-
-if (import.meta.hot) {
-	import.meta.hot.dispose(() => recipes[Symbol.dispose]());
-}
 
 /**
  * Generate a blank Recipe row: empty name and instructions, no icon. Ready to
