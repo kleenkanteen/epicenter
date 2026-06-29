@@ -78,7 +78,7 @@
 		<span
 			aria-hidden="true"
 			class={cn(
-				'relative flex size-14 shrink-0 items-center justify-center rounded-full shadow-lg ring-4 transition-[transform,box-shadow,colors] duration-200 group-hover:scale-[1.04] group-hover:shadow-xl sm:size-16',
+				'relative flex size-14 shrink-0 items-center justify-center rounded-full shadow-lg ring-4 transition-[transform,box-shadow,background-color,color] duration-200 group-hover:scale-[1.04] group-hover:shadow-xl sm:size-16',
 				controller.active
 					? 'bg-destructive text-white shadow-destructive/30 ring-destructive/15'
 					: 'bg-primary text-primary-foreground shadow-primary/25 ring-primary/10',
@@ -97,25 +97,6 @@
 					minPx={3}
 					maxPx={28}
 				/>
-				{#if controller.vad}
-					<!-- VAD session: the same dim-dot -> lit-dot -> spinner indicator the
-					floating pill shows beside its meter, here in the glyph's corner. The
-					bars track loudness; this dot tracks whether VAD has latched onto speech
-					and becomes a spinner while a previous phrase is still transcribing. On
-					'/' the pill yields the recording phase to this card, so this is the
-					only place that last signal shows. The signals come from this card's own
-					controller (present only for VAD), not a global lookup. -->
-					<span
-						class="absolute top-0.5 right-0.5 flex size-4 items-center justify-center"
-					>
-						<VadIndicator
-							signals={controller.vad}
-							dimClass="bg-white/40"
-							litClass="bg-white"
-							spinnerClass="text-white/70"
-						/>
-					</span>
-				{/if}
 			{:else}
 				{@const Icon = controller.icon}
 				<span
@@ -137,8 +118,26 @@
 			<span class="truncate text-base font-semibold leading-none sm:text-lg">
 				{controller.label}
 			</span>
-			<span class="truncate text-xs font-medium text-muted-foreground sm:text-sm">
-				{controller.description}
+			<span
+				class="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground sm:text-sm"
+			>
+				{#if controller.active && showsLiveMeter && controller.vad}
+					<!-- VAD speech-latch indicator: the same dim-dot -> lit-dot -> spinner the
+					floating pill shows, here inline with the status text instead of in the
+					meter circle's corner (where it read as a dismiss badge and crowded the
+					loudness bars). The circle owns loudness alone now; this line owns VAD's
+					decision: dim while armed, red (--destructive, the recording accent) once
+					speech latches, a spinner while a previous phrase still transcribes. Gated
+					exactly like the in-card meter (active and web), so on '/' it shows only
+					here. The signals come from this card's own controller. -->
+					<VadIndicator
+						signals={controller.vad}
+						dimClass="bg-muted-foreground/40"
+						litClass="bg-destructive"
+						spinnerClass="text-destructive"
+					/>
+				{/if}
+				<span class="truncate">{controller.description}</span>
 			</span>
 		</span>
 		{#if controller.shortcutLabel}
