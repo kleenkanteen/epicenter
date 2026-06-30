@@ -1,12 +1,12 @@
 import { platformCommands } from '#platform/commands';
 import { goto } from '$app/navigation';
 import { pushToTalk } from '$lib/operations/push-to-talk';
+import { runRecipeOnClipboard } from '$lib/operations/recipe-clipboard';
 import {
 	cancelRecording,
 	toggleManualRecording,
 	toggleVadRecording,
 } from '$lib/operations/recording';
-import { runRecipeOnClipboard } from '$lib/operations/recipe-clipboard';
 import type { Reach } from '$lib/utils/key-binding';
 
 /**
