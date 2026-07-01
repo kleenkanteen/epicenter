@@ -14,6 +14,16 @@ const config = {
 		alias: {
 			$routes: './src/routes',
 		},
+		// No `csp` block here on purpose. adapter-static prerenders every page,
+		// and SvelteKit's prerender path only ever emits the *enforcing*
+		// `<meta http-equiv="content-security-policy">` tag: `reportOnly` is
+		// never read when `state.prerendering` is true (see
+		// @sveltejs/kit/src/runtime/server/page/render.js). There is no way to
+		// get a Report-Only trial out of `kit.csp` for this app. The CSP for
+		// this deploy is delivered entirely via `static/_headers` (a real
+		// `Content-Security-Policy-Report-Only` HTTP header on Cloudflare
+		// Workers Static Assets) instead. See that file for the policy and
+		// rollout plan.
 	},
 
 	// Consult https://svelte.dev/docs/kit/integrations
