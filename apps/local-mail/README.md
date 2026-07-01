@@ -47,11 +47,9 @@ infisical run --env=dev --path=/apps/local-mail -- \
 Build or refresh the mirror:
 
 ```sh
-LOCAL_MAIL_ACCOUNT=you@example.com \
 infisical run --env=dev --path=/apps/local-mail -- \
   bun run src/bin.ts sync --full
 
-LOCAL_MAIL_ACCOUNT=you@example.com \
 infisical run --env=dev --path=/apps/local-mail -- \
   bun run src/bin.ts sync --watch
 ```
@@ -59,16 +57,17 @@ infisical run --env=dev --path=/apps/local-mail -- \
 Query the mirror:
 
 ```sh
-LOCAL_MAIL_ACCOUNT=you@example.com \
 bun run src/bin.ts query "SELECT subject, sender FROM messages WHERE deleted = 0 ORDER BY internal_date DESC LIMIT 10"
 ```
 
 Serve tools to an MCP host:
 
 ```sh
-LOCAL_MAIL_ACCOUNT=you@example.com \
 bun run src/bin.ts mcp
 ```
+
+When more than one account is connected, set `LOCAL_MAIL_ACCOUNT` to choose
+which mirror `sync`, `query`, and `mcp` should use.
 
 Tools:
 
@@ -79,7 +78,8 @@ Tools:
 ## Config
 
 - `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET`: Google OAuth Desktop client keys.
-- `LOCAL_MAIL_ACCOUNT`: account email for `sync`, `query`, and `mcp`.
+- `LOCAL_MAIL_ACCOUNT`: optional account override for `sync`, `query`, and
+  `mcp`. Required only when more than one account is connected.
 - `LOCAL_MAIL_DIR`: data directory override.
 - `LOCAL_MAIL_TOKEN_FILE`: token file override.
 - `LOCAL_MAIL_GMAIL_API_BASE`: Gmail API base URL for tests.

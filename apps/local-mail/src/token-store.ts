@@ -1,6 +1,8 @@
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Value } from 'typebox/value';
+import { Err, Ok, type Result } from 'wellcrafted/result';
+import type { AppConfig } from './config.ts';
 import { type TokenSet, TokenSetSchema } from './tokens.ts';
 
 /**
@@ -14,8 +16,27 @@ import { type TokenSet, TokenSetSchema } from './tokens.ts';
  */
 export type TokenStore = {
 	get(accountEmail: string): Promise<TokenSet | null>;
+	listAccounts(): Promise<string[]>;
 	set(token: TokenSet): Promise<void>;
 };
+
+export async function resolveAccount(
+	config: AppConfig,
+	store: TokenStore,
+): Promise<Result<string, { message: string }>> {
+	if (config.account) return Ok(config.account);
+
+	const accounts = await store.listAccounts();
+	if (accounts.length === 1) return Ok(accounts[0] as string);
+	if (accounts.length === 0) {
+		return Err({
+			message: 'No Gmail account connected. Run "local-mail connect" first.',
+		});
+	}
+	return Err({
+		message: `Multiple Gmail accounts connected (${accounts.join(', ')}). Set LOCAL_MAIL_ACCOUNT to choose one.`,
+	});
+}
 
 /**
  * The `0600` JSON-file token store at `<data-dir>/credentials.json` (or wherever
@@ -25,6 +46,15 @@ export type TokenStore = {
  * and treats a malformed entry as absent.
  */
 export function createFileTokenStore(filePath: string): TokenStore {
+	const parseToken = (raw: string | undefined): TokenSet | null => {
+		if (!raw) return null;
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			return Value.Check(TokenSetSchema, parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	};
 	const load = (): Record<string, string> => {
 		try {
 			const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
@@ -42,14 +72,13 @@ export function createFileTokenStore(filePath: string): TokenStore {
 	};
 	return {
 		async get(accountEmail) {
-			const raw = load()[accountEmail];
-			if (!raw) return null;
-			try {
-				const parsed: unknown = JSON.parse(raw);
-				return Value.Check(TokenSetSchema, parsed) ? parsed : null;
-			} catch {
-				return null;
-			}
+			return parseToken(load()[accountEmail]);
+		},
+		async listAccounts() {
+			return Object.entries(load())
+				.filter(([, raw]) => parseToken(raw) !== null)
+				.map(([accountEmail]) => accountEmail)
+				.sort();
 		},
 		async set(token) {
 			const map = load();

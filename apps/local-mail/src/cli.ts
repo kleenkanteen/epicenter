@@ -8,7 +8,7 @@ import { dbPath } from './paths.ts';
 import { queryMail } from './query.ts';
 import { runSyncLoop, type SyncOutcome, syncMailbox } from './sync.ts';
 import { createTokenManager } from './token-manager.ts';
-import { createFileTokenStore } from './token-store.ts';
+import { createFileTokenStore, resolveAccount } from './token-store.ts';
 
 export type ParsedArgs = {
 	command: string;
@@ -145,9 +145,7 @@ async function runConnect(args: ParsedArgs): Promise<number> {
 	await store.set(token);
 	console.log(`Connected ${token.accountEmail}.`);
 	console.log(`Tokens stored in ${config.credentialsPath}.`);
-	console.log(
-		`Next: set LOCAL_MAIL_ACCOUNT=${token.accountEmail} and run "local-mail sync --full".`,
-	);
+	console.log(`Next: run "local-mail sync --full".`);
 	return 0;
 }
 
@@ -202,9 +200,12 @@ function printOutcome(db: MailDb, outcome: SyncOutcome): void {
 async function runSync(args: ParsedArgs): Promise<number> {
 	const config = loadConfig();
 	const store = createFileTokenStore(config.credentialsPath);
-	const accountEmail = config.account;
-	if (!accountEmail) {
-		console.error('Set LOCAL_MAIL_ACCOUNT to the account email from connect.');
+	const { data: accountEmail, error: accountError } = await resolveAccount(
+		config,
+		store,
+	);
+	if (accountError) {
+		console.error(accountError.message);
 		return 1;
 	}
 	const token = await store.get(accountEmail);
@@ -260,12 +261,17 @@ async function runQuery(args: ParsedArgs): Promise<number> {
 		return 1;
 	}
 	const config = loadConfig();
-	if (!config.account) {
-		console.error('Set LOCAL_MAIL_ACCOUNT to the connected account email.');
+	const store = createFileTokenStore(config.credentialsPath);
+	const { data: accountEmail, error: accountError } = await resolveAccount(
+		config,
+		store,
+	);
+	if (accountError) {
+		console.error(accountError.message);
 		return 1;
 	}
 	const { data, error } = queryMail({
-		dbPath: dbPath(config.dataDir, config.account),
+		dbPath: dbPath(config.dataDir, accountEmail),
 		sql,
 	});
 	if (error) {

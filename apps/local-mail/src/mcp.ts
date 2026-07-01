@@ -19,13 +19,17 @@ import { queryMail } from './query.ts';
 import { readMailStatus } from './status.ts';
 import { syncMailbox } from './sync.ts';
 import { createTokenManager } from './token-manager.ts';
-import { createFileTokenStore, type TokenStore } from './token-store.ts';
+import {
+	createFileTokenStore,
+	resolveAccount,
+	type TokenStore,
+} from './token-store.ts';
 import { VERSION } from './cli.ts';
 import { loadConfig } from './config.ts';
 
 type ToolContext = {
 	config: AppConfig;
-	accountEmail: string | null;
+	accountEmail: string;
 	store: TokenStore;
 	now: () => number;
 };
@@ -55,11 +59,6 @@ function defineMcpTool<S extends TObject>(tool: {
 	return { ...tool, run: (ctx, args) => tool.run(ctx, args as Static<S>) };
 }
 
-function accountRequired(ctx: ToolContext): Result<string, { message: string }> {
-	if (ctx.accountEmail) return Ok(ctx.accountEmail);
-	return Err({ message: 'Set LOCAL_MAIL_ACCOUNT to the connected account email.' });
-}
-
 const TOOLS: ToolDescriptor[] = [
 	defineMcpTool({
 		name: 'query',
@@ -73,10 +72,8 @@ const TOOLS: ToolDescriptor[] = [
 		}),
 		tier: 'read',
 		async run(ctx, args) {
-			const { data: accountEmail, error } = accountRequired(ctx);
-			if (error) return Err(error);
 			return queryMail({
-				dbPath: dbPath(ctx.config.dataDir, accountEmail),
+				dbPath: dbPath(ctx.config.dataDir, ctx.accountEmail),
 				sql: args.sql,
 			});
 		},
@@ -89,12 +86,10 @@ const TOOLS: ToolDescriptor[] = [
 		input: Type.Object({}),
 		tier: 'read',
 		async run(ctx) {
-			const { data: accountEmail, error } = accountRequired(ctx);
-			if (error) return Err(error);
 			return Ok(
 				await readMailStatus({
 					config: ctx.config,
-					accountEmail,
+					accountEmail: ctx.accountEmail,
 					store: ctx.store,
 				}),
 			);
@@ -114,12 +109,10 @@ const TOOLS: ToolDescriptor[] = [
 		}),
 		tier: 'write',
 		async run(ctx, args) {
-			const { data: accountEmail, error } = accountRequired(ctx);
-			if (error) return Err(error);
-			const token = await ctx.store.get(accountEmail);
+			const token = await ctx.store.get(ctx.accountEmail);
 			if (!token) {
 				return Err({
-					message: `No token stored for ${accountEmail}. Run "local-mail connect" first.`,
+					message: `No token stored for ${ctx.accountEmail}. Run "local-mail connect" first.`,
 				});
 			}
 			const tokens = createTokenManager({
@@ -129,7 +122,7 @@ const TOOLS: ToolDescriptor[] = [
 				now: ctx.now,
 			});
 			const client = createGmailClient({ config: ctx.config, tokens });
-			const db = openMailDb(dbPath(ctx.config.dataDir, accountEmail));
+			const db = openMailDb(dbPath(ctx.config.dataDir, ctx.accountEmail));
 			try {
 				return Ok(
 					await syncMailbox(
@@ -157,12 +150,7 @@ function toCallResult({ data, error }: ToolOutcome): CallToolResult {
 export async function runMcpServer(_args: ParsedArgs): Promise<number> {
 	const config = loadConfig();
 	const store = createFileTokenStore(config.credentialsPath);
-	const ctx: ToolContext = {
-		config,
-		accountEmail: config.account,
-		store,
-		now: () => Date.now(),
-	};
+	const now = () => Date.now();
 
 	const server = new Server(
 		{ name: 'local-mail', version: VERSION },
@@ -200,6 +188,22 @@ export async function runMcpServer(_args: ParsedArgs): Promise<number> {
 				`Invalid arguments for "${tool.name}": ${detail}`,
 			);
 		}
+		const { data: accountEmail, error: accountError } = await resolveAccount(
+			config,
+			store,
+		);
+		if (accountError) {
+			return {
+				content: [{ type: 'text', text: accountError.message }],
+				isError: true,
+			};
+		}
+		const ctx: ToolContext = {
+			config,
+			accountEmail,
+			store,
+			now,
+		};
 		return toCallResult(await tool.run(ctx, callArgs));
 	});
 
