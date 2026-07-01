@@ -81,7 +81,7 @@ async function sync(
 ): Promise<void> {
 	const config = loadConfig();
 	const store = createFileTokenStore(config.credentialsPath);
-	const accountEmail = config.accountOverride;
+	const accountEmail = config.account;
 	if (!accountEmail) {
 		console.error(
 			'Set LOCAL_MAIL_ACCOUNT to the account email seeded via `seed-token`.',

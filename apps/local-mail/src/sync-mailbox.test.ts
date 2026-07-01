@@ -81,7 +81,7 @@ const config: AppConfig = {
 	fullBackstopDays: 30,
 	pageSize: 100,
 	credentialsPath: '/tmp/local-mail-test/credentials.json',
-	accountOverride: null,
+	account: null,
 };
 
 describe('syncMailbox: FULL pull', () => {

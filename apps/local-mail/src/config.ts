@@ -32,7 +32,7 @@ export type AppConfig = {
 	pageSize: number;
 	/** Absolute path to the `0600` `credentials.json` holding the account's OAuth tokens. */
 	credentialsPath: string;
-	accountOverride: string | null;
+	account: string | null;
 };
 
 const DEFAULT_API_BASE = 'https://gmail.googleapis.com';
@@ -58,6 +58,6 @@ export function loadConfig(): AppConfig {
 		pageSize: 100,
 		credentialsPath:
 			env('LOCAL_MAIL_TOKEN_FILE') ?? credentialsFilePath(dataDir),
-		accountOverride: env('LOCAL_MAIL_ACCOUNT') ?? null,
+		account: env('LOCAL_MAIL_ACCOUNT') ?? null,
 	};
 }
