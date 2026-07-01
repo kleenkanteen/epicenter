@@ -11,7 +11,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { Buffer } from 'node:buffer';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type MailDb, openMailDb } from './db.ts';
@@ -77,6 +77,10 @@ function base64Url(input: string): string {
 		.replace(/\+/g, '-')
 		.replace(/\//g, '_')
 		.replace(/=+$/g, '');
+}
+
+function mode(path: string): number {
+	return statSync(path).mode & 0o777;
 }
 
 describe('full pull page ingestion', () => {
@@ -242,6 +246,21 @@ describe('full pull page ingestion', () => {
 
 		expect(messageRow(db, 'm1')?.body_text).toBeNull();
 		cleanup();
+	});
+
+	test('creates account dirs as 0700 and db files as 0600', () => {
+		const tmp = tempDir();
+		const accountDir = join(tmp.dir, 'you@example.com');
+		const path = join(accountDir, 'mail.db');
+		const db = openMailDb(path);
+		db.ingestFullPullPage([message()], 's1');
+
+		expect(mode(accountDir)).toBe(0o700);
+		expect(mode(path)).toBe(0o600);
+		expect(mode(`${path}-wal`)).toBe(0o600);
+		expect(mode(`${path}-shm`)).toBe(0o600);
+		db.close();
+		tmp.cleanup();
 	});
 });
 

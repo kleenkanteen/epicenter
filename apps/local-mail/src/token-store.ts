@@ -34,7 +34,9 @@ export function createFileTokenStore(filePath: string): TokenStore {
 		}
 	};
 	const save = (map: Record<string, string>) => {
-		mkdirSync(dirname(filePath), { recursive: true });
+		const dir = dirname(filePath);
+		mkdirSync(dir, { recursive: true, mode: 0o700 });
+		chmodSync(dir, 0o700);
 		writeFileSync(filePath, JSON.stringify(map, null, 2));
 		chmodSync(filePath, 0o600);
 	};

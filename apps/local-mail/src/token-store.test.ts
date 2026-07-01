@@ -8,9 +8,9 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createFileTokenStore } from './token-store.ts';
 import type { TokenSet } from './tokens.ts';
 
@@ -20,6 +20,10 @@ function tempTokenFile() {
 		path: join(dir, 'credentials.json'),
 		cleanup: () => rmSync(dir, { recursive: true, force: true }),
 	};
+}
+
+function mode(path: string): number {
+	return statSync(path).mode & 0o777;
 }
 
 describe('seed-token bootstrap shape round-trips through the real store', () => {
@@ -40,6 +44,8 @@ describe('seed-token bootstrap shape round-trips through the real store', () => 
 
 		expect(read).not.toBeNull();
 		expect(read?.refreshToken).toBe('a-real-refresh-token');
+		expect(mode(dirname(path))).toBe(0o700);
+		expect(mode(path)).toBe(0o600);
 		cleanup();
 	});
 

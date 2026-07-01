@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { Buffer } from 'node:buffer';
-import { mkdirSync } from 'node:fs';
+import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { type GmailLabel, type GmailMessage, headerValue } from './schema.ts';
 
@@ -101,6 +101,26 @@ function bodyText(message: GmailMessage): string | null {
 	return decoded === null ? null : stripHtmlTags(decoded);
 }
 
+function secureDir(path: string): void {
+	mkdirSync(path, { recursive: true, mode: 0o700 });
+	chmodSync(path, 0o700);
+}
+
+function chmodIfExists(path: string, mode: number): void {
+	try {
+		chmodSync(path, mode);
+	} catch (error) {
+		const code = (error as { code?: unknown }).code;
+		if (code !== 'ENOENT') throw error;
+	}
+}
+
+function secureDbFiles(path: string): void {
+	chmodIfExists(path, 0o600);
+	chmodIfExists(`${path}-wal`, 0o600);
+	chmodIfExists(`${path}-shm`, 0o600);
+}
+
 export function openMailDb(
 	path: string,
 	{ readonly = false }: { readonly?: boolean } = {},
@@ -108,7 +128,7 @@ export function openMailDb(
 	// See `apps/local-books/src/db.ts` for why a read-only handle skips every
 	// mutation below: it must never write, and must not fail with SQLITE_BUSY
 	// contending for a lock a concurrent sync already holds.
-	if (!readonly) mkdirSync(dirname(path), { recursive: true });
+	if (!readonly) secureDir(dirname(path));
 	const db = new Database(
 		path,
 		readonly ? { readonly: true } : { create: true },
@@ -121,6 +141,7 @@ export function openMailDb(
 		db.exec('PRAGMA busy_timeout = 5000;');
 		db.exec('PRAGMA synchronous = NORMAL;');
 		db.exec('PRAGMA foreign_keys = ON;');
+		secureDbFiles(path);
 		db.exec(
 			`CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT);`,
 		);
@@ -153,6 +174,7 @@ export function openMailDb(
 			);
 		}
 		setMetaStmt.run('schema_version', SCHEMA_VERSION);
+		secureDbFiles(path);
 
 		db.exec(`
 			CREATE TABLE IF NOT EXISTS messages (
@@ -250,6 +272,7 @@ export function openMailDb(
 				for (const message of messages) upsertMessage(message, syncedAt);
 			});
 			tx.immediate();
+			secureDbFiles(path);
 		},
 
 		/** Replace the label set (small, returned complete by `labels.list` every call). */
@@ -261,6 +284,7 @@ export function openMailDb(
 				}
 			});
 			tx.immediate();
+			secureDbFiles(path);
 		},
 
 		/**
@@ -275,6 +299,7 @@ export function openMailDb(
 				setMetaStmt.run('last_synced_at', syncedAt);
 			});
 			tx.immediate();
+			secureDbFiles(path);
 		},
 
 		/**
@@ -324,6 +349,7 @@ export function openMailDb(
 				setMetaStmt.run('last_synced_at', syncedAt);
 			});
 			tx.immediate();
+			secureDbFiles(path);
 		},
 
 		close(): void {
