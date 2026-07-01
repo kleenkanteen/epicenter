@@ -86,7 +86,7 @@
 			)}
 		>
 			{#if controller.pending}
-				<Spinner class="size-7 text-current" />
+				<Spinner class="size-7" />
 			{:else if controller.active && showsLiveMeter}
 				<!-- Live capture: the glyph slot becomes the meter, the same bars the
 				floating pill draws, scaled to fit the box. White bars read on the red
