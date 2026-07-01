@@ -70,11 +70,6 @@
 			"skillPath": "skills/engineering/triage/SKILL.md",
 			"computedHash": "2b6efb6da12d92551772fcc04acf331f4e0e6f7bd9d4cb23ce0b301e0b128feb"
 		},
-		"two-factor-authentication-best-practices": {
-			"source": "better-auth/skills",
-			"sourceType": "github",
-			"computedHash": "7e297aaf887e11fdc03e52bdbf44974e161e8f7c393170ced7dc66cace4f6d46"
-		},
 		"write-a-skill": {
 			"source": "mattpocock/skills",
 			"sourceType": "github",
