@@ -44,8 +44,7 @@
 	   vertical metrics sit text ink ~2px high in a line box, so every icon
 	   beside a label reads as drooping. system-ui (SF Pro, Segoe UI) centers. */
 	--font-sans:
-		system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-		sans-serif;
+		system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 	--radius: 0.625rem;
 	/* Dark mode already separates --background from --card (0.129 vs 0.208); light mode
 	   collapsing both to pure white is the asymmetry. This barely-there warm-neutral tint
