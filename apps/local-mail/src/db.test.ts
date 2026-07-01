@@ -115,13 +115,13 @@ describe('full pull page ingestion', () => {
 				message({
 					id: 'newest',
 					threadId: 'thread-1',
-					internalDate: '2000',
+					internalDate: '1000',
 					snippet: 'newest snippet',
 				}),
 				message({
 					id: 'older',
 					threadId: 'thread-1',
-					internalDate: '1000',
+					internalDate: '999',
 					snippet: 'older snippet',
 				}),
 			],
@@ -136,7 +136,7 @@ describe('full pull page ingestion', () => {
 				`SELECT thread_id, id AS last_message_id, snippet
 				 FROM messages
 				 WHERE deleted = 0 AND thread_id = 'thread-1'
-				 ORDER BY CAST(internal_date AS INTEGER) DESC
+				 ORDER BY internal_date DESC
 				 LIMIT 1`,
 			)
 			.get();
@@ -156,13 +156,13 @@ describe('full pull page ingestion', () => {
 				message({
 					id: 'newest',
 					threadId: 'thread-1',
-					internalDate: '2000',
+					internalDate: '1000',
 					snippet: 'newest snippet',
 				}),
 				message({
 					id: 'older',
 					threadId: 'thread-1',
-					internalDate: '1000',
+					internalDate: '999',
 					snippet: 'older snippet',
 				}),
 			],
@@ -181,7 +181,7 @@ describe('full pull page ingestion', () => {
 				`SELECT id AS last_message_id
 				 FROM messages
 				 WHERE deleted = 0 AND thread_id = 'thread-1'
-				 ORDER BY CAST(internal_date AS INTEGER) DESC
+				 ORDER BY internal_date DESC
 				 LIMIT 1`,
 			)
 			.get();

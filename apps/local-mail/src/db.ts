@@ -32,7 +32,7 @@ import { type GmailLabel, type GmailMessage, headerValue } from './schema.ts';
  * gate below.
  */
 
-export const SCHEMA_VERSION = '2';
+export const SCHEMA_VERSION = '3';
 
 const CURSOR_KEYS = [
 	'history_id',
@@ -87,18 +87,24 @@ function stripHtmlTags(html: string): string {
 }
 
 function bodyText(message: GmailMessage): string | null {
-	const parts = flattenParts(message.payload as GmailMessagePart | undefined);
-	const plain = parts.find(
-		(part) => part.mimeType?.toLowerCase() === 'text/plain' && part.body?.data,
-	);
-	if (plain?.body?.data) return decodeBase64Url(plain.body.data);
+	try {
+		// `payload.parts` is the unvalidated Gmail wire boundary until TypeBox exposes a recursive schema here.
+		const parts = flattenParts(message.payload as GmailMessagePart | undefined);
+		const plain = parts.find(
+			(part) =>
+				part.mimeType?.toLowerCase() === 'text/plain' && part.body?.data,
+		);
+		if (plain?.body?.data) return decodeBase64Url(plain.body.data);
 
-	const html = parts.find(
-		(part) => part.mimeType?.toLowerCase() === 'text/html' && part.body?.data,
-	);
-	if (!html?.body?.data) return null;
-	const decoded = decodeBase64Url(html.body.data);
-	return decoded === null ? null : stripHtmlTags(decoded);
+		const html = parts.find(
+			(part) => part.mimeType?.toLowerCase() === 'text/html' && part.body?.data,
+		);
+		if (!html?.body?.data) return null;
+		const decoded = decodeBase64Url(html.body.data);
+		return decoded === null ? null : stripHtmlTags(decoded);
+	} catch {
+		return null;
+	}
 }
 
 function secureDir(path: string): void {
@@ -183,7 +189,7 @@ export function openMailDb(
 				thread_id     TEXT GENERATED ALWAYS AS (json_extract(raw, '$.threadId')) VIRTUAL,
 				snippet       TEXT GENERATED ALWAYS AS (json_extract(raw, '$.snippet')) STORED,
 				label_ids     TEXT GENERATED ALWAYS AS (json_extract(raw, '$.labelIds')) VIRTUAL,
-				internal_date TEXT GENERATED ALWAYS AS (json_extract(raw, '$.internalDate')) STORED,
+				internal_date INTEGER GENERATED ALWAYS AS (CAST(json_extract(raw, '$.internalDate') AS INTEGER)) STORED,
 				subject       TEXT,
 				sender        TEXT,
 				body_text     TEXT,
