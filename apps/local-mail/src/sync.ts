@@ -111,7 +111,7 @@ function failedOutcome(
  * Full pull: paginate `messages.list`, fetch each page's messages concurrently
  * via `messages.get(format=full)`, and commit per page (`ingestFullPullPage`).
  * Cursor advances only once, via `finishFullPull`, after every page succeeds
- * and `getProfile` gives the post-pull `historyId` baseline. Committing a page
+ * against the pre-pull `getProfile` baseline. Committing a page
  * that later fails means a retry re-pulls from `messages.list`'s first page
  * again (upserts are idempotent, so this repeats work rather than losing it,
  * the same tradeoff `apps/local-books` makes on a failed FULL pull).
@@ -348,17 +348,6 @@ export async function syncMailbox(
 		log('sync: historyId expired mid-pass, falling back to FULL');
 	}
 
-	const { upserted, failure } = await fullPull(deps, syncedAt);
-	if (failure) {
-		return failedOutcome(
-			'FULL',
-			decision.reason,
-			cursorBefore,
-			failure,
-			upserted,
-		);
-	}
-
 	const profile = await deps.client.getProfile();
 	if (profile.error) {
 		return failedOutcome(
@@ -366,6 +355,16 @@ export async function syncMailbox(
 			decision.reason,
 			cursorBefore,
 			profile.error,
+		);
+	}
+
+	const { upserted, failure } = await fullPull(deps, syncedAt);
+	if (failure) {
+		return failedOutcome(
+			'FULL',
+			decision.reason,
+			cursorBefore,
+			failure,
 			upserted,
 		);
 	}

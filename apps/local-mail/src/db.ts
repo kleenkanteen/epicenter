@@ -264,9 +264,9 @@ export function openMailDb(
 		},
 
 		/**
-		 * Closes out a FULL pull: records the `historyId` baseline (read from
-		 * `users.getProfile` right after the pull completes, per Gmail's own
-		 * sync recipe) as the cursor incremental polling starts from next.
+		 * Closes out a FULL pull: records the `historyId` baseline read before
+		 * page 1, so changes during the pull replay idempotently instead of
+		 * disappearing behind a post-pull cursor.
 		 */
 		finishFullPull(historyId: string, syncedAt: string): void {
 			const tx = db.transaction(() => {

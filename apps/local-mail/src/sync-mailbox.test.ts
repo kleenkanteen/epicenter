@@ -126,6 +126,36 @@ describe('syncMailbox: FULL pull', () => {
 		cleanup();
 	});
 
+	test('full pull reads the profile baseline before listing page 1', async () => {
+		const { db, cleanup } = tempDb();
+		const mailbox = new Map([['m1', message('m1')]]);
+		const order: string[] = [];
+		const client: GmailClient = {
+			...createFakeGmailClient({
+				mailbox,
+				historyPages: [],
+				profileHistoryId: '1000',
+			}),
+			async getProfile() {
+				order.push('getProfile');
+				return { data: { historyId: '1000' }, error: null };
+			},
+			async listMessageIds(pageToken) {
+				order.push(`listMessageIds:${pageToken ?? 'first'}`);
+				return { data: { ids: [...mailbox.keys()] }, error: null };
+			},
+		};
+
+		const outcome = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-07-01T00:00:00.000Z') },
+			{ forceFull: false },
+		);
+
+		expect(outcome.failure).toBeNull();
+		expect(order.slice(0, 2)).toEqual(['getProfile', 'listMessageIds:first']);
+		cleanup();
+	});
+
 	test('messages.get concurrency stays at or under 8 during a full pull', async () => {
 		const { db, cleanup } = tempDb();
 		const ids = Array.from({ length: 20 }, (_, i) => `m${i}`);
