@@ -1,12 +1,10 @@
 <script lang="ts">
 	import { cn } from '@epicenter/ui/utils';
 
-	// The live mic meter: a fixed bank of bars whose heights ride the smoothed
-	// `level`. Shared by the floating recording pill and the in-window recording
-	// card so both speak one visual language by construction, rather than keeping
-	// two copies of the envelope and height math in sync by hand (ADR-0039). The
-	// caller styles the bars (width, color) and the container (height, gap); the
-	// defaults render the pill's 3px white bar.
+	// The pill's live mic meter: a fixed bank of bars whose heights ride the
+	// smoothed `level`. The pill styles the bars (width, color) and the container
+	// (height, gap); the defaults render its 3px white bar, and a VAD session
+	// tints the bars via `barClass` when speech latches.
 	let {
 		level,
 		minPx = 3,
