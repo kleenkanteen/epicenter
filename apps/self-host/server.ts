@@ -18,7 +18,7 @@
  * Durable Object edge does, which is exactly right for one homelab, one family, or
  * one small team and the price of owning your own data on your own machine.
  *
- * There is ONE shape, not a mode (ADR-0075). Ownership is `instance()`: every
+ * There is ONE shape, not a mode (ADR-0075). Ownership is `instance`: every
  * request resolves to the pinned `owners/instance` partition, independent of who
  * presents the bearer. Authentication is one operator-supplied static bearer
  * (`INSTANCE_TOKEN`), constant-time compared. "Solo" and "shared" are not
@@ -129,7 +129,7 @@ export function startSelfHostServer(): void {
 	mkdirSync(dataDir, { recursive: true });
 	const bunRooms = createBunRooms({ dir: dataDir });
 
-	const ownership = instance();
+	const ownership = instance;
 	const app = createServerApp({
 		// The instance composes no Postgres (no Better Auth), so it never calls
 		// `mountCloudDb` and `createServerApp` stays on the portable `Env`: `c.var.db`

@@ -75,10 +75,10 @@ const app = createServerApp({
   runtime: bun({ rooms }),                               // no db leg, no Postgres
   identity: { resolveOrigin, resolveTrustedOrigins },
 });
-mountSessionApp(app, { ownership: instance(), auth });
-mountRoomsApp(app, { ownership: instance(), resolveUser }); // WS-aware, takes the resolver
+mountSessionApp(app, { ownership: instance, auth });
+mountRoomsApp(app, { ownership: instance, resolveUser }); // WS-aware, takes the resolver
 mountInferenceApp(app, {
-  ownership: instance(),
+  ownership: instance,
   auth,
   policies: [rateLimit({ requests: 120, windowSeconds: 60 })], // burn-rate floor
 });
@@ -93,7 +93,7 @@ const resolveUser = (c) =>
     assertStrongToken((c.env as Cloudflare.Env).INSTANCE_TOKEN),
   )(c);
 const auth = requireBearerUser(resolveUser);
-// ...createServerApp({ runtime, identity }), instance() ownership,
+// ...createServerApp({ runtime, identity }), instance ownership,
 // same session + rooms + inference mounts
 ```
 

@@ -18,6 +18,7 @@
 	"dependencies": {
 		"@epicenter/auth": "workspace:*",
 		"@epicenter/constants": "workspace:*",
+		"@epicenter/identity": "workspace:*",
 		"@epicenter/server": "workspace:*",
 		"arktype": "catalog:",
 		"hono": "catalog:"

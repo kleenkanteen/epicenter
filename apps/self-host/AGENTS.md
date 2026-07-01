@@ -1,6 +1,6 @@
 # apps/self-host
 
-Reference single-partition **instance** (ADR-0075): one operator-supplied bearer (`INSTANCE_TOKEN`), one pinned `owners/instance` partition. Composes `@epicenter/server` with `instance()` + `createEnvTokenResolver(token)`. Two runtimes off one composition: an off-Cloudflare Bun entry (`server.ts`, blessed) and a Cloudflare Worker (`worker/index.ts`); they run identically because the operator supplies the secret. "Solo" vs "shared" is only how many people hold the token, never a mode.
+Reference single-partition **instance** (ADR-0075): one operator-supplied bearer (`INSTANCE_TOKEN`), one pinned `owners/instance` partition. Composes `@epicenter/server` with `instance` + `createEnvTokenResolver(token)`. Two runtimes off one composition: an off-Cloudflare Bun entry (`server.ts`, blessed) and a Cloudflare Worker (`worker/index.ts`); they run identically because the operator supplies the secret. "Solo" vs "shared" is only how many people hold the token, never a mode.
 
 Not operated by Epicenter; framed as a community-supported starting point. Keep the worker entry small (~30 lines) so it stays readable as a reference.
 
@@ -17,6 +17,6 @@ Multi-tenancy (per-user partitions, OAuth, billing) is Epicenter Cloud's only (`
 
 ## When editing
 
-- Changes to composition primitives (`mount*`, `mountCloudAuth`, `personal()`, `instance()`) live in `packages/server`, not here.
+- Changes to composition primitives (`mount*`, `mountCloudAuth`, `perUser`, `instance`) live in `packages/server`, not here.
 - Updates to the deployment trust model live in `docs/trust-model.md` and `apps/api/README.md`.
 - For deployment configuration, treat the wrangler bindings as user-customized; do not commit a working set of bindings.

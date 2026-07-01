@@ -17,7 +17,7 @@
  *   BETTER_AUTH_SECRET=dev-only-32-chars-min-please-ignore \
  *   GOOGLE_CLIENT_ID=x GOOGLE_CLIENT_SECRET=x \
  *   DATABASE_URL=postgres://localhost/anything PORT=8788 \
- *     bun server.dev.ts            # /api/session in personal mode never queries the DB
+ *     bun server.dev.ts            # /api/session in per-user topology never queries the DB
  *
  *   bun scripts/cli-auth-smoke.ts http://localhost:8788
  *

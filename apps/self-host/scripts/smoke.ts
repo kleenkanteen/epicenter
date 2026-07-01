@@ -18,6 +18,7 @@
  */
 
 import { API_ROUTES } from '@epicenter/constants/api-routes';
+import { INSTANCE_OWNER_ID } from '@epicenter/identity';
 
 const BASE_URL = (
 	process.argv[2] ??
@@ -28,10 +29,6 @@ const BASE_URL = (
 // The same token the instance booted with. The instance has no registry to look a
 // token up in, so the smoke must be handed the one the box trusts.
 const TOKEN = process.env.INSTANCE_TOKEN ?? '';
-
-// INSTANCE_OWNER_ID is the literal 'instance' (see @epicenter/identity): the one
-// partition every valid bearer resolves to.
-const INSTANCE_PARTITION = 'instance';
 
 if (!TOKEN) {
 	console.error(
@@ -91,9 +88,9 @@ async function main() {
 		if (res.ok) {
 			ownerId = ((await res.json()) as { ownerId: string }).ownerId;
 			record(
-				ownerId === INSTANCE_PARTITION ? 'PASS' : 'FAIL',
+				ownerId === INSTANCE_OWNER_ID ? 'PASS' : 'FAIL',
 				'session',
-				`${res.status} ownerId=${ownerId} (expected ${INSTANCE_PARTITION})`,
+				`${res.status} ownerId=${ownerId} (expected ${INSTANCE_OWNER_ID})`,
 			);
 		} else {
 			record('FAIL', 'session', `${res.status} ${await res.text()}`);

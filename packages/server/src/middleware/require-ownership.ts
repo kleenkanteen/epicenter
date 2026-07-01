@@ -5,7 +5,7 @@
  * into a resolved owner partition on `c.var.ownerId`:
  *
  *   1. Resolve the owner partition from `(rule, c.var.user)` via
- *      {@link resolveOwnerPartition}. This cannot fail: a personal request
+ *      {@link resolveOwnerPartition}. This cannot fail: a per-user request
  *      owns its user's partition, an instance request its pinned constant.
  *   2. If the route declares `:ownerId`, assert the URL segment equals
  *      the resolved partition. Mismatch is 403 OwnerMismatch in both
