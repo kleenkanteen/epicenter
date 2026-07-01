@@ -53,7 +53,7 @@ Options:
 
 Environment:
   GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET   Google OAuth desktop client keys.
-  LOCAL_MAIL_ACCOUNT                      Account email to sync.
+  LOCAL_MAIL_ACCOUNT                      Account override when multiple are connected.
   LOCAL_MAIL_DIR                          Where the local copy lives.
   LOCAL_MAIL_TOKEN_FILE                   Override the credentials file path.
 `;

@@ -16,8 +16,8 @@ Gmail, not a local-only table.
 - One SQLite file per connected account: `<data-dir>/<accountEmail>/mail.db`.
   The refresh token lives in a separate `0600 credentials.json` at the data-dir
   root, never inside the mirror db.
-- Account directories are `0700`. `mail.db`, `mail.db-wal`, `mail.db-shm`, and
-  `credentials.json` are `0600`.
+- Data and account directories are `0700`. `mail.db`, `mail.db-wal`,
+  `mail.db-shm`, and `credentials.json` are `0600`.
 - Tables: `messages`, `labels`, and `_meta`. Thread facts are derived from live
   messages instead of stored in a separate `threads` table.
 - `messages.body_text` is decoded at ingest from `text/plain` MIME parts, with
