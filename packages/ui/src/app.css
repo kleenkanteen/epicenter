@@ -60,7 +60,11 @@
 	--primary-foreground: oklch(0.984 0.003 247.858);
 	--secondary: oklch(0.968 0.007 247.896);
 	--secondary-foreground: oklch(0.208 0.042 265.755);
-	--muted: oklch(0.968 0.007 247.896);
+	/* --muted is the selected/hover fill (toggle-group items, ghost hovers). At
+	   the shadcn default 0.968 it sat 0.025 L above --background, nearly
+	   invisible as a selection; 0.945 keeps it soft but clearly separates a
+	   selected tab from the page (dark mode's pair is 0.15 L apart). */
+	--muted: oklch(0.945 0.007 247.896);
 	--muted-foreground: oklch(0.554 0.046 257.417);
 	--accent: oklch(0.968 0.007 247.896);
 	--accent-foreground: oklch(0.208 0.042 265.755);
