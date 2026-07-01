@@ -45,13 +45,22 @@ function createFakeGmailClient(seed: {
 	historyPages: HistoryPage[];
 	profileHistoryId: string;
 	labels?: { id: string; name: string; type: string }[];
-}): GmailClient {
+}): GmailClient & {
+	calls: { getMessage: () => number; listLabels: () => number };
+} {
 	let historyCallCount = 0;
+	let getMessageCallCount = 0;
+	let listLabelsCallCount = 0;
 	return {
+		calls: {
+			getMessage: () => getMessageCallCount,
+			listLabels: () => listLabelsCallCount,
+		},
 		async listMessageIds() {
 			return { data: { ids: [...seed.mailbox.keys()] }, error: null };
 		},
 		async getMessage(id) {
+			getMessageCallCount += 1;
 			const found = seed.mailbox.get(id);
 			if (!found) return GmailApiError.Http({ status: 404, body: 'not found' });
 			return { data: found, error: null };
@@ -63,6 +72,7 @@ function createFakeGmailClient(seed: {
 			return { data: page, error: null };
 		},
 		async listLabels() {
+			listLabelsCallCount += 1;
 			return { data: seed.labels ?? [], error: null };
 		},
 		async getProfile() {
@@ -193,6 +203,10 @@ describe('syncMailbox: INCREMENTAL', () => {
 	function seededDb(): { db: MailDb; cleanup: () => void } {
 		const { db, cleanup } = tempDb();
 		db.ingestFullPullPage([message('existing')], '2026-06-30T00:00:00.000Z');
+		db.ingestLabels(
+			[{ id: 'INBOX', name: 'INBOX', type: 'system' }],
+			'2026-06-30T00:00:00.000Z',
+		);
 		db.finishFullPull('500', '2026-06-30T00:00:00.000Z');
 		return { db, cleanup };
 	}
@@ -230,6 +244,236 @@ describe('syncMailbox: INCREMENTAL', () => {
 			.query<{ id: string }, [string]>(`SELECT id FROM messages WHERE id = ?`)
 			.get('new-msg');
 		expect(row?.id).toBe('new-msg');
+		cleanup();
+	});
+
+	test('unknown label in labelsAdded refreshes labels once and advances the cursor', async () => {
+		const { db, cleanup } = seededDb();
+		const client = createFakeGmailClient({
+			mailbox: new Map(),
+			historyPages: [
+				{
+					historyId: '502',
+					history: [
+						{
+							id: 'h1',
+							labelsAdded: [
+								{
+									message: {
+										id: 'existing',
+										threadId: 't-existing',
+										labelIds: ['INBOX', 'Label_1'],
+									},
+									labelIds: ['Label_1'],
+								},
+							],
+						},
+					],
+				},
+			],
+			profileHistoryId: '999',
+			labels: [
+				{ id: 'INBOX', name: 'INBOX', type: 'system' },
+				{ id: 'Label_1', name: 'Work', type: 'user' },
+			],
+		});
+
+		const outcome = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-06-30T01:00:00.000Z') },
+			{ forceFull: false },
+		);
+
+		expect(outcome.failure).toBeNull();
+		expect(outcome.cursorAfter).toBe('502');
+		expect(client.calls.listLabels()).toBe(1);
+		const label = db.raw
+			.query<{ name: string }, [string]>(`SELECT name FROM labels WHERE id = ?`)
+			.get('Label_1');
+		expect(label?.name).toBe('Work');
+		cleanup();
+	});
+
+	test('all referenced labels known skips labels.list', async () => {
+		const { db, cleanup } = seededDb();
+		db.ingestLabels(
+			[
+				{ id: 'INBOX', name: 'INBOX', type: 'system' },
+				{ id: 'IMPORTANT', name: 'IMPORTANT', type: 'system' },
+			],
+			'2026-06-30T00:00:00.000Z',
+		);
+		const client = createFakeGmailClient({
+			mailbox: new Map(),
+			historyPages: [
+				{
+					historyId: '502',
+					history: [
+						{
+							id: 'h1',
+							labelsAdded: [
+								{
+									message: {
+										id: 'existing',
+										threadId: 't-existing',
+										labelIds: ['INBOX', 'IMPORTANT'],
+									},
+									labelIds: ['IMPORTANT'],
+								},
+							],
+						},
+					],
+				},
+			],
+			profileHistoryId: '999',
+		});
+
+		const outcome = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-06-30T01:00:00.000Z') },
+			{ forceFull: false },
+		);
+
+		expect(outcome.failure).toBeNull();
+		expect(client.calls.listLabels()).toBe(0);
+		cleanup();
+	});
+
+	test("new label arriving only via fetched messagesAdded labelIds still refreshes labels", async () => {
+		const { db, cleanup } = seededDb();
+		const mailbox = new Map([
+			['new-msg', message('new-msg', { labelIds: ['INBOX', 'Label_2'] })],
+		]);
+		const client = createFakeGmailClient({
+			mailbox,
+			historyPages: [
+				{
+					historyId: '502',
+					history: [
+						{
+							id: 'h1',
+							messagesAdded: [
+								{ message: { id: 'new-msg', threadId: 't-new-msg' } },
+							],
+						},
+					],
+				},
+			],
+			profileHistoryId: '999',
+			labels: [
+				{ id: 'INBOX', name: 'INBOX', type: 'system' },
+				{ id: 'Label_2', name: 'From filter', type: 'user' },
+			],
+		});
+
+		const outcome = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-06-30T01:00:00.000Z') },
+			{ forceFull: false },
+		);
+
+		expect(outcome.failure).toBeNull();
+		expect(client.calls.getMessage()).toBe(1);
+		expect(client.calls.listLabels()).toBe(1);
+		const label = db.raw
+			.query<{ name: string }, [string]>(`SELECT name FROM labels WHERE id = ?`)
+			.get('Label_2');
+		expect(label?.name).toBe('From filter');
+		cleanup();
+	});
+
+	test('referenced label absent from labels.list refreshes once and terminates on later passes', async () => {
+		const { db, cleanup } = seededDb();
+		const client = createFakeGmailClient({
+			mailbox: new Map(),
+			historyPages: [
+				{
+					historyId: '502',
+					history: [
+						{
+							id: 'h1',
+							labelsAdded: [
+								{
+									message: {
+										id: 'existing',
+										threadId: 't-existing',
+										labelIds: ['INBOX', 'Label_missing'],
+									},
+									labelIds: ['Label_missing'],
+								},
+							],
+						},
+					],
+				},
+				{ historyId: '503', history: undefined },
+			],
+			profileHistoryId: '999',
+			labels: [{ id: 'INBOX', name: 'INBOX', type: 'system' }],
+		});
+
+		const first = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-06-30T01:00:00.000Z') },
+			{ forceFull: false },
+		);
+		const second = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-06-30T01:01:00.000Z') },
+			{ forceFull: false },
+		);
+
+		expect(first.failure).toBeNull();
+		expect(first.cursorAfter).toBe('502');
+		expect(second.failure).toBeNull();
+		expect(second.cursorAfter).toBe('503');
+		expect(client.calls.listLabels()).toBe(1);
+		cleanup();
+	});
+
+	test('labels.list failure logs and still advances the cursor', async () => {
+		const { db, cleanup } = seededDb();
+		const logs: string[] = [];
+		const client: GmailClient & {
+			calls: { getMessage: () => number; listLabels: () => number };
+		} = {
+			...createFakeGmailClient({
+				mailbox: new Map(),
+				historyPages: [
+					{
+						historyId: '502',
+						history: [
+							{
+								id: 'h1',
+								labelsAdded: [
+									{
+										message: {
+											id: 'existing',
+											threadId: 't-existing',
+											labelIds: ['INBOX', 'Label_1'],
+										},
+										labelIds: ['Label_1'],
+									},
+								],
+							},
+						],
+					},
+				],
+				profileHistoryId: '999',
+			}),
+			async listLabels() {
+				return GmailApiError.Http({ status: 500, body: 'labels down' });
+			},
+		};
+
+		const outcome = await syncMailbox(
+			{
+				db,
+				client,
+				config,
+				now: () => Date.parse('2026-06-30T01:00:00.000Z'),
+				log: (message) => logs.push(message),
+			},
+			{ forceFull: false },
+		);
+
+		expect(outcome.failure).toBeNull();
+		expect(outcome.cursorAfter).toBe('502');
+		expect(logs.join('\n')).toContain('labels.list failed');
 		cleanup();
 	});
 

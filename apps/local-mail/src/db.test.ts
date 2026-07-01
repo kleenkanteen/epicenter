@@ -332,7 +332,7 @@ describe('applyHistoryBatch', () => {
 });
 
 describe('labels', () => {
-	test('ingestLabels upserts the label set', () => {
+	test('ingestLabels replaces the label set', () => {
 		const { db, cleanup } = openTmp();
 		db.ingestLabels(
 			[
@@ -341,15 +341,16 @@ describe('labels', () => {
 			],
 			's1',
 		);
+		db.ingestLabels(
+			[{ id: 'INBOX', name: 'Inbox renamed', type: 'system' }],
+			's2',
+		);
 		const rows = db.raw
 			.query<{ id: string; name: string; type: string }, []>(
 				`SELECT id, name, type FROM labels ORDER BY id`,
 			)
 			.all();
-		expect(rows).toEqual([
-			{ id: 'INBOX', name: 'INBOX', type: 'system' },
-			{ id: 'Label_1', name: 'Work', type: 'user' },
-		]);
+		expect(rows).toEqual([{ id: 'INBOX', name: 'Inbox renamed', type: 'system' }]);
 		cleanup();
 	});
 });

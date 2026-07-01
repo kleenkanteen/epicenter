@@ -226,6 +226,7 @@ async function incrementalPoll(
 	syncedAt: string,
 ): Promise<SyncOutcome> {
 	const { db, client } = deps;
+	const log = deps.log ?? (() => {});
 	const records: HistoryRecord[] = [];
 	let newHistoryId = cursorBefore;
 	let pageToken: string | undefined;
@@ -271,6 +272,26 @@ async function incrementalPoll(
 				);
 			}
 			messagesToUpsert.push(fetched.data);
+		}
+	}
+
+	const referencedLabelIds = new Set<string>();
+	for (const { labelIds } of labelPatches) {
+		for (const labelId of labelIds) referencedLabelIds.add(labelId);
+	}
+	for (const message of messagesToUpsert) {
+		for (const labelId of message.labelIds ?? []) referencedLabelIds.add(labelId);
+	}
+	const knownLabelIds = db.knownLabelIds();
+	const hasUnknownLabel = [...referencedLabelIds].some(
+		(labelId) => !knownLabelIds.has(labelId),
+	);
+	if (hasUnknownLabel) {
+		const labels = await client.listLabels();
+		if (labels.error) {
+			log(`labels.list failed during unknown-label refresh: ${labels.error.message}`);
+		} else {
+			db.ingestLabels(labels.data, syncedAt);
 		}
 	}
 

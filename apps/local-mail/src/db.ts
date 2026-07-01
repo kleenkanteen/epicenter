@@ -208,6 +208,8 @@ export function openMailDb(
 		 VALUES (?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET raw = excluded.raw, synced_at = excluded.synced_at`,
 	);
+	const deleteLabelsStmt = db.query(`DELETE FROM labels`);
+	const labelIdsStmt = db.query<{ id: string }, []>(`SELECT id FROM labels`);
 
 	function readRealmState(): RealmState {
 		return {
@@ -234,6 +236,10 @@ export function openMailDb(
 
 		readRealmState,
 
+		knownLabelIds(): Set<string> {
+			return new Set(labelIdsStmt.all().map((row) => row.id));
+		},
+
 		/**
 		 * One page of a full backfill: upsert every message, no cursor advance.
 		 * Called once per `messages.list` page so a
@@ -249,6 +255,7 @@ export function openMailDb(
 		/** Replace the label set (small, returned complete by `labels.list` every call). */
 		ingestLabels(labels: GmailLabel[], syncedAt: string): void {
 			const tx = db.transaction(() => {
+				deleteLabelsStmt.run();
 				for (const label of labels) {
 					upsertLabelStmt.run(label.id, JSON.stringify(label), syncedAt);
 				}
