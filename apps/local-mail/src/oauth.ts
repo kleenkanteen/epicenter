@@ -68,9 +68,7 @@ export type AuthorizationFlowOptions = {
 
 const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
-/** Hand-built server metadata; Google's endpoints are known constants. The
- * refresh-token grant only needs the token endpoint; the authorization
- * endpoint is Phase 2's interactive flow, not built here. */
+/** Hand-built server metadata; Google's OAuth endpoints are known constants. */
 function authServer(config: AppConfig): oauth.AuthorizationServer {
 	return {
 		issuer: new URL(config.tokenUrl).origin,

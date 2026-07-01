@@ -7,8 +7,8 @@ import { credentialsFilePath, resolveDataDir } from './paths.ts';
  * fields are overridable so tests can point the client at a mock Gmail server.
  *
  * Unlike `apps/local-books`' `AppConfig.entities` (a configurable QuickBooks
- * entity list), Gmail's entity set is fixed: messages, threads, labels. There
- * is nothing to narrow, so no `entities` field exists here.
+ * entity list), Gmail's mirrored set is fixed: messages and labels. There is
+ * nothing to narrow, so no `entities` field exists here.
  */
 export type AppConfig = {
 	dataDir: string;
