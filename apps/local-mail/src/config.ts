@@ -16,6 +16,8 @@ export type AppConfig = {
 	clientSecret: string | null;
 	/** Gmail REST API origin. */
 	apiBase: string;
+	/** Google OAuth2 authorization endpoint. */
+	authorizeUrl: string;
 	/** Google OAuth2 token endpoint (refresh-token exchange). */
 	tokenUrl: string;
 	/**
@@ -36,6 +38,7 @@ export type AppConfig = {
 };
 
 const DEFAULT_API_BASE = 'https://gmail.googleapis.com';
+const DEFAULT_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const DEFAULT_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
 function env(name: string): string | undefined {
@@ -52,6 +55,8 @@ export function loadConfig(): AppConfig {
 		clientId: env('GMAIL_CLIENT_ID') ?? null,
 		clientSecret: env('GMAIL_CLIENT_SECRET') ?? null,
 		apiBase: env('LOCAL_MAIL_GMAIL_API_BASE') ?? DEFAULT_API_BASE,
+		authorizeUrl:
+			env('LOCAL_MAIL_GMAIL_AUTHORIZE_URL') ?? DEFAULT_AUTHORIZE_URL,
 		tokenUrl: env('LOCAL_MAIL_GMAIL_TOKEN_URL') ?? DEFAULT_TOKEN_URL,
 		historySafeWindowDays: 5,
 		fullBackstopDays: 30,

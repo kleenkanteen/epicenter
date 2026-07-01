@@ -73,7 +73,9 @@ export type GmailClient = {
 	): Promise<Result<HistoryPage, GmailClientError>>;
 	listLabels(): Promise<Result<GmailLabel[], GmailClientError>>;
 	/** Current mailbox `historyId`, used as the baseline right before a full pull. */
-	getProfile(): Promise<Result<{ historyId: string }, GmailClientError>>;
+	getProfile(): Promise<
+		Result<{ historyId: string; emailAddress?: string }, GmailClientError>
+	>;
 };
 
 export type GmailClientDeps = {

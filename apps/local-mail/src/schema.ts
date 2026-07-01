@@ -107,6 +107,7 @@ export const ListLabelsResponseSchema = Type.Object({
 
 export const ProfileResponseSchema = Type.Object({
 	historyId: Type.String({ minLength: 1 }),
+	emailAddress: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 /** Pull a header value by name (case-insensitive, per RFC 5322). Gmail nests

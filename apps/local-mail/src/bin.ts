@@ -2,18 +2,17 @@ import { loadConfig } from './config.ts';
 import type { MailDb } from './db.ts';
 import { openMailDb } from './db.ts';
 import { createGmailClient } from './gmail-client.ts';
+import { runAuthorizationFlow } from './oauth.ts';
 import { dbPath } from './paths.ts';
 import { runSyncLoop, type SyncOutcome, syncMailbox } from './sync.ts';
 import { createTokenManager } from './token-manager.ts';
 import { createFileTokenStore } from './token-store.ts';
 
 /**
- * Manual Phase 1 verification entry point: no interactive OAuth flow yet
- * (that's Phase 2's connect flow), so `seed-token` bootstraps a refresh token
- * obtained out of band (Phase 0's probe script, or Google's OAuth Playground)
- * and `sync` runs one pass (or `--watch`es on a loop) against it. Deliberately
- * not a real CLI framework (yargs, the way `apps/local-books` uses it): two
- * subcommands do not earn one.
+ * Manual engine entry point. `connect` is the normal interactive OAuth path;
+ * `seed-token` remains for headless bootstrap, and `sync` runs one pass or a
+ * watch loop against the stored refresh token. The local-books dispatch shape
+ * lands in Wave 2c once this behavior is in place.
  */
 
 const DEFAULT_WATCH_INTERVAL_MS = 30_000;
@@ -22,11 +21,51 @@ function usage(): never {
 	console.error(
 		[
 			'Usage:',
+			'  bun run src/bin.ts connect [--client-id <id>]',
 			'  bun run src/bin.ts seed-token <accountEmail> <refreshToken>',
 			'  bun run src/bin.ts sync [--full] [--watch[=intervalMs]]',
 		].join('\n'),
 	);
 	process.exit(1);
+}
+
+function optionValue(args: string[], name: string): string | null {
+	const prefixed = args.find((arg) => arg.startsWith(`${name}=`));
+	if (prefixed) return prefixed.slice(name.length + 1);
+	const index = args.indexOf(name);
+	if (index === -1) return null;
+	return args[index + 1] ?? null;
+}
+
+async function connect(args: string[]): Promise<void> {
+	const loaded = loadConfig();
+	const clientIdOverride = optionValue(args, '--client-id');
+	const config = clientIdOverride
+		? { ...loaded, clientId: clientIdOverride }
+		: loaded;
+	if (!config.clientId || !config.clientSecret) {
+		console.error(
+			'Missing Gmail OAuth credentials. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET, or pass --client-id with GMAIL_CLIENT_SECRET set.',
+		);
+		process.exit(1);
+	}
+
+	const { data: token, error } = await runAuthorizationFlow(config, {
+		now: () => Date.now(),
+		log: (message) => console.error(message),
+	});
+	if (error) {
+		console.error(`Authentication failed: ${error.message}`);
+		process.exit(1);
+	}
+
+	const store = createFileTokenStore(config.credentialsPath);
+	await store.set(token);
+	console.log(`Connected ${token.accountEmail}.`);
+	console.log(`Tokens stored in ${config.credentialsPath}.`);
+	console.log(
+		`Next: set LOCAL_MAIL_ACCOUNT=${token.accountEmail} and run "local-mail sync --full".`,
+	);
 }
 
 async function seedToken(
@@ -140,6 +179,10 @@ async function sync(
 
 const [, , command, ...rest] = process.argv;
 switch (command) {
+	case 'connect': {
+		await connect(rest);
+		break;
+	}
 	case 'seed-token': {
 		const [accountEmail, refreshToken] = rest;
 		if (!accountEmail || !refreshToken) usage();
