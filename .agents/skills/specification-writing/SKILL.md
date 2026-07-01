@@ -43,6 +43,7 @@ Specs should:
 - **Leave questions open**: The Open Questions section is a feature, not a bug
 - **Enable autonomous implementation**: An agent reading this should spawn sub-agents to verify and extend
 - **Respect maintainer time**: Make the active path obvious before asking the reader to absorb history, appendices, or implementation logs
+- **No process theater**: Include a section because it changes implementation or review, not because the template lists it
 
 A good spec is a launching pad, not a script to follow.
 
@@ -126,24 +127,9 @@ Never let evidence questions hide behind design coherence. Verify before deletin
 
 ---
 
-## Adjacent Work
-
-Most specs do not need a section for adjacent work. When adjacent work matters,
-write only what the implementer needs:
-
-```txt
-Deferred:
-  not required now, allowed later
-
-Opportunistic:
-  not required, but acceptable to fix if discovered and grounded
-```
-
-A spec is an execution spine, not a file whitelist.
-
----
-
 ## Document Structure
+
+Not every spec needs every section. A small feature might skip Research Findings. A migration spec might focus heavily on Edge Cases. Use judgment.
 
 ### Header (Required)
 
@@ -418,6 +404,8 @@ This section signals "you decide this" to the implementer. Include your recommen
 
 ### Adjacent Work
 
+Most specs do not need this section; a spec is an execution spine, not a file whitelist. When adjacent work matters, write only what the implementer needs: deferred items (not required now, allowed later) and opportunistic ones (acceptable to fix if discovered and grounded).
+
 ```markdown
 ## Adjacent Work
 
@@ -459,84 +447,4 @@ Files that will be touched or consulted.
 - `[path/to/pattern.ts]` - [Pattern to follow or reference]
 ```
 
----
-
-## Good vs Bad Specs
-
-### Good Spec Characteristics
-
-- **Research is documented**: Shows what was explored, not just conclusions
-- **Decisions have rationale**: Every choice has a "why" in a table
-- **Questions are left open**: Implementer has room to decide
-- **Code shows current state**: Not described abstractly
-- **Architecture is visual**: ASCII diagrams over prose
-- **Phases are actionable**: Checkboxes that can be tracked
-- **First screen is useful**: Status, one sentence, current shape, target shape, and proof are easy to find
-- **History is labeled**: Superseded decisions and implementation notes do not masquerade as active instructions
-
-### Bad Spec Characteristics
-
-- **Prescriptive step-by-step**: Reads like a tutorial, no room for autonomy
-- **Assumes without research**: "We'll use X" without exploring alternatives
-- **Closes all questions**: No Open Questions section
-- **Abstract descriptions**: "The system will handle Y" without showing code
-- **Wall of prose**: No tables, no diagrams, no structure
-- **Reader-job mixing**: North-star architecture, execution prompt, handoff notes, and historical debate are all interleaved without a read path
-- **Process theater**: Sections exist because the template said so, not because they change implementation or review
-
----
-
-## Writing for Agent Implementers
-
-When an agent reads your spec, they should:
-
-1. **Understand the problem** from Motivation section
-2. **Know what's been explored** from Research Findings
-3. **See the proposed direction** from Design Decisions
-4. **Have a starting point** from Implementation Plan Phase 1
-5. **Know what to investigate further** from Open Questions
-
-The agent will then:
-
-- Spawn sub-agents to verify your research
-- Explore the Open Questions you left
-- Flesh out later phases of the implementation plan
-- Make decisions where you left room
-
 If your spec is too prescriptive, the agent will blindly follow it. If it's too vague, the agent will flounder. The sweet spot is: **enough context to start, enough openness to own the implementation**.
-
----
-
-## Quick Reference Checklist
-
-```markdown
-- [ ] Header (Date, Status, Owner)
-- [ ] One Sentence
-- [ ] First screen answers active status, current shape, target shape, and proof
-- [ ] "How to read this spec" block when the file is long or partly historical
-- [ ] Overview (1-2 sentences)
-- [ ] Motivation
-  - [ ] Current State (with code)
-  - [ ] Problems (numbered)
-  - [ ] Desired State
-- [ ] Research Findings
-  - [ ] Comparison tables
-  - [ ] Key findings
-  - [ ] Implications
-- [ ] Design Decisions (table with rationale)
-- [ ] Design decisions have classes
-- [ ] Class 1 decisions were verified
-- [ ] Class 3 keeps are logged with `Revisit when:`
-- [ ] Adjacent work is included only when it clarifies implementation
-- [ ] Catalogs (when introducing a primitive set: code block + rejected candidates table)
-- [ ] Architecture (ASCII diagrams)
-- [ ] Visual rhythm: prose is broken up with code, tables, trees, or diagrams where relationships matter
-- [ ] Call Sites (before/after on 2-3 real usages with file:line)
-- [ ] Implementation Plan (phased checkboxes)
-- [ ] Edge Cases
-- [ ] Open Questions (with recommendations)
-- [ ] Success Criteria
-- [ ] References
-```
-
-Not every spec needs every section. A small feature might skip Research Findings. A migration spec might focus heavily on Edge Cases. Use judgment.
