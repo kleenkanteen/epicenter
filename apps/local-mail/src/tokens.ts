@@ -102,9 +102,9 @@ export function tokenSetFromGrant(
 }
 
 /** Default skew: refresh a little early so an in-flight request never races expiry. */
-export const ACCESS_TOKEN_SKEW_MS = 2 * 60 * 1000;
+const ACCESS_TOKEN_SKEW_MS = 2 * 60 * 1000;
 
-export function accessTokenTtlMs(token: TokenSet, now: number): number {
+function accessTokenTtlMs(token: TokenSet, now: number): number {
 	return Date.parse(token.accessTokenExpiresAt) - now;
 }
 
