@@ -853,11 +853,24 @@
       },
       "devDependencies": {
         "@standard-schema/spec": "catalog:",
+        "@tauri-apps/api": "catalog:",
+        "@tauri-apps/plugin-deep-link": "^2.4.9",
+        "@tauri-apps/plugin-opener": "catalog:",
         "@types/bun": "catalog:",
         "svelte": "catalog:",
         "svelte-check": "catalog:",
         "typescript": "catalog:",
       },
+      "peerDependencies": {
+        "@tauri-apps/api": "^2",
+        "@tauri-apps/plugin-deep-link": "^2",
+        "@tauri-apps/plugin-opener": "^2",
+      },
+      "optionalPeers": [
+        "@tauri-apps/api",
+        "@tauri-apps/plugin-deep-link",
+        "@tauri-apps/plugin-opener",
+      ],
     },
     "packages/sync": {
       "name": "@epicenter/sync",
