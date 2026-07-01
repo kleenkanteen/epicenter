@@ -1,10 +1,10 @@
 # Blobs Are a URL Machine
 
 **Date**: 2026-07-01
-**Status**: Draft
+**Status**: In Progress
 **Owner**: Braden
 **Branch**: blob-direction
-**Supersedes**: the manifest/pull layer of `specs/20260623T220000-content-addressed-blob-store.md` (the store kernel in that spec stands and should settle into an ADR)
+**Supersedes**: `specs/20260623T220000-content-addressed-blob-store.md` (deleted; its kernel decisions live in ADR-0088 and ADR-0089, this direction in ADR-0090)
 
 ## One Sentence
 
@@ -166,8 +166,8 @@ output(
 
 ### Phase 0: settle the decision
 
-- [ ] **0.1** Confirm the direction (this spec is the articulation, not the commitment).
-- [ ] **0.2** Record a Proposed ADR covering both the store kernel (S3-is-the-index, presigned single PUT, owner-scoped content addressing, plaintext layer with encrypting consumers) and this refusal (documents are the manifest). Delete `specs/20260623T220000-content-addressed-blob-store.md` when it lands.
+- [x] **0.1** Confirm the direction (confirmed 2026-07-01).
+- [x] **0.2** Recorded as three ADRs: [ADR-0088](../docs/adr/0088-the-blob-store-is-a-presigned-s3-kernel-and-the-bucket-is-its-only-index.md) (kernel, Accepted), [ADR-0089](../docs/adr/0089-the-blob-layer-stays-plaintext-confidentiality-belongs-to-the-encrypting-consumer.md) (plaintext posture, Accepted), [ADR-0090](../docs/adr/0090-blobs-trade-a-file-for-a-durable-content-addressed-url-documents-are-the-only-manifest.md) (this direction, Proposed; flips to Accepted when Phase 1 lands). `specs/20260623T220000-content-addressed-blob-store.md` deleted.
 
 ### Phase 1: delete (after the bearer-302 fix PR merges)
 
