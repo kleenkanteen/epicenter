@@ -1,0 +1,28 @@
+{
+	"name": "@epicenter/local-mail",
+	"description": "Headless Gmail CDC mirror: syncs a Gmail account into a local SQLite database via full pull + incremental history.list polling. Phase 1: mirror core only, no OAuth flow, no Tauri shell yet.",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"keywords": [
+		"local-first",
+		"gmail",
+		"sqlite",
+		"cdc",
+		"email"
+	],
+	"scripts": {
+		"test": "bun test",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"oauth4webapi": "catalog:",
+		"typebox": "catalog:",
+		"wellcrafted": "catalog:"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"typescript": "catalog:"
+	},
+	"license": "AGPL-3.0-or-later"
+}

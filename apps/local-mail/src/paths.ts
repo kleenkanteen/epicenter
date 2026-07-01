@@ -1,0 +1,41 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+/**
+ * OS-appropriate application-data directory for the mirror. Scoping the db by
+ * account email keeps multiple connected Gmail accounts from colliding.
+ *
+ * macOS: `~/Library/Application Support/local-mail`
+ * Linux/other: `$XDG_DATA_HOME/local-mail` or `~/.local/share/local-mail`
+ */
+export function defaultDataDir(): string {
+	if (process.platform === 'darwin') {
+		return join(homedir(), 'Library', 'Application Support', 'local-mail');
+	}
+	const xdg = process.env['XDG_DATA_HOME'];
+	if (xdg && xdg.length > 0) return join(xdg, 'local-mail');
+	return join(homedir(), '.local', 'share', 'local-mail');
+}
+
+/** `--data-dir` beats `LOCAL_MAIL_DIR` beats the OS default. */
+export function resolveDataDir(override?: string): string {
+	if (override && override.length > 0) return override;
+	const env = process.env['LOCAL_MAIL_DIR'];
+	if (env && env.length > 0) return env;
+	return defaultDataDir();
+}
+
+/** One SQLite file per connected account, scoped by account email under the data dir. */
+export function dbPath(dataDir: string, accountEmail: string): string {
+	return join(dataDir, accountEmail, 'mail.db');
+}
+
+/**
+ * The default file token store: `credentials.json` at the data-dir root, sibling
+ * to each account's `<accountEmail>/` mirror dir. Deliberately not inside the
+ * mirror dir, so a read-only SQL surface over `mail.db` can never read it. Same
+ * reasoning as `apps/local-books` (ADR-0062).
+ */
+export function credentialsFilePath(dataDir: string): string {
+	return join(dataDir, 'credentials.json');
+}
