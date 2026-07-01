@@ -19,6 +19,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openMailDb } from './db.ts';
 import type { GmailMessage } from './schema.ts';
+import { createFileTokenStore } from './token-store.ts';
+import type { TokenSet } from './tokens.ts';
 
 const BIN = join(import.meta.dir, 'bin.ts');
 const ACCOUNT = 'you@example.com';
@@ -61,6 +63,18 @@ function seedMirror(dir: string): void {
 	db.ingestLabels([{ id: 'INBOX', name: 'INBOX', type: 'system' }], 's1');
 	db.finishFullPull('1000', '2026-07-01T00:00:00.000Z');
 	db.close();
+}
+
+async function seedToken(dir: string): Promise<void> {
+	const token: TokenSet = {
+		accountEmail: ACCOUNT,
+		clientIdUsed: 'client-id',
+		accessToken: 'access-token',
+		refreshToken: 'refresh-token',
+		accessTokenExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+		obtainedAt: new Date(0).toISOString(),
+	};
+	await createFileTokenStore(join(dir, 'credentials.json')).set(token);
 }
 
 type JsonRpcMessage = {
@@ -242,5 +256,38 @@ test('mcp: tools/list, body query, status, errors, and a clean stream', async ()
 	}
 
 	mcp.stop();
+	tmp.cleanup();
+});
+
+test('mcp: failed sync pass returns isError instead of a successful outcome payload', async () => {
+	const tmp = tempDir();
+	await seedToken(tmp.dir);
+	const apiServer = Bun.serve({
+		hostname: '127.0.0.1',
+		port: 0,
+		fetch() {
+			return new Response('profile unavailable', { status: 400 });
+		},
+	});
+	const mcp = await connect({
+		LOCAL_MAIL_DIR: tmp.dir,
+		LOCAL_MAIL_ACCOUNT: ACCOUNT,
+		LOCAL_MAIL_GMAIL_API_BASE: `http://127.0.0.1:${apiServer.port}`,
+	});
+
+	const failed = await mcp.request('tools/call', {
+		name: 'sync',
+		arguments: {},
+	});
+
+	expect(failed.error).toBeUndefined();
+	expect(failed.result?.isError).toBe(true);
+	const content = failed.result?.content as Array<{ text: string }>;
+	expect(content[0]?.text).toContain('Http');
+	expect(content[0]?.text).toContain('Gmail API returned 400');
+	expect(content[0]?.text).toContain('cursor did not advance');
+
+	mcp.stop();
+	apiServer.stop(true);
 	tmp.cleanup();
 });

@@ -1,3 +1,33 @@
+/**
+ * `local-mail mcp`: a stdio Model Context Protocol server that exposes read
+ * and refresh verbs over the local Gmail mirror to a foreign host (Claude Code,
+ * Codex, Cursor, ...).
+ *
+ * Why MCP, and why local stdio: Local Mail is a private Gmail mirror for local
+ * tools. A subprocess reading the local SQLite directly is the exposure that
+ * keeps mail data on the machine while still speaking the vocabulary foreign
+ * hosts already understand. So "let an agent use Local Mail" reduces to this
+ * file: it adds no mesh, no relay, no shared workspace state.
+ *
+ * The shape: each tool is one entry in `TOOLS` whose `input` is a TypeBox
+ * schema. TypeBox IS JSON Schema at runtime, so the same object is the MCP
+ * `inputSchema` (serialized over the wire) AND the validator (`Value.Check`,
+ * in-process), with zero duplication. Each `run` maps straight onto an
+ * existing Result-returning core.
+ *
+ * stdout is the JSON-RPC channel, so this subcommand prints NOTHING to stdout
+ * except protocol frames: no banners, no `console.log`, no progress. The cores
+ * are handed no `log` sink (their default is a no-op), so nothing leaks; a
+ * single stray byte would corrupt framing.
+ *
+ * Error model (MCP's two channels):
+ *  - unknown tool / invalid arguments -> `throw new McpError(...)`, a JSON-RPC
+ *    protocol error (the call itself was malformed).
+ *  - a tool that ran and failed (bad SQL, no account, a Gmail sync failure) ->
+ *    a normal result with `isError: true` and a text message, so the model can
+ *    read it and self-correct.
+ */
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -11,7 +41,6 @@ import { type Static, type TObject, Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import type { AppConfig } from './config.ts';
-import type { ParsedArgs } from './cli.ts';
 import { openMailDb } from './db.ts';
 import { createGmailClient } from './gmail-client.ts';
 import { dbPath } from './paths.ts';
@@ -124,12 +153,16 @@ const TOOLS: ToolDescriptor[] = [
 			const client = createGmailClient({ config: ctx.config, tokens });
 			const db = openMailDb(dbPath(ctx.config.dataDir, ctx.accountEmail));
 			try {
-				return Ok(
-					await syncMailbox(
-						{ db, client, config: ctx.config, now: ctx.now },
-						{ forceFull: args.full ?? false },
-					),
+				const outcome = await syncMailbox(
+					{ db, client, config: ctx.config, now: ctx.now },
+					{ forceFull: args.full ?? false },
 				);
+				if (outcome.failure) {
+					return Err({
+						message: `Sync failed (${outcome.failure.name}: ${outcome.failure.message}). The cursor did not advance.`,
+					});
+				}
+				return Ok(outcome);
 			} finally {
 				db.close();
 			}
@@ -147,7 +180,7 @@ function toCallResult({ data, error }: ToolOutcome): CallToolResult {
 	};
 }
 
-export async function runMcpServer(_args: ParsedArgs): Promise<number> {
+export async function runMcpServer(): Promise<number> {
 	const config = loadConfig();
 	const store = createFileTokenStore(config.credentialsPath);
 	const now = () => Date.now();

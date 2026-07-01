@@ -306,7 +306,7 @@ export async function runCli(argv: string[]): Promise<number> {
 		case 'query':
 			return runQuery(args);
 		case 'mcp':
-			return runMcpServer(args);
+			return runMcpServer();
 		default:
 			console.error(`Unknown command: ${args.command}\n`);
 			console.log(HELP);
