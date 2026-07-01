@@ -2,8 +2,10 @@ import { loadConfig } from './config.ts';
 import type { MailDb } from './db.ts';
 import { openMailDb } from './db.ts';
 import { createGmailClient } from './gmail-client.ts';
+import { runMcpServer } from './mcp.ts';
 import { runAuthorizationFlow } from './oauth.ts';
 import { dbPath } from './paths.ts';
+import { queryMail } from './query.ts';
 import { runSyncLoop, type SyncOutcome, syncMailbox } from './sync.ts';
 import { createTokenManager } from './token-manager.ts';
 import { createFileTokenStore } from './token-store.ts';
@@ -29,11 +31,15 @@ Usage:
   local-mail connect [--client-id <id>]
   local-mail seed-token <accountEmail> <refreshToken>
   local-mail sync [--full] [--watch[=intervalMs]]
+  local-mail query "<sql>"
+  local-mail mcp
 
 Commands:
   connect      Connect a Gmail account once using browser OAuth.
   seed-token   Store an existing refresh token for headless bootstrap.
   sync         Refresh the local mirror. Use --watch to keep polling.
+  query        Run a read-only SQL query over the local mirror.
+  mcp          Serve query/status/sync tools to an agent over stdio.
 
 Options:
   --client-id <id>      Override GMAIL_CLIENT_ID for connect.
@@ -236,6 +242,31 @@ async function runSync(args: ParsedArgs): Promise<number> {
 	return 0;
 }
 
+async function runQuery(args: ParsedArgs): Promise<number> {
+	const sql = args.positionals[0];
+	if (!sql) {
+		console.error('Usage: local-mail query "<sql>"');
+		return 1;
+	}
+	const config = loadConfig();
+	if (!config.account) {
+		console.error('Set LOCAL_MAIL_ACCOUNT to the connected account email.');
+		return 1;
+	}
+	const { data, error } = queryMail({
+		dbPath: dbPath(config.dataDir, config.account),
+		sql,
+	});
+	if (error) {
+		console.error(error.message);
+		return 1;
+	}
+	console.log(JSON.stringify(data.rows, null, 2));
+	const note = data.truncated ? ' (capped; more rows matched)' : '';
+	console.error(`${data.rowCount} row${data.rowCount === 1 ? '' : 's'}${note}`);
+	return 0;
+}
+
 export async function runCli(argv: string[]): Promise<number> {
 	const args = parseArgs(argv);
 
@@ -255,6 +286,10 @@ export async function runCli(argv: string[]): Promise<number> {
 			return runSeedToken(args);
 		case 'sync':
 			return runSync(args);
+		case 'query':
+			return runQuery(args);
+		case 'mcp':
+			return runMcpServer(args);
 		default:
 			console.error(`Unknown command: ${args.command}\n`);
 			console.log(HELP);

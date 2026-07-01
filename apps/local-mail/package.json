@@ -16,6 +16,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@modelcontextprotocol/sdk": "catalog:",
 		"oauth4webapi": "catalog:",
 		"typebox": "catalog:",
 		"wellcrafted": "catalog:"

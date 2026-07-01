@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "epicenter",
@@ -228,6 +227,20 @@
       "devDependencies": {
         "@types/bun": "catalog:",
         "@types/ms": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "apps/local-mail": {
+      "name": "@epicenter/local-mail",
+      "version": "0.0.1",
+      "dependencies": {
+        "@modelcontextprotocol/sdk": "catalog:",
+        "oauth4webapi": "catalog:",
+        "typebox": "catalog:",
+        "wellcrafted": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -1375,6 +1388,8 @@
     "@epicenter/landing": ["@epicenter/landing@workspace:apps/landing"],
 
     "@epicenter/local-books": ["@epicenter/local-books@workspace:apps/local-books"],
+
+    "@epicenter/local-mail": ["@epicenter/local-mail@workspace:apps/local-mail"],
 
     "@epicenter/matter": ["@epicenter/matter@workspace:apps/matter"],
 
