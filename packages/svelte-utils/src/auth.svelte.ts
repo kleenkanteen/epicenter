@@ -95,26 +95,21 @@ export type CreateHostedBrowserRedirectAuthOptions = {
 	api: string;
 	/** SvelteKit base path prepended to the callback, for a subpath deploy. Default `''`. */
 	basePath?: string;
-	/**
-	 * Where the persisted grant lives. Defaults to `localStorage`. Pass
-	 * `sessionStorage` (or an in-memory `Storage`) for an app whose web build
-	 * decrypts high-value secrets in JS and wants a smaller XSS-persistence
-	 * window (e.g. Whispering's vault, ADR-0079) — the grant then dies with the
-	 * tab instead of surviving across sessions.
-	 */
-	persistedStorage?: Storage;
 };
 
 /**
  * Package the hosted browser-redirect OAuth convention every hosted web app
- * repeats: a `<namespace>.auth.persisted` grant (localStorage by default, override
- * via `persistedStorage`), a redirect launcher
- * built from the hosted constants (`${api}/auth` issuer, the `/auth/callback`
- * redirect, `api` as the resource, `sessionStorage` for the PKCE state), and the
- * persisted `Instance` fed to {@link createAppAuthClient}. Each app passes only
- * what varies: its namespace, OAuth client id, the hosted API origin, and an
- * optional SvelteKit base path. The result is a reactive `SyncAuthClient`, ready
- * for `createSession`.
+ * repeats: a `<namespace>.auth.persisted` grant in `localStorage` (persistent
+ * on purpose: `sessionStorage` would not survive live XSS anyway and signs the
+ * user out on every tab close; the real controls are the short access-token
+ * TTL, rotating refresh, revocation, and CSP, per ADR-0079), a redirect
+ * launcher built from the hosted constants (`${api}/auth` issuer, the
+ * `/auth/callback` redirect, `api` as the resource, `sessionStorage` for the
+ * PKCE state), and the persisted `Instance` fed to
+ * {@link createAppAuthClient}. Each app passes only what varies: its
+ * namespace, OAuth client id, the hosted API origin, and an optional SvelteKit
+ * base path. The result is a reactive `SyncAuthClient`, ready for
+ * `createSession`.
  *
  * Redirect-only and hosted-only by construction: it owns no Tauri deep-link or
  * extension launcher and no self-host token branch. The self-host path still works
@@ -129,13 +124,12 @@ export function createHostedBrowserRedirectAuth({
 	clientId,
 	api,
 	basePath = '',
-	persistedStorage = window.localStorage,
 }: CreateHostedBrowserRedirectAuthOptions): SyncAuthClient {
 	return createAppAuthClient(instanceSetting.read(), {
 		clientId,
 		persistedAuthStorage: createWebStoragePersistedAuthStorage({
 			key: `${namespace}.auth.persisted`,
-			storage: persistedStorage,
+			storage: window.localStorage,
 		}),
 		launcher: createBrowserOAuthLauncher({
 			issuer: `${api}/auth`,

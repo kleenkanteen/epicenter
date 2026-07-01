@@ -4,14 +4,11 @@ import { createHostedBrowserRedirectAuth } from '@epicenter/svelte/auth';
 import { instanceSetting } from '$lib/instance';
 import type { PlatformAuth } from './types';
 
-// ADR-0079: the web build's grant lives in sessionStorage, not localStorage,
-// to shrink the XSS window around the JS-decrypted secret vault.
 export const auth: PlatformAuth = createHostedBrowserRedirectAuth({
 	instanceSetting,
 	namespace: 'whispering',
 	clientId: EPICENTER_WHISPERING_OAUTH_CLIENT_ID,
 	api: APP_URLS.API,
-	persistedStorage: window.sessionStorage,
 });
 
 if (import.meta.hot) {

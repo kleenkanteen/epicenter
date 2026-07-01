@@ -43,10 +43,7 @@ export type CreateHostedDeepLinkAuthOptions = {
  * The launcher's PKCE transaction always lives in `localStorage`, never
  * `sessionStorage`: a deep-link callback can cold-start the app, which would
  * drop a `sessionStorage`-held transaction before it completes. That has no
- * override knob because no Tauri app has needed one — the `ADR-0079`
- * sessionStorage swap on the web-build sibling
- * ({@link createHostedBrowserRedirectAuth}) is a browser-only XSS concern
- * that doesn't apply to a native webview.
+ * override knob because no Tauri app has needed one.
  *
  * The grant defaults to `localStorage` too, but — unlike the launcher's
  * transaction — takes an override (`persistedAuthStorage`): a plain
