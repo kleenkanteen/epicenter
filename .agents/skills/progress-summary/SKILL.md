@@ -1,6 +1,6 @@
 ---
 name: progress-summary
-description: 'Conversational PR-style summaries with visual diagrams. Use when: "can you summarize", "what happened", "where are we at", "give me an overview", "walk me through".'
+description: 'Conversational PR-style summaries of work in progress, with visual diagrams. Use when: "summarize what we did", "where are we at", "walk me through the changes", or "give me an overview" of session or branch work. Not for summarizing an article, file, or codebase you did not change.'
 metadata:
   author: epicenter
   version: '1.0'
@@ -16,7 +16,7 @@ For newcomer-friendly architecture explanations, use [notebook-explanation](../n
 
 ### Motivation First
 
-Every summary starts with WHY. Not what files changed, not how it works:WHY this work matters.
+Every summary starts with WHY. Not what files changed, not how it works: WHY this work matters.
 
 **Good opening**:
 > We've been tackling the session timeout issue that was logging users out mid-upload. The root cause was the session refresh only triggering on navigation, not during background activity.
@@ -87,31 +87,13 @@ For "explain what's happening here" on larger work, use [notebook-explanation](.
 
 ## What to Avoid
 
-- **Listing files changed**: "Updated auth.ts, session.ts, and upload.ts" : just explain what and why
+- **Listing files changed**: "Updated auth.ts, session.ts, and upload.ts"; just explain what and why
 - **Corporate speak**: "This enhancement leverages our existing infrastructure"
 - **Marketing language**: "game-changing", "revolutionary", "seamless"
-- **Dramatic hyperbole**: "excruciating pain point" : stick to facts
+- **Dramatic hyperbole**: "excruciating pain point"; stick to facts
 - **Bullet point everything**: Use flowing paragraphs when possible
 - **Over-explaining simple changes**: Match the explanation depth to the complexity
 
 ## Gathering Context for Summaries
 
-To generate a summary, gather relevant context:
-
-```bash
-# Current branch state
-git status
-git log --oneline -10
-
-# What changed from main
-git diff main...HEAD --stat
-git log main..HEAD --oneline
-
-# Recent activity
-git log --oneline --since="1 hour ago"
-```
-
-If the environment provides a dedicated workspace-diff tool, use it. Otherwise
-use `git diff --stat`, `git diff`, and targeted file reads.
-
-Read key files that were modified to understand the substance of changes, not just the diff stats.
+Gather context from the branch log and `git diff main...HEAD --stat`; if the environment provides a dedicated workspace-diff tool, prefer it. Read key modified files to understand the substance of changes, not just the diff stats.
