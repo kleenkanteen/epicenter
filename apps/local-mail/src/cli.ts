@@ -55,6 +55,16 @@ Environment:
   LOCAL_MAIL_TOKEN_FILE                   Override the credentials file path.
 `;
 
+function parseWatchInterval(input: string): number {
+	const value = Number(input.trim());
+	if (!Number.isFinite(value) || value <= 0) {
+		throw new Error(
+			`Invalid --watch interval "${input}". Use a positive number of milliseconds.`,
+		);
+	}
+	return value;
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
 	const args: ParsedArgs = {
 		command: '',
@@ -93,7 +103,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
 				break;
 			case '--watch':
 				args.watch = true;
-				if (inlineValue !== undefined) args.watchIntervalMs = Number(inlineValue);
+				if (inlineValue !== undefined)
+					args.watchIntervalMs = parseWatchInterval(inlineValue);
 				break;
 			case '-h':
 			case '--help':
