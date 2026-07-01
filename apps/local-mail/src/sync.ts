@@ -4,6 +4,7 @@ import type { GmailClient, GmailClientError } from './gmail-client.ts';
 import type { GmailMessage, HistoryRecord } from './schema.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const FULL_PULL_GET_CHUNK_SIZE = 8;
 
 export type SyncMode = 'FULL' | 'INCREMENTAL';
 export type ModeDecision = { mode: SyncMode; reason: string };
@@ -130,13 +131,23 @@ async function fullPull(
 		const listed = await client.listMessageIds(pageToken);
 		if (listed.error) return { upserted, failure: listed.error };
 
-		const fetched = await Promise.all(
-			listed.data.ids.map((id) => client.getMessage(id)),
-		);
 		const messages: GmailMessage[] = [];
-		for (const result of fetched) {
-			if (result.error) return { upserted, failure: result.error };
-			messages.push(result.data);
+		for (
+			let start = 0;
+			start < listed.data.ids.length;
+			start += FULL_PULL_GET_CHUNK_SIZE
+		) {
+			const chunk = listed.data.ids.slice(
+				start,
+				start + FULL_PULL_GET_CHUNK_SIZE,
+			);
+			const fetched = await Promise.all(
+				chunk.map((id) => client.getMessage(id)),
+			);
+			for (const result of fetched) {
+				if (result.error) return { upserted, failure: result.error };
+				messages.push(result.data);
+			}
 		}
 
 		db.ingestFullPullPage(messages, syncedAt);

@@ -115,6 +115,78 @@ describe('syncMailbox: FULL pull', () => {
 		expect(row?.id).toBe('m1');
 		cleanup();
 	});
+
+	test('messages.get concurrency stays at or under 8 during a full pull', async () => {
+		const { db, cleanup } = tempDb();
+		const ids = Array.from({ length: 20 }, (_, i) => `m${i}`);
+		const mailbox = new Map(ids.map((id) => [id, message(id)]));
+		let active = 0;
+		let highWater = 0;
+		const release = Promise.withResolvers<void>();
+		const client: GmailClient = {
+			...createFakeGmailClient({
+				mailbox,
+				historyPages: [],
+				profileHistoryId: '1000',
+			}),
+			async getMessage(id) {
+				active += 1;
+				highWater = Math.max(highWater, active);
+				await release.promise;
+				active -= 1;
+				const found = mailbox.get(id);
+				if (!found) return GmailApiError.Http({ status: 404, body: 'not found' });
+				return { data: found, error: null };
+			},
+		};
+
+		const syncing = syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-07-01T00:00:00.000Z') },
+			{ forceFull: true },
+		);
+		while (highWater < 8) await Bun.sleep(1);
+		expect(active).toBe(8);
+		release.resolve();
+		const outcome = await syncing;
+
+		expect(outcome.failure).toBeNull();
+		expect(highWater).toBeLessThanOrEqual(8);
+		cleanup();
+	});
+
+	test('messages.get failure in a full-pull page bounds calls and leaves the cursor unchanged', async () => {
+		const { db, cleanup } = tempDb();
+		const ids = Array.from({ length: 100 }, (_, i) => `m${i}`);
+		const mailbox = new Map(ids.map((id) => [id, message(id)]));
+		let getMessageCalls = 0;
+		const client: GmailClient = {
+			...createFakeGmailClient({
+				mailbox,
+				historyPages: [],
+				profileHistoryId: '1000',
+			}),
+			async getMessage(id) {
+				getMessageCalls += 1;
+				if (id === 'm1') {
+					return GmailApiError.Http({ status: 500, body: 'boom' });
+				}
+				const found = mailbox.get(id);
+				if (!found) return GmailApiError.Http({ status: 404, body: 'not found' });
+				return { data: found, error: null };
+			},
+		};
+
+		const outcome = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-07-01T00:00:00.000Z') },
+			{ forceFull: true },
+		);
+
+		expect(outcome.failure?.name).toBe('Http');
+		expect(outcome.cursorAfter).toBeNull();
+		expect(db.readRealmState().historyId).toBeNull();
+		expect(getMessageCalls).toBeLessThanOrEqual(8);
+		cleanup();
+	});
 });
 
 describe('syncMailbox: INCREMENTAL', () => {
