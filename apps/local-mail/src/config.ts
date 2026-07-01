@@ -14,14 +14,10 @@ export type AppConfig = {
 	dataDir: string;
 	clientId: string | null;
 	clientSecret: string | null;
-	/** OAuth2 scope requested at consent. Defaults to `gmail.modify` (read + write labels/send, no permanent delete) so Phase 3's write-through actions do not force re-consent. */
-	scope: string;
 	/** Gmail REST API origin. */
 	apiBase: string;
 	/** Google OAuth2 token endpoint (refresh-token exchange). */
 	tokenUrl: string;
-	/** Google OAuth2 authorization endpoint the browser is sent to (Phase 2). */
-	authorizeUrl: string;
 	/**
 	 * Force a FULL pull once the time since the last successful sync exceeds
 	 * this many days. Gmail's `historyId` retention is "at least a week, often
@@ -41,37 +37,27 @@ export type AppConfig = {
 
 const DEFAULT_API_BASE = 'https://gmail.googleapis.com';
 const DEFAULT_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const DEFAULT_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const DEFAULT_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
 function env(name: string): string | undefined {
 	const value = process.env[name];
 	return value && value.length > 0 ? value : undefined;
 }
 
-export type CliConfigOverrides = {
-	dataDir?: string;
-	account?: string;
-};
-
-export function loadConfig(overrides: CliConfigOverrides = {}): AppConfig {
-	const dataDir = resolveDataDir(overrides.dataDir);
+export function loadConfig(): AppConfig {
+	const dataDir = resolveDataDir();
 
 	return {
 		dataDir,
 		// The bare GMAIL_* names match what Infisical injects at /apps/local-mail.
 		clientId: env('GMAIL_CLIENT_ID') ?? null,
 		clientSecret: env('GMAIL_CLIENT_SECRET') ?? null,
-		scope: env('LOCAL_MAIL_SCOPE') ?? DEFAULT_SCOPE,
 		apiBase: env('LOCAL_MAIL_GMAIL_API_BASE') ?? DEFAULT_API_BASE,
 		tokenUrl: env('LOCAL_MAIL_GMAIL_TOKEN_URL') ?? DEFAULT_TOKEN_URL,
-		authorizeUrl:
-			env('LOCAL_MAIL_GMAIL_AUTHORIZE_URL') ?? DEFAULT_AUTHORIZE_URL,
 		historySafeWindowDays: 5,
 		fullBackstopDays: 30,
 		pageSize: 100,
 		credentialsPath:
 			env('LOCAL_MAIL_TOKEN_FILE') ?? credentialsFilePath(dataDir),
-		accountOverride: overrides.account ?? env('LOCAL_MAIL_ACCOUNT') ?? null,
+		accountOverride: env('LOCAL_MAIL_ACCOUNT') ?? null,
 	};
 }

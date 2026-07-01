@@ -40,11 +40,12 @@ export type OAuthError = InferErrors<typeof OAuthError>;
 
 type GrantResult = Promise<Result<TokenSet, OAuthError | TokenGrantError>>;
 
-/** Hand-built server metadata; Google's endpoints are known constants. */
+/** Hand-built server metadata; Google's endpoints are known constants. The
+ * refresh-token grant only needs the token endpoint; the authorization
+ * endpoint is Phase 2's interactive flow, not built here. */
 function authServer(config: AppConfig): oauth.AuthorizationServer {
 	return {
 		issuer: new URL(config.tokenUrl).origin,
-		authorization_endpoint: config.authorizeUrl,
 		token_endpoint: config.tokenUrl,
 	};
 }

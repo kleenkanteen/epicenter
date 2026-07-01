@@ -24,7 +24,6 @@ export type TokenError = OAuthError | TokenGrantError;
  * `invalid_grant` error back (see `oauth.ts`'s `ReauthRequired`).
  */
 export type TokenManager = {
-	current(): TokenSet;
 	getValidAccessToken(): Promise<Result<string, TokenError>>;
 	forceRefresh(): Promise<Result<string, TokenError>>;
 };
@@ -55,7 +54,6 @@ export function createTokenManager({
 	}
 
 	return {
-		current: () => current,
 		async getValidAccessToken() {
 			if (!isAccessTokenExpired(current, now())) return Ok(current.accessToken);
 			return refresh();

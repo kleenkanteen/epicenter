@@ -17,9 +17,8 @@ export function defaultDataDir(): string {
 	return join(homedir(), '.local', 'share', 'local-mail');
 }
 
-/** `--data-dir` beats `LOCAL_MAIL_DIR` beats the OS default. */
-export function resolveDataDir(override?: string): string {
-	if (override && override.length > 0) return override;
+/** `LOCAL_MAIL_DIR` beats the OS default. */
+export function resolveDataDir(): string {
 	const env = process.env['LOCAL_MAIL_DIR'];
 	if (env && env.length > 0) return env;
 	return defaultDataDir();
