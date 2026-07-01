@@ -3,14 +3,13 @@
 	import * as Kbd from '@epicenter/ui/kbd';
 	import { Spinner } from '@epicenter/ui/spinner';
 	import { cn } from '@epicenter/ui/utils';
-	import XIcon from '@lucide/svelte/icons/x';
 	import type { Snippet } from 'svelte';
 	import { dictationCapability } from '$lib/state/dictation-capability.svelte';
 	import type { RecordingActionController } from './recording-action-controller';
 
 	// The controller owns the state machine and every derived label/icon. The card
 	// only decides presentation: a spinner while pending, the destructive "filled"
-	// treatment while active, and a footer shown only at rest.
+	// treatment while active, and the pipeline footer below the toggle.
 	let {
 		controller,
 		footer,
@@ -111,28 +110,11 @@
 		{/if}
 	</Button>
 
-	<!-- The footer slot is the card's secondary zone: at rest it configures the
-	pipeline; while live it discards the take. Keeping the slot filled in both
-	states keeps the discard control tethered to the card (not orphaned below it)
-	and holds the card's height steady across start/stop. VAD has no discard, so
-	its live footer is empty and the slot collapses. -->
-	{#if controller.active}
-		{#if controller.cancel}
-			<div
-				class="flex justify-center border-t border-border/60 px-5 pt-3 pb-5"
-			>
-				<Button
-					tooltip="Cancel recording and discard audio"
-					onclick={() => controller.cancel?.()}
-					variant="ghost-destructive"
-					size="sm"
-				>
-					<XIcon class="size-4" />
-					Cancel recording
-				</Button>
-			</div>
-		{/if}
-	{:else if footer}
+	<!-- The footer stays put across start/stop, so there is no height jump by
+	construction. Cancel lives on the pill, the sole live recording surface. The
+	pipeline controls stay useful mid-take: model and transformation are read at
+	stop time. -->
+	{#if footer}
 		<div class="border-t border-border/60 px-5 pt-3 pb-5">
 			{@render footer()}
 		</div>
