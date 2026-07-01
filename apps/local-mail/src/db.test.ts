@@ -11,7 +11,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { Buffer } from 'node:buffer';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { chmodSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type MailDb, openMailDb } from './db.ts';
@@ -24,7 +24,7 @@ function tempDir() {
 
 function openTmp(): { db: MailDb; cleanup: () => void } {
 	const tmp = tempDir();
-	const db = openMailDb(join(tmp.dir, 'mail.db'));
+	const db = openMailDb(join(tmp.dir, 'you@example.com', 'mail.db'));
 	return {
 		db,
 		cleanup: () => {
@@ -248,13 +248,15 @@ describe('full pull page ingestion', () => {
 		cleanup();
 	});
 
-	test('creates account dirs as 0700 and db files as 0600', () => {
+	test('creates data and account dirs as 0700 and db files as 0600', () => {
 		const tmp = tempDir();
+		chmodSync(tmp.dir, 0o755);
 		const accountDir = join(tmp.dir, 'you@example.com');
 		const path = join(accountDir, 'mail.db');
 		const db = openMailDb(path);
 		db.ingestFullPullPage([message()], 's1');
 
+		expect(mode(tmp.dir)).toBe(0o700);
 		expect(mode(accountDir)).toBe(0o700);
 		expect(mode(path)).toBe(0o600);
 		expect(mode(`${path}-wal`)).toBe(0o600);
@@ -377,7 +379,7 @@ describe('labels', () => {
 describe('schema-version migration', () => {
 	test('a stale schema_version drops and recreates the data tables in the same open, not a subsequent one', () => {
 		const tmp = tempDir();
-		const path = join(tmp.dir, 'mail.db');
+		const path = join(tmp.dir, 'you@example.com', 'mail.db');
 
 		const first = openMailDb(path);
 		first.ingestFullPullPage([message()], 's1');

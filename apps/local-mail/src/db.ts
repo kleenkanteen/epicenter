@@ -134,7 +134,10 @@ export function openMailDb(
 	// See `apps/local-books/src/db.ts` for why a read-only handle skips every
 	// mutation below: it must never write, and must not fail with SQLITE_BUSY
 	// contending for a lock a concurrent sync already holds.
-	if (!readonly) secureDir(dirname(path));
+	if (!readonly) {
+		secureDir(dirname(dirname(path)));
+		secureDir(dirname(path));
+	}
 	const db = new Database(
 		path,
 		readonly ? { readonly: true } : { create: true },
@@ -180,7 +183,6 @@ export function openMailDb(
 			);
 		}
 		setMetaStmt.run('schema_version', SCHEMA_VERSION);
-		secureDbFiles(path);
 
 		db.exec(`
 			CREATE TABLE IF NOT EXISTS messages (
@@ -278,7 +280,6 @@ export function openMailDb(
 				for (const message of messages) upsertMessage(message, syncedAt);
 			});
 			tx.immediate();
-			secureDbFiles(path);
 		},
 
 		/** Replace the label set (small, returned complete by `labels.list` every call). */
@@ -290,7 +291,6 @@ export function openMailDb(
 				}
 			});
 			tx.immediate();
-			secureDbFiles(path);
 		},
 
 		/**
@@ -305,7 +305,6 @@ export function openMailDb(
 				setMetaStmt.run('last_synced_at', syncedAt);
 			});
 			tx.immediate();
-			secureDbFiles(path);
 		},
 
 		/**
@@ -355,7 +354,6 @@ export function openMailDb(
 				setMetaStmt.run('last_synced_at', syncedAt);
 			});
 			tx.immediate();
-			secureDbFiles(path);
 		},
 
 		close(): void {
