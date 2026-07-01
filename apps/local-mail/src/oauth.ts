@@ -1,13 +1,12 @@
 import * as oauth from 'oauth4webapi';
-import { Value } from 'typebox/value';
 import {
 	defineErrors,
 	extractErrorMessage,
 	type InferErrors,
 } from 'wellcrafted/error';
-import type { Result } from 'wellcrafted/result';
+import { Ok, type Result } from 'wellcrafted/result';
 import type { AppConfig } from './config.ts';
-import { ProfileResponseSchema } from './schema.ts';
+import { createGmailClient } from './gmail-client.ts';
 import {
 	type TokenGrantError,
 	type TokenSet,
@@ -25,7 +24,7 @@ export const OAuthError = defineErrors({
 	MissingCredentials: () => ({
 		message:
 			'Missing Gmail OAuth credentials. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET ' +
-			'(or run via `infisical run --path=/apps/local-mail`).',
+			'(or pass --client-id with GMAIL_CLIENT_SECRET set, or run via `infisical run --path=/apps/local-mail`).',
 	}),
 	TokenExchangeFailed: ({ cause }: { cause: unknown }) => ({
 		message: `Gmail token exchange failed: ${extractErrorMessage(cause)}`,
@@ -119,28 +118,21 @@ async function fetchAccountEmail(
 	config: AppConfig,
 	accessToken: string,
 ): Promise<Result<string, OAuthError>> {
-	try {
-		const response = await fetch(`${config.apiBase}/gmail/v1/users/me/profile`, {
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-				Accept: 'application/json',
-			},
+	const client = createGmailClient({
+		config,
+		tokens: {
+			getValidAccessToken: async () => Ok(accessToken),
+			forceRefresh: async () => Ok(accessToken),
+		},
+	});
+	const { data, error } = await client.getProfile();
+	if (error) return OAuthError.ProfileLookupFailed({ cause: error });
+	if (!data.emailAddress) {
+		return OAuthError.ProfileLookupFailed({
+			cause: new Error('profile response did not include emailAddress'),
 		});
-		if (!response.ok) {
-			return OAuthError.ProfileLookupFailed({
-				cause: new Error(`profile returned ${response.status}`),
-			});
-		}
-		const json = await response.json();
-		if (!Value.Check(ProfileResponseSchema, json) || !json.emailAddress) {
-			return OAuthError.ProfileLookupFailed({
-				cause: new Error('profile response did not include emailAddress'),
-			});
-		}
-		return { data: json.emailAddress, error: null };
-	} catch (cause) {
-		return OAuthError.ProfileLookupFailed({ cause });
 	}
+	return Ok(data.emailAddress);
 }
 
 export async function completeAuthorization(
@@ -168,7 +160,7 @@ export async function completeAuthorization(
 		const response = await oauth.authorizationCodeGrantRequest(
 			as,
 			client,
-			oauth.ClientSecretPost(config.clientSecret),
+			oauth.ClientSecretBasic(config.clientSecret),
 			params,
 			redirectUri,
 			codeVerifier,

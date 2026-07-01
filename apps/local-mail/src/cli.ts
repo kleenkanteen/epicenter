@@ -125,12 +125,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
 async function runConnect(args: ParsedArgs): Promise<number> {
 	const loaded = loadConfig();
 	const config = args.clientId ? { ...loaded, clientId: args.clientId } : loaded;
-	if (!config.clientId || !config.clientSecret) {
-		console.error(
-			'Missing Gmail OAuth credentials. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET, or pass --client-id with GMAIL_CLIENT_SECRET set.',
-		);
-		return 1;
-	}
 
 	const { data: token, error } = await runAuthorizationFlow(config, {
 		now: () => Date.now(),

@@ -7,11 +7,12 @@
  *
  * Key behaviors:
  * - Consent URL requests gmail.readonly only
- * - Token exchange includes the desktop client secret
+ * - Token exchange authenticates the desktop client with HTTP Basic
  * - The connected Gmail profile supplies the token-store account key
  */
 
 import { expect, test } from 'bun:test';
+import { Buffer } from 'node:buffer';
 import type { AppConfig } from './config.ts';
 import { runAuthorizationFlow } from './oauth.ts';
 
@@ -43,12 +44,14 @@ async function waitFor<T>(read: () => T | null): Promise<T> {
 
 test('runAuthorizationFlow exchanges a PKCE callback and stores the connected Gmail account', async () => {
 	const tokenRequests: URLSearchParams[] = [];
+	const tokenAuthHeaders: string[] = [];
 	const tokenServer = Bun.serve({
 		hostname: '127.0.0.1',
 		port: 0,
 		async fetch(request) {
 			const body = await request.text();
 			tokenRequests.push(new URLSearchParams(body));
+			tokenAuthHeaders.push(request.headers.get('authorization') ?? '');
 			return Response.json(
 				{
 					token_type: 'Bearer',
@@ -111,8 +114,12 @@ test('runAuthorizationFlow exchanges a PKCE callback and stores the connected Gm
 
 	const request = tokenRequests[0];
 	expect(request?.get('grant_type')).toBe('authorization_code');
-	expect(request?.get('client_id')).toBe('client-id-123');
-	expect(request?.get('client_secret')).toBe('client-secret-456');
+	expect(request?.get('client_secret')).toBeNull();
+	expect(
+		Buffer.from(tokenAuthHeaders[0]?.replace('Basic ', '') ?? '', 'base64').toString(),
+	).toBe(
+		'client%2Did%2D123:client%2Dsecret%2D456',
+	);
 	expect(request?.get('code_verifier')).toBeTruthy();
 
 	tokenServer.stop(true);
