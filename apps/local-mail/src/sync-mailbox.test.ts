@@ -12,12 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AppConfig } from './config.ts';
 import { type MailDb, openMailDb } from './db.ts';
-import {
-	GmailApiError,
-	type GmailClient,
-	type HistoryPage,
-} from './gmail-client.ts';
-import type { GmailMessage } from './schema.ts';
+import { GmailApiError, type GmailClient } from './gmail-client.ts';
+import type { GmailMessage, HistoryPage } from './schema.ts';
 import { syncMailbox } from './sync.ts';
 
 function tempDb(): { db: MailDb; cleanup: () => void } {

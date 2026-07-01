@@ -1,11 +1,7 @@
 import type { AppConfig } from './config.ts';
 import type { MailDb, RealmState } from './db.ts';
-import type {
-	GmailClient,
-	GmailClientError,
-	HistoryRecord,
-} from './gmail-client.ts';
-import type { GmailMessage } from './schema.ts';
+import type { GmailClient, GmailClientError } from './gmail-client.ts';
+import type { GmailMessage, HistoryRecord } from './schema.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

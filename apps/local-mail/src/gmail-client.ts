@@ -9,7 +9,6 @@ import {
 	GmailMessageSchema,
 	type HistoryPage,
 	HistoryPageSchema,
-	type HistoryRecord,
 	ListLabelsResponseSchema,
 	ListMessageIdsResponseSchema,
 	ProfileResponseSchema,
@@ -60,8 +59,6 @@ export const GmailApiError = defineErrors({
 export type GmailApiError = InferErrors<typeof GmailApiError>;
 
 export type GmailClientError = GmailApiError | TokenError;
-
-export type { HistoryPage, HistoryRecord };
 
 export type GmailClient = {
 	listMessageIds(
