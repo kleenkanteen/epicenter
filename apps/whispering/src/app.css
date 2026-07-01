@@ -6,9 +6,10 @@
    sets --background == --card (both pure white), so stacked surfaces could only be
    told apart by borders, which read as "cards on cards" in light mode.
 
-   1. Separate surfaces by TONE, not borders: --background gets a faint cool tint
-      while --card stays pure white, so a card reads as an elevated white surface on
-      a tinted page without needing a hairline border.
+   1. Separate surfaces by TONE, not borders: --background gets a barely-there
+      warm-neutral tint (the same lightness the shared theme already uses for
+      --sidebar) while --card stays pure white, so a card reads as an elevated
+      white surface on a tinted page without needing a hairline border.
 
    2. --primary becomes Whispering's brand indigo (it was the neutral shadcn
       default, near-black in light / near-white in dark). The record button is the
@@ -16,13 +17,13 @@
       active/recording state keeps using --destructive (red), already this app's
       convention. No new "recording" token: idle = --primary, recording = --destructive. */
 
-/* The cool background tint is light-only. Scope it to :root:not(.dark) rather than a
+/* The background tint is light-only. Scope it to :root:not(.dark) rather than a
    bare :root: this file is imported AFTER the shared theme, so a bare :root override
    would also win in dark mode (same specificity, later source order). Scoping it here
    means dark inherits the shared theme's background untouched, with no hardcoded copy
    to drift out of sync. */
 :root:not(.dark) {
-	--background: oklch(0.95 0.008 275);
+	--background: oklch(0.9925 0.001 70);
 }
 
 /* --primary is intentionally rebranded in BOTH modes, so it is set under :root and
