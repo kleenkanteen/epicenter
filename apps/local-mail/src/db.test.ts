@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
+import { Buffer } from 'node:buffer';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -60,13 +61,22 @@ function messageRow(db: MailDb, id: string) {
 				label_ids: string;
 				subject: string | null;
 				sender: string | null;
+				body_text: string | null;
 				deleted: number;
 			},
 			[string]
 		>(
-			`SELECT raw, thread_id, snippet, label_ids, subject, sender, deleted FROM messages WHERE id = ?`,
+			`SELECT raw, thread_id, snippet, label_ids, subject, sender, body_text, deleted FROM messages WHERE id = ?`,
 		)
 		.get(id);
+}
+
+function base64Url(input: string): string {
+	return Buffer.from(input, 'utf8')
+		.toString('base64')
+		.replace(/\+/g, '-')
+		.replace(/\//g, '_')
+		.replace(/=+$/g, '');
 }
 
 describe('full pull page ingestion', () => {
@@ -84,19 +94,6 @@ describe('full pull page ingestion', () => {
 		cleanup();
 	});
 
-	test('also upserts a thread stub keyed by threadId', () => {
-		const { db, cleanup } = openTmp();
-		db.ingestFullPullPage([message()], 's1');
-
-		const thread = db.raw
-			.query<{ id: string; last_message_id: string }, [string]>(
-				`SELECT id, last_message_id FROM threads WHERE id = ?`,
-			)
-			.get('t1');
-		expect(thread?.last_message_id).toBe('m1');
-		cleanup();
-	});
-
 	test('finishFullPull records the historyId baseline and timestamps', () => {
 		const { db, cleanup } = openTmp();
 		db.finishFullPull('500', 's1');
@@ -104,6 +101,146 @@ describe('full pull page ingestion', () => {
 		expect(state.historyId).toBe('500');
 		expect(state.lastFullPullAt).toBe('s1');
 		expect(state.lastSyncedAt).toBe('s1');
+		cleanup();
+	});
+
+	test('same-thread messages ingested newest-first derive the newest live message', () => {
+		const { db, cleanup } = openTmp();
+		db.ingestFullPullPage(
+			[
+				message({
+					id: 'newest',
+					threadId: 'thread-1',
+					internalDate: '2000',
+					snippet: 'newest snippet',
+				}),
+				message({
+					id: 'older',
+					threadId: 'thread-1',
+					internalDate: '1000',
+					snippet: 'older snippet',
+				}),
+			],
+			's1',
+		);
+
+		const row = db.raw
+			.query<
+				{ thread_id: string; last_message_id: string; snippet: string },
+				[]
+			>(
+				`SELECT thread_id, id AS last_message_id, snippet
+				 FROM messages
+				 WHERE deleted = 0 AND thread_id = 'thread-1'
+				 ORDER BY CAST(internal_date AS INTEGER) DESC
+				 LIMIT 1`,
+			)
+			.get();
+
+		expect(row).toEqual({
+			thread_id: 'thread-1',
+			last_message_id: 'newest',
+			snippet: 'newest snippet',
+		});
+		cleanup();
+	});
+
+	test('soft-deleted messages drop out of thread derivation', () => {
+		const { db, cleanup } = openTmp();
+		db.ingestFullPullPage(
+			[
+				message({
+					id: 'newest',
+					threadId: 'thread-1',
+					internalDate: '2000',
+					snippet: 'newest snippet',
+				}),
+				message({
+					id: 'older',
+					threadId: 'thread-1',
+					internalDate: '1000',
+					snippet: 'older snippet',
+				}),
+			],
+			's1',
+		);
+		db.applyHistoryBatch({
+			messagesToUpsert: [],
+			messagesToDelete: ['newest'],
+			labelPatches: [],
+			newHistoryId: '700',
+			syncedAt: 's2',
+		});
+
+		const row = db.raw
+			.query<{ last_message_id: string }, []>(
+				`SELECT id AS last_message_id
+				 FROM messages
+				 WHERE deleted = 0 AND thread_id = 'thread-1'
+				 ORDER BY CAST(internal_date AS INTEGER) DESC
+				 LIMIT 1`,
+			)
+			.get();
+
+		expect(row?.last_message_id).toBe('older');
+		cleanup();
+	});
+
+	test('text/plain MIME part decodes into body_text', () => {
+		const { db, cleanup } = openTmp();
+		db.ingestFullPullPage(
+			[
+				message({
+					payload: {
+						headers: [],
+						parts: [
+							{
+								mimeType: 'text/plain',
+								body: { data: base64Url('Plain body text') },
+							},
+						],
+					},
+				}),
+			],
+			's1',
+		);
+
+		expect(messageRow(db, 'm1')?.body_text).toBe('Plain body text');
+		cleanup();
+	});
+
+	test('html-only MIME part falls back to stripped body_text', () => {
+		const { db, cleanup } = openTmp();
+		db.ingestFullPullPage(
+			[
+				message({
+					payload: {
+						headers: [],
+						parts: [
+							{
+								mimeType: 'text/html',
+								body: {
+									data: base64Url(
+										'<html><body><p>Hello <strong>there</strong></p></body></html>',
+									),
+								},
+							},
+						],
+					},
+				}),
+			],
+			's1',
+		);
+
+		expect(messageRow(db, 'm1')?.body_text).toBe('Hello there');
+		cleanup();
+	});
+
+	test('missing body yields null body_text', () => {
+		const { db, cleanup } = openTmp();
+		db.ingestFullPullPage([message()], 's1');
+
+		expect(messageRow(db, 'm1')?.body_text).toBeNull();
 		cleanup();
 	});
 });
@@ -246,6 +383,13 @@ describe('schema-version migration', () => {
 			second.raw
 				.query<{ id: string }, [string]>(`SELECT id FROM messages WHERE id = ?`)
 				.get('m1'),
+		).toBeNull();
+		expect(
+			second.raw
+				.query<{ name: string }, []>(
+					`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'threads'`,
+				)
+				.get(),
 		).toBeNull();
 		second.close();
 		tmp.cleanup();

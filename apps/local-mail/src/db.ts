@@ -1,4 +1,5 @@
 import { Database } from 'bun:sqlite';
+import { Buffer } from 'node:buffer';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { type GmailLabel, type GmailMessage, headerValue } from './schema.ts';
@@ -27,11 +28,11 @@ import { type GmailLabel, type GmailMessage, headerValue } from './schema.ts';
  * below, it runs unconditionally on every open, no version bump, no data
  * loss, no Gmail re-download. Only a row/column SHAPE change needs
  * `SCHEMA_VERSION` bumped, which drops (cascading to that table's indices
- * too) and rebuilds all three tables fresh in the same open, see the version
+ * too) and rebuilds the mirror tables fresh in the same open, see the version
  * gate below.
  */
 
-export const SCHEMA_VERSION = '1';
+export const SCHEMA_VERSION = '2';
 
 const CURSOR_KEYS = [
 	'history_id',
@@ -46,6 +47,59 @@ export type RealmState = {
 };
 
 export type MailDb = ReturnType<typeof openMailDb>;
+
+type GmailMessagePart = {
+	mimeType?: string;
+	body?: { data?: string };
+	parts?: GmailMessagePart[];
+};
+
+function decodeBase64Url(data: string): string | null {
+	try {
+		const normalized = data
+			.replace(/-/g, '+')
+			.replace(/_/g, '/')
+			.padEnd(Math.ceil(data.length / 4) * 4, '=');
+		return Buffer.from(normalized, 'base64').toString('utf8');
+	} catch {
+		return null;
+	}
+}
+
+function flattenParts(part: GmailMessagePart | undefined): GmailMessagePart[] {
+	if (!part) return [];
+	return [part, ...(part.parts ?? []).flatMap((child) => flattenParts(child))];
+}
+
+function stripHtmlTags(html: string): string {
+	return html
+		.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+		.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+		.replace(/<[^>]+>/g, ' ')
+		.replace(/&nbsp;/gi, ' ')
+		.replace(/&amp;/gi, '&')
+		.replace(/&lt;/gi, '<')
+		.replace(/&gt;/gi, '>')
+		.replace(/&quot;/gi, '"')
+		.replace(/&#39;/g, "'")
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+function bodyText(message: GmailMessage): string | null {
+	const parts = flattenParts(message.payload as GmailMessagePart | undefined);
+	const plain = parts.find(
+		(part) => part.mimeType?.toLowerCase() === 'text/plain' && part.body?.data,
+	);
+	if (plain?.body?.data) return decodeBase64Url(plain.body.data);
+
+	const html = parts.find(
+		(part) => part.mimeType?.toLowerCase() === 'text/html' && part.body?.data,
+	);
+	if (!html?.body?.data) return null;
+	const decoded = decodeBase64Url(html.body.data);
+	return decoded === null ? null : stripHtmlTags(decoded);
+}
 
 export function openMailDb(
 	path: string,
@@ -105,23 +159,19 @@ export function openMailDb(
 				id            TEXT PRIMARY KEY,
 				raw           TEXT NOT NULL,
 				thread_id     TEXT GENERATED ALWAYS AS (json_extract(raw, '$.threadId')) VIRTUAL,
-				snippet       TEXT GENERATED ALWAYS AS (json_extract(raw, '$.snippet')) VIRTUAL,
+				snippet       TEXT GENERATED ALWAYS AS (json_extract(raw, '$.snippet')) STORED,
 				label_ids     TEXT GENERATED ALWAYS AS (json_extract(raw, '$.labelIds')) VIRTUAL,
-				internal_date TEXT GENERATED ALWAYS AS (json_extract(raw, '$.internalDate')) VIRTUAL,
+				internal_date TEXT GENERATED ALWAYS AS (json_extract(raw, '$.internalDate')) STORED,
 				subject       TEXT,
 				sender        TEXT,
+				body_text     TEXT,
 				synced_at     TEXT NOT NULL,
 				deleted       INTEGER NOT NULL DEFAULT 0
 			);
 			CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id);
 			CREATE INDEX IF NOT EXISTS idx_messages_internal_date ON messages(internal_date);
-
-			CREATE TABLE IF NOT EXISTS threads (
-				id               TEXT PRIMARY KEY,
-				last_message_id  TEXT NOT NULL,
-				snippet          TEXT,
-				synced_at        TEXT NOT NULL
-			);
+			CREATE INDEX IF NOT EXISTS idx_messages_thread_live_internal_date
+				ON messages(thread_id, internal_date) WHERE deleted = 0;
 
 			CREATE TABLE IF NOT EXISTS labels (
 				id         TEXT PRIMARY KEY,
@@ -134,12 +184,13 @@ export function openMailDb(
 	}
 
 	const upsertMessageStmt = db.query(
-		`INSERT INTO messages (id, raw, subject, sender, synced_at, deleted)
-		 VALUES (?, ?, ?, ?, ?, 0)
+		`INSERT INTO messages (id, raw, subject, sender, body_text, synced_at, deleted)
+		 VALUES (?, ?, ?, ?, ?, ?, 0)
 		 ON CONFLICT(id) DO UPDATE SET
 		   raw = excluded.raw,
 		   subject = excluded.subject,
 		   sender = excluded.sender,
+		   body_text = excluded.body_text,
 		   synced_at = excluded.synced_at,
 		   deleted = 0`,
 	);
@@ -151,14 +202,6 @@ export function openMailDb(
 	);
 	const patchMessageLabelsStmt = db.query(
 		`UPDATE messages SET raw = ?, synced_at = ? WHERE id = ? AND deleted = 0`,
-	);
-	const upsertThreadStmt = db.query(
-		`INSERT INTO threads (id, last_message_id, snippet, synced_at)
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET
-		   last_message_id = excluded.last_message_id,
-		   snippet = excluded.snippet,
-		   synced_at = excluded.synced_at`,
 	);
 	const upsertLabelStmt = db.query(
 		`INSERT INTO labels (id, raw, synced_at)
@@ -180,12 +223,7 @@ export function openMailDb(
 			JSON.stringify(message),
 			headerValue(message, 'Subject'),
 			headerValue(message, 'From'),
-			syncedAt,
-		);
-		upsertThreadStmt.run(
-			message.threadId,
-			message.id,
-			message.snippet ?? null,
+			bodyText(message),
 			syncedAt,
 		);
 	}
@@ -197,8 +235,8 @@ export function openMailDb(
 		readRealmState,
 
 		/**
-		 * One page of a full backfill: upsert every message (and its thread
-		 * stub), no cursor advance. Called once per `messages.list` page so a
+		 * One page of a full backfill: upsert every message, no cursor advance.
+		 * Called once per `messages.list` page so a
 		 * crash mid-backfill loses only the in-flight page, not the whole pull.
 		 */
 		ingestFullPullPage(messages: GmailMessage[], syncedAt: string): void {

@@ -6,10 +6,9 @@ import { type Static, Type } from 'typebox';
  * or `db.ts`, the same boundary-validation idiom `tokens.ts` already uses for
  * the OAuth grant response. `apps/local-books`' `entities.ts` is a registry
  * over ~15 uniformly-shaped, user-configurable QuickBooks entity types, which
- * earns a generic `EntityDef` abstraction. Gmail has exactly three fixed,
- * structurally different entities (messages, threads, labels), nothing to
- * configure, so `db.ts` declares each table directly instead of building a
- * registry for three non-uniform cases.
+ * earns a generic `EntityDef` abstraction. Gmail has a small fixed set of
+ * wire shapes, nothing to configure, so `db.ts` declares each table directly
+ * instead of building a registry.
  *
  * No schema sets `additionalProperties: false`: these describe only the
  * fields this package actually reads (Gmail messages carry many more, e.g.
@@ -31,9 +30,16 @@ export const GmailMessageSchema = Type.Object({
 	internalDate: Type.Optional(Type.String()),
 	payload: Type.Optional(
 		Type.Object({
+			mimeType: Type.Optional(Type.String()),
+			body: Type.Optional(
+				Type.Object({
+					data: Type.Optional(Type.String()),
+				}),
+			),
 			headers: Type.Optional(
 				Type.Array(Type.Object({ name: Type.String(), value: Type.String() })),
 			),
+			parts: Type.Optional(Type.Array(Type.Any())),
 		}),
 	),
 });
