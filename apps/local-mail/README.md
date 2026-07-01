@@ -54,6 +54,12 @@ infisical run --env=dev --path=/apps/local-mail -- \
   bun run src/bin.ts sync --watch
 ```
 
+Check connection and mirror state:
+
+```sh
+bun run src/bin.ts status
+```
+
 Query the mirror:
 
 ```sh

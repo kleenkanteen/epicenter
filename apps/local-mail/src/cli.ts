@@ -6,6 +6,7 @@ import { runMcpServer } from './mcp.ts';
 import { runAuthorizationFlow } from './oauth.ts';
 import { dbPath } from './paths.ts';
 import { queryMail } from './query.ts';
+import { readMailStatus } from './status.ts';
 import { runSyncLoop, type SyncOutcome, syncMailbox } from './sync.ts';
 import { createTokenManager } from './token-manager.ts';
 import { createFileTokenStore, resolveAccount } from './token-store.ts';
@@ -31,6 +32,7 @@ Usage:
   local-mail connect [--client-id <id>]
   local-mail seed-token <accountEmail> <refreshToken>
   local-mail sync [--full] [--watch[=intervalMs]]
+  local-mail status
   local-mail query "<sql>"
   local-mail mcp
 
@@ -38,6 +40,7 @@ Commands:
   connect      Connect a Gmail account once using browser OAuth.
   seed-token   Store an existing refresh token for headless bootstrap.
   sync         Refresh the local mirror. Use --watch to keep polling.
+  status       Show connection state, cursor, and row counts.
   query        Run a read-only SQL query over the local mirror.
   mcp          Serve query/status/sync tools to an agent over stdio.
 
@@ -278,6 +281,20 @@ async function runQuery(args: ParsedArgs): Promise<number> {
 	return 0;
 }
 
+async function runStatus(): Promise<number> {
+	const config = loadConfig();
+	const store = createFileTokenStore(config.credentialsPath);
+	const { data: accountEmail, error } = await resolveAccount(config, store);
+	if (error) {
+		console.error(error.message);
+		return 1;
+	}
+	console.log(
+		JSON.stringify(await readMailStatus({ config, accountEmail, store }), null, 2),
+	);
+	return 0;
+}
+
 export async function runCli(argv: string[]): Promise<number> {
 	const args = parseArgs(argv);
 
@@ -297,6 +314,8 @@ export async function runCli(argv: string[]): Promise<number> {
 			return runSeedToken(args);
 		case 'sync':
 			return runSync(args);
+		case 'status':
+			return runStatus();
 		case 'query':
 			return runQuery(args);
 		case 'mcp':
