@@ -128,6 +128,19 @@ Do not mutate instance into on-prem multi-tenancy.
 Name a new topology when the partition invariant changes.
 ```
 
+## Owner and partition are one value today
+
+The code carries exactly two axes per request: `c.var.user` (identity) and `c.var.ownerId` (the partition). There is no `partitionId`, because owner and partition are one-to-one in both directions: every owner has exactly one partition, and every partition has exactly one owner. When a mapping is 1:1 both ways, one identifier suffices. So the code speaks "owner" (`OwnerId`, `c.var.ownerId`, `owners/`), and prose uses "partition" only to explain the mechanism (cardinality, pinning). `resolveOwnerId` returns the one value both words describe.
+
+That collapse holds only while two refusals hold:
+
+```txt
+no owner ever has more than one partition (no workspaces axis)
+no partition ever has more than one reader (no sharing or delegation)
+```
+
+If either lands, owner and partition become different concepts and earn different names. Until then, adding a `partition` vocabulary to the code would be a second name for the same value.
+
 ## The practical rule
 
 Use the name that answers the next maintainer's question at the call site.

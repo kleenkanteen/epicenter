@@ -33,7 +33,7 @@ import type { Env } from './types.js';
 /**
  * Discriminated union of every ownership shape this library knows how to
  * compose. Selected via {@link perUser} or {@link instance}; consumed by
- * {@link resolveOwnerPartition} and any sub-app that mounts ownership-scoped
+ * {@link resolveOwnerId} and any sub-app that mounts ownership-scoped
  * routes. The instance arm is bare by design: the pin to
  * {@link INSTANCE_OWNER_ID} lives in the switch arm, so the partition decision
  * stays decoupled from caller identity (ADR-0075).
@@ -48,7 +48,7 @@ export const perUser: OwnershipRule = { kind: 'perUser' };
  *
  * The partition is pinned to the byte-constant {@link INSTANCE_OWNER_ID},
  * independent of caller identity: every valid operator bearer maps to the SAME
- * `owners/instance` in {@link resolveOwnerPartition}, so adding per-person named
+ * `owners/instance` in {@link resolveOwnerId}, so adding per-person named
  * tokens later adds identity without re-partitioning the box's data. This is NOT
  * `perUser` keyed by a fixed id (that would shatter into `owners/<id>` the day a
  * second token is added).
@@ -69,7 +69,7 @@ export const instance: OwnershipRule = { kind: 'instance' };
  * Per-user:  the user's id branded as `OwnerId`.
  * Instance:  `INSTANCE_OWNER_ID`.
  */
-export function resolveOwnerPartition<E extends Env = Env>(
+export function resolveOwnerId<E extends Env = Env>(
 	rule: OwnershipRule,
 	c: Context<E>,
 ): OwnerId {
