@@ -29,14 +29,11 @@ const collaboration = openCollaboration(ydoc, {
 // Local invocation: direct function call against the registry.
 await collaboration.actions.tabs_close({ tabIds: [1, 2] });
 
-// Online peers (relay-owned presence), each carrying its node id and any
-// relay-floor MCP routes it exposes.
+// Online peers (relay-owned presence), each carrying its node id.
 const phone = collaboration.peers
     .list()
     .find((peer) => peer.nodeId === 'phone');
 ```
-
-Cross-device tool calls do not ride this handle. A device exposes a named MCP route over the relay-channel floor, and a signed-in client reaches it over the same socket; see [the relay-channel plane](#relay-channel-plane-text-blind) below and ADR-0073.
 
 Content docs (rich-text bodies, attachments, anything nested that syncs independently) use the same call with `actions: {}`. That registry is local to the returned handle; it is no longer published in presence.
 
@@ -52,23 +49,21 @@ Content docs (rich-text bodies, attachments, anything nested that syncs independ
 | `whenDisposed`    | Resolves once the supervisor exits and the socket closes           |
 | `onStatusChange`  | Subscribe to status changes; returns unsubscribe                   |
 | `reconnect`       | Manually wake the supervisor (resets backoff)                      |
-| `peers`         | `list()` / `subscribe()` over the server-owned presence channel    |
-| `textPort`        | Raw text-frame port; the relay-channel floor builds blind MCP channels on top |
+| `peers`           | `list()` / `subscribe()` over the server-owned presence channel    |
 | `[Symbol.dispose]`| Sugar for `ydoc.destroy()`; cascades through every attachment      |
 
-`peers.list()` returns `Peer[]`, where each peer carries `{ nodeId, connectedAt, agentId?, exposedRoutes? }`. Local `collaboration.actions` remains the app's callable registry; presence never publishes it. `exposedRoutes` lists the relay-floor MCP route names that peer serves with `relay: 'exposed'` (a daemon's opted-in gateway routes, for example `['books']`); a signed-in client reads it to discover which devices to auto-mount as cross-device tool catalogs.
+`peers.list()` returns `Peer[]`, where each peer carries `{ nodeId, connectedAt, agentId? }`. Local `collaboration.actions` remains the app's callable registry; presence never publishes it.
 
-## The wire: one socket, three channels
+## The wire: one socket, two surfaces
 
-`openCollaboration` opens exactly one authenticated WebSocket per `(Y.Doc, relay)` pair. Three channels share that socket:
+`openCollaboration` opens exactly one authenticated WebSocket per `(Y.Doc, relay)` pair. Two surfaces share that socket:
 
 ```
 binary frames   ->  Yjs CRDT sync (STEP1 / STEP2 / UPDATE)
 text frames     ->  presence (the server-owned peer list)
-text frames     ->  relay-channel (blind MCP byte pipe)
 ```
 
-Channels are independent: a malformed relay-channel frame does not tear down sync. The server NEVER inspects the contents of a Yjs binary frame or a relay-channel byte chunk; it only routes and persists.
+The server never inspects the contents of a Yjs binary frame; it only routes and persists sync updates.
 
 ### Sync plane (binary)
 
@@ -90,7 +85,6 @@ type Peer = {
     nodeId: string;
     connectedAt: number;
     agentId?: string;          // set only by a resident agent mount (ADR-0025)
-    exposedRoutes?: string[];  // relay-floor MCP route names served with `relay: 'exposed'`
 };
 ```
 
@@ -107,7 +101,6 @@ Nodes publish their presence identity with one client-to-server frame on every (
 type PresencePublishFrame = {
     type: 'presence_publish';
     agentId?: string;
-    exposedRoutes?: string[];
 };
 ```
 
@@ -120,44 +113,6 @@ The relay stores the identity against the sending socket's connection attachment
 Presence used to ride y-protocols Awareness. Awareness is built for ephemeral peer-to-peer state with concurrent per-peer writers (cursors, selections, typing indicators), not for a server-authoritative fact the relay already holds in its `connections` Map. Moving presence onto a plain server-pushed channel deleted the awareness round-trip, the Durable Object hibernation restore loop, and the clock-fabrication seed.
 
 Cursor and selection sync, when they arrive, bring Awareness back, used for what it is designed for and kept separate from this presence channel.
-
-### Relay-channel plane (text, blind)
-
-A cross-device tool call rides text frames on the same socket as presence and sync, but the relay never understands them: the relay-channel layer multiplexes named request/response channels, and the relay forwards each channel's bytes BLIND. This is the relay floor (ADR-0073): one principal-authenticated socket that routes typed channels to a person's own devices, with sync as the first channel and cross-device tool calls as another.
-
-The wire is a four-frame, reset-only channel protocol. `id` is the caller-minted channel correlation id, echoed unchanged:
-
-```ts
-caller -> relay -> target:  { type: 'channel_open',   id, target, route }
-target -> relay -> caller:  { type: 'channel_accept', id }
-either <-> relay <-> other: { type: 'channel_data',   id, bytes }  // opaque base64 chunk
-either <-> relay <-> other: { type: 'channel_reset',  id, code }   // terminal, both directions
-```
-
-End to end:
-
-```
-caller                      relay                         target device
-──────                      ─────                         ─────────────
-channel_open ─────────────▶ validate `target` is a live
-{ id, target, route }       same-principal device, stamp the
-                            authenticated source
-                            { kind: 'principal', principalId }
-                            │
-                            ├─ no live socket ─▶ channel_reset { offline }
-                            │
-                            └─ channel_open ────────────▶ acceptor admits only if
-                                                          source.principalId is its
-                                                          own principal AND `route` is
-                                                          relay: 'exposed'
-                            ◀── channel_accept ───────────┘
-   channel_data  ◀────────  forward bytes verbatim  ──────────▶  channel_data
-   (MCP request / response; the relay decodes neither direction)
-```
-
-The bytes inside `channel_data` are an MCP session today (an HTTP one later); the relay base64-forwards them and parses nothing. Authorization is two server-side checks with no device-key ledger: the relay stamps the caller's authenticated `source` (overwriting any caller-supplied value), and the device acceptor admits the channel only when `source.principalId` matches its own principal and the named route was opted in with `--relay-expose` (default refused, ADR-0078). A `channel_reset` is the terminal frame in both directions: `closed` is a clean end, while `offline`, `refused`, `cancelled`, `too_large`, and `protocol_error` are the failure codes.
-
-There is no in-room request/response RPC on this socket. Cross-device capability is exclusively the relay floor's explicitly-exposed MCP routes: a daemon advertises its `relay: 'exposed'` route names in account-room presence via `exposedRoutes`, and a signed-in client auto-mounts every advertised `(device, route)` of its own fleet as an MCP tool catalog over this channel transport.
 
 ## URLs and routing
 
@@ -185,7 +140,7 @@ This is the consumer Google Docs model and the first of three account layers, in
 - **Layer 2 (future)**: shared-drive content. A self-hosted instance uses `principalId === 'instance'` so content is decoupled from any caller identity.
 - **Layer 3 (future)**: tenancy and billing. An organization groups user accounts for one invoice and admin policy; it never owns a document.
 
-`nodeId` is appended as a query parameter (`?nodeId=`) on every connect, including reconnects. It is a routing label stamped on the socket at upgrade, not an auth principal: the relay authorizes the room from the token, and within that room `nodeId` only decides which socket the relay routes a frame to (a presence push, or a relay-channel byte chunk).
+`nodeId` is appended as a query parameter (`?nodeId=`) on every connect, including reconnects. It is a routing label stamped on the socket at upgrade, not an auth principal: the relay authorizes the room from the token, and within that room `nodeId` decides how presence identifies this install.
 
 `/api/rooms/:room` is the single cloud sync route shape. Browser apps and the workspace daemon both build their URL with `roomWsUrl`.
 
@@ -246,4 +201,4 @@ cycleController    aborts on reconnect(); kills the current iteration only
 
 ## Mental model in one paragraph
 
-`openCollaboration(ydoc, config)` is the one collaboration primitive: it opens a single WebSocket to the relay, runs the Yjs binary sync protocol, publishes this node's presence identity via `presence_publish`, mirrors the relay's server-owned presence channel into `peers` (including each peer's node id, agent id, and exposed route names), and exposes a raw `textPort` that the relay-channel floor rides for blind cross-device MCP. The relay is a dumb pipe: it merges Yjs updates (eventually consistent CRDT semantics, no admission control), tracks the live connections Map (source of truth for who is here), and forwards relay-channel byte frames without parsing them. Presence is the relay's `connections` Map, not Yjs Awareness. Cross-device tool calls ride the relay-channel floor as MCP (ADR-0073), not an in-room RPC. Content docs use the same primitive with `actions: {}` as a local empty registry.
+`openCollaboration(ydoc, config)` is the one collaboration primitive: it opens a single WebSocket to the relay, runs the Yjs binary sync protocol, publishes this node's presence identity via `presence_publish`, and mirrors the relay's server-owned presence channel into `peers` (including each peer's node id and agent id). The relay merges Yjs updates (eventually consistent CRDT semantics, no admission control) and tracks the live connections Map (source of truth for who is here). Presence is the relay's `connections` Map, not Yjs Awareness. Content docs use the same primitive with `actions: {}` as a local empty registry.

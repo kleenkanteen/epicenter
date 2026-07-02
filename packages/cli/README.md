@@ -49,44 +49,11 @@ epicenter list -C ~/workspace
 epicenter list entries_update -C ~/workspace
 
 epicenter run entries_update '{"id":"entry_1","tags":["triaged"]}' -C ~/workspace
-epicenter run entries_update '{"id":"entry_1","tags":["triaged"]}' --peer user-1 -C ~/workspace
 
 epicenter peers -C ~/workspace
 ```
 
 `-C` is a start directory for Epicenter-root discovery. Discovery walks upward until it finds `epicenter.config.ts`, then the daemon opens the mount that config declares. Discovery is upward-only and never scans down, so run from inside your Epicenter folder (or any directory under it) or pass `-C <epicenter-root>`. From a repo whose Epicenter folder lives at `repo/apps`, that is `epicenter daemon up -C apps`.
-
-## Cross-device tools
-
-Your signed-in devices reach each other's tools over the relay floor: one principal-authenticated relay routes a typed channel to a device over the account-room WebSocket each daemon already holds. You ask for a device by its nodeId, not a tool floating in a global namespace, and the channel reaches a named route on that device's daemon (a route like `books` spawns that device's MCP server).
-
-A route is default-closed over the relay. The relay stamps an unforgeable identity on every channel (the authenticated account it belongs to), and a device admits an inbound channel only when the caller is your own account AND the route is explicitly relay-exposed. A sensitive route (`books` exposes financial data) stays refused until the operator opts it in with `--relay-expose`, knowingly accepting the relay's plaintext ceiling (a self-hosted relay removes the third party; privacy is which relay you run).
-
-| Verb | What it does |
-| --- | --- |
-| `epicenter tools <device>` | List a device's MCP tools for one route (default `books`) |
-| `epicenter call <device> <route> <tool> [input]` | Call one tool on a device's route |
-
-`<device>` is the target's nodeId, printed in its `epicenter daemon up` banner. Only a device currently online on the relay is reachable.
-
-### Two-machine smoke
-
-To confirm cross-device reach end to end, sign two machines into the same account and run:
-
-```bash
-# Machine B (the target): expose `books` over the relay floor. It is refused by
-# default (financial data), so this knowingly accepts the trusted-relay ceiling.
-# The banner prints "account room: online as <nodeId>"; note B's nodeId.
-epicenter daemon up -C <root> --relay-expose books
-
-# Machine A (the caller):
-epicenter daemon up -C <root>
-
-# On machine A, after both account rooms have synced:
-epicenter call <B-nodeId> books <tool>
-```
-
-Two things gate this. Both machines must be signed into the same account and reach the same sync server, because the relay floor rides the account-room WebSocket each device holds; if `epicenter tools <B-nodeId>` on A cannot reach B, that is a control-plane sync problem, not a transport one. And the target must have opted `books` in with `--relay-expose`; without it the acceptor refuses every relay channel by default. No device key, dial address, or `verify` is involved: the relay's same-account vouch plus the relay-exposed route is the whole gate.
 
 ## Exit codes
 
@@ -95,9 +62,8 @@ Two things gate this. Both machines must be signed into the same account and rea
 | Code | `run` | `list`, `peers` |
 | --- | --- | --- |
 | `0` | success | success |
-| `1` | usage error (unknown action, action input that fails the action's schema, bad `--peer` input) or no daemon running | any failure (no daemon, bad arguments) |
-| `2` | runtime error: the local action returned `Err`, or the remote RPC failed | (not used) |
-| `3` | peer not found: `--peer <target>` did not resolve within `--wait` | (not used) |
+| `1` | usage error (unknown action, action input that fails the action's schema) or no daemon running | any failure (no daemon, bad arguments) |
+| `2` | runtime error: the local action returned `Err` | (not used) |
 
 `daemon up` exits `1` on startup failure (already running, bad config, auth) and `0` on clean shutdown. `daemon down`, `ps`, and `logs` exit `0`: a missing daemon or an empty log is reported, not treated as an error.
 

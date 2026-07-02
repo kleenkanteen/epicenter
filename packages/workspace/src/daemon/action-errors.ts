@@ -2,9 +2,7 @@
  * Domain errors for the daemon `/run` route.
  *
  * A run consults this daemon's action registry, then invokes the resolved
- * handler. Cross-device calls are not a `/run` concern: reaching another
- * device's actions is an explicitly-exposed MCP route over the relay floor
- * (ADR-0078), served by `/tools` and `/call`, not this route.
+ * handler. Cross-device calls are not a `/run` concern.
  *
  * Exit-code mapping (the CLI renderer switches on `name`):
  *

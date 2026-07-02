@@ -1,9 +1,8 @@
 /**
  * The loop's view of its tools, kept tool-agnostic: the loop knows how to offer
- * tools to the model and how to run one, never where a tool lives.
- * `createLocalToolCatalog` fills a {@link ToolCatalog} from the local action
- * registry; cross-device tools arrive over MCP (the relay floor), not peer
- * dispatch (ADR-0047). Either way the loop does not change.
+ * tools to the model and how to run one, never where a tool lives. A
+ * {@link ToolCatalog} can be local actions, stdio MCP, or another host-specific
+ * adapter; the loop does not change.
  */
 import type { JsonValue } from 'wellcrafted/json';
 

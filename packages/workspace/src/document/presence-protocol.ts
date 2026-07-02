@@ -7,11 +7,10 @@
  * the latest list verbatim: there is no delta protocol and no client-side
  * reassembly, the frame IS the state.
  *
- * Presence is liveness and routing identity, not capability advertisement: the
- * payload is each peer's `nodeId`, `connectedAt`, `agentId`, and
- * `exposedRoutes`. The legacy action-manifest field was deleted with the
- * in-room dispatch subsystem (ADR-0073); actions live in the local registry
- * (`collaboration.actions`), never on the wire.
+ * Presence is liveness and participant identity, not capability
+ * advertisement: the payload is each peer's `nodeId`, `connectedAt`, and
+ * `agentId`. Action manifests and route catalogs are not presence; actions
+ * live in the local registry, never on the wire.
  *
  * Shared by the relay (`packages/server/src/room/core.ts`, the sender) and
  * the client (`open-collaboration.ts`, the reader).
@@ -28,29 +27,21 @@ import { Compile } from 'typebox/compile';
 /**
  * One peer's entry on the wire.
  *
- * `nodeId` is the peer's relay routing address; `connectedAt` lets receivers
- * render an "online since" affordance. `agentId` is the catalog agent
- * this peer answers as (ADR-0025), present only on a peer that mounted with one
- * (a resident daemon) and absent for ordinary participants. It is the join key
- * a picker uses to decorate a durable agent as live: the catalog owns the
- * agent's properties, presence only reports which agent ids are online now.
+ * `nodeId` is the peer's sync/presence participant identity; `connectedAt`
+ * lets receivers render an "online since" affordance. `agentId` is the catalog
+ * agent this peer answers as (ADR-0025), present only on a peer that mounted
+ * with one (a resident daemon) and absent for ordinary participants. It is the
+ * join key a picker uses to decorate a durable agent as live: the catalog owns
+ * the agent's properties, presence only reports which agent ids are online now.
  */
-export const PeerSchema = Type.Object({
-	nodeId: Type.String(),
-	connectedAt: Type.Number(),
-	agentId: Type.Optional(Type.String()),
-	/**
-	 * The relay-floor route names this peer serves with `relay: 'exposed'` (a
-	 * daemon's opted-in MCP gateway routes, e.g. `['books']`). Discovery for the
-	 * floor: a consumer reads this to know which devices serve which MCP routes and
-	 * auto-mounts them as tool catalogs, rather than blindly probing every device
-	 * for a guessed route name. The floor carries tool routes only (ADR-0078), so
-	 * every name here is an MCP server. Absent or `[]` for a pure consumer (a
-	 * browser exposes nothing). Additive and optional, so an older peer that omits
-	 * it is simply not a cross-device tool source.
-	 */
-	exposedRoutes: Type.Optional(Type.Array(Type.String())),
-});
+export const PeerSchema = Type.Object(
+	{
+		nodeId: Type.String(),
+		connectedAt: Type.Number(),
+		agentId: Type.Optional(Type.String()),
+	},
+	{ additionalProperties: false },
+);
 export type Peer = Static<typeof PeerSchema>;
 
 /**
@@ -59,25 +50,29 @@ export type Peer = Static<typeof PeerSchema>;
  * own install: the relay computes the list per-recipient so the client never
  * has to filter self.
  */
-export const PresenceFrameSchema = Type.Object({
-	type: Type.Literal('presence'),
-	peers: Type.Array(PeerSchema),
-});
+export const PresenceFrameSchema = Type.Object(
+	{
+		type: Type.Literal('presence'),
+		peers: Type.Array(PeerSchema),
+	},
+	{ additionalProperties: false },
+);
 export type PresenceFrame = Static<typeof PresenceFrameSchema>;
 
 /**
  * Client -> server: publish this node's presence identity (its agent
- * designation and exposed route names). The relay stores it against the sending
+ * designation). The relay stores it against the sending
  * socket's nodeId and rebroadcasts presence so peers see the update. Sent once
  * on connect. `agentId` is set only by a peer that mounted as a resident agent
  * (ADR-0025); ordinary participants omit it.
  */
-export const PresencePublishFrameSchema = Type.Object({
-	type: Type.Literal('presence_publish'),
-	agentId: Type.Optional(Type.String()),
-	/** This node's relay-exposed route names; see {@link PeerSchema.exposedRoutes}. */
-	exposedRoutes: Type.Optional(Type.Array(Type.String())),
-});
+export const PresencePublishFrameSchema = Type.Object(
+	{
+		type: Type.Literal('presence_publish'),
+		agentId: Type.Optional(Type.String()),
+	},
+	{ additionalProperties: false },
+);
 export type PresencePublishFrame = Static<typeof PresencePublishFrameSchema>;
 
 /**

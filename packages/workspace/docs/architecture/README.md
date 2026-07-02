@@ -7,7 +7,7 @@ System architecture documentation for Epicenter's distributed sync system.
 | Document                                  | Description                                                      |
 | ----------------------------------------- | ---------------------------------------------------------------- |
 | [Network Topology](./network-topology.md) | Node types (client/server), connection rules, example topologies |
-| [Node Identity](./node-identity.md)   | How nodes identify themselves: the install-stable `nodeId`, relay routing, presence |
+| [Node Identity](./node-identity.md)   | How nodes identify themselves: the install-stable `nodeId` and presence |
 | [Security](./security.md)                 | Security layers (Tailscale, content-addressing), threat model    |
 
 ## Quick Reference
@@ -25,11 +25,10 @@ System architecture documentation for Epicenter's distributed sync system.
 
 ```
 Client ──► Remote Server  ✅  (WebSocket, HTTP: data sync, presence, AI, auth)
-Client ──► Device route    ✅  (via the relay floor's exposed MCP routes, not a direct connection)
 Server ──► Server         ✅  (WebSocket)
 ```
 
-Note: Direct connections are only possible **to** servers. Cross-device capability does not need one: a device opts a named route in over the relay floor (`relay: 'exposed'`, ADR-0073) and advertises it in presence, and a signed-in client auto-mounts every advertised route of its own fleet as an MCP tool catalog, reaching it over the shared relay channel rather than a direct connection.
+Note: Direct connections are only possible **to** servers. The old relay-floor route exposure path was deleted; presence now reports liveness only. A future box-access surface would be direct URL-addressed capability reach outside Epicenter's sync relay.
 
 ### Typical Setup
 

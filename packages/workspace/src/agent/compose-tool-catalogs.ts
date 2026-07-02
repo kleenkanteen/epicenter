@@ -1,9 +1,7 @@
 /**
  * Compose several {@link ToolCatalog}s into one the agent loop consumes
  * unchanged. The loop is handed a single catalog; an app that reaches tools more
- * than one way (its in-process actions through {@link createLocalToolCatalog}
- * PLUS one {@link createMcpGatewayCatalog} per cross-device route it has dialed
- * over the relay floor) merges them here.
+ * than one way merges them here.
  *
  * Collision rule: first-wins. A tool name that appears in more than one catalog
  * is owned by the EARLIEST catalog in the list, for both the offered definition

@@ -298,6 +298,7 @@ across disjoint files):
 - Server: delete the Wave 2 session shim (emit `{ principalId, email? }`,
   email from `c.var.principal.email`); route declarations follow the new
   patterns automatically via `API_ROUTES`/`ROOM_ROUTE`; relay frame field
+  <!-- doc-path-check: ignore-next-line (handoff prompt names a file deleted by the relay-channel cleanup) -->
   `userId` -> `principalId` in `packages/workspace/src/relay-channel/protocol.ts`
   and its server counterpart (`room/channel-router.ts` source frames) if not
   already done in Wave 2.

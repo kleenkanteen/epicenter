@@ -78,7 +78,12 @@ The deferred reshape (move the in-room `defineActions` dispatch RPC onto MCP `to
 
 Deleted: the CLI `--peer` verb and its daemon peer-run handler; the dispatch tool catalog's remote arm (reshaped to a local-only catalog); and the entire in-room `dispatch_*` frame family (the caller machinery on `openCollaboration`, the relay correlation table, the protocol module, and their tests). The net effect is a deletion with no offsetting additions; cross-device capability is unchanged and is now exclusively the relay-floor exposed MCP routes.
 
+<!-- doc-path-check: ignore-next-line (historical ADR reference to the deleted relay-floor route table) -->
 The general "project any `defineActions` to an in-process MCP server" mechanism (the wedge-gated vocabulary reshape) stays a reserved, unbuilt seam: the `kind` discriminant on the gateway `Route` (`packages/workspace/src/gateway/route-table.ts`) is where to add it the day a real consumer (for example a phone UI that runs your home box's actions) earns it. It is not built now. MCP remains a wire language, not a model-only interface: a script or CLI driving `createMcpGatewayCatalog` is as valid a caller as the agent loop, so refusing `--peer` does not make cross-device model-only.
 
 <!-- doc-path-check: ignore-next-line (the design spec is deleted by this graduation; git keeps the body recoverable) -->
 Invariant 5 is reframed above (uniform transport, deployment-driven privacy). Invariants 2 and 4 (read-only to foreign hosts, OpenAI-compatible model boundary) are untouched. The spec that carried this design (`specs/20260627T200000-super-chat-device-gateway-collapse.md`) is deleted with this graduation, per the two-state spec lifecycle.
+
+### Update (2026-07-02): the relay-floor capability layer is deleted
+
+ADR-0079 split cross-device into two planes, and ADR-0086 resolved the trigger: there is no live consumer for network-reachable capability reach. The relay-floor channel layer described above is now historical, not live. Deleted: the 4-frame channel protocol, channel router, account room, relay acceptor, route table, MCP gateway catalog, presence `exposedRoutes`, and the CLI `tools`/`call`/`--relay-expose` surface. The surviving MCP story is local stdio or a future direct URL-addressed box surface, not Epicenter routing MCP over the sync relay.

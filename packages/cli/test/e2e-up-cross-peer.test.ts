@@ -26,10 +26,8 @@
  *   [ok] Project selection through `-C <p>`.
  *        Covered by the lifecycle tests that start, query, log, and stop the
  *        fixture from a resolved project directory.
- *   [n/a] Cross-device `run --peer` was refused and deleted (ADR-0078): cross-
- *        device capability is now explicitly-exposed MCP routes over the relay
- *        floor (`epicenter tools` / `call`), outside this daemon-lifecycle suite.
- *        The lifecycle tests below exercise every surviving CLI verb against a
+ *   [n/a] Cross-device `run --peer` was refused and deleted (ADR-0078). The
+ *        lifecycle tests below exercise every surviving CLI verb against a
  *        fixture with fake peer attachments.
  */
 
@@ -67,10 +65,7 @@ function makeEnv(): EnvOverrides {
 	// No machine-auth grant is written, so the daemon runs SIGNED-OUT. These
 	// lifecycle tests assert socket / metadata / IPC behavior, not cross-device;
 	// the demo fixture's stubbed collaboration already supplies the peers
-	// snapshot. A signed-in daemon would open the account room and the device
-	// gateway over the relay floor (the per-user authenticated relay), networking
-	// that has no place in a hermetic suite. Real signed-in-binary relay-floor
-	// coverage lives in the manual two-machine smoke.
+	// snapshot.
 	return {
 		home,
 		runtimeDir,

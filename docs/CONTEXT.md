@@ -57,20 +57,12 @@ shapes, see `docs/adr/`.
   self-hosted instance resolves every valid operator bearer to the literal
   `instance` principal. Durable namespaces use `principals/<principalId>/...`.
   Billing is hosted-only and lives in `apps/api/worker/billing/`.
-- **Three cross-device layers**: every cross-device feature is one of three jobs, kept
-  separate. *Inference* (the chat brain) streams tokens from an OpenAI-compatible endpoint
-  (ADR-0050), over the inference seam, not the device relay. *Sync* (convergent state)
-  carries document history over the relay; each device's tool list is dial-fetched and
-  cached, and which devices are online is server-owned presence (no synced roster or trust
-  ledger). *Invoke* (the agent's hands) is the chat acting as an MCP host calling MCP
-  servers that live on a person's own devices, reached through a transport seam
-  (`ToolCatalog` / `PeerTransport`) so the loop never sees the transport.
-- **Invoke transport**: every client reaches a device's tools over the relay floor, a typed
-  channel multiplexed on the principal account-room WebSocket the device already holds
-  (ADR-0004). A browser is first-class because it uses the same floor with no app. The relay
-  stamps an unforgeable `source` and routes by nodeId; a route is admitted only on principal
-  identity plus an explicit `relay: 'exposed'` opt-in. Confidentiality is not the
-  transport's job; privacy is which relay you run (self-host, ADR-0068).
+- **Cross-device planes**: cross-device work splits by owner. *Inference* (the
+  chat brain) streams tokens from an OpenAI-compatible endpoint (ADR-0050),
+  over the inference seam. *Sync* (convergent state) carries document history
+  over the relay, and server-owned presence reports which workspace peers are
+  online. *Invoke* (the agent's hands) is local to the host that owns the tool
+  process, unless a future product re-earns a direct URL-addressed box surface.
 
 ## Workspace API
 
@@ -136,8 +128,8 @@ shapes, see `docs/adr/`.
   Discovery walks up to the nearest one. One root, one daemon.
 - **Daemon**: the long-lived foreground process started by `epicenter daemon up`.
   It opens the root's mount and exposes it over a Unix socket as a callable peer.
-- **Mesh peer**: a device whose daemon is online and reachable. `run --peer <id>`
-  dispatches RPC to a remote peer; `peers` lists connected peers (presence).
+- **Peer**: a device currently connected to the same workspace room. `peers`
+  lists connected peers from server-owned presence.
 - **Mandatory-daemon commands**: `run`, `list`, `peers`. They require a live local
   daemon (`getDaemon` returns `Required` otherwise); there is no cold-path
   fallback (see `docs/adr/`).
