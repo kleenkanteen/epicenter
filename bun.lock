@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "epicenter",
@@ -601,6 +600,7 @@
         "@tanstack/svelte-query": "catalog:",
         "arktype": "catalog:",
         "wellcrafted": "catalog:",
+        "yjs": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",

@@ -17,15 +17,67 @@
 
 import type { AuthClient } from '@epicenter/auth';
 import { toastOnError } from '@epicenter/ui/sonner';
+import { attachIndexedDb, attachLocalStorage } from '@epicenter/workspace';
 import {
 	defineErrors,
 	extractErrorMessage,
 	type InferErrors,
 } from 'wellcrafted/error';
 import { tryAsync } from 'wellcrafted/result';
+import * as Y from 'yjs';
 
 /** Row type of a migratable table, inferred from its `scan()` shape. */
 type TableRows<T> = T extends { scan(): { rows: Array<infer R> } } ? R : never;
+
+/** Owner-scoped storage coordinates for the child-doc merge. */
+type OwnerScope = Parameters<typeof attachLocalStorage>[1];
+
+/**
+ * Delete one bare (unowned) local IndexedDB database by doc guid. Bare docs
+ * name their database after the guid itself (`attachIndexedDb` default), so
+ * the guid is the handle. The throwaway doc is destroyed before the delete so
+ * the provider's connection never races the deletion.
+ */
+async function clearBareDoc(guid: string): Promise<void> {
+	const doc = new Y.Doc({ guid });
+	const idb = attachIndexedDb(doc);
+	doc.destroy();
+	await idb.whenDisposed;
+	await idb.clearLocal();
+}
+
+/**
+ * Merge one bare child doc's content into its owner-scoped storage.
+ *
+ * Reads the bare doc's full Yjs state, then applies it onto the owner-scoped
+ * doc (both keyed by the same guid; only the storage partition differs). CRDT
+ * merge is commutative and idempotent, so a retry is always safe. Local
+ * storage only, no relay connection: the next time the doc opens, the normal
+ * signed-in boot path connects it to the relay and syncs the merged content
+ * out. The bare copy is NOT deleted here; deletion happens only after the
+ * whole Add succeeds.
+ */
+async function mergeBareDocIntoOwner(
+	guid: string,
+	scope: OwnerScope,
+): Promise<void> {
+	const bareDoc = new Y.Doc({ guid, gc: true });
+	const bareIdb = attachIndexedDb(bareDoc);
+	await bareIdb.whenLoaded;
+	const update = Y.encodeStateAsUpdate(bareDoc);
+	bareDoc.destroy();
+	await bareIdb.whenDisposed;
+	// An empty Yjs update is 2 bytes (no client blocks). Skip the round trip
+	// for a child doc that was never opened locally.
+	if (update.byteLength <= 2) return;
+
+	const ownerDoc = new Y.Doc({ guid, gc: true });
+	const ownerIdb = attachLocalStorage(ownerDoc, scope);
+	await ownerIdb.whenLoaded;
+	Y.applyUpdate(ownerDoc, update);
+	ownerDoc.destroy();
+	await ownerIdb.whenDisposed;
+}
 
 /** Per-table row counts measured from the local source at probe time. */
 export type MigrationCounts = Record<string, number>;
@@ -80,6 +132,7 @@ export function createSignInMigration<
 	describe,
 	note,
 	errorNoun = 'local data',
+	childDocs,
 }: {
 	/** The app's auth client; only the boot status gates the probe. */
 	auth: AuthClient;
@@ -106,6 +159,20 @@ export function createSignInMigration<
 	note?: (counts: MigrationCounts) => string | undefined;
 	/** Noun for the error toasts, e.g. "recordings". */
 	errorNoun?: string;
+	/**
+	 * Per-row child docs staged in the bare local doc (note bodies, chat
+	 * messages). The kit owns the crash-safety ordering: Add merges child
+	 * content into owner-scoped storage FIRST (idempotent CRDT merge, so a
+	 * crash re-prompts and a retry re-runs safely), then copies rows and
+	 * clears the bare root, then best-effort deletes the bare child copies;
+	 * Delete clears bare children FIRST, then the root, so a crash in between
+	 * leaves the rows intact and the deletion converges on retry. Omit for a
+	 * rows-only workspace.
+	 */
+	childDocs?: {
+		/** Child-doc guids for every staged row, read from an open local source. */
+		guids: (tables: TTables) => string[];
+	};
 }): SignInMigrationState {
 	const MigrationError = defineErrors({
 		AddFailed: ({ cause }: { cause: unknown }) => ({
@@ -114,6 +181,10 @@ export function createSignInMigration<
 		}),
 		DeleteFailed: ({ cause }: { cause: unknown }) => ({
 			message: `Could not remove the local ${errorNoun}: ${extractErrorMessage(cause)}`,
+			cause,
+		}),
+		CleanupFailed: ({ cause }: { cause: unknown }) => ({
+			message: `Everything is in your account, but removing the leftover local copies failed: ${extractErrorMessage(cause)}`,
 			cause,
 		}),
 	});
@@ -149,6 +220,29 @@ export function createSignInMigration<
 			}
 		});
 		await source.clearLocal();
+	}
+
+	/** Owner-scoped storage coordinates; unreachable signed out (the dialog only opens on a signed-in boot). */
+	function ownerScope(): OwnerScope {
+		const state = auth.state;
+		if (state.status === 'signed-out') {
+			throw new Error(
+				'[sign-in-migration] owner scope read while signed out.',
+			);
+		}
+		return { server: new URL(auth.baseURL).host, ownerId: state.ownerId };
+	}
+
+	/** Child-doc guids for every staged row, via a throwaway local source. */
+	async function readChildGuids(): Promise<string[]> {
+		if (!childDocs) return [];
+		const source = openLocalSource();
+		try {
+			await source.whenLoaded;
+			return childDocs.guids(source.tables);
+		} finally {
+			source.dispose();
+		}
 	}
 
 	let open = $state(false);
@@ -215,10 +309,38 @@ export function createSignInMigration<
 			open = true;
 		},
 
-		/** Copy local data into the owner doc, then delete the plaintext local copy. */
+		/**
+		 * Copy local data into the owner doc, then delete the plaintext local
+		 * copy. With child docs: merge child content into owner storage FIRST
+		 * (a failure or crash there leaves the root rows intact, so the dialog
+		 * re-prompts and the idempotent merge re-runs), then rows + root clear,
+		 * then best-effort deletion of the bare child copies (everything is
+		 * already safe in owner storage, so a failure leaves only removable
+		 * residue).
+		 */
 		async addToAccount(): Promise<void> {
 			if (phase !== 'idle') return;
 			phase = 'adding';
+
+			let childGuids: string[] = [];
+			if (childDocs) {
+				const { error } = await tryAsync({
+					try: async () => {
+						childGuids = await readChildGuids();
+						const scope = ownerScope();
+						for (const guid of childGuids) {
+							await mergeBareDocIntoOwner(guid, scope);
+						}
+					},
+					catch: (cause) => MigrationError.AddFailed({ cause }),
+				});
+				if (error) {
+					phase = 'idle';
+					toastOnError(error, error.message);
+					return;
+				}
+			}
+
 			const { error } = await tryAsync({
 				try: async () => {
 					const source = openLocalSource();
@@ -233,19 +355,42 @@ export function createSignInMigration<
 			});
 			phase = 'idle';
 			if (error) {
-				// Local copy is untouched on failure; the dialog stays open to retry.
+				// Local copy is untouched on failure; the dialog stays open to retry
+				// (already-merged child content is harmless, the merge is idempotent).
 				toastOnError(error, error.message);
 				return;
 			}
 			open = false;
+
+			if (childGuids.length > 0) {
+				const { error: cleanupError } = await tryAsync({
+					try: async () => {
+						for (const guid of childGuids) {
+							await clearBareDoc(guid);
+						}
+					},
+					catch: (cause) => MigrationError.CleanupFailed({ cause }),
+				});
+				if (cleanupError) toastOnError(cleanupError, cleanupError.message);
+			}
 		},
 
-		/** Delete the plaintext local copy without copying it into the account. */
+		/**
+		 * Delete the plaintext local copy without copying it into the account.
+		 * Bare child docs are cleared FIRST: a crash in between leaves the root
+		 * rows intact, so the dialog re-prompts and the deletion converges.
+		 */
 		async deleteFromDevice(): Promise<void> {
 			if (phase !== 'idle') return;
 			phase = 'deleting';
 			const { error } = await tryAsync({
 				try: async () => {
+					if (childDocs) {
+						const guids = await readChildGuids();
+						for (const guid of guids) {
+							await clearBareDoc(guid);
+						}
+					}
 					const source = openLocalSource();
 					try {
 						await source.whenLoaded;
