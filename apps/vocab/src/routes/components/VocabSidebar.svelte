@@ -1,10 +1,14 @@
 <script lang="ts">
+	import { AccountPopover } from '@epicenter/app-shell/account-popover';
 	import type { ConversationHandle } from '@epicenter/app-shell/agent-chat';
 	import * as Sidebar from '@epicenter/ui/sidebar';
 	import type { ConversationId } from '@epicenter/chat';
 	import MessageSquarePlusIcon from '@lucide/svelte/icons/message-square-plus';
 	import MessageSquareTextIcon from '@lucide/svelte/icons/message-square-text';
 	import TrashIcon from '@lucide/svelte/icons/trash';
+	import { instanceSetting } from '$lib/instance';
+	import { auth } from '$platform/auth';
+	import { vocab } from '$lib/vocab';
 
 	let {
 		conversations,
@@ -21,6 +25,18 @@
 
 <Sidebar.Root collapsible="icon">
 	<Sidebar.Header>
+		<div
+			class="flex items-center justify-between px-2 py-1 group-data-[collapsible=icon]:hidden"
+		>
+			<span class="text-sm font-semibold">中文 Vocab</span>
+			<AccountPopover
+				{auth}
+				collaboration={vocab.collaboration}
+				syncNoun="conversations"
+				onForgetDevice={() => vocab.wipe()}
+				instanceConnect={{ appName: 'Vocab', setting: instanceSetting }}
+			/>
+		</div>
 		<Sidebar.Menu>
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton

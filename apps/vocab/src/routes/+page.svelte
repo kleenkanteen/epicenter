@@ -2,19 +2,14 @@
 	import { createAgentChatState } from '@epicenter/app-shell/agent-chat';
 	import { fromKv } from '@epicenter/svelte';
 	import { Button } from '@epicenter/ui/button';
-	import { confirmationDialog } from '@epicenter/ui/confirmation-dialog';
 	import * as Sidebar from '@epicenter/ui/sidebar';
-	import { toast } from '@epicenter/ui/sonner';
 	import { VOCAB_MODEL, VOCAB_SYSTEM_PROMPT } from '@epicenter/vocab';
 	import { onDestroy } from 'svelte';
-	import { extractErrorMessage } from 'wellcrafted/error';
-	import { requireVocab } from '$lib/session';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
-	import { auth } from '$platform/auth';
+	import { vocab } from '$lib/vocab';
 	import ConversationView from './components/ConversationView.svelte';
 	import VocabSidebar from './components/VocabSidebar.svelte';
 
-	const vocab = requireVocab();
 	const showPinyin = fromKv(vocab.kv, 'showPinyin');
 
 	// The shared chat registry (ADR-0047/0059) with Vocab's variation injected:
@@ -32,29 +27,6 @@
 	});
 
 	onDestroy(() => chat[Symbol.dispose]());
-
-	/**
-	 * Keep the destructive device-local wipe out of the template: the dialog owns
-	 * confirmation, then the handler wipes local storage and signs out.
-	 */
-	function openForgetDeviceDialog() {
-		confirmationDialog.open({
-			title: 'Forget this device?',
-			description:
-				'This deletes local Vocab data on this device. Account data on the server stays in your account.',
-			confirm: { text: 'Forget device', variant: 'destructive' },
-			onConfirm: async () => {
-				try {
-					await vocab.wipe();
-					await auth.signOut();
-				} catch (error) {
-					toast.error('Failed to forget this device', {
-						description: extractErrorMessage(error),
-					});
-				}
-			},
-		});
-	}
 </script>
 
 <Sidebar.Provider>
@@ -81,10 +53,6 @@
 					aria-label="Toggle pinyin annotations"
 				>
 					{showPinyin.current ? 'Hide Pinyin' : 'Show Pinyin'}
-				</Button>
-
-				<Button variant="ghost" size="sm" onclick={openForgetDeviceDialog}>
-					Forget device
 				</Button>
 			</div>
 		</header>
