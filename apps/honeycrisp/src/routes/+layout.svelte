@@ -9,12 +9,12 @@
 	import { onMount } from 'svelte';
 	import { auth } from '#platform/auth';
 	import { honeycrisp } from '$lib/honeycrisp';
-	import { signInMigration } from '$lib/migration/sign-in-migration.svelte';
+	import { signInMigration } from '$lib/migration/sign-in-migration';
 	import '@epicenter/ui/app.css';
 
 	let { children } = $props();
 
-	// Option A (ADR-0088): the doc is picked once at boot (connectLocalFirst,
+	// Option A (ADR-0088): the doc is picked once at boot (the preset branch
 	// inside `openHoneycrispBrowser`); an owner-identity change reloads so the
 	// next boot rebuilds the right doc.
 	onMount(() => reloadOnOwnerChange(auth));
