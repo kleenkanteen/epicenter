@@ -41,11 +41,13 @@ satisfiesWorkspace()
   lower-level primitives for package internals, tests, and older ports
 ```
 
-The app-facing path is `defineWorkspace({ id, tables, kv, actions }).connect(...)`.
-`open()` returns only the root document for daemon composition. `open(connection)`
-adds owner-scoped browser storage, root sync, wipe, and table child-doc openers.
-`open(connection, compose)` lets a runtime add extras and publish its final action
-registry before collaboration starts.
+The app-facing path is `defineWorkspace({ id, tables, kv, actions }).connectLocal()`
+or `.connect(...)`. `open()` returns only the root document for daemon
+composition. `connectLocal()` adds bare browser storage, wipe, and table
+child-doc openers. `connect(connection)` adds owner-scoped browser storage, root
+sync, wipe, and table child-doc openers. `connect(connection, compose)` lets a
+runtime add extras and publish its final action registry before collaboration
+starts.
 
 ## Quick Start: local-only workspace
 
@@ -193,41 +195,40 @@ export const myAppWorkspace = defineWorkspace({
 });
 ```
 
-Minimal cloud browser workspace: pass the signed-in connection into the
-definition opener.
+Minimal browser workspace: pick the local or signed-in preset once at boot.
 
 ```typescript
 import {
 	createNodeId,
 	type NodeId,
 } from '@epicenter/workspace';
-import { createSession, type SignedIn } from '@epicenter/svelte/auth';
+import type { SyncAuthClient } from '@epicenter/auth';
+import { projectSignedIn } from '@epicenter/svelte/auth';
 import { auth } from '$lib/auth';
 import { myAppWorkspace } from '$lib/workspace';
 
 export function openMyAppBrowser({
-	signedIn,
+	auth,
 	nodeId,
 }: {
-	signedIn: SignedIn;
+	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	return myAppWorkspace.connect({ ...signedIn, nodeId });
+	return auth.state.status === 'signed-out'
+		? myAppWorkspace.connectLocal()
+		: myAppWorkspace.connect({ ...projectSignedIn(auth), nodeId });
 }
 
-export const session = createSession({
+export const myApp = openMyAppBrowser({
 	auth,
-	build: (signedIn) =>
-		openMyAppBrowser({
-			signedIn,
-			nodeId: createNodeId({ storage: localStorage }),
-		}),
+	nodeId: createNodeId({ storage: localStorage }),
 });
 ```
 
-`open(connection)` pairs owner-scoped IndexedDB with a BroadcastChannel, opens
-root collaboration, wires `wipe()`, and gives each table handle a `.docs`
-namespace of row child-doc openers such as
+`connectLocal()` uses bare IndexedDB storage under the doc guid and does not
+open relay sync. `connect(connection)` pairs owner-scoped IndexedDB with a
+BroadcastChannel, opens root collaboration, wires `wipe()`, and gives each
+table handle a `.docs` namespace of row child-doc openers such as
 `workspace.tables.items.docs.body.open(itemId)`. Two tabs of the same owner share
 both persisted state and live updates, while two different owners on the same
 browser profile never see each other's data.
@@ -1351,15 +1352,18 @@ const filesWorkspace = defineWorkspace({
 	kv: {},
 });
 
-declare const connection: ConnectionConfig;
-const workspace = filesWorkspace.connect(connection);
+declare const connection: ConnectionConfig | null;
+const workspace =
+	connection === null
+		? filesWorkspace.connectLocal()
+		: filesWorkspace.connect(connection);
 
 using handle = workspace.tables.files.docs.content.open('file-1');
 await handle.whenLoaded;
 ```
 
-The table declaration names the child-doc shape. The connected opener owns the
-live cache, local storage, sync, and owner-scoped wipe.
+The table declaration names the child-doc shape. The connected preset owns the
+live cache, local storage, optional sync, and wipe.
 
 ### `batch(fn)`
 

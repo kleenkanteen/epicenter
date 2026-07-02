@@ -18,9 +18,8 @@ import { createSubscriber } from 'svelte/reactivity';
 // `signed-out ? model.connectLocal(...) : model.connect({ ...projectSignedIn(auth), nodeId }, ...)`.
 export { connectLocalFirst, projectSignedIn } from './connect-local-first.js';
 export { reloadOnOwnerChange } from './reload-on-owner-change.js';
-// `createSession`/`SignedIn` bind a `SyncAuthClient` (produced by the reactive
-// `createAppAuthClient` below) to a workspace lifecycle, so the whole reactive
-// auth + session story is one subpath. Re-exported here rather than from the
+// `createSession`/`SignedIn` still support auxiliary signed-in-only resources.
+// Keep them on the auth subpath with the reactive auth client rather than the
 // package root, which stays pure workspace-data reactivity (`fromTable`, etc.).
 export { createSession, type SignedIn } from './session.svelte.js';
 
@@ -68,7 +67,7 @@ function reactiveAuthClient<T extends AuthClient>(auth: T): T {
  * Svelte 5 wrapper around `createAppAuthClient`: the one client-side choke point
  * that turns a persisted `Instance` into a hosted-OAuth or self-host-token
  * client (the branch is internal). Returns a Svelte-reactive `SyncAuthClient`,
- * so it can be passed to `createSession` for cloud sync.
+ * so signed-in workspace boots can project it with `projectSignedIn(auth)`.
  */
 export function createAppAuthClient(
 	instance: Instance,
@@ -80,8 +79,7 @@ export function createAppAuthClient(
 /**
  * Svelte 5 wrapper around `createSameOriginCookieAuth` (cookie client for a
  * browser app the API serves from its own origin, e.g. the dashboard). Returns
- * a plain `AuthClient` (no `openWebSocket`); it cannot be passed to
- * `createSession`.
+ * a plain `AuthClient` (no `openWebSocket`); it cannot drive workspace sync.
  */
 export function createSameOriginCookieAuth(
 	config: CreateSameOriginCookieAuthConfig,
@@ -120,7 +118,7 @@ export type CreateHostedBrowserRedirectAuthOptions = {
  * persisted `Instance` fed to {@link createAppAuthClient}. Each app passes only
  * what varies: its namespace, OAuth client id, the hosted API origin, and an
  * optional SvelteKit base path. The result is a reactive `SyncAuthClient`, ready
- * for `createSession`.
+ * for signed-in workspace sync.
  *
  * Redirect-only and hosted-only by construction: it owns no Tauri deep-link or
  * extension launcher and no self-host token branch. The self-host path still works

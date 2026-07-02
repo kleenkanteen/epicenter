@@ -122,7 +122,7 @@ export type AuthClient = {
  * with no `openWebSocket`, because a same-origin cookie cannot carry the bearer
  * subprotocol the rooms route requires.
  *
- * Workspace binding (`createSession`, `openCollaboration`) requires a
+ * Workspace sync (`projectSignedIn`, `openCollaboration`) requires a
  * `SyncAuthClient`, so passing a cookie client where sync is needed is a
  * compile error rather than a runtime throw.
  */
