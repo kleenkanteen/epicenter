@@ -13,10 +13,6 @@ import { createBrowserOAuthLauncher } from '@epicenter/auth/oauth-launchers';
 import { createSubscriber } from 'svelte/reactivity';
 
 export { reloadOnOwnerChange } from './reload-on-owner-change.js';
-// `createSession`/`SignedIn` still support auxiliary signed-in-only resources.
-// Keep them on the auth subpath with the reactive auth client rather than the
-// package root, which stays pure workspace-data reactivity (`fromTable`, etc.).
-export { createSession, type SignedIn } from './session.svelte.js';
 // The one composition shape (ADR-0088/ADR-0094): boot-time doc selection plus
 // reload-on-owner-change. Apps boot with one call:
 // `model.connect(toConnection(auth, nodeId), compose?)`.
