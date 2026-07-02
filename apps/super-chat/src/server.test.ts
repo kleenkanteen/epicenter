@@ -123,6 +123,58 @@ describe('createSuperChatServer', () => {
 		}
 	});
 
+	test('two sockets share the one host session (the remote-session proof)', async () => {
+		await using host = await createSuperChatHost({
+			engine: scriptedEngine([[{ type: 'text-delta', delta: 'Shared.' }]]),
+		});
+		const server = await serveHost(host);
+		try {
+			const url = `${server.url.origin.replace('http', 'ws')}/ws?token=${TOKEN}`;
+			const watcher = new WebSocket(url);
+			const driver = new WebSocket(url);
+			const settledAt = (ws: WebSocket) =>
+				new Promise<ServerEvent>((resolve, reject) => {
+					ws.addEventListener('message', (event) => {
+						const parsed = JSON.parse(String(event.data)) as ServerEvent;
+						const last = parsed.snapshot.messages.at(-1);
+						if (!parsed.snapshot.isGenerating && last?.role === 'assistant') {
+							resolve(parsed);
+						}
+					});
+					setTimeout(() => reject(new Error('timed out')), 5000);
+				});
+			const bothOpen = Promise.all(
+				[watcher, driver].map(
+					(ws) =>
+						new Promise<void>((resolve) =>
+							ws.addEventListener('open', () => resolve()),
+						),
+				),
+			);
+			await bothOpen;
+			driver.send(
+				JSON.stringify({ type: 'send', content: 'hi from device 2' }),
+			);
+
+			// The watcher never sent anything, yet sees the same finished turn: one
+			// conversation per host process, devices attach to the session
+			// (ADR-0080), not to their own thread.
+			const [watched, drove] = await Promise.all([
+				settledAt(watcher),
+				settledAt(driver),
+			]);
+			expect(watched.snapshot.messages).toEqual(drove.snapshot.messages);
+			expect(watched.snapshot.messages.map((m) => m.role)).toEqual([
+				'user',
+				'assistant',
+			]);
+			watcher.close();
+			driver.close();
+		} finally {
+			await server.stop(true);
+		}
+	});
+
 	test('a WebSocket upgrade without the token is refused', async () => {
 		await using host = await createSuperChatHost({
 			engine: scriptedEngine([[]]),

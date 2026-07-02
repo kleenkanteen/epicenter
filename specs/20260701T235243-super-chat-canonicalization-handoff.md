@@ -3,15 +3,33 @@
 - **Status:** In Progress
 - **Date:** 2026-07-02
 
-> **Execution note (2026-07-02):** The slice 1 source material is gone. The
-> `super-app-slice1` and `super-app-host` worktrees were removed and their
-> branches deleted without ever being pushed; no dangling commits, stashes, or
-> PRs survive. The `chore-remove-fuji` branch landed as merged PR #2245, so the
-> Fuji reconcile (step 8) came in with the `origin/main` merge. The catalog
-> proof was reconstructed from the shipped primitives in
-> `packages/workspace/src/agent` instead of ported; the file paths under
-> "Current source material" below are dead and kept only as a record of what
-> the prototype contained.
+> **Execution note (2026-07-02):** The slice 1 source material was absent on
+> this machine (worktrees removed, branches never pushed, no dangling commits
+> or PRs), so the catalog proof was first reconstructed from the shipped
+> primitives in `packages/workspace/src/agent`. The prototype was then
+> recovered from `braden@studio:/Users/braden/.herdr/worktrees/epicenter/super-app-slice1`
+> (branch `feat/super-app-slice1`, HEAD `aab7d94086`) and reconciled file by
+> file:
+>
+> - `host.ts`, `stdio-mcp-catalog.ts`, `message-store.ts`: the reconstruction
+>   is equivalent or stricter (subprocess gets the SDK's safe-default env, not
+>   the full parent `process.env`; connect/list failures reap the transport;
+>   the shell is token-gated per ADR-0084). Nothing to port back.
+> - `derisk.ts`: throwaway by its own header; its one durable finding (the
+>   production `.mount()` opener is gated on a signed-in cloud session) is
+>   already this spec's "headless durable workspace opening" open question.
+> - `remote-server.ts`: NOT ported as a second server, deliberately. Its
+>   separate ungated `0.0.0.0` bind conflicts with ADR-0084's mandatory
+>   loopback-plus-token shape; its protocol (snapshot fan-out, send-through,
+>   one shared thread) already lives in `src/server.ts`'s `/ws`, and the
+>   ADR-0080 5(a) reach story becomes an overlay proxy onto the same gated
+>   loopback origin. The shared-session behavior is pinned by a two-socket
+>   test in `src/server.test.ts`.
+> - `remote-client.ts`: ported as `src/session-client.ts`, adapted to the
+>   token gate.
+>
+> The `chore-remove-fuji` branch landed as merged PR #2245, so the Fuji
+> reconcile (step 8) came in with the `origin/main` merge.
 - **Decision of record:** [ADR-0084](../docs/adr/0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md) for the local Bun shell and TypeScript loader, [ADR-0080](../docs/adr/0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) for the desktop-host shape.
 
 ## Why this exists
