@@ -54,7 +54,7 @@ const addCommand = cmd({
 				type: 'string',
 				choices: ['json', 'jsonl', 'plain'] as const,
 				describe:
-					"Output format (default: json; 'plain' prints the bare URL)",
+					"Output format (default: json, auto-pretty for TTY; 'plain' prints the bare URL)",
 			})
 			.strict(),
 	handler: async (argv) => {

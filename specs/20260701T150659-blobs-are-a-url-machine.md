@@ -137,12 +137,21 @@ The middle row has an honest catch: v1 blobs are private, so a blob URL resolves
 
 **Before** (`packages/cli/src/commands/blobs.ts:101-151`): after upload, ~50 lines compute `blobPath`, guard it against escaping the root, write bytes to disk, load and upsert the manifest, and print five fields including `path` and `manifest`.
 
-**After**:
+**After** (as landed; the collapse pass then went one step further and hands a
+URL source to the SDK as a string, so the CLI only builds a Blob for local
+files):
 
 ```ts
+const { data: source, error: readError } = HTTP_URL.test(argv.source)
+	? Ok(argv.source)
+	: await readLocalFile(argv.source);
+if (readError !== null) {
+	fail(readError);
+	return;
+}
 const { data: result, error: uploadError } = await epicenter.blobs.add(
-	new Blob([new Uint8Array(bytes)], { type: contentType }),
-	{ contentType },
+	source,
+	{ contentType: argv.contentType },
 );
 if (uploadError !== null) {
 	fail(uploadError.message, { code: 2 });
