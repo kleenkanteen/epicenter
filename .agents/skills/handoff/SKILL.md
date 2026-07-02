@@ -38,6 +38,6 @@ Write one prompt regardless of recipient type, and cover these points. They are 
 - Edits: send the recipient to a disposable git worktree on its own branch, break work into commit-sized waves, and note that the final diff still gets local review.
 - Review: one concrete question with exact paths or a diff command. Ask for findings, risks, and gaps, not approval.
 - Delegation: a recipient that can spawn subagents keeps synthesis and the final artifact; each delegated piece gets one question, bounded sources, and one deliverable. Name specific models or agents only when the user did.
-- Adversarial rework: for a grill, greenfield pass, or clean break, tell the recipient not to defer to prior conclusions, to state what would falsify the current direction, and to name refusals with the value each gives up.
+- Adversarial rework: for a fresh-context review, greenfield pass, or clean break, tell the recipient not to defer to prior conclusions, to state what would falsify the current direction, and to name refusals with the value each gives up.
 
 For a `/goal` one-liner, use [agent-goal](../agent-goal/SKILL.md). For a human-facing progress summary, use [progress-summary](../progress-summary/SKILL.md).
