@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { SignInMigrationDialog } from '@epicenter/app-shell/sign-in-migration';
 	import { WorkspaceGate } from '@epicenter/app-shell/workspace-gate';
-	import { reloadOnOwnerChange } from '@epicenter/svelte/auth';
+	import { reloadOnPrincipalChange } from '@epicenter/svelte/auth';
 	import { ConfirmationDialog } from '@epicenter/ui/confirmation-dialog';
 	import { Toaster } from '@epicenter/ui/sonner';
 	import * as Tooltip from '@epicenter/ui/tooltip';
@@ -15,9 +15,9 @@
 	let { children } = $props();
 
 	// Option A (ADR-0088): the doc is picked once at boot (the preset branch
-	// inside `openVocabBrowser`); an owner-identity change reloads so the next
+	// inside `openVocabBrowser`); a principal identity change reloads so the next
 	// boot rebuilds the right doc.
-	onMount(() => reloadOnOwnerChange(auth));
+	onMount(() => reloadOnPrincipalChange(auth));
 
 	// Signed-in only: prompt to migrate this device's local conversations into
 	// the account (no-op when signed out or when there is no local data). Fire

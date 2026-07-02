@@ -2,26 +2,23 @@
  * @epicenter/server
  *
  * One shared Hono library, two deployables (ADR-0075): the hosted Epicenter
- * Cloud (`perUser`, multi-tenant, partition keyed per user) and the self-hosted
- * single-partition instance (`instance`, one pinned `owners/instance` partition
- * behind one operator bearer).
+ * Cloud (many Better Auth users resolving to principals) and the self-hosted
+ * single-partition instance (one pinned `principals/instance` partition behind
+ * one operator bearer).
  *
- * Deployments construct the server app, choose an `OwnershipRule`, then
+ * Deployments construct the server app, resolve requests to principals, then
  * mount each reusable surface with the matching `mount*` primitive. Each
- * primitive owns its auth + ownership wiring; the deployment passes only
- * the rule and any deployment policies (e.g. cloud billing middleware).
+ * primitive owns its auth wiring; the deployment passes only auth and any
+ * deployment policies (e.g. cloud billing middleware).
  * Sub-apps declare full URLs (including the `/api` prefix where
  * applicable). See `apps/api/worker/index.ts` for the cloud composition.
  */
 
 // The single-partition instance's bearer resolver (self-host; ADR-0075). The
-// deployment injects `createEnvTokenResolver(secret)` as its `ResolveUser` (paired
-// with `instance`). The pure generator + boot entropy gate (`generateInstanceToken`
+// deployment injects `createEnvTokenResolver(secret)` as its `ResolvePrincipal`.
+// The pure generator + boot entropy gate (`generateInstanceToken`
 // / `assertStrongToken`) live in `@epicenter/auth`.
-export {
-	createEnvTokenResolver,
-	INSTANCE_PRINCIPAL,
-} from './auth/instance-token.js';
+export { createEnvTokenResolver } from './auth/instance-token.js';
 export { connectHyperdriveDb } from './db/backends/cloudflare.js';
 // Database concern (cloud-only). `createDb(client)` wraps a connected pg
 // client/pool in drizzle with the auth schema; a cloud entry hands the result to
@@ -29,7 +26,7 @@ export { connectHyperdriveDb } from './db/backends/cloudflare.js';
 // `connectHyperdriveDb`; a Bun host builds its own `pg.Pool` inline.
 export { createDb, type Db } from './db/create-db.js';
 // An opt-in burn-rate cap for the inference `policies` seam: caps requests per
-// owner partition so a shared house key cannot be run up unbounded (ADR-0076).
+// principal partition so a shared house key cannot be run up unbounded (ADR-0076).
 export { rateLimit } from './middleware/rate-limit.js';
 // Deploy-time admin operations (OAuth client seeding) live in each
 // deployment's own scripts (`apps/api` `oauth:seed:*`), not in this barrel, so
@@ -39,14 +36,14 @@ export { rateLimit } from './middleware/rate-limit.js';
 // so it never imports this request-path auth barrel.
 //
 // Auth middleware + the cloud's OAuth bearer resolver. A deployment passes one of
-// these as the `auth` for each owner-scoped mount (the cloud passes
-// `requireCookieOrBearerUser`, an instance `requireBearerUser`) and passes
-// `resolveRequestOAuthUser` as `createServerApp`'s `resolveUser` (the cloud's user
-// resolution; an instance passes its bearer resolver instead, ADR-0075).
+// these as the `auth` for each protected mount (the cloud passes
+// `requireCookieOrBearerPrincipal`, an instance `requireBearerPrincipal`) and passes
+// `resolveRequestOAuthPrincipal` as the cloud resolver; an instance passes its
+// bearer resolver instead (ADR-0075).
 export {
-	requireBearerUser,
-	requireCookieOrBearerUser,
-	resolveRequestOAuthUser,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
+	resolveRequestOAuthPrincipal,
 } from './middleware/require-auth.js';
 // The cloud-only relational layer, in two halves the cloud installs after
 // `createServerApp` (both type against `CloudEnv`): `mountCloudAuth` builds the
@@ -57,14 +54,9 @@ export {
 // its own boot validation and resolves through `resolveAuthSecrets` (ADR-0076).
 export { CloudAuthBindings, mountCloudAuth } from './mount-cloud-auth.js';
 export { mountCloudDb } from './mount-cloud-db.js';
-// `doName` builds a room's owner-scoped DO name, deployment-agnostic and
+// `doName` builds a room's principal-scoped DO name, deployment-agnostic and
 // exported for composing apps.
-export { doName } from './owner.js';
-// Ownership composition: the deployment selects the rule once as
-// `perUser` (Cloud, multi-tenant) or `instance` (self-host, one pinned
-// partition) and threads it into every mount primitive that needs the
-// partition. See ./ownership.ts for the design note.
-export { instance, type OwnershipRule, perUser } from './ownership.js';
+export { doName } from './principal.js';
 // Re-export the Cloudflare Durable Object class so each deployment's
 // wrangler.jsonc can resolve `class_name: "Room"` against this entrypoint.
 export { Room } from './room/backends/cloudflare/durable-object.js';
@@ -74,11 +66,10 @@ export { Room } from './room/backends/cloudflare/durable-object.js';
 // its own pool instead (the `@epicenter/server/bun` barrel omits both of these,
 // since their modules name Cloudflare bindings).
 export { createDurableObjectRooms } from './room/backends/cloudflare/registry.js';
-// Reusable surfaces. Each `mount*` bundles auth + ownership + the route
-// mount, accepting only the deployment-controlled knobs (ownership rule,
-// auth choice, optional policies). The cloud's Better Auth surface (sessions,
-// OAuth, `c.var.auth`) is bundled into `mountCloudAuth`; an instance composes
-// none of it (ADR-0075).
+// Reusable surfaces. Each `mount*` bundles auth + the route mount, accepting
+// only the deployment-controlled knobs (auth choice, optional policies). The
+// cloud's Better Auth surface (sessions, OAuth, `c.var.auth`) is bundled into
+// `mountCloudAuth`; an instance composes none of it (ADR-0075).
 export { mountBlobsApp } from './routes/blobs.js';
 export { mountInferenceApp } from './routes/inference.js';
 export { mountRoomsApp } from './routes/rooms.js';
@@ -97,6 +88,6 @@ export { createServerApp, type Identity } from './server-app.js';
 // apps/api); a Bun host validates `process.env` with the schema at boot.
 export { ServerBindings } from './server-bindings.js';
 // Public Hono context types: the portable `Env` (both deployments), the cloud's
-// `CloudEnv` (Env + Better Auth/Postgres state), and the `ResolveUser<E>` seam the
-// deployment closes its auth wrappers over.
-export type { CloudEnv, Env, ResolveUser } from './types.js';
+// `CloudEnv` (Env + Better Auth/Postgres state), and the `ResolvePrincipal<E>`
+// seam the deployment closes its auth wrappers over.
+export type { CloudEnv, Env, ResolvePrincipal } from './types.js';

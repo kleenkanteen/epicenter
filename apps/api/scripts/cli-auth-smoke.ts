@@ -9,7 +9,7 @@
  * login.
  *
  * Like `smoke.ts`, it needs the server booted WITH the dev resolver so a static
- * `Bearer dev:<userId>` resolves to a synthetic user on localhost (the
+ * `Bearer dev:<principalId>` resolves to a synthetic principal on localhost (the
  * productionized first-boot bearer, Wave 3, drops into this same path
  * unchanged). Boot it and point this at it:
  *
@@ -17,7 +17,7 @@
  *   BETTER_AUTH_SECRET=dev-only-32-chars-min-please-ignore \
  *   GOOGLE_CLIENT_ID=x GOOGLE_CLIENT_SECRET=x \
  *   DATABASE_URL=postgres://localhost/anything PORT=8788 \
- *     bun server.dev.ts            # /api/session in per-user topology never queries the DB
+ *     bun server.dev.ts            # /api/session with dev auth never queries the DB
  *
  *   bun scripts/cli-auth-smoke.ts http://localhost:8788
  *
@@ -52,11 +52,11 @@ async function main() {
 	console.log(`\nCLI credential smoke against ${baseURL}\n`);
 
 	// 1. A token passed directly resolves to a settled, signed-in instance client.
-	const userId = `cli-smoke-${randHex(4)}`;
+	const principalId = `cli-smoke-${randHex(4)}`;
 	{
 		const { data: auth, error } = await resolveMachineAuthClient({
 			baseURL,
-			token: `dev:${userId}`,
+			token: `dev:${principalId}`,
 		});
 		if (error) {
 			check('token arg: resolves Ok', false, error.message);
@@ -69,9 +69,12 @@ async function main() {
 			JSON.stringify(auth.state),
 		);
 		check(
-			'token arg: ownerId is the dev user',
-			auth.state.status === 'signed-in' && auth.state.ownerId === userId,
-			auth.state.status === 'signed-in' ? auth.state.ownerId : '(signed-out)',
+			'token arg: principalId is the dev user',
+			auth.state.status === 'signed-in' &&
+				auth.state.principalId === principalId,
+			auth.state.status === 'signed-in'
+				? auth.state.principalId
+				: '(signed-out)',
 		);
 		const sessionRes = await auth.fetch(API_ROUTES.session.url(baseURL));
 		check('token arg: auth.fetch /api/session 200', sessionRes.status === 200);
@@ -79,17 +82,17 @@ async function main() {
 
 	// 2. The headless env seam: a token from EPICENTER_TOKEN, read at call time.
 	{
-		const envUserId = `cli-smoke-env-${randHex(4)}`;
-		process.env.EPICENTER_TOKEN = `dev:${envUserId}`;
+		const envPrincipalId = `cli-smoke-env-${randHex(4)}`;
+		process.env.EPICENTER_TOKEN = `dev:${envPrincipalId}`;
 		const { data: auth, error } = await resolveMachineAuthClient({ baseURL });
 		delete process.env.EPICENTER_TOKEN;
 		check(
 			'EPICENTER_TOKEN: signed-in as the env user',
 			!error &&
 				auth?.state.status === 'signed-in' &&
-				auth.state.ownerId === envUserId,
+				auth.state.principalId === envPrincipalId,
 			error?.message ??
-				(auth?.state.status === 'signed-in' ? auth.state.ownerId : ''),
+				(auth?.state.status === 'signed-in' ? auth.state.principalId : ''),
 		);
 	}
 

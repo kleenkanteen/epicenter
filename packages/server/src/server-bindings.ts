@@ -1,7 +1,7 @@
 /**
  * The portable env contract `@epicenter/server` reads, as BOTH an arktype
  * schema (the runtime value) and its inferred type (the same name, the
- * `AuthUser` convention). It is the `Env.Bindings` type the Hono context uses
+ * `Principal` convention). It is the `Env.Bindings` type the Hono context uses
  * (see types.ts) and the SSOT a Bun host validates `process.env` against at
  * boot (see apps/api/server.ts).
  *

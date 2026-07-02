@@ -72,7 +72,7 @@ jobs:
           if grep -rEn --include='*.ts' --include='*.tsx' \
               --exclude='*.test.ts' --exclude='*.test.tsx' \
               --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.wrangler --exclude-dir=.next \
-              "['\"\`]/api/(session|owners|ai)([^a-z]|$)|['\"\`]/auth/(oauth2/[a-z]+|cli-callback)" \
+              "['\"\`]/api/(session|rooms|blobs|ai)([^a-z]|$)|['\"\`]/auth/(oauth2/[a-z]+|cli-callback)" \
               packages apps \
               | grep -vE "packages/constants/src/(api|oauth)-routes\.ts|packages/sync/src/room-route\.ts|packages/auth/src/routes\.ts|packages/server/src/auth-pages/scripts/" \
               | grep -vE "^[^:]+:[0-9]+:[[:space:]]*(\*|//|/\*)" ; then

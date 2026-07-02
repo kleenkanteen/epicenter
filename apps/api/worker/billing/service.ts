@@ -9,7 +9,7 @@
  * `tryAutumn`, and translates provider throws into `BillingError`.
  *
  * Lifecycle: one service per request. Construct via
- * `createBillingService(env, { userId, userEmail })`. The service does
+ * `createBillingService(env, { principalId, principalEmail })`. The service does
  * NOT cache the customer across calls; each public method makes the
  * Autumn calls it needs and returns its result.
  *
@@ -26,12 +26,12 @@
  * (deleted spec 20260623T220000 decision 10, recoverable via git history; kernel is ADR-0089); the old asset-table sync is retired.
  */
 
-import type { UserId } from '@epicenter/auth';
 import { AiChatError } from '@epicenter/constants/ai-chat-errors';
 import {
 	MODELS_BY_ID,
 	type ServableModel,
 } from '@epicenter/constants/ai-providers';
+import type { PrincipalId } from '@epicenter/identity';
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import { createAutumnClient, tryAutumn } from './autumn.js';
 import {
@@ -65,10 +65,10 @@ import type { BillingError } from './errors.js';
 // ---------------------------------------------------------------------
 
 type Identity = {
-	userId: UserId;
-	/** AuthUser.email is always a string (Better Auth guarantee); no
+	principalId: PrincipalId;
+	/** Principal.email is always a string (Better Auth guarantee); no
 	 *  null coercion needed at the boundary. */
-	userEmail: string;
+	principalEmail: string;
 };
 
 // ---------------------------------------------------------------------
@@ -169,7 +169,7 @@ export function createBillingService(
 	> {
 		return tryAutumn(async () => {
 			const check = await autumn.check({
-				customerId: identity.userId,
+				customerId: identity.principalId,
 				featureId: FEATURE_IDS.aiUsage,
 				requiredBalance: 1,
 			});
@@ -199,7 +199,7 @@ export function createBillingService(
 		);
 		return tryAutumn(async () => {
 			await autumn.track({
-				customerId: identity.userId,
+				customerId: identity.principalId,
 				featureId: FEATURE_IDS.aiUsage,
 				value: credits,
 				properties: {
@@ -267,10 +267,10 @@ export function createBillingService(
 		// compares plan ids client-side.
 		const [, autumnPlans] = await Promise.all([
 			autumn.customers.getOrCreate({
-				customerId: identity.userId,
-				email: identity.userEmail,
+				customerId: identity.principalId,
+				email: identity.principalEmail,
 			}),
-			autumn.plans.list({ customerId: identity.userId }),
+			autumn.plans.list({ customerId: identity.principalId }),
 		]);
 
 		const eligibilityByPlanId = new Map(
@@ -335,7 +335,7 @@ export function createBillingService(
 
 	async function listUsage(query: UsageQuery): Promise<UsageSeries> {
 		const result = await autumn.events.aggregate({
-			customerId: identity.userId,
+			customerId: identity.principalId,
 			featureId: FEATURE_IDS.aiUsage,
 			range: query.range,
 			binSize: query.binSize,
@@ -361,7 +361,7 @@ export function createBillingService(
 
 	async function listEvents(query: EventsQuery): Promise<BillingEventsPage> {
 		const result = await autumn.events.list({
-			customerId: identity.userId,
+			customerId: identity.principalId,
 			featureId: FEATURE_IDS.aiUsage,
 			limit: query.limit,
 		});
@@ -389,7 +389,7 @@ export function createBillingService(
 		planId: string;
 	}): Promise<PlanChangePreview> {
 		const preview = await autumn.billing.previewAttach({
-			customerId: identity.userId,
+			customerId: identity.principalId,
 			planId: input.planId,
 		});
 		// Autumn returns `total` in cents.
@@ -415,7 +415,7 @@ export function createBillingService(
 				: undefined;
 
 		const result = await autumn.billing.attach({
-			customerId: identity.userId,
+			customerId: identity.principalId,
 			planId: input.planId,
 			successUrl: input.successUrl,
 			...(carry ? { carryOverBalances: carry } : {}),
@@ -427,7 +427,7 @@ export function createBillingService(
 		successUrl?: string | undefined;
 	}): Promise<CheckoutResult> {
 		const result = await autumn.billing.attach({
-			customerId: identity.userId,
+			customerId: identity.principalId,
 			planId: PLAN_IDS.creditTopUp,
 			successUrl: input.successUrl,
 		});
@@ -438,7 +438,7 @@ export function createBillingService(
 		returnUrl: string;
 	}): Promise<PortalSession> {
 		const result = await autumn.billing.openCustomerPortal({
-			customerId: identity.userId,
+			customerId: identity.principalId,
 			returnUrl: input.returnUrl,
 		});
 		return { portalUrl: result.url };
@@ -457,7 +457,7 @@ export function createBillingService(
 		const lockId = crypto.randomUUID();
 		return tryAutumn(async () => {
 			const check = await autumn.check({
-				customerId: identity.userId,
+				customerId: identity.principalId,
 				featureId: FEATURE_IDS.aiUsage,
 				requiredBalance: input.credits,
 				lock: {
@@ -492,8 +492,8 @@ export function createBillingService(
 	/** Load Autumn customer with subscriptions + balances expanded. */
 	async function loadCustomer() {
 		return autumn.customers.getOrCreate({
-			customerId: identity.userId,
-			email: identity.userEmail,
+			customerId: identity.principalId,
+			email: identity.principalEmail,
 			expand: ['subscriptions.plan', 'balances.feature'],
 		});
 	}

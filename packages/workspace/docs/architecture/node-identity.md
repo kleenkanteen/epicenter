@@ -18,7 +18,7 @@ A node's identity is `nodeId`, a branded string (`NodeId`). It is:
 - **Claimed by the client.** Only the client generates and knows its `nodeId`. The relay never assigns it; it routes by whatever the client presents.
 - **Stable per install.** The id is generated once on first run and persisted, so it survives reloads and restarts.
 
-`NodeId` is a branded type so it cannot be mixed up with other string ids (user ids, owner ids, room ids). Create it with `createNodeId` / `createNodeIdAsync`; brand a known string with `asNodeId` only at trusted call sites.
+`NodeId` is a branded type so it cannot be mixed up with other string ids (user ids, principal ids, room ids). Create it with `createNodeId` / `createNodeIdAsync`; brand a known string with `asNodeId` only at trusted call sites.
 
 Keep `nodeId` (the string routing id) distinct from the Yjs `clientID` (a number; see [Yjs `clientID`](#yjs-clientid) below). They are different identifiers for different layers.
 

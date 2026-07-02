@@ -222,9 +222,14 @@ export function createSyncSupervisor(
 	let websocket: WebSocket | null = null;
 
 	function send(message: Uint8Array<ArrayBuffer> | string) {
-		if (websocket?.readyState === WebSocket.OPEN) {
+		if (websocket?.readyState !== WebSocket.OPEN) return;
+		if (typeof message === 'string') {
 			websocket.send(message);
+			return;
 		}
+		const copy = new Uint8Array(message.byteLength);
+		copy.set(message);
+		websocket.send(copy);
 	}
 
 	// ── Doc handlers ──

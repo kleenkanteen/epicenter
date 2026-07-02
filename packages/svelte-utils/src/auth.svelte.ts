@@ -12,9 +12,9 @@ import {
 import { createBrowserOAuthLauncher } from '@epicenter/auth/oauth-launchers';
 import { createSubscriber } from 'svelte/reactivity';
 
-export { reloadOnOwnerChange } from './reload-on-owner-change.js';
+export { reloadOnPrincipalChange } from './reload-on-principal-change.js';
 // The one composition shape (ADR-0088/ADR-0094): boot-time doc selection plus
-// reload-on-owner-change. Apps boot with one call:
+// reload-on-principal-change. Apps boot with one call:
 // `model.connect(toConnection(auth, nodeId), compose?)`.
 export { toConnection } from './to-connection.js';
 

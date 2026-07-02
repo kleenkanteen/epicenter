@@ -4,7 +4,7 @@
  * `attachMountInfrastructure(ydoc, ctx, opts)` is the recipe every
  * session-backed mount needs: pin the deterministic Y.Doc `clientID`, persist
  * the update log to disk under `yjsPath(epicenterRoot, guid)`, join the cloud
- * room at the partitioned `roomWsUrl({ baseURL, ownerId, guid, nodeId })`, and
+ * room at `roomWsUrl({ baseURL, guid, nodeId })`, and
  * own the ordered async dispose (destroy first so writes flush before sockets
  * close, then await every `whenDisposed` barrier: collaboration, log, and any
  * registered materializers).
@@ -80,7 +80,6 @@ export function attachMountInfrastructure<TActions extends ActionRegistry>(
 	const collaboration = openCollaboration(ydoc, {
 		url: roomWsUrl({
 			baseURL,
-			ownerId: ctx.session.ownerId,
 			guid: ydoc.guid,
 			nodeId: ctx.nodeId,
 		}),

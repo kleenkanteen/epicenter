@@ -8,7 +8,7 @@
  * bearer and has no sessions, so it never calls this and never constructs Better
  * Auth. That is the seam that lets an instance drop Postgres entirely.
  *
- * Call it once, right after `createServerApp` and before the owner-scoped mounts:
+ * Call it once, right after `createServerApp` and before the principal-scoped mounts:
  * it installs the auth-context middleware (so `c.var.auth` is set before any
  * cookie-or-bearer wrapper or `authApp` route reads it) and mounts `authApp` at
  * the root.

@@ -48,7 +48,7 @@ const eventDefinition = defineTable({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const samplePayload = JSON.stringify({
-	userId: 'usr-001',
+	principalId: 'principal-001',
 	action: 'click',
 	target: 'button.submit',
 	metadata: { page: '/dashboard', sessionId: 'sess-abc123' },

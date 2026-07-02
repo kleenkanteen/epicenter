@@ -107,7 +107,7 @@ bun run zip            # Package for Chrome Web Store
 bun run zip:firefox    # Package for Firefox Add-ons
 ```
 
-Auth uses Google OAuth via `browser.identity`. The workspace always mounts: signed out uses bare local IndexedDB storage, and signed in uses owner-scoped storage plus relay sync.
+Auth uses Google OAuth via `browser.identity`. The workspace always mounts: signed out uses bare local IndexedDB storage, and signed in uses principal-scoped storage plus relay sync.
 
 ---
 

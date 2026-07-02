@@ -19,7 +19,7 @@ import { parseBearer } from '../auth/parse-bearer.js';
  *   `@epicenter/sync` `auth-subprotocol.ts`).
  *
  * Rooms is the only WebSocket surface and it is bearer-only
- * ({@link requireBearerUser} never reads the cookie). So on an upgrade the
+ * ({@link requireBearerPrincipal} never reads the cookie). So on an upgrade the
  * cookie is always ambient noise and the subprotocol bearer is always the
  * intended credential. This middleware makes that structural:
  *
@@ -35,10 +35,10 @@ import { parseBearer } from '../auth/parse-bearer.js';
  *      way; stripping here keeps it out of intermediate handlers too.)
  *
  * It never authenticates and never rejects. A missing, empty, or duplicate
- * bearer attaches nothing, and the downstream {@link requireBearerUser}
+ * bearer attaches nothing, and the downstream {@link requireBearerPrincipal}
  * answers 401. Cookie-vs-bearer precedence on ordinary HTTP routes is not
- * this middleware's concern: `requireCookieOrBearerUser` (cookie-first) and
- * `requireBearerUser` (bearer-only) own that, deterministically. Better
+ * this middleware's concern: `requireCookieOrBearerPrincipal` (cookie-first) and
+ * `requireBearerPrincipal` (bearer-only) own that, deterministically. Better
  * Auth's `bearer()` plugin is not enabled, so `getSession` reads only the
  * cookie; the OAuth bearer is a separate JWT verified against JWKS. The two
  * credentials are read by disjoint code paths and never merge, so there is

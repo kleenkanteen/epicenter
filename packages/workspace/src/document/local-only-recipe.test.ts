@@ -4,7 +4,7 @@
  * Pins the composition a local-only consumer (desktop notes app, offline
  * CLI, test fixture) is meant to use. The recipe constructs a plaintext
  * workspace and pairs it with plain IDB + plain BroadcastChannel. No
- * `attachLocalStorage`: that's the owner-scoped composite for authenticated
+ * `attachLocalStorage`: that's the principal-scoped composite for authenticated
  * browser workspaces.
  *
  * If this file ever needs auth or encryption imports, the primitives have

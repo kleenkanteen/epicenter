@@ -3,16 +3,13 @@
  * `Rooms` registry (a Cloudflare Durable Object in the cloud, an in-process
  * `bun:sqlite` room on a Bun host). The route is backend-blind.
  *
- * URL shape (uniform across deployments): `/api/owners/:ownerId/rooms/:roomId`.
- * The deployment mounts auth and `requireOwnership` upstream;
- * `requireOwnership` resolves the partition from `(rule, user.id)`,
- * rejects URL `:ownerId` mismatches at the boundary, and populates
- * `c.var.ownerId` before this handler runs.
+ * URL shape: `/api/rooms/:roomId`. The deployment mounts auth upstream, and
+ * `c.var.principal.id` is the partition key by definition.
  *
- * The Durable Object name is the owner-partitioned identifier produced by
+ * The Durable Object name is the principal-partitioned identifier produced by
  * {@link doName}; nothing here interpolates strings inline. The DO itself
- * is owner-blind: every connection is identified by the
- * `(userId, nodeId)` pair stamped onto its WebSocket attachment.
+ * is principal-blind: every connection is identified by the
+ * `(principalId, nodeId)` pair stamped onto its WebSocket attachment.
  *
  * The route reads neither `c.var.db` nor `c.var.afterResponseQueue`: it records
  * no telemetry, so it composes no Postgres dependency on any deployment.
@@ -25,22 +22,16 @@ import { createMiddleware } from 'hono/factory';
 import { describeRoute } from 'hono-openapi';
 import { createOAuthUnauthorizedResourceResponse } from '../auth/oauth-resource.js';
 import { isWebSocketUpgrade } from '../is-websocket-upgrade.js';
-import { createRequireOwnership } from '../middleware/require-ownership.js';
 import { normalizeWebSocketAuth } from '../middleware/websocket-auth.js';
-import { doName } from '../owner.js';
-import type { OwnershipRule } from '../ownership.js';
-import type { Env, ResolveUser } from '../types.js';
+import { doName } from '../principal.js';
+import type { Env, ResolvePrincipal } from '../types.js';
 
 /**
- * Build the rooms sub-app. URL shape is uniform across deployments; the resolved
- * owner partition arrives on `c.var.ownerId` via the deployment-mounted
- * `requireOwnership` middleware, so handlers stay partition-blind.
- *
- * Rooms are WebSocket-only: the authenticated upgrade is the single way to
- * reach a room. The former one-shot HTTP surface (GET snapshot, POST sync RPC)
- * was deleted with its last consumer; a plain GET answers `426 Upgrade
- * Required` so a stray non-upgrade request gets a readable refusal instead of
- * doc bytes.
+ * Build the rooms sub-app. Rooms are WebSocket-only: the authenticated upgrade
+ * is the single way to reach a room. The former one-shot HTTP surface (GET
+ * snapshot, POST sync RPC) was deleted with its last consumer; a plain GET
+ * answers `426 Upgrade Required` so a stray non-upgrade request gets a readable
+ * refusal instead of doc bytes.
  */
 function createRoomsApp(): Hono<Env> {
 	return new Hono<Env>().get(
@@ -65,15 +56,16 @@ function createRoomsApp(): Hono<Env> {
 			}
 
 			const roomId = c.req.param('roomId');
-			const room = c.var.rooms.get(doName(c.var.ownerId, roomId));
+			const principalId = c.var.principal.id;
+			const room = c.var.rooms.get(doName(principalId, roomId));
 
 			// Identity goes to the backend as data, not stamped into a
-			// reconstructed request URL: userId from auth (authoritative,
+			// reconstructed request URL: principalId from auth (authoritative,
 			// never the client's), nodeId the client's own. The backend
 			// performs its runtime-specific accept (see ResolvedRoom).
 			return room.handleUpgrade({
 				request: c.req.raw,
-				userId: c.var.user.id,
+				principalId,
 				nodeId,
 			});
 		},
@@ -83,7 +75,7 @@ function createRoomsApp(): Hono<Env> {
 /**
  * Bearer auth for the rooms surface, the only WebSocket surface.
  *
- * Same bearer-only resolution as `requireBearerUser`, but a failed WebSocket
+ * Same bearer-only resolution as `requireBearerPrincipal`, but a failed WebSocket
  * upgrade is rejected through the runtime's {@link Rooms.rejectUpgrade}: the
  * socket is accepted and immediately closed with `4000 + status` (401 -> 4401
  * permanent, 503 -> 4503 retryable), so the browser receives a close code it
@@ -93,10 +85,10 @@ function createRoomsApp(): Hono<Env> {
  * serialized error is the close reason; the client branches on `error.name`.
  */
 function requireRoomBearer<E extends Env>(
-	resolveUser: ResolveUser<E>,
+	resolvePrincipal: ResolvePrincipal<E>,
 ): MiddlewareHandler<E> {
 	return createMiddleware<E>(async (c, next) => {
-		const { data: user, error } = await resolveUser(c);
+		const { data: principal, error } = await resolvePrincipal(c);
 		if (error) {
 			if (isWebSocketUpgrade(c)) {
 				return c.var.rooms.rejectUpgrade({
@@ -107,7 +99,7 @@ function requireRoomBearer<E extends Env>(
 			}
 			return createOAuthUnauthorizedResourceResponse(c, error);
 		}
-		c.set('user', user);
+		c.set('principal', principal);
 		await next();
 	});
 }
@@ -116,13 +108,13 @@ function requireRoomBearer<E extends Env>(
  * Mount the rooms surface on a deployment's server app.
  *
  * Bundles the full request pipeline for the only WebSocket surface:
- * transport normalization, auth, ownership, and the route mount, in one
+ * transport normalization, auth, and the route mount, in one
  * call. Deployments call this once; they do not assemble the chain manually.
  *
  * Rooms is the one surface that resolves the bearer itself rather than taking a
  * prebuilt `auth` wrapper, because a failed WebSocket upgrade must close with a
  * readable code rather than answer a plain HTTP error. So it closes its own
- * WS-aware wrapper over the deployment's {@link ResolveUser} (the cloud's OAuth
+ * WS-aware wrapper over the deployment's {@link ResolvePrincipal} (the cloud's OAuth
  * resolver, an instance's env-token resolver).
  *
  * Order matters. {@link normalizeWebSocketAuth} runs first so that on a
@@ -133,13 +125,12 @@ function requireRoomBearer<E extends Env>(
  */
 export function mountRoomsApp<E extends Env = Env>(
 	app: Hono<E>,
-	opts: { ownership: OwnershipRule; resolveUser: ResolveUser<E> },
+	opts: { resolvePrincipal: ResolvePrincipal<E> },
 ): void {
 	app.use(
 		ROOM_ROUTE.prefixPattern,
 		normalizeWebSocketAuth,
-		requireRoomBearer(opts.resolveUser),
-		createRequireOwnership<E>(opts.ownership),
+		requireRoomBearer(opts.resolvePrincipal),
 	);
 	app.route('/', createRoomsApp());
 }

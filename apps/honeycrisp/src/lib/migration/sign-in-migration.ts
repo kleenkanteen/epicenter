@@ -14,7 +14,7 @@ import { honeycrispWorkspace } from '$lib/workspace';
 /**
  * Open a throwaway handle to the signed-out plaintext local doc (the migration
  * source). This opens the same `epicenter-honeycrisp` IndexedDB the
- * signed-out app uses; the owner doc's storage is partitioned, so this never
+ * signed-out app uses; the principal doc's storage is partitioned, so this never
  * collides with the active synced doc. `dispose()` tears down the connection
  * without deleting data (`clearLocal` does the deletion).
  */

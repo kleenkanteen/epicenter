@@ -10,7 +10,6 @@
 
 import { EPICENTER_API_URL } from '@epicenter/constants/apps';
 import { field } from '@epicenter/field';
-import type { OwnerId } from '@epicenter/identity';
 import {
 	createWorkspace,
 	defineMutation,
@@ -33,12 +32,10 @@ const Note = defineTable({
 
 export function openNotes({
 	nodeId,
-	ownerId,
 	openWebSocket,
 	onReconnectSignal,
 }: {
 	nodeId: NodeId;
-	ownerId: OwnerId;
 	openWebSocket: OpenWebSocketFn;
 	onReconnectSignal: OnReconnectSignal;
 }) {
@@ -65,7 +62,6 @@ export function openNotes({
 	const collaboration = openCollaboration(ydoc, {
 		url: roomWsUrl({
 			baseURL: EPICENTER_API_URL,
-			ownerId,
 			guid: ydoc.guid,
 			nodeId,
 		}),

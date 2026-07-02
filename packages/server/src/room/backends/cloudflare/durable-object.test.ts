@@ -236,23 +236,26 @@ async function makeRoom(): Promise<{ room: RoomLike; ctx: StubCtx }> {
 	return { room, ctx };
 }
 
-function upgradeRequest(nodeId: string, userId = 'user-test'): Request {
-	return new Request(`https://relay.test/?userId=${userId}&nodeId=${nodeId}`, {
-		method: 'GET',
-		headers: {
-			Upgrade: 'websocket',
-			'sec-websocket-protocol': 'epicenter',
+function upgradeRequest(nodeId: string, principalId = 'user-test'): Request {
+	return new Request(
+		`https://relay.test/?principalId=${principalId}&nodeId=${nodeId}`,
+		{
+			method: 'GET',
+			headers: {
+				Upgrade: 'websocket',
+				'sec-websocket-protocol': 'epicenter',
+			},
 		},
-	});
+	);
 }
 
 /** Drive an upgrade end-to-end and return the server-side socket. */
 async function upgrade(
 	room: RoomLike,
 	nodeId: string,
-	userId = 'user-test',
+	principalId = 'user-test',
 ): Promise<StubWebSocket> {
-	const response = await room.fetch(upgradeRequest(nodeId, userId));
+	const response = await room.fetch(upgradeRequest(nodeId, principalId));
 	expect(response.status).toBe(101);
 	// In real CF the response carries the CLIENT socket on `response.webSocket`;
 	// Bun's `Response` ignores the field but the server socket is the

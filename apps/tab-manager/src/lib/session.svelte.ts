@@ -8,7 +8,7 @@
  * `tab-manager/extension.ts`), and the composed app state (savedTabs,
  * bookmarks, toolTrust, unifiedView, aiChat) are all built exactly once,
  * inside `whenReady`, after the persisted auth cell, the instance setting,
- * and the device profile have resolved. `reloadOnOwnerChange` is wired the
+ * and the device profile have resolved. `reloadOnPrincipalChange` is wired the
  * moment the auth client exists, so an identity change reloads the sidepanel
  * document and the next boot re-runs the preset branch.
  *
@@ -24,7 +24,7 @@ import type { InstanceSetting, SyncAuthClient } from '@epicenter/auth';
 import { EPICENTER_TAB_MANAGER_OAUTH_CLIENT_ID } from '@epicenter/constants/oauth-clients';
 import {
 	createAppAuthClient,
-	reloadOnOwnerChange,
+	reloadOnPrincipalChange,
 } from '@epicenter/svelte/auth';
 import {
 	createLocalToolCatalog,
@@ -86,9 +86,9 @@ const whenReady = Promise.all([
 	bundle = buildTabManager(auth, profile);
 	signInMigrationValue = createTabManagerSignInMigration(auth, bundle);
 	// Option A (ADR-0088): the doc is picked once at boot (the preset branch
-	// inside `openTabManagerBrowser`); an owner-identity change reloads the
+	// inside `openTabManagerBrowser`); a principal identity change reloads the
 	// sidepanel document so the next boot rebuilds the right doc.
-	reloadOnOwnerChange(auth);
+	reloadOnPrincipalChange(auth);
 });
 
 function buildTabManager(

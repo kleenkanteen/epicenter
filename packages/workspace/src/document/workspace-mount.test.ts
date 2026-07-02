@@ -116,7 +116,7 @@ const ctx = {
 	mount: 'demo',
 	nodeId: 'node-fixture',
 	session: {
-		ownerId: 'owner-fixture',
+		principalId: 'principal-fixture',
 		openWebSocket: () => {},
 		onReconnectSignal: () => () => {},
 		fetch: async () => new Response(),

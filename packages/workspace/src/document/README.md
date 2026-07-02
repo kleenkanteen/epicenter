@@ -6,7 +6,7 @@ A typed interface over Y.js for apps that need to evolve their data schema over 
 
 This is a wrapper around Y.js that handles schema versioning. Local-first apps can't run migration scripts, so data has to evolve gracefully. Old data coexists with new. The Workspace API bakes that into the design: define your schemas once with versions, write a migration function, and everything else is typed.
 
-The pattern: `defineWorkspace({ id, tables, kv, actions })` declares the shared isomorphic model. `definition.create()` builds the unconnected root doc for daemon composition. `definition.connect(connection)` creates the browser runtime with owner-scoped local storage, root sync, wipe, and table child-doc openers. `definition.connect(connection, compose)` lets a runtime add extras and publish its final action registry before collaboration starts. `createWorkspace({ id, tables, kv })` and `satisfiesWorkspace(...)` remain lower-level primitives for internals, tests, and ports that have not moved to definitions yet.
+The pattern: `defineWorkspace({ id, tables, kv, actions })` declares the shared isomorphic model. `definition.create()` builds the unconnected root doc for daemon composition. `definition.connect(connection)` creates the browser runtime with principal-scoped local storage, root sync, wipe, and table child-doc openers. `definition.connect(connection, compose)` lets a runtime add extras and publish its final action registry before collaboration starts. `createWorkspace({ id, tables, kv })` and `satisfiesWorkspace(...)` remain lower-level primitives for internals, tests, and ports that have not moved to definitions yet.
 
 ```
 +----------------------------------------------------------------+
@@ -18,8 +18,8 @@ The pattern: `defineWorkspace({ id, tables, kv, actions })` declares the shared 
 | defineWorkspace({ id, tables, kv, actions }).connect(...)         |
 |   -> { ydoc, tables, kv, actions, child-doc openers, ... }     |
 | attachIndexedDb / attachYjsLog / attachBroadcastChannel        |
-| attachLocalStorage(ydoc, { server, ownerId })  // scoped IDB + scoped BC |
-| wipeLocalStorage({ server, ownerId })           // delete local data for owner |
+| attachLocalStorage(ydoc, { server, principalId })  // scoped IDB + scoped BC |
+| wipeLocalStorage({ server, principalId })           // delete local data      |
 | openCollaboration (sync + presence)                            |
 | attachBunSqliteMaterializer / attachMarkdownExport             |
 +----------------------------------------------------------------+
@@ -86,8 +86,8 @@ function openBlog({
 ```
 
 `connect(null)` derives bare local storage and BroadcastChannel keys from each
-doc guid. `connect(connection)` derives owner-scoped keys from `server`,
-`ownerId`, and each doc guid. `wipe()` deletes the databases for the active
+doc guid. `connect(connection)` derives principal-scoped keys from `baseURL`,
+`principalId`, and each doc guid. `wipe()` deletes the databases for the active
 arm in one call: no explicit guid list to maintain.
 
 For content documents (rich-text bodies, attachments) that only need bytes on

@@ -5,9 +5,9 @@
  * This needs no dev credential bypass: an instance's credential is trivially
  * supplied, so the smoke drives the REAL bearer path end to end. It proves both
  * outcomes:
- *   - the operator-supplied bearer resolves the `owners/instance` partition and
- *     opens a room (200)
- *   - a wrong bearer is rejected (401), before any partition is resolved
+ *   - the operator-supplied bearer resolves the `instance` principal and opens a
+ *     room (200)
+ *   - a wrong bearer is rejected (401), before any principal is resolved
  *
  * Boot the instance with a known token, then point this at it (pass the SAME token
  * the box booted with, since there is no shared registry to look it up):
@@ -18,7 +18,7 @@
  */
 
 import { API_ROUTES } from '@epicenter/constants/api-routes';
-import { INSTANCE_OWNER_ID } from '@epicenter/identity';
+import { INSTANCE_PRINCIPAL_ID } from '@epicenter/identity';
 
 const BASE_URL = (
 	process.argv[2] ??
@@ -78,19 +78,19 @@ async function main() {
 		return summarize();
 	}
 
-	// 2. Session with the real bearer: the resolved partition is owners/instance,
+	// 2. Session with the real bearer: the resolved principal is instance,
 	// independent of who holds the token.
-	let ownerId = '';
+	let principalId = '';
 	{
 		const res = await fetch(API_ROUTES.session.url(BASE_URL), {
 			headers: bearer(TOKEN),
 		});
 		if (res.ok) {
-			ownerId = ((await res.json()) as { ownerId: string }).ownerId;
+			principalId = ((await res.json()) as { principalId: string }).principalId;
 			record(
-				ownerId === INSTANCE_OWNER_ID ? 'PASS' : 'FAIL',
+				principalId === INSTANCE_PRINCIPAL_ID ? 'PASS' : 'FAIL',
 				'session',
-				`${res.status} ownerId=${ownerId} (expected ${INSTANCE_OWNER_ID})`,
+				`${res.status} principalId=${principalId} (expected ${INSTANCE_PRINCIPAL_ID})`,
 			);
 		} else {
 			record('FAIL', 'session', `${res.status} ${await res.text()}`);
@@ -98,10 +98,10 @@ async function main() {
 		}
 	}
 
-	// 3. Open a room under the instance partition (create-on-first-touch).
+	// 3. Open a room under the instance principal (create-on-first-touch).
 	{
 		const roomId = `smoke-${randHex(4)}`;
-		const url = `${BASE_URL}/api/owners/${encodeURIComponent(ownerId)}/rooms/${roomId}?nodeId=smoke`;
+		const url = `${BASE_URL}/api/rooms/${encodeURIComponent(roomId)}?nodeId=smoke`;
 		const res = await fetch(url, { headers: bearer(TOKEN) });
 		const buf = await res.arrayBuffer();
 		record(
@@ -111,7 +111,7 @@ async function main() {
 		);
 	}
 
-	// 4. A wrong bearer is rejected with 401, before any partition is resolved.
+	// 4. A wrong bearer is rejected with 401, before any principal is resolved.
 	{
 		const res = await fetch(API_ROUTES.session.url(BASE_URL), {
 			headers: bearer(`${TOKEN}-wrong`),

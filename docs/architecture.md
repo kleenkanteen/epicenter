@@ -96,7 +96,7 @@ Use `defineWorkspace()` when returning the composed object so TypeScript keeps t
 ### 4. Runtime openers attach resources
 There is no plugin chain. Persistence, indexing, and materializers all mount through `attach*` functions; the workspace's network surface (sync + presence + dispatch) mounts through the `openCollaboration` primitive. Runtime openers compose them inline against `workspace.ydoc` after `create<App>()`.
 
-The example below syncs a cloud document. A cloud doc is owned by the authenticated `ownerId` and addressed by its own `ydoc.guid`, so the client builds the URL with `roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, nodeId })`; the server resolves it from the authenticated owner and room id. There is no workspace lookup.
+The example below syncs a cloud document. A cloud doc is scoped to the authenticated `principalId` and addressed by its own `ydoc.guid`, so the client builds the URL with `roomWsUrl({ baseURL, guid: ydoc.guid, nodeId })`; the server resolves it from the authenticated principal and room id. There is no workspace lookup.
 
 ```ts
 import {
@@ -115,7 +115,6 @@ const idb = attachIndexedDb(workspace.ydoc);
 const collaboration = openCollaboration(workspace.ydoc, {
 	url: roomWsUrl({
 		baseURL: auth.baseURL,
-		ownerId,
 		guid: workspace.ydoc.guid,
 		nodeId,
 	}),
@@ -229,7 +228,6 @@ export function openOpensidianBrowser() {
 	const collaboration = openCollaboration(workspace.ydoc, {
 		url: roomWsUrl({
 			baseURL: auth.baseURL,
-			ownerId,
 			guid: workspace.ydoc.guid,
 			nodeId,
 		}),
@@ -242,7 +240,7 @@ export function openOpensidianBrowser() {
 }
 ```
 
-That bundle then feeds other middleware packages. `attachYjsFileSystem(workspace.ydoc, workspace.tables.files, fileContent)` turns the files table plus content docs into a real virtual filesystem, and its `fs.index` is the single owner of path validity that the sqlite mirror converges to; `actionsToAiTools(workspace)` from `@epicenter/workspace/ai` turns workspace actions into chat tools; per-row content docs use sub-doc primitives like `attachRichText`; `createOAuthAppAuth()` from `@epicenter/auth` coordinates identity, fetch, and WebSocket auth, while `toConnection(auth, nodeId)` supplies the boot-time connection (the signed-in `ownerId` and WebSocket transport, or `null` signed out) to the workspace boot call.
+That bundle then feeds other middleware packages. `attachYjsFileSystem(workspace.ydoc, workspace.tables.files, fileContent)` turns the files table plus content docs into a real virtual filesystem, and its `fs.index` is the single owner of path validity that the sqlite mirror converges to; `actionsToAiTools(workspace)` from `@epicenter/workspace/ai` turns workspace actions into chat tools; per-row content docs use sub-doc primitives like `attachRichText`; `createAppAuthClient()` and `createSameOriginCookieAuth()` from `@epicenter/svelte/auth` coordinate identity, fetch, and WebSocket auth, while `toConnection(auth, nodeId)` supplies the boot-time connection (the signed-in principal and WebSocket transport, or `null` signed out) to the workspace boot call.
 
 ```text
 createOpensidian()

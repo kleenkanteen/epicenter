@@ -21,7 +21,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { asUserId } from '@epicenter/auth';
+import { asPrincipalId } from '@epicenter/identity';
 import {
 	encodeSyncStep1,
 	encodeSyncUpdate,
@@ -91,9 +91,10 @@ class StubSocket implements RoomSocket {
 
 function conn(nodeId: string, opts?: { connectedAt?: number }): Connection {
 	return {
-		userId: asUserId('u1'),
+		principalId: asPrincipalId('u1'),
 		nodeId,
 		connectedAt: opts?.connectedAt ?? Date.now(),
+		actions: {},
 	};
 }
 

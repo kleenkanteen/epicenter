@@ -5,7 +5,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { field, InstantString } from '@epicenter/field';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 import { Type } from 'typebox';
 import * as Y from 'yjs';
@@ -34,7 +34,7 @@ function fakeWebSocket(): Promise<WebSocket> {
 
 const connection: ConnectionConfig = {
 	baseURL: 'https://api.test.invalid',
-	ownerId: asOwnerId('owner-1'),
+	principalId: asPrincipalId('principal-1'),
 	openWebSocket: fakeWebSocket,
 	onReconnectSignal: () => () => {},
 	nodeId: asNodeId('node-1'),

@@ -392,9 +392,9 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 		 *   responsible for the runtime-specific accept (hibernation API
 		 *   or `Bun.serve` upgrade) before calling this.
 		 * @param connection - The connection attachment URL-stamped at
-		 *   upgrade. `nodeId` is the relay routing address; `userId`
-		 *   is the auth principal; `connectedAt` is mirrored on the
-		 *   wire so receivers can render node affordances.
+		 *   upgrade. `nodeId` is the presence participant identity;
+		 *   `principalId` is the auth principal; `connectedAt` and `agentId`
+		 *   are mirrored on the wire so receivers can render node affordances.
 		 */
 		addConnection(socket: RoomSocket, connection: Connection): void {
 			connections.set(socket, connection);

@@ -451,7 +451,7 @@ export type MountWorkers<TTables extends TableDefinitions> = {
  * hosted body shares but the loop itself stays agnostic to:
  *
  *  - `session` is the mount's signed-in capability kit ({@link MountSession}: the
- *    `AuthedFetch`, the owner id, the sockets). Always present, because workers
+ *    `AuthedFetch`, the principal id, the sockets). Always present, because workers
  *    are only ever wired under a `defineSessionMount` open. A factory uses it to
  *    answer on the cloud (the engine's per-turn `data()` returns `session.fetch`
  *    plus the base URL for the metered inference backend).
@@ -680,7 +680,7 @@ export function createWorkspace<
  *                                transport around it.
  *   connect(connection | null)   The browser preset. The connection IS the boot
  *                                decision (ADR-0088/ADR-0094): credentials wire
- *                                owner-scoped IndexedDB plus the WebSocket relay
+ *                                principal-scoped IndexedDB plus the WebSocket relay
  *                                (see `connectDoc`); `null` wires guid-named
  *                                IndexedDB plus the cross-tab channel with no
  *                                relay (`collaboration: undefined`, the union's
@@ -790,7 +790,7 @@ export function defineWorkspace<
 
 		// The connection is the boot decision (ADR-0094): `null` wires the bare
 		// local infrastructure (guid-named IndexedDB, cross-tab channel, no
-		// relay); credentials wire owner-scoped storage plus the relay. Both
+		// relay); credentials wire principal-scoped storage plus the relay. Both
 		// arms return the same bundle shape, discriminated by `collaboration`.
 		if (connection === null) {
 			attachBroadcastChannel(workspace.ydoc);
@@ -826,7 +826,7 @@ export function defineWorkspace<
 				await Promise.all([idb.whenDisposed, collaboration.whenDisposed]);
 				await wipeLocalStorage({
 					server: new URL(connection.baseURL).host,
-					ownerId: connection.ownerId,
+					principalId: connection.principalId,
 				});
 			},
 			[Symbol.dispose]: dispose,

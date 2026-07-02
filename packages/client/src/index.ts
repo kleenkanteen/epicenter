@@ -1,12 +1,12 @@
 /**
  * `@epicenter/client`: typed HTTP client for the Epicenter server.
  *
- * Owner-scoped data surfaces (`blobs`) over `AuthFetch` from
+ * Principal-scoped data surfaces (`blobs`) over `AuthFetch` from
  * `@epicenter/auth`, which handles OAuth bearer attach, refresh, and 401
  * propagation. This package owns neither auth state nor identity: the caller
- * passes the authed fetch handle and the `ownerId` (read from `auth.state`),
- * so the client never fetches `/api/session` itself. Profile reads live on the
- * auth client (`auth.getProfile()`); see ADR-0067.
+ * passes the authed fetch handle, so the client never fetches `/api/session`
+ * itself. Profile reads live on the auth client (`auth.getProfile()`); see
+ * ADR-0067.
  *
  * Works against any Epicenter deployment (cloud at `epicenter.so` or a
  * self-hosted single-partition instance).
@@ -14,7 +14,6 @@
 
 import type { AuthFetch } from '@epicenter/auth';
 import { API_ROUTES } from '@epicenter/constants/api-routes';
-import type { OwnerId } from '@epicenter/identity';
 import {
 	defineErrors,
 	extractErrorMessage,
@@ -56,19 +55,13 @@ export type EpicenterClientOptions = {
 	 * from `@epicenter/auth`. The client does not own auth lifecycle.
 	 */
 	fetch: AuthFetch;
-	/**
-	 * The signed-in owner partition, read from `auth.state.ownerId`. The client
-	 * is owner-scoped and addresses every route under it, `blobs.url` included; it
-	 * never resolves identity itself.
-	 */
-	ownerId: OwnerId;
 };
 
 // ---------------------------------------------------------------------------
 // Blob types (content-addressed store; mirror the server response shapes)
 // ---------------------------------------------------------------------------
 
-/** One row of the owner's blob listing (`GET /blobs`). */
+/** One row of the current principal's blob listing (`GET /blobs`). */
 export type BlobRow = { sha256: string; size: number; uploaded: string };
 
 /** Result of the client's `blobs.add`. */
@@ -145,13 +138,11 @@ async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
 // ---------------------------------------------------------------------------
 
 /**
- * Build a typed Epicenter client bound to a base URL, an authed fetch, and the
- * signed-in `ownerId`. Every surface is synchronous to construct and addresses
- * routes under that owner; nothing here touches `/api/session`.
+ * Build a typed Epicenter client bound to a base URL and an authed fetch. Every
+ * surface is synchronous to construct; nothing here touches `/api/session`.
  */
 export function createEpicenterClient(opts: EpicenterClientOptions) {
 	const base = opts.baseURL.replace(/\/+$/, '');
-	const { ownerId } = opts;
 
 	// Run one authed request, folding transport failure and non-2xx into a typed
 	// Result so the blob methods never throw.
@@ -228,7 +219,7 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 			const sha256 = await sha256Hex(bytes);
 
 			const { data: ticketRes, error: ticketError } = await request(
-				API_ROUTES.blobs.list.url(base, ownerId),
+				API_ROUTES.blobs.list.url(base),
 				{
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
@@ -270,14 +261,13 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 		},
 
 		/**
-		 * Build the content-addressed read URL for a blob under the construction
-		 * owner. Synchronous; the owner partition is the one the client was
-		 * constructed with.
+		 * Build the content-addressed read URL for a blob under the authenticated
+		 * principal. Synchronous; the principal partition comes from auth.
 		 *
 		 * Useful for resolving a manifest entry, an `<img src>`, or a share link.
 		 */
 		url(sha256: string): string {
-			return API_ROUTES.blobs.byHash.url(base, ownerId, sha256);
+			return API_ROUTES.blobs.byHash.url(base, sha256);
 		},
 
 		/**
@@ -292,8 +282,7 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 		async get(sha256: string): Promise<Result<Response, ClientError>> {
 			const operation = 'GET /blobs/:sha256';
 			const { data: res, error } = await tryAsync({
-				try: () =>
-					opts.fetch(API_ROUTES.blobs.byHash.url(base, ownerId, sha256)),
+				try: () => opts.fetch(API_ROUTES.blobs.byHash.url(base, sha256)),
 				catch: (cause) => ClientError.TransportFailed({ operation, cause }),
 			});
 			if (error !== null) return Err(error);
@@ -337,7 +326,7 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 
 		async list(): Promise<Result<BlobRow[], ClientError>> {
 			const { data: res, error: reqError } = await request(
-				API_ROUTES.blobs.list.url(base, ownerId),
+				API_ROUTES.blobs.list.url(base),
 				undefined,
 				'GET /blobs',
 			);
@@ -347,7 +336,7 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 
 		async delete(sha256: string): Promise<Result<void, ClientError>> {
 			const { error: reqError } = await request(
-				API_ROUTES.blobs.byHash.url(base, ownerId, sha256),
+				API_ROUTES.blobs.byHash.url(base, sha256),
 				{ method: 'DELETE' },
 				'DELETE /blobs/:sha256',
 			);

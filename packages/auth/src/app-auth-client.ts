@@ -49,7 +49,7 @@ export type CreateAppAuthClientOptions = {
  *   base URL, so OAuth never targets a self-hosted origin.
  *
  * Both branches return a {@link SyncAuthClient}, so the result is a drop-in for
- * owner-scoped cloud sync regardless of which credential model was chosen.
+ * principal-scoped cloud sync regardless of which credential model was chosen.
  * There is no persisted mode tag: the credential model is recomputed from the
  * instance at construction, not stored as a discriminator.
  */

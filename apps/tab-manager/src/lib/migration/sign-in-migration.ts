@@ -22,7 +22,7 @@ import { tabManagerWorkspace } from '$lib/workspace/definition';
 /**
  * Open a throwaway handle to the signed-out plaintext local doc (the
  * migration source). This opens the same `epicenter-tab-manager` IndexedDB
- * the signed-out extension uses; the owner doc's storage is partitioned, so
+ * the signed-out extension uses; the principal doc's storage is partitioned, so
  * this never collides with the active synced doc. `dispose()` tears down the
  * connection without deleting data (`clearLocal` does the deletion).
  *

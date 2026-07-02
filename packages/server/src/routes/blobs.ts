@@ -1,11 +1,11 @@
 /**
  * Blobs sub-app: a content-addressed object store where S3 IS the index.
  *
- * Uniform owner-partitioned URL shape:
- *   POST   /api/owners/:ownerId/blobs              authed — request an upload ticket
- *   GET    /api/owners/:ownerId/blobs              authed — list the owner's blobs
- *   GET    /api/owners/:ownerId/blobs/:sha256      authed — read (302 → presigned GET)
- *   DELETE /api/owners/:ownerId/blobs/:sha256      authed — delete
+ * Uniform principal-partitioned URL shape:
+ *   POST   /api/blobs              authed: request an upload ticket
+ *   GET    /api/blobs              authed: list the principal's blobs
+ *   GET    /api/blobs/:sha256      authed: read (302 to presigned GET)
+ *   DELETE /api/blobs/:sha256      authed: delete
  *
  * There is NO database row, NO queue, and NO event notification. The blob's
  * key IS its sha256 content address, so the store itself answers "does it
@@ -19,10 +19,10 @@
  * presigned PUT and the client streams bytes straight to the store, which
  * enforces the sha256 checksum and rejects a mismatch. That removes the ~100 MB
  * Worker request-body ceiling and the in-server hashing cost. The object
- * appearing under its hash IS the record of a successful upload — no confirm
+ * appearing under its hash IS the record of a successful upload; no confirm
  * step.
  *
- * v1 is all-private: every route is auth + ownership gated (R2 public access is
+ * v1 is all-private: every route is auth gated (R2 public access is
  * bucket-level, so a public tier is a separate bucket, deferred). See
  * `docs/adr/0089-the-blob-store-is-a-presigned-s3-kernel-and-the-bucket-is-its-only-index.md`.
  */
@@ -35,9 +35,7 @@ import { Hono, type MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { describeRoute } from 'hono-openapi';
 import { MAX_BLOB_BYTES } from '../constants.js';
-import { createRequireOwnership } from '../middleware/require-ownership.js';
-import { blobKey, blobOwnerPrefix } from '../owner.js';
-import type { OwnershipRule } from '../ownership.js';
+import { blobKey, blobPrincipalPrefix } from '../principal.js';
 import {
 	createS3BlobStore,
 	type S3BlobStore,
@@ -110,9 +108,8 @@ function resolveBlobStoreConfig(env: {
 /**
  * Build this deployment's S3 blob store onto `c.var.blobStore`, or answer 503
  * when object storage is not configured. One owner for the "store is configured"
- * invariant, the way `requireOwnership` owns `c.var.ownerId`, so every handler
- * can assume the store is present. Typed as a bare `MiddlewareHandler` so it
- * slots into the `Hono<Env>` parent mount beside auth + ownership; it sets a
+ * invariant, so every handler can assume the store is present. Typed as a bare
+ * `MiddlewareHandler` so it slots into the `Hono<Env>` parent mount beside auth; it sets a
  * `BlobEnv` variable the sub-app reads.
  */
 const requireBlobStore: MiddlewareHandler = createMiddleware<BlobEnv>(
@@ -128,7 +125,7 @@ const requireBlobStore: MiddlewareHandler = createMiddleware<BlobEnv>(
 );
 
 const blobsApp = new Hono<BlobEnv>()
-	// POST — request an upload ticket (presigned PUT, or a duplicate hit).
+	// POST: request an upload ticket (presigned PUT, or a duplicate hit).
 	.post(
 		API_ROUTES.blobs.list.pattern,
 		describeRoute({
@@ -138,6 +135,7 @@ const blobsApp = new Hono<BlobEnv>()
 		}),
 		sValidator('json', TicketBody),
 		async (c) => {
+			const principalId = c.var.principal.id;
 			const { sha256, sizeBytes, contentType } = c.req.valid('json');
 
 			if (!SHA256_HEX.test(sha256)) {
@@ -156,14 +154,10 @@ const blobsApp = new Hono<BlobEnv>()
 				return c.json(err, err.error.status);
 			}
 
-			const key = blobKey(c.var.ownerId, sha256);
-			const url = API_ROUTES.blobs.byHash.url(
-				c.var.authBaseURL,
-				c.var.ownerId,
-				sha256,
-			);
+			const key = blobKey(principalId, sha256);
+			const url = API_ROUTES.blobs.byHash.url(c.var.authBaseURL, sha256);
 
-			// Dedup within the owner boundary: if the object already exists, the
+			// Dedup within the principal boundary: if the object already exists, the
 			// upload is a no-op. Content addressing makes this safe and cheap (one
 			// HEAD).
 			if (await c.var.blobStore.exists(key)) {
@@ -190,19 +184,20 @@ const blobsApp = new Hono<BlobEnv>()
 			});
 		},
 	)
-	// GET — list the owner's blobs (S3 is the index).
+	// GET: list the principal's blobs (S3 is the index).
 	.get(
 		API_ROUTES.blobs.list.pattern,
 		describeRoute({
-			description: "List the current owner's blobs.",
+			description: "List the current principal's blobs.",
 			tags: ['blobs'],
 		}),
 		async (c) => {
-			const blobs = await listOwnerBlobs(c.var.blobStore, c.var.ownerId);
+			const principalId = c.var.principal.id;
+			const blobs = await listPrincipalBlobs(c.var.blobStore, principalId);
 			return c.json(blobs);
 		},
 	)
-	// GET by hash — read (302 → short-TTL presigned GET).
+	// GET by hash: read (302 to short-TTL presigned GET).
 	.get(
 		API_ROUTES.blobs.byHash.pattern,
 		describeRoute({
@@ -211,8 +206,9 @@ const blobsApp = new Hono<BlobEnv>()
 			tags: ['blobs'],
 		}),
 		async (c) => {
+			const principalId = c.var.principal.id;
 			const sha256 = c.req.param('sha256');
-			const key = blobKey(c.var.ownerId, sha256);
+			const key = blobKey(principalId, sha256);
 			if (!(await c.var.blobStore.exists(key))) {
 				const err = BlobError.NotFound();
 				return c.json(err, err.error.status);
@@ -224,29 +220,30 @@ const blobsApp = new Hono<BlobEnv>()
 			return c.redirect(presignedGet, 302);
 		},
 	)
-	// DELETE by hash — owner-local, idempotent.
+	// DELETE by hash: principal-local, idempotent.
 	.delete(
 		API_ROUTES.blobs.byHash.pattern,
 		describeRoute({
-			description: 'Delete a blob (owner only).',
+			description: 'Delete a blob for the current principal.',
 			tags: ['blobs'],
 		}),
 		async (c) => {
+			const principalId = c.var.principal.id;
 			const sha256 = c.req.param('sha256');
-			await c.var.blobStore.delete(blobKey(c.var.ownerId, sha256));
+			await c.var.blobStore.delete(blobKey(principalId, sha256));
 			return c.body(null, 204);
 		},
 	);
 
 /**
- * Enumerate one owner's blobs by listing the store prefix. The sha256 is the
- * key minus the `owners/<ownerId>/blobs/` prefix.
+ * Enumerate one principal's blobs by listing the store prefix. The sha256 is the
+ * key minus the `principals/<principalId>/blobs/` prefix.
  */
-async function listOwnerBlobs(
+async function listPrincipalBlobs(
 	store: S3BlobStore,
-	ownerId: Env['Variables']['ownerId'],
+	principalId: Env['Variables']['principal']['id'],
 ): Promise<{ sha256: string; size: number; uploaded: string }[]> {
-	const prefix = blobOwnerPrefix(ownerId);
+	const prefix = blobPrincipalPrefix(principalId);
 	const objects = await store.list(prefix);
 	return objects.map((obj) => ({
 		sha256: obj.key.slice(prefix.length),
@@ -260,7 +257,7 @@ async function listOwnerBlobs(
  *
  * There is no public-read bypass in v1, so every route is
  * uniformly gated by the same chain: the deployment's auth (the cloud passes
- * `requireCookieOrBearerUser`), then ownership, then {@link requireBlobStore}
+ * `requireCookieOrBearerPrincipal`), then {@link requireBlobStore}
  * (which 503s a deployment with no object storage and otherwise stamps
  * `c.var.blobStore`), then any deployment policies. Cloud passes no policies in v1
  * (storage is unmetered until Autumn is wired); a future `syncBlobStorageWithAutumn`
@@ -270,22 +267,18 @@ export function mountBlobsApp<E extends Env = Env>(
 	app: Hono<E>,
 	opts: {
 		auth: MiddlewareHandler<E>;
-		ownership: OwnershipRule;
-		/** Extra middleware after auth + ownership on every blob route. */
+		/** Extra middleware after auth on every blob route. */
 		policies?: MiddlewareHandler<E>[];
 	},
 ): void {
-	// Every blob route runs the same chain: authenticate, resolve + assert the
-	// owner partition, ensure object storage is configured, then any deployment
-	// policies. The chain is typed as a non-empty tuple so its leading fixed
+	// Every blob route runs the same chain: authenticate, ensure object storage is
+	// configured, then any deployment policies. The chain is typed as a non-empty tuple so its leading fixed
 	// handler satisfies `app.on`'s overload (a bare `MiddlewareHandler[]` spread
 	// would be read as the path argument). It is bare-typed because it mixes the
-	// deployment's `E`-typed auth/ownership with the blob-local `BlobEnv` middleware
+	// deployment's `E`-typed auth with the blob-local `BlobEnv` middleware
 	// (`requireBlobStore` stamps `c.var.blobStore`); both run on the same app.
-	const requireOwnership = createRequireOwnership<E>(opts.ownership);
 	const chain: [MiddlewareHandler, ...MiddlewareHandler[]] = [
 		opts.auth,
-		requireOwnership,
 		requireBlobStore,
 		...(opts.policies ?? []),
 	];

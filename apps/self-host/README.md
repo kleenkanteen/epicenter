@@ -19,7 +19,7 @@ DATA_DIR=/var/lib/epicenter \
 bun apps/self-host/server.ts
 ```
 
-Then paste the same token into the client's instance setting (`{ baseURL, token }`), once. Every request from that client arrives as `Authorization: Bearer <token>` and authenticates against `owners/instance`. Hand the token to one person or to your whole group; the command is identical either way.
+Then paste the same token into the client's instance setting (`{ baseURL, token }`), once. Every request from that client arrives as `Authorization: Bearer <token>` and authenticates against `principals/instance`. Hand the token to one person or to your whole group; the command is identical either way.
 
 Boot fails closed if `INSTANCE_TOKEN` is missing or too weak, and the error names `gen-token`. The box never mints or stores a token: you own the secret, which is exactly what lets the same instance run on Cloudflare too. To rotate, generate a new token, restart with it, and redistribute it; there is no per-person revocation (see [Offboarding](#offboarding-and-rotation)).
 
@@ -47,7 +47,7 @@ bun run --cwd apps/self-host deploy
 
 ## What this isn't
 
-This is not Epicenter Cloud. There are no Autumn billing routes, no dashboard SPA, and no SLA, support contract, or paid hosting from Epicenter. There is also no per-user partitioning: every valid token reaches the one `owners/instance` partition. Multi-tenancy, where everyone signs in and gets their own private namespace, is Epicenter Cloud's only. An enterprise that wants on-prem runs one instance (shared), or one instance per person or team.
+This is not Epicenter Cloud. There are no Autumn billing routes, no dashboard SPA, and no SLA, support contract, or paid hosting from Epicenter. There is also no per-user partitioning: every valid token reaches the one `principals/instance` partition. Multi-tenancy, where everyone signs in and gets their own private namespace, is Epicenter Cloud's only. An enterprise that wants on-prem runs one instance (shared), or one instance per person or team.
 
 Community-supported. Issues filed against this folder are accepted as community contributions.
 
@@ -69,16 +69,15 @@ gate there:
 
 ```ts
 const token = assertStrongToken(env.INSTANCE_TOKEN);     // fail closed if weak
-const resolveUser = createEnvTokenResolver(token);       // one bearer
-const auth = requireBearerUser(resolveUser);             // every surface
+const resolvePrincipal = createEnvTokenResolver(token);  // one bearer
+const auth = requireBearerPrincipal(resolvePrincipal);   // every surface
 const app = createServerApp({
   runtime: bun({ rooms }),                               // no db leg, no Postgres
   identity: { resolveOrigin, resolveTrustedOrigins },
 });
-mountSessionApp(app, { ownership: instance, auth });
-mountRoomsApp(app, { ownership: instance, resolveUser }); // WS-aware, takes the resolver
+mountSessionApp(app, { auth });
+mountRoomsApp(app, { resolvePrincipal });                // WS-aware, takes the resolver
 mountInferenceApp(app, {
-  ownership: instance,
   auth,
   policies: [rateLimit({ requests: 120, windowSeconds: 60 })], // burn-rate floor
 });
@@ -88,13 +87,12 @@ Cloudflare reads the per-request secret at the edge instead, running the same
 entropy gate per request (a Worker has no boot phase):
 
 ```ts
-const resolveUser = (c) =>
+const resolvePrincipal = (c) =>
   createEnvTokenResolver(
     assertStrongToken((c.env as Cloudflare.Env).INSTANCE_TOKEN),
   )(c);
-const auth = requireBearerUser(resolveUser);
-// ...createServerApp({ runtime, identity }), instance ownership,
-// same session + rooms + inference mounts
+const auth = requireBearerPrincipal(resolvePrincipal);
+// ...createServerApp({ runtime, identity }), same session + rooms + inference mounts
 ```
 
 Deliberately absent: `mountBillingApi`, any OAuth provider, a launch-time mode selector, an admission allowlist, and first-boot token minting. The shape is the contract.

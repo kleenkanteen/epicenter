@@ -14,9 +14,9 @@
  */
 
 import { expect, mock, test } from 'bun:test';
-import { type AuthClient, type AuthState, asUserId } from '@epicenter/auth';
+import { type AuthClient, type AuthState } from '@epicenter/auth';
 import { field } from '@epicenter/field';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import {
 	attachIndexedDb,
 	attachLocalStorage,
@@ -48,8 +48,8 @@ class FakeBroadcastChannel {
 Object.assign(globalThis, { BroadcastChannel: FakeBroadcastChannel });
 
 const SERVER = 'api.test';
-const OWNER_ID = asOwnerId('owner-1');
-const ownerScope = { server: SERVER, ownerId: OWNER_ID };
+const PRINCIPAL_ID = asPrincipalId('owner-1');
+const principalScope = { server: SERVER, principalId: PRINCIPAL_ID };
 
 const notes = defineTable({
 	id: field.string(),
@@ -88,14 +88,17 @@ function createAuth(
 	overrides: { state?: AuthState; baseURL?: string } = {},
 ): AuthClient {
 	return {
-		state: overrides.state ?? { status: 'signed-in', ownerId: OWNER_ID },
+		state: overrides.state ?? {
+			status: 'signed-in',
+			principalId: PRINCIPAL_ID,
+		},
 		baseURL: overrides.baseURL ?? `https://${SERVER}`,
 		onStateChange: () => () => {},
 		startSignIn: async () => Ok(undefined),
 		signOut: async () => Ok(undefined),
 		fetch: async () => new Response(null, { status: 204 }),
 		getProfile: async () =>
-			Ok({ id: asUserId('user-1'), email: 'user@example.com' }),
+			Ok({ id: asPrincipalId('user-1'), email: 'user@example.com' }),
 		[Symbol.dispose]() {},
 	};
 }
@@ -215,9 +218,12 @@ async function readBareText(guid: string, textName: string): Promise<string> {
 	return text;
 }
 
-async function readOwnerText(guid: string, textName: string): Promise<string> {
+async function readPrincipalText(
+	guid: string,
+	textName: string,
+): Promise<string> {
 	const ydoc = new Y.Doc({ guid, gc: true });
-	const idb = attachLocalStorage(ydoc, ownerScope);
+	const idb = attachLocalStorage(ydoc, principalScope);
 	await idb.whenLoaded;
 	const text = ydoc.getText(textName).toString();
 	ydoc.destroy();
@@ -274,7 +280,7 @@ test('addToAccount() copies rows idempotently and clears the bare root', async (
 
 test('addToAccount() derives child docs, merges them before row copy, and keeps the root retryable on copy failure', async () => {
 	await seedBareLocal({
-		note: { id: 'failing-note', title: 'Will fail', body: 'owner copy' },
+		note: { id: 'failing-note', title: 'Will fail', body: 'principal copy' },
 	});
 	const source = openLocalSource();
 	await source.whenLoaded;
@@ -304,11 +310,11 @@ test('addToAccount() derives child docs, merges them before row copy, and keeps 
 
 	await migration.addToAccount();
 
-	expect(await readOwnerText(childGuid, 'body')).toBe('owner copy');
+	expect(await readPrincipalText(childGuid, 'body')).toBe('principal copy');
 	expect((await readBareRows()).notes).toEqual([
 		{ id: 'failing-note', title: 'Will fail' },
 	]);
-	expect(await readBareText(childGuid, 'body')).toBe('owner copy');
+	expect(await readBareText(childGuid, 'body')).toBe('principal copy');
 });
 
 test('addToAccount() deletes bare child docs after a successful row copy', async () => {
@@ -323,7 +329,7 @@ test('addToAccount() deletes bare child docs after a successful row copy', async
 
 	await migration.addToAccount();
 
-	expect(await readOwnerText(childGuid, 'body')).toBe('remove bare copy');
+	expect(await readPrincipalText(childGuid, 'body')).toBe('remove bare copy');
 	expect(await readBareText(childGuid, 'body')).toBe('');
 });
 
@@ -402,8 +408,8 @@ test('a local-source table subset excludes rows and child docs together', async 
 	expect(target.tables.notes.scan().rows).toEqual([
 		{ id: 'included-note', title: 'Included' },
 	]);
-	expect(await readOwnerText(includedGuid, 'body')).toBe('moves');
-	expect(await readOwnerText(excludedGuid, 'messages')).toBe('');
+	expect(await readPrincipalText(includedGuid, 'body')).toBe('moves');
+	expect(await readPrincipalText(excludedGuid, 'messages')).toBe('');
 	// The excluded child's bare copy must survive: cleanup only iterates the
 	// derived (included) guids, never data the app chose to leave out.
 	expect(await readBareText(excludedGuid, 'messages')).toBe('stays bare only');
@@ -414,7 +420,7 @@ test('a local-source table subset excludes rows and child docs together', async 
 	});
 });
 
-test('a rows-only workspace derives no child docs and never reads owner scope', async () => {
+test('a rows-only workspace derives no child docs and never reads principal scope', async () => {
 	await seedRowsOnlyLocal({ id: 'rows-only', title: 'Rows only' });
 	const target = rowsOnlyModel.create();
 	const migration = createSignInMigration({

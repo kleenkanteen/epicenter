@@ -17,7 +17,7 @@ import {
 } from '@epicenter/workspace';
 
 const collaboration = openCollaboration(ydoc, {
-    url: roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, nodeId }),
+    url: roomWsUrl({ baseURL, guid: ydoc.guid, nodeId }),
     waitFor: idb.whenLoaded,
     openWebSocket: auth.openWebSocket,
     onReconnectSignal: auth.onStateChange,
@@ -116,36 +116,33 @@ Cursor and selection sync, when they arrive, bring Awareness back, used for what
 
 ## URLs and routing
 
-A cloud document is owned by the authenticated `OwnerId` and addressed by its own `ydoc.guid`. The client builds the URL from `(baseURL, ownerId, guid, nodeId)`:
+A cloud document is partitioned by the authenticated `PrincipalId` and addressed by its own `ydoc.guid`. The client builds the public URL from `(baseURL, guid, nodeId)`:
 
 ```ts
 roomWsUrl({
     baseURL: 'https://api.epicenter.so',
-    ownerId,
     guid: ydoc.guid,
     nodeId,
 });
-// -> wss://api.epicenter.so/api/owners/<ownerId>/rooms/<guid>?nodeId=<id>
+// -> wss://api.epicenter.so/api/rooms/<guid>?nodeId=<id>
 ```
 
-In per-user cloud, `ownerId` equals the signed-in user's id; on an instance it
-is the literal `'instance'`. The URL shape is uniform across deployments. The
-relay takes the user from the auth token, resolves the expected owner partition
-for the deployment, verifies the URL `:ownerId` matches that partition, and
-builds the internal Durable Object name `owners/${ownerId}/rooms/${room}`.
-Cloud deployments resolve one partition per user. Self-hosted instance
-deployments resolve one partition for operator-authorized requests.
+The URL shape is uniform across deployments. The relay takes the principal from
+the auth token and builds the internal Durable Object name
+`principals/${principalId}/rooms/${room}`. Cloud deployments resolve one
+partition per signed-in principal. Self-hosted instance deployments resolve one
+partition for operator-authorized requests.
 
 This is the consumer Google Docs model and the first of three account layers, introduced over time:
 
-- **Layer 1 (this)**: personal content. `owners/${ownerId}` owns the doc, where `ownerId === userId`.
-- **Layer 1.5 (future)**: sharing. A per-document ACL grants other users access; the owner's DO name does not change.
-- **Layer 2 (future)**: shared-drive content. A self-hosted instance uses `ownerId === 'instance'` so content is decoupled from any caller identity.
+- **Layer 1 (this)**: personal content. `principals/${principalId}` owns the doc.
+- **Layer 1.5 (future)**: sharing. A per-document ACL grants other users access; the home DO name does not change.
+- **Layer 2 (future)**: shared-drive content. A self-hosted instance uses `principalId === 'instance'` so content is decoupled from any caller identity.
 - **Layer 3 (future)**: tenancy and billing. An organization groups user accounts for one invoice and admin policy; it never owns a document.
 
 `nodeId` is appended as a query parameter (`?nodeId=`) on every connect, including reconnects. It is a routing label stamped on the socket at upgrade, not an auth principal: the relay authorizes the room from the token, and within that room `nodeId` decides how presence identifies this install.
 
-`/owners/:ownerId/rooms/:room` is the single cloud sync route shape (per-user cloud: `:ownerId` is the user id; instance: `:ownerId === 'instance'`). Browser apps and the workspace daemon both build their URL with `roomWsUrl`.
+`/api/rooms/:room` is the single cloud sync route shape. Browser apps and the workspace daemon both build their URL with `roomWsUrl`.
 
 ## Supervisor lifecycle
 

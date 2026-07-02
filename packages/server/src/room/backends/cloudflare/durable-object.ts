@@ -30,7 +30,7 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
-import { asUserId } from '@epicenter/auth';
+import { asPrincipalId } from '@epicenter/identity';
 import { MAIN_SUBPROTOCOL, parseSubprotocols } from '@epicenter/sync';
 import type { Connection } from '../../../types.js';
 import { createRoomCore, type RoomCore } from '../../core.js';
@@ -71,9 +71,8 @@ const CONNECTION_SWEEP_INTERVAL_MS = 5 * 60_000;
  * validates the caller, checks any route-owned policy, and builds the
  * internal DO name before forwarding `fetch`. The
  * DO itself does not re-validate. DO names are host-owned opaque strings
- * built by `doName(ownerId, roomId)`, producing `owners/<ownerId>/rooms/<roomId>`
- * for either deployment (in the per-user topology `ownerId === user.id`, on an
- * instance `ownerId` is the pinned `INSTANCE_OWNER_ID`).
+ * built by `doName(principalId, roomId)`, producing
+ * `principals/<principalId>/rooms/<roomId>`.
  */
 export class Room extends DurableObject {
 	/**
@@ -128,7 +127,7 @@ export class Room extends DurableObject {
 	/**
 	 * Handles WebSocket upgrades, the room's only surface.
 	 *
-	 * Trusts the rooms route to have validated and stamped both `userId`
+	 * Trusts the rooms route to have validated and stamped both `principalId`
 	 * (from auth) and `nodeId` (from the client query, presence-checked
 	 * at the route boundary) onto the URL before forwarding. Together they
 	 * form the {@link Connection} stamped on the socket attachment for the
@@ -148,16 +147,16 @@ export class Room extends DurableObject {
 		}
 
 		const url = new URL(request.url);
-		const rawUserId = url.searchParams.get('userId');
+		const rawPrincipalId = url.searchParams.get('principalId');
 		const nodeId = url.searchParams.get('nodeId');
-		if (!rawUserId || !nodeId) {
+		if (!rawPrincipalId || !nodeId) {
 			// Contract violation: the auth-gated rooms route is responsible
 			// for validating and stamping both params before forwarding.
 			// 500 (not 400) signals this is a server bug, not a client error.
 			return new Response(null, { status: 500 });
 		}
-		// The URL stamp is the binding; brand userId once at the boundary.
-		const userId = asUserId(rawUserId);
+		// The URL stamp is the binding; brand principalId once at the boundary.
+		const principalId = asPrincipalId(rawPrincipalId);
 
 		// Ensure the lifetime sweep is running. This also supersedes any pending
 		// compaction alarm: if one fires while a client is connected, `alarm()`
@@ -173,9 +172,10 @@ export class Room extends DurableObject {
 		// node's published identity arrives later via `presence_publish` and the
 		// core re-serializes the attachment when it does.
 		const attachment: Connection = {
-			userId,
+			principalId,
 			nodeId,
 			connectedAt: Date.now(),
+			actions: {},
 		};
 		server.serializeAttachment(attachment);
 
