@@ -5,8 +5,8 @@
  * received within one process, so `upsertMessage`/`applyHistoryBatch` are
  * plain last-write-wins: what these tests actually cover is the FULL-pull vs
  * INCREMENTAL-patch split (a `labelPatch` must edit `raw.labelIds` in place
- * and leave the rest of the blob alone) and the soft-delete/atomic-cursor
- * discipline ported from `db.ts`.
+ * and leave the rest of the blob alone) and the atomic-cursor discipline
+ * ported from `db.ts`.
  */
 
 import { Database } from 'bun:sqlite';
@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
 	type MailDb,
+	SCHEMA_VERSION,
 	mailDbPath,
 	openMailDb,
 	openMailDbReadonly,
@@ -69,11 +70,10 @@ function messageRow(db: MailDb, id: string) {
 				subject: string | null;
 				sender: string | null;
 				body_text: string | null;
-				deleted: number;
 			},
 			[string]
 		>(
-			`SELECT raw, thread_id, snippet, label_ids, subject, sender, body_text, deleted FROM messages WHERE id = ?`,
+			`SELECT raw, thread_id, snippet, label_ids, subject, sender, body_text FROM messages WHERE id = ?`,
 		)
 		.get(id);
 }
@@ -101,21 +101,51 @@ describe('full pull page ingestion', () => {
 		expect(row?.subject).toBe('Test subject');
 		expect(row?.sender).toBe('sender@example.com');
 		expect(JSON.parse(row?.label_ids ?? '[]')).toEqual(['INBOX', 'UNREAD']);
-		expect(row?.deleted).toBe(0);
 		cleanup();
 	});
 
 	test('finishFullPull records the historyId baseline and timestamps', () => {
 		const { db, cleanup } = openTmp();
-		db.finishFullPull('500', 's1');
+		const swept = db.finishFullPull('500', 's1');
 		const state = db.readRealmState();
+		expect(swept).toBe(0);
 		expect(state.historyId).toBe('500');
 		expect(state.lastFullPullAt).toBe('s1');
 		expect(state.lastSyncedAt).toBe('s1');
 		cleanup();
 	});
 
-	test('same-thread messages ingested newest-first derive the newest live message', () => {
+	test('finishFullPull sweeps rows older than the pass stamp', () => {
+		const { db, cleanup } = openTmp();
+		db.ingestFullPullPage(
+			[
+				message({ id: 'older', internalDate: '998' }),
+				message({ id: 'same-pass', internalDate: '999' }),
+				message({ id: 'newer', internalDate: '1000' }),
+			],
+			'2026-06-30T00:00:00.000Z',
+		);
+		db.ingestFullPullPage(
+			[message({ id: 'same-pass', internalDate: '999' })],
+			'2026-07-01T00:00:00.000Z',
+		);
+		db.ingestFullPullPage(
+			[message({ id: 'newer', internalDate: '1000' })],
+			'2026-07-02T00:00:00.000Z',
+		);
+
+		const swept = db.finishFullPull('500', '2026-07-01T00:00:00.000Z');
+		const ids = db.raw
+			.query<{ id: string }, []>(`SELECT id FROM messages ORDER BY id`)
+			.all()
+			.map((row) => row.id);
+
+		expect(swept).toBe(1);
+		expect(ids).toEqual(['newer', 'same-pass']);
+		cleanup();
+	});
+
+	test('same-thread messages ingested newest-first derive the newest message', () => {
 		const { db, cleanup } = openTmp();
 		db.ingestFullPullPage(
 			[
@@ -142,7 +172,7 @@ describe('full pull page ingestion', () => {
 			>(
 				`SELECT thread_id, id AS last_message_id, snippet
 				 FROM messages
-				 WHERE deleted = 0 AND thread_id = 'thread-1'
+				 WHERE thread_id = 'thread-1'
 				 ORDER BY internal_date DESC
 				 LIMIT 1`,
 			)
@@ -156,7 +186,7 @@ describe('full pull page ingestion', () => {
 		cleanup();
 	});
 
-	test('soft-deleted messages drop out of thread derivation', () => {
+	test('physically deleted messages drop out of thread derivation', () => {
 		const { db, cleanup } = openTmp();
 		db.ingestFullPullPage(
 			[
@@ -187,7 +217,7 @@ describe('full pull page ingestion', () => {
 			.query<{ last_message_id: string }, []>(
 				`SELECT id AS last_message_id
 				 FROM messages
-				 WHERE deleted = 0 AND thread_id = 'thread-1'
+				 WHERE thread_id = 'thread-1'
 				 ORDER BY internal_date DESC
 				 LIMIT 1`,
 			)
@@ -367,7 +397,7 @@ describe('applyHistoryBatch', () => {
 		cleanup();
 	});
 
-	test('messagesDeleted soft-deletes and preserves the last-known blob', () => {
+	test('messagesDeleted physically removes the row', () => {
 		const { db, cleanup } = openTmp();
 		db.ingestFullPullPage([message()], 's1');
 
@@ -379,9 +409,12 @@ describe('applyHistoryBatch', () => {
 			syncedAt: 's2',
 		});
 
-		const row = messageRow(db, 'm1');
-		expect(row?.deleted).toBe(1);
-		expect(row?.subject).toBe('Test subject'); // blob preserved, not wiped
+		const row = db.raw
+			.query<{ n: number }, []>(
+				`SELECT count(*) AS n FROM messages WHERE id = 'm1'`,
+			)
+			.get();
+		expect(row?.n).toBe(0);
 		cleanup();
 	});
 
@@ -498,20 +531,36 @@ describe('mirror layout', () => {
 });
 
 describe('schema-version migration', () => {
-	test('a stale schema_version drops and recreates the data tables in the same open, not a subsequent one', () => {
+	test('a stale schema_version rebuilds a fresh file in the same open', () => {
 		const tmp = tempDir();
 		const location = { dataDir: tmp.dir, accountEmail: 'you@example.com' };
+		const accountDir = join(tmp.dir, 'you@example.com');
+		mkdirSync(accountDir, { recursive: true });
+		const path = join(accountDir, 'mail.db');
+		const old = new Database(path, { create: true });
+		old.exec(`
+			CREATE TABLE _meta (key TEXT PRIMARY KEY, value TEXT);
+			CREATE TABLE messages (
+				id TEXT PRIMARY KEY,
+				raw TEXT NOT NULL,
+				subject TEXT,
+				sender TEXT,
+				synced_at TEXT NOT NULL,
+				deleted INTEGER NOT NULL DEFAULT 0
+			);
+			CREATE TABLE threads (id TEXT PRIMARY KEY, raw TEXT NOT NULL);
+			CREATE TABLE labels (id TEXT PRIMARY KEY, raw TEXT NOT NULL, synced_at TEXT NOT NULL);
+			INSERT INTO _meta (key, value) VALUES
+				('schema_version', '3'),
+				('history_id', '42'),
+				('last_full_pull_at', 's1'),
+				('last_synced_at', 's1');
+			INSERT INTO messages (id, raw, synced_at) VALUES ('m1', '{}', 's1');
+		`);
+		old.close();
 
-		const first = openMailDb(location);
-		first.ingestFullPullPage([message()], 's1');
-		// Simulate an older mirror on disk: force the stored version behind
-		// SCHEMA_VERSION so the next open must drop-and-recreate.
-		first.raw.exec(`UPDATE _meta SET value = '0' WHERE key = 'schema_version'`);
-		first.close();
-
-		// Reopening (not a second, later open) must both drop the stale tables
-		// AND recreate them, so a write right after `openMailDb` returns
-		// succeeds instead of hitting "no such table".
+		// The handle returned from `openMailDb` must already be writable against
+		// the current schema.
 		const second = openMailDb(location);
 		expect(() =>
 			second.ingestFullPullPage([message({ id: 'm2' })], 's2'),
@@ -520,8 +569,6 @@ describe('schema-version migration', () => {
 			.query<{ id: string }, [string]>(`SELECT id FROM messages WHERE id = ?`)
 			.get('m2');
 		expect(row?.id).toBe('m2');
-		// The stale mirror's data did not survive the drop (expected: a schema
-		// change is a re-pullable-cache invalidation, not a migration).
 		expect(
 			second.raw
 				.query<{ id: string }, [string]>(`SELECT id FROM messages WHERE id = ?`)
@@ -529,11 +576,23 @@ describe('schema-version migration', () => {
 		).toBeNull();
 		expect(
 			second.raw
-				.query<{ name: string }, []>(
-					`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'threads'`,
+				.query<{ value: string | null }, [string]>(
+					`SELECT value FROM _meta WHERE key = ?`,
 				)
-				.get(),
+				.get('schema_version')?.value,
+		).toBe(SCHEMA_VERSION);
+		expect(
+			second.raw
+				.query<{ value: string | null }, [string]>(
+					`SELECT value FROM _meta WHERE key = ?`,
+				)
+				.get('history_id'),
 		).toBeNull();
+		const columns = second.raw
+			.query<{ name: string }, []>(`PRAGMA table_info(messages)`)
+			.all()
+			.map((row) => row.name);
+		expect(columns).not.toContain('deleted');
 		second.close();
 		tmp.cleanup();
 	});

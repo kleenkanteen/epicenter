@@ -231,6 +231,45 @@ describe('syncMailbox: FULL pull', () => {
 		expect(getMessageCalls).toBeLessThanOrEqual(8);
 		cleanup();
 	});
+
+	test('full pull deletes rows absent from the listed mailbox', async () => {
+		const { db, cleanup } = tempDb();
+		db.ingestFullPullPage(
+			[message('kept'), message('stale')],
+			'2026-06-30T00:00:00.000Z',
+		);
+		db.finishFullPull('500', '2026-06-30T00:00:00.000Z');
+		const mailbox = new Map([['kept', message('kept')]]);
+		const client = createFakeGmailClient({
+			mailbox,
+			historyPages: [],
+			profileHistoryId: '1000',
+		});
+
+		const outcome = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-07-01T00:00:00.000Z') },
+			{ forceFull: true },
+		);
+
+		expect(outcome.failure).toBeNull();
+		expect(outcome.messagesUpserted).toBe(1);
+		expect(outcome.messagesDeleted).toBe(1);
+		expect(
+			db.raw
+				.query<{ n: number }, []>(
+					`SELECT count(*) AS n FROM messages WHERE id = 'stale'`,
+				)
+				.get()?.n,
+		).toBe(0);
+		expect(
+			db.raw
+				.query<{ n: number }, []>(
+					`SELECT count(*) AS n FROM messages WHERE id = 'kept'`,
+				)
+				.get()?.n,
+		).toBe(1);
+		cleanup();
+	});
 });
 
 describe('syncMailbox: INCREMENTAL', () => {
@@ -554,7 +593,7 @@ describe('syncMailbox: INCREMENTAL', () => {
 		cleanup();
 	});
 
-	test('messagesDeleted soft-deletes', async () => {
+	test('messagesDeleted physically removes the row', async () => {
 		const { db, cleanup } = seededDb();
 		const client = createFakeGmailClient({
 			mailbox: new Map(),
@@ -581,11 +620,11 @@ describe('syncMailbox: INCREMENTAL', () => {
 
 		expect(outcome.messagesDeleted).toBe(1);
 		const row = db.raw
-			.query<{ deleted: number }, [string]>(
-				`SELECT deleted FROM messages WHERE id = ?`,
+			.query<{ n: number }, []>(
+				`SELECT count(*) AS n FROM messages WHERE id = 'existing'`,
 			)
-			.get('existing');
-		expect(row?.deleted).toBe(1);
+			.get();
+		expect(row?.n).toBe(0);
 		cleanup();
 	});
 

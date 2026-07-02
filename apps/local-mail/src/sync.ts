@@ -405,14 +405,17 @@ export async function syncMailbox(
 			);
 		}
 
-		db.finishFullPull(profile.data.historyId, syncedAt);
+		const messagesDeleted = db.finishFullPull(
+			profile.data.historyId,
+			syncedAt,
+		);
 		return {
 			mode: 'FULL',
 			reason: decision.reason,
 			cursorBefore,
 			cursorAfter: profile.data.historyId,
 			messagesUpserted: upserted,
-			messagesDeleted: 0,
+			messagesDeleted,
 			labelsPatched: 0,
 			failure: null,
 		};

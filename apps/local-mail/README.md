@@ -66,7 +66,7 @@ bun run src/bin.ts status
 Query the mirror:
 
 ```sh
-bun run src/bin.ts query "SELECT subject, sender FROM messages WHERE deleted = 0 ORDER BY internal_date DESC LIMIT 10"
+bun run src/bin.ts query "SELECT subject, sender FROM messages ORDER BY internal_date DESC LIMIT 10"
 ```
 
 Serve tools to an MCP host:
