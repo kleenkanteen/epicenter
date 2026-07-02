@@ -1,7 +1,17 @@
 # Super Chat canonicalization handoff
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Date:** 2026-07-02
+
+> **Execution note (2026-07-02):** The slice 1 source material is gone. The
+> `super-app-slice1` and `super-app-host` worktrees were removed and their
+> branches deleted without ever being pushed; no dangling commits, stashes, or
+> PRs survive. The `chore-remove-fuji` branch landed as merged PR #2245, so the
+> Fuji reconcile (step 8) came in with the `origin/main` merge. The catalog
+> proof was reconstructed from the shipped primitives in
+> `packages/workspace/src/agent` instead of ported; the file paths under
+> "Current source material" below are dead and kept only as a record of what
+> the prototype contained.
 - **Decision of record:** [ADR-0084](../docs/adr/0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md) for the local Bun shell and TypeScript loader, [ADR-0080](../docs/adr/0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) for the desktop-host shape.
 
 ## Why this exists
@@ -139,14 +149,24 @@ jsrepo:
 
 ## Recommended merge order
 
-1. Start from `/Users/braden/.herdr/worktrees/epicenter/super-chat`.
-2. Create an `apps/super-chat` skeleton, not `apps/super-app`, unless the product name changes deliberately.
-3. Port the Slice 1 catalog proof from `feat/super-app-slice1`, keeping the static install list at first.
-4. Promote `createStdioMcpCatalog` if a second local stdio MCP consumer appears; keep it app-local for the first slice.
-5. Add the Super Chat Hono/Bun server: static assets, chat API, WebSocket, loopback bind, and per-launch token gate.
-6. Write a small ADR for the tool module contract before dynamic third-party files land.
-7. Spec or implement the ungated durable local open path. This is the real gap between "composition proof" and "loads my workspaces."
-8. Reconcile the Fuji removal branch after the canonical app skeleton is clear, so docs do not keep pointing at a deleted app.
+1. [x] Start from `/Users/braden/.herdr/worktrees/epicenter/super-chat`.
+   > Merged `origin/main` first (113 commits, including the Fuji removal and the
+   > ADR-0088 composition reshape) so the skeleton builds against current APIs.
+2. [x] Create an `apps/super-chat` skeleton, not `apps/super-app`, unless the product name changes deliberately.
+3. [x] Port the Slice 1 catalog proof from `feat/super-app-slice1`, keeping the static install list at first.
+   > **Note:** Reconstructed, not ported; the prototype was unrecoverable. The
+   > proof now composes Honeycrisp + Todos in-process (`defineWorkspace`
+   > `create()` / `createTodos()`) plus a stdio MCP fixture, driven end to end
+   > by a scripted engine in `apps/super-chat/src/host.test.ts`.
+4. [x] Promote `createStdioMcpCatalog` if a second local stdio MCP consumer appears; keep it app-local for the first slice.
+   > Kept app-local: `apps/super-chat/src/stdio-mcp-catalog.ts`.
+5. [ ] Add the Super Chat Hono/Bun server: static assets, chat API, WebSocket, loopback bind, and per-launch token gate.
+6. [ ] Write a small ADR for the tool module contract before dynamic third-party files land.
+7. [ ] Spec or implement the ungated durable local open path. This is the real gap between "composition proof" and "loads my workspaces."
+8. [x] Reconcile the Fuji removal branch after the canonical app skeleton is clear, so docs do not keep pointing at a deleted app.
+   > Landed upstream as PR #2245 and arrived via the `origin/main` merge; its
+   > "mount is not the composition path" conclusion is preserved above and in
+   > `apps/super-chat/AGENTS.md`.
 
 ## Cold-start prompt
 
