@@ -1,7 +1,7 @@
 /**
  * Dev-only credential bypass for the runtime-parity smoke.
  *
- * `Authorization: Bearer dev:<userId>` resolves to the user
+ * `Authorization: Bearer dev:<userId>` resolves to the principal
  * `{ id: <userId>, email: <userId>@dev.invalid }` with no interactive login.
  * It exists so `apps/api/scripts/smoke.ts` (and CI) can drive the authed
  * surfaces without Google OAuth or a forged Better Auth session, which is the
@@ -9,21 +9,20 @@
  *
  * This IS a bypass, so it is quarantined: it is wired ONLY by `server.dev.ts`,
  * which the production entrypoints (`worker/index.ts`, `server.ts`) never
- * import, so it cannot ship. It is a `ResolveUser` injected on
+ * import, so it cannot ship. It is a `ResolvePrincipal` injected on
  * `createServerApp`, never an env-gated branch inside `@epicenter/server` (that
  * would compile the bypass into production). Belt-and-suspenders: it refuses
  * unless the request landed on localhost, so even a misconfigured deploy that
  * somehow wired it would admit nobody off-box.
  *
- * In the per-user topology the resolved `id` becomes the owner partition directly (no
- * user row is read), so the smoke needs no seeded user and no database access
- * of its own.
+ * The resolved `id` is the partition directly, so the smoke needs no seeded user
+ * and no database access of its own.
  */
 
 import { Principal } from '@epicenter/auth';
 import { OAuthError } from '@epicenter/constants/oauth-errors';
 import { asPrincipalId } from '@epicenter/identity';
-import type { CloudEnv, ResolveUser } from '@epicenter/server/bun';
+import type { CloudEnv, ResolvePrincipal } from '@epicenter/server/bun';
 import { Ok } from 'wellcrafted/result';
 
 const BEARER_PREFIX = 'Bearer ';
@@ -36,7 +35,7 @@ const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
  * token, empty id) is an `InvalidToken`, the same `Result` arm the real
  * resolver returns, so the surface wrappers reject it unchanged.
  */
-export const resolveDevUser: ResolveUser<CloudEnv> = async (c) => {
+export const resolveDevPrincipal: ResolvePrincipal<CloudEnv> = async (c) => {
 	const hostname = new URL(c.req.url).hostname;
 	if (!LOCAL_HOSTNAMES.has(hostname)) return OAuthError.InvalidToken();
 

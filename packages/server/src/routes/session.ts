@@ -1,14 +1,13 @@
 /**
  * `/api/session` sub-app.
  *
- * Returns the authenticated user and the `ownerId` the request resolves
- * through. Clients cache the response so workspace boot and local-storage
- * keying work offline.
+ * Returns the authenticated principal through the temporary Wave 1 response
+ * shape. Clients cache the response so workspace boot and local-storage keying
+ * work offline.
  *
- * {@link mountSessionApp} wires cookie-or-bearer auth and the ownership
- * boundary so `c.var.user` and `c.var.ownerId` are populated before the
- * handler runs. The handler stays mode-blind. Deployment shape is not on
- * the wire; it is a property of the server (see `PrincipalId` in
+ * {@link mountSessionApp} wires the deployment's auth middleware so
+ * `c.var.principal` is populated before the handler runs. Deployment shape is
+ * not on the wire; it is a property of the server (see `PrincipalId` in
  * `@epicenter/identity`).
  */
 
@@ -16,8 +15,6 @@ import type { ApiSessionResponse } from '@epicenter/auth';
 import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { Hono, type MiddlewareHandler } from 'hono';
 import { describeRoute } from 'hono-openapi';
-import { createRequireOwnership } from '../middleware/require-ownership.js';
-import type { OwnershipRule } from '../ownership.js';
 import type { Env } from '../types.js';
 
 const sessionApp = new Hono<Env>().get(
@@ -27,10 +24,12 @@ const sessionApp = new Hono<Env>().get(
 		tags: ['auth'],
 	}),
 	async (c) => {
-		const ownerId = c.var.ownerId;
+		const principal = c.var.principal;
+		// WAVE-3-SHIM: keep `/api/session` on `{ user, ownerId }` until the
+		// auth-client persisted/wire shape collapses.
 		return c.json({
-			user: { id: c.var.user.id, email: c.var.user.email },
-			ownerId,
+			user: { id: principal.id, email: principal.email },
+			ownerId: principal.id,
 		} satisfies ApiSessionResponse);
 	},
 );
@@ -41,18 +40,12 @@ const sessionApp = new Hono<Env>().get(
  * The deployment supplies the auth middleware: the cloud passes
  * `requireCookieOrBearerUser` (the session endpoint serves both browser apps and
  * API clients), the single-partition instance passes `requireBearerUser` (it has
- * no cookies, ADR-0075). Bundles that auth, the ownership boundary (no URL
- * `:ownerId` to compare against, but `c.var.ownerId` is populated), and the route
- * mount into one call.
+ * no cookies, ADR-0075). Bundles that auth and the route mount into one call.
  */
 export function mountSessionApp<E extends Env = Env>(
 	app: Hono<E>,
-	opts: { auth: MiddlewareHandler<E>; ownership: OwnershipRule },
+	opts: { auth: MiddlewareHandler<E> },
 ): void {
-	app.use(
-		API_ROUTES.session.pattern,
-		opts.auth,
-		createRequireOwnership<E>(opts.ownership),
-	);
+	app.use(API_ROUTES.session.pattern, opts.auth);
 	app.route('/', sessionApp);
 }

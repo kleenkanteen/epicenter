@@ -1,5 +1,5 @@
 /**
- * Server-only derived identifiers built from an `PrincipalId`.
+ * Server-only derived identifiers built from a `PrincipalId`.
  *
  * `PrincipalId` itself lives in `@epicenter/identity` because it flows through
  * `/api/session`, the persisted auth cell, and every client (browser,
@@ -8,14 +8,14 @@
  * partition path segment they all share.
  *
  * Per-user and instance share the exact same path shape. The partition
- * segment is always `principals/<ownerId>`. In the per-user topology `ownerId`
- * is the signed-in user's id; on an instance it is the pinned constant
+ * segment is always `principals/<principalId>`. In the hosted topology the
+ * principal may be a Better Auth user id; on an instance it is the pinned constant
  * `INSTANCE_PRINCIPAL_ID` (the literal `instance`). The path is honest either way:
  * every durable identifier the server writes is rooted at
  * `principals/<ownerId>`.
  *
  * Every durable string follows the rule:
- *   `principals/<ownerId>/<resource type>/<id>`
+ *   `principals/<principalId>/<resource type>/<id>`
  *
  * One shape, one helper per resource type, no ternary.
  */
@@ -37,16 +37,16 @@ export type BlobR2Key = `principals/${string}/blobs/${string}`;
 export type BlobOwnerPrefix = `principals/${string}/blobs/`;
 
 /** Durable name of a room's Cloudflare Durable Object. */
-export function doName(ownerId: PrincipalId, roomId: string): RoomDoName {
-	return `principals/${ownerId}/rooms/${roomId}`;
+export function doName(principalId: PrincipalId, roomId: string): RoomDoName {
+	return `principals/${principalId}/rooms/${roomId}`;
 }
 
 /** Durable key of a content-addressed blob's R2 object (id = sha256 hex). */
-export function blobKey(ownerId: PrincipalId, sha256: string): BlobR2Key {
-	return `principals/${ownerId}/blobs/${sha256}`;
+export function blobKey(principalId: PrincipalId, sha256: string): BlobR2Key {
+	return `principals/${principalId}/blobs/${sha256}`;
 }
 
 /** Prefix matching every blob this partition has stored. */
-export function blobOwnerPrefix(ownerId: PrincipalId): BlobOwnerPrefix {
-	return `principals/${ownerId}/blobs/`;
+export function blobOwnerPrefix(principalId: PrincipalId): BlobOwnerPrefix {
+	return `principals/${principalId}/blobs/`;
 }

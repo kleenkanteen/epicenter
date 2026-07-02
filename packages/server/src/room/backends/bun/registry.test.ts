@@ -32,7 +32,7 @@ import { createBunSqliteUpdateLog } from './update-log.js';
 // STUB SOCKET (the ServerWebSocket surface RoomCore actually touches)
 // ────────────────────────────────────────────────────────────────────────────
 
-type SocketData = { roomName: string; userId: string; nodeId: string };
+type SocketData = { roomName: string; principalId: string; nodeId: string };
 
 class StubWs {
 	readyState = 1;
@@ -103,7 +103,7 @@ function connect(
 	nodeId: string,
 	roomName = ROOM,
 ): StubWs {
-	const ws = new StubWs({ roomName, userId: 'u1', nodeId });
+	const ws = new StubWs({ roomName, principalId: 'u1', nodeId });
 	open(ws);
 	return ws;
 }

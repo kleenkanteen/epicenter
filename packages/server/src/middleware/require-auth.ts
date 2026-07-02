@@ -1,7 +1,7 @@
 /**
  * Cookie-or-bearer authentication.
  *
- * Resolves `c.var.user` from a Better Auth session cookie if one is
+ * Resolves `c.var.principal` from a Better Auth session cookie if one is
  * present; otherwise falls back to an OAuth bearer for the API audience.
  * Use this on routes served to both first-party browser callers (portal,
  * dashboard, hosted UIs) and external OAuth clients (CLI, Tauri,
@@ -15,8 +15,8 @@
  * bearer. The two credentials are read by disjoint paths and never merge,
  * so there is nothing to police at the edge: `getSession` reads only the
  * cookie (Better Auth's `bearer()` plugin is not enabled), while the bearer
- * fallback runs the {@link ResolveUser} the deployment closed this wrapper over
- * (in production {@link resolveRequestOAuthUser}, which verifies the JWT against
+ * fallback runs the {@link ResolvePrincipal} the deployment closed this wrapper over
+ * (in production {@link resolveRequestOAuthPrincipal}, which verifies the JWT against
  * JWKS; an instance closes over its env-token resolver instead).
  */
 
@@ -31,7 +31,7 @@ import { createOAuthIssuerURL } from '../auth/oauth-metadata.js';
 import { createOAuthUnauthorizedResourceResponse } from '../auth/oauth-resource.js';
 import { parseBearer } from '../auth/parse-bearer.js';
 import * as schema from '../db/schema/index.js';
-import type { CloudEnv, Env, ResolveUser } from '../types.js';
+import type { CloudEnv, Env, ResolvePrincipal } from '../types.js';
 
 /**
  * Resolve the OAuth bearer on the current request to the calling user.
@@ -66,7 +66,7 @@ import type { CloudEnv, Env, ResolveUser } from '../types.js';
  * is needed once the token proves issuer, audience, signature, expiration,
  * and subject.
  */
-export async function resolveRequestOAuthUser(
+export async function resolveRequestOAuthPrincipal(
 	c: Context<CloudEnv>,
 ): Promise<Result<Principal, OAuthError>> {
 	const accessToken = parseBearer(c.req.header('authorization') ?? null);
@@ -110,19 +110,19 @@ export async function resolveRequestOAuthUser(
 }
 
 export function requireCookieOrBearerUser(
-	resolveUser: ResolveUser<CloudEnv>,
+	resolvePrincipal: ResolvePrincipal<CloudEnv>,
 ): MiddlewareHandler<CloudEnv> {
 	return createMiddleware<CloudEnv>(async (c, next) => {
 		const session = await c.var.auth.api.getSession({
 			headers: c.req.raw.headers,
 		});
 		if (session) {
-			c.set('user', Principal.assert(session.user));
+			c.set('principal', Principal.assert(session.user));
 			return next();
 		}
-		const { data: user, error } = await resolveUser(c);
+		const { data: principal, error } = await resolvePrincipal(c);
 		if (error) return createOAuthUnauthorizedResourceResponse(c, error);
-		c.set('user', user);
+		c.set('principal', principal);
 		await next();
 	});
 }
@@ -134,17 +134,17 @@ export function requireCookieOrBearerUser(
  * path. Use on protected resource routes that should never see a browser
  * cookie (rooms, AI chat).
  *
- * A factory that closes over the deployment's {@link ResolveUser}: the cloud
- * passes {@link resolveRequestOAuthUser}, an instance its env-token resolver.
- * There is no `c.var.resolveUser` seam; the wrapper holds its resolver directly.
+ * A factory that closes over the deployment's {@link ResolvePrincipal}: the cloud
+ * passes {@link resolveRequestOAuthPrincipal}, an instance its env-token resolver.
+ * There is no `c.var.resolvePrincipal` seam; the wrapper holds its resolver directly.
  */
 export function requireBearerUser<E extends Env = Env>(
-	resolveUser: ResolveUser<E>,
+	resolvePrincipal: ResolvePrincipal<E>,
 ): MiddlewareHandler<E> {
 	return createMiddleware<E>(async (c, next) => {
-		const { data: user, error } = await resolveUser(c);
+		const { data: principal, error } = await resolvePrincipal(c);
 		if (error) return createOAuthUnauthorizedResourceResponse(c, error);
-		c.set('user', user);
+		c.set('principal', principal);
 		await next();
 	});
 }

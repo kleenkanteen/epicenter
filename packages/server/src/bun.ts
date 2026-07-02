@@ -21,12 +21,11 @@
  */
 
 // The single-partition instance's bearer resolver (self-host; ADR-0075): the
-// `ResolveUser` a Bun instance injects (`createEnvTokenResolver(token)`, paired with
-// `instance`). The pure generator + boot entropy gate (`generateInstanceToken` /
+// `ResolvePrincipal` a Bun instance injects (`createEnvTokenResolver(token)`).
+// The pure generator + boot entropy gate (`generateInstanceToken` /
 // `assertStrongToken`) live in `@epicenter/auth`.
 export {
 	createEnvTokenResolver,
-	INSTANCE_PRINCIPAL,
 } from './auth/instance-token.js';
 export { createDb, type Db } from './db/create-db.js';
 // An opt-in burn-rate cap for the inference `policies` seam (ADR-0076).
@@ -34,7 +33,7 @@ export { rateLimit } from './middleware/rate-limit.js';
 export {
 	requireBearerUser,
 	requireCookieOrBearerUser,
-	resolveRequestOAuthUser,
+	resolveRequestOAuthPrincipal,
 } from './middleware/require-auth.js';
 // The cloud-only relational layer (Better Auth on `c.var.auth` + the auth surface,
 // and the Postgres lifecycle). A cloud-on-Bun entry calls `mountCloudAuth` +
@@ -44,7 +43,6 @@ export {
 export { CloudAuthBindings, mountCloudAuth } from './mount-cloud-auth.js';
 export { mountCloudDb } from './mount-cloud-db.js';
 export { doName } from './owner.js';
-export { instance, type OwnershipRule, perUser } from './ownership.js';
 // The Bun room backend: an in-process Rooms map + bun:sqlite update log,
 // plus the Bun `websocket` handler and `bindServer` the entry wires. Its `.rooms`
 // is what a Bun entry passes as `createServerApp`'s `resolveRooms`.
@@ -60,5 +58,5 @@ export { createServerApp, type Identity } from './server-app.js';
 // process config and any secrets it re-requires).
 export { ServerBindings } from './server-bindings.js';
 // Public Hono context types: the portable `Env`, the cloud's `CloudEnv`, and the
-// `ResolveUser<E>` seam the dev Bun entry closes its wrapper over for the smoke.
-export type { CloudEnv, Env, ResolveUser } from './types.js';
+// `ResolvePrincipal<E>` seam the dev Bun entry closes its wrapper over for the smoke.
+export type { CloudEnv, Env, ResolvePrincipal } from './types.js';

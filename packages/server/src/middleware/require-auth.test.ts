@@ -4,7 +4,7 @@
  * Drives `requireBearerUser` through a real Hono app with a real Better Auth
  * server hosted on Bun.serve. Covers the production paths:
  *
- * - valid token resolves to the calling user on `c.var.user`
+ * - valid token resolves to the calling user on `c.var.principal`
  * - verification reads the signing keys in-process, with no network hop
  * - a malformed (non-JWT) bearer returns 401 InvalidToken
  * - a token issued for the wrong audience returns 401 InvalidToken
@@ -36,10 +36,10 @@ import type { CloudEnv } from '../types.js';
 import {
 	requireBearerUser,
 	requireCookieOrBearerUser,
-	resolveRequestOAuthUser,
+	resolveRequestOAuthPrincipal,
 } from './require-auth.js';
 
-test('requireBearerUser resolves a valid API-audience token to c.var.user', async () => {
+test('requireBearerUser resolves a valid API-audience token to c.var.principal', async () => {
 	const setup = createMiddlewareTestServer();
 	try {
 		const { accessToken } = await issueOAuthTokens(setup, {
@@ -182,8 +182,8 @@ test('requireBearerUser returns 503 ServerError when the signing keys cannot be 
 				} as unknown as CloudEnv['Variables']['auth']);
 				await next();
 			})
-			.get('/protected', requireBearerUser(resolveRequestOAuthUser), (c) =>
-				c.json(c.var.user),
+			.get('/protected', requireBearerUser(resolveRequestOAuthPrincipal), (c) =>
+				c.json(c.var.principal),
 			);
 
 		const response = await app.request('/protected', {
@@ -204,10 +204,10 @@ test('requireCookieOrBearerUser resolves the user from a session cookie and skip
 	// and the injected bearer resolver is never consulted (cookie-first). Stubs
 	// `c.var.auth.api.getSession` (the only auth read) and asserts the bearer
 	// resolver stays untouched.
-	let resolveUserCalls = 0;
+	let resolvePrincipalCalls = 0;
 	const sessionUser = { id: 'cookie-user-id', email: 'cookie@example.com' };
 	const cookieOrBearer = requireCookieOrBearerUser(async () => {
-		resolveUserCalls += 1;
+		resolvePrincipalCalls += 1;
 		return OAuthError.InvalidToken();
 	});
 	const app = new Hono<CloudEnv>()
@@ -217,14 +217,14 @@ test('requireCookieOrBearerUser resolves the user from a session cookie and skip
 			} as unknown as CloudEnv['Variables']['auth']);
 			await next();
 		})
-		.get('/protected', cookieOrBearer, (c) => c.json(c.var.user));
+		.get('/protected', cookieOrBearer, (c) => c.json(c.var.principal));
 
 	const response = await app.request('/protected');
 
 	expect(response.status).toBe(200);
 	const body = (await response.json()) as { id: string; email: string };
 	expect(body).toEqual(sessionUser);
-	expect(resolveUserCalls).toBe(0);
+	expect(resolvePrincipalCalls).toBe(0);
 });
 
 test('requireCookieOrBearerUser falls back to the bearer resolver when there is no session', async () => {
@@ -242,7 +242,7 @@ test('requireCookieOrBearerUser falls back to the bearer resolver when there is 
 			} as unknown as CloudEnv['Variables']['auth']);
 			await next();
 		})
-		.get('/protected', cookieOrBearer, (c) => c.json(c.var.user));
+		.get('/protected', cookieOrBearer, (c) => c.json(c.var.principal));
 
 	const response = await app.request('/protected', {
 		headers: { authorization: 'Bearer whatever' },
@@ -271,8 +271,8 @@ test('requireBearerUser does not read signing keys for a non-JWT bearer', async 
 			} as unknown as CloudEnv['Variables']['auth']);
 			await next();
 		})
-		.get('/protected', requireBearerUser(resolveRequestOAuthUser), (c) =>
-			c.json(c.var.user),
+		.get('/protected', requireBearerUser(resolveRequestOAuthPrincipal), (c) =>
+			c.json(c.var.principal),
 		);
 
 	const response = await app.request('/protected', {
@@ -323,8 +323,8 @@ function createMiddlewareTestServer() {
 					c.set('authBaseURL', baseURL);
 					await next();
 				})
-				.get('/protected', requireBearerUser(resolveRequestOAuthUser), (c) =>
-					c.json(c.var.user),
+				.get('/protected', requireBearerUser(resolveRequestOAuthPrincipal), (c) =>
+					c.json(c.var.principal),
 				);
 
 			return { auth, baseURL, db, server, wrongAudience, app };

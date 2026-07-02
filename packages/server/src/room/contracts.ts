@@ -112,14 +112,14 @@ export type RoomSocket = {
 export type ResolvedRoom = {
 	/**
 	 * Accept a WebSocket upgrade for this room. The route resolves identity
-	 * out-of-band ({@link RoomUpgrade}: `userId` from auth, `nodeId` from the
+	 * out-of-band ({@link RoomUpgrade}: `principalId` from auth, `nodeId` from the
 	 * client query) and the backend performs its runtime-specific accept,
 	 * returning the HTTP response the route returns verbatim.
 	 *
 	 * Identity reaches the backend as data, not re-derived from auth, but each
 	 * runtime then accepts the socket differently: the Cloudflare backend
 	 * forwards the request to its Durable Object (which returns a 101), stamping
-	 * the server-resolved `userId` into the forwarded URL the DO reads; the Bun
+	 * the server-resolved `principalId` into the forwarded URL the DO reads; the Bun
 	 * backend hands the ORIGINAL request to `server.upgrade(request, { data })`
 	 * (a reconstructed request cannot be upgraded) and carries the identity on
 	 * the socket's `ws.data`. Both land the same {@link Connection} on
@@ -131,14 +131,14 @@ export type ResolvedRoom = {
 /**
  * The identity and request a backend needs to accept one WebSocket upgrade.
  * `request` is the untouched inbound request (the Bun backend upgrades it in
- * place; the Cloudflare backend forwards a userId-stamped copy to its DO).
- * `userId` is the authenticated principal stamped server-side; `nodeId` is
+ * place; the Cloudflare backend forwards a principalId-stamped copy to its DO).
+ * `principalId` is the authenticated principal stamped server-side; `nodeId` is
  * the client's own address the relay routes by, validated present at the route
  * boundary.
  */
 export type RoomUpgrade = {
 	request: Request;
-	userId: PrincipalId;
+	principalId: PrincipalId;
 	nodeId: string;
 };
 
@@ -158,10 +158,8 @@ export type RoomUpgradeRejection = {
  * `DurableObjectNamespace`; a Bun backend wraps an in-process
  * `Map<string, RoomCore>` with lazy synchronous creation.
  *
- * The host-owned room name is built upstream by `doName(ownerId, roomId)`
- * in `owner.ts`, producing `principals/<ownerId>/rooms/<roomId>` for either
- * deployment (in the per-user topology `ownerId === user.id`, on an instance
- * `ownerId` is the pinned `INSTANCE_PRINCIPAL_ID`).
+ * The host-owned room name is built upstream by `doName(principalId, roomId)`
+ * in `owner.ts`, producing `principals/<principalId>/rooms/<roomId>`.
  * This contract treats the name as opaque.
  */
 export type Rooms = {

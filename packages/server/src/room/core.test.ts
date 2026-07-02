@@ -91,7 +91,7 @@ class StubSocket implements RoomSocket {
 
 function conn(nodeId: string, opts?: { connectedAt?: number }): Connection {
 	return {
-		userId: asPrincipalId('u1'),
+		principalId: asPrincipalId('u1'),
 		nodeId,
 		connectedAt: opts?.connectedAt ?? Date.now(),
 	};

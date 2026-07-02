@@ -4,8 +4,8 @@
  * The instance on Cloudflare: the SAME `@epicenter/server` composition the Bun
  * entry (`server.ts`) builds, wired to Cloudflare bindings instead of plain
  * primitives (ADR-0066). One single-partition instance, not a multi-user wiki and not
- * a mode: ownership is `instance` (every request resolves to the pinned
- * `owners/instance` partition), and authentication is one operator-supplied static
+ * a mode: every request resolves to the pinned `principals/instance` partition,
+ * and authentication is one operator-supplied static
  * bearer (`INSTANCE_TOKEN`), constant-time compared. No OAuth, no allowlist, no
  * sessions. "Solo" vs "shared" is only how many people hold the token.
  *
@@ -25,19 +25,16 @@ import {
 	createDurableObjectRooms,
 	createEnvTokenResolver,
 	createServerApp,
-	instance,
 	mountBlobsApp,
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
-	type ResolveUser,
+	type ResolvePrincipal,
 	Room,
 	rateLimit,
 	requireBearerUser,
 } from '@epicenter/server';
 import { resolveSelfHostTrustedOrigins } from '../trusted-origins.js';
-
-const ownership = instance;
 
 const app = createServerApp({
 	// The one runtime-specific concern: bind this Worker's Durable Object room
@@ -66,11 +63,11 @@ const app = createServerApp({
 // request and a throw surfaces as a 500 instead of admitting a weak credential. It
 // also returns the trimmed token, so there is no `?? ''` coalesce whose removal
 // could silently let an unset secret reach the compare.
-const resolveUser: ResolveUser = (c) =>
+const resolvePrincipal: ResolvePrincipal = (c) =>
 	createEnvTokenResolver(
 		assertStrongToken((c.env as Cloudflare.Env).INSTANCE_TOKEN),
 	)(c);
-const auth = requireBearerUser(resolveUser);
+const auth = requireBearerUser(resolvePrincipal);
 
 app.get('/', (c) =>
 	c.json({ product: 'instance', version: '0.1.0', runtime: 'cloudflare' }),
@@ -79,21 +76,20 @@ app.get('/', (c) =>
 // No `mountCloudAuth`: the instance composes no Better Auth and no sessions. The
 // operator bearer (`auth` above) is the only gate, so every surface is
 // bearer-authenticated (ADR-0075).
-mountSessionApp(app, { ownership, auth });
+mountSessionApp(app, { auth });
 // Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
-mountRoomsApp(app, { ownership, resolveUser });
+mountRoomsApp(app, { resolvePrincipal });
 // Cap the inference burn rate so a leaked or overused bearer cannot run the
 // operator's house key up unbounded. Per-isolate on Cloudflare (approximate);
 // the real ceiling is the hard spend limit on the provider key itself (README).
 mountInferenceApp(app, {
 	auth,
-	ownership,
 	policies: [rateLimit({ requests: 120, windowSeconds: 60 })],
 });
 // Content-addressed media store over any S3, mounted by default; it answers 503
 // until the operator sets `BLOBS_S3_*` (the same honest opt-out as inference's
 // house key). Storage is the operator's own bucket, so no house key to burn.
-mountBlobsApp(app, { ownership, auth });
+mountBlobsApp(app, { auth });
 
 export default app;
 export { Room };

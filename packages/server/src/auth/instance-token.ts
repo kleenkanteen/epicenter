@@ -7,29 +7,24 @@
  * environment, and pastes it into the client's instance setting
  * (`{ baseURL, token }`, ADR-0071). Every request then arrives as
  * `Authorization: Bearer <token>`, and {@link createEnvTokenResolver} is the
- * `ResolveUser` the deployment injects on `createServerApp` to turn that bearer
- * into the instance's principal.
+ * `ResolvePrincipal` the deployment injects on `createServerApp` to turn that
+ * bearer into the instance principal.
  *
- * This is the VERIFIER side of that credential: it needs `Principal`/`ResolveUser`,
- * so it lives in `@epicenter/server`. The pure pieces that need neither (the token
- * generator and the boot entropy gate, `generateInstanceToken` /
- * `assertStrongToken`) live in `@epicenter/auth` so a token can be minted and
- * validated without the server graph.
+ * This is the VERIFIER side of that credential: it needs
+ * `Principal`/`ResolvePrincipal`, so it lives in `@epicenter/server`. The pure
+ * pieces that need neither (the token generator and the boot entropy gate,
+ * `generateInstanceToken` / `assertStrongToken`) live in `@epicenter/auth` so a
+ * token can be minted and validated without the server graph.
  *
  * It is a credential SOURCE, not a new auth mode: it feeds the one total gate
- * exactly like `resolveRequestOAuthUser`, and it pairs with `instance` (the
- * pin-to-constant `owners/instance` partition), so the 401 gate, the partition
- * switch, and every owner-scoped route never learn that "self-host" exists. There
- * is no OAuth on an instance; OAuth stays the hosted star's only (ADR-0071).
+ * exactly like `resolveRequestOAuthPrincipal`. There is no OAuth on an instance;
+ * OAuth stays the hosted star's only (ADR-0071).
  *
- * The seam is {@link ResolveUser}, the function `createServerApp` injects (ADR-0066),
- * not a sub-seam beneath it. v1 is one constant-time env-token compare. A future
- * multi-person instance that wants per-token named principals (alice, bob) against
- * the SAME constant partition adds a SIBLING resolver factory beside this one
- * (`createRegistryTokenResolver(registry): ResolveUser`) and injects that instead;
- * nothing here is rewritten, because the injection point is `ResolveUser`, not the
- * compare. That registry is a documented, deliberately-unbuilt seam (ADR-0075):
- * shipping `createEnvTokenResolver` alone is shipping exactly v1, no more.
+ * The seam is {@link ResolvePrincipal}, not a sub-seam beneath it. v1 is one
+ * constant-time env-token compare. Future named instance tokens, if earned, must
+ * still resolve to the same principal id (`INSTANCE_PRINCIPAL_ID`) because that id
+ * is the partition. Per-token principals would create per-token partitions and
+ * belong to a Cloud-shaped auth model, not this single-partition instance.
  *
  * Portable (ADR-0066): nothing here names `node:` or touches disk. The constant-
  * time compare and the token generator both use the Web Crypto `crypto` global,
@@ -39,24 +34,10 @@
 
 import { Principal } from '@epicenter/auth';
 import { OAuthError } from '@epicenter/constants/oauth-errors';
-import { asPrincipalId } from '@epicenter/identity';
+import { INSTANCE_PRINCIPAL_ID } from '@epicenter/identity';
 import { Ok } from 'wellcrafted/result';
-import type { ResolveUser } from '../types.js';
+import type { ResolvePrincipal } from '../types.js';
 import { parseBearer } from './parse-bearer.js';
-
-/**
- * The instance's single principal: a NAMED `Principal`, not a boolean. Returned by
- * the v1 verifier for any valid bearer. Its `id` is decoupled from the partition
- * (`owners/instance` is pinned by `instance` regardless of caller identity), so
- * this value is purely the authenticated identity stamped onto `c.var.user` and
- * presence frames, never the partition key. When the named-token registry seam is
- * built, the verifier returns per-token principals here instead; the partition
- * stays constant.
- */
-export const INSTANCE_PRINCIPAL: Principal = Principal.assert({
-	id: asPrincipalId('instance-owner'),
-	email: 'owner@instance.local',
-});
 
 /**
  * Constant-time equality for two strings of any length.
@@ -84,21 +65,20 @@ async function constantTimeEqual(a: string, b: string): Promise<boolean> {
 }
 
 /**
- * The instance's `ResolveUser` (self-host v1): a constant-time compare of the
+ * The instance's `ResolvePrincipal` (self-host v1): a constant-time compare of the
  * presented `Authorization: Bearer <token>` against the operator-supplied secret,
- * resolving any exact match to {@link INSTANCE_PRINCIPAL} and everything else (a
- * missing, non-bearer, or wrong token) to `InvalidToken`, the same `Result` arm the
- * OAuth resolver returns, so the surface wrappers reject it unchanged (HTTP 401 with
- * the OAuth `WWW-Authenticate` challenge, or the rooms 4401 close). The whole secret
- * lives in this closure. The deployment injects the returned function as
- * `createServerApp`'s `resolveUser` (ADR-0066), paired with `instance`.
+ * resolving any exact match to `{ id: INSTANCE_PRINCIPAL_ID }` and everything else
+ * (a missing, non-bearer, or wrong token) to `InvalidToken`, the same `Result` arm
+ * the OAuth resolver returns, so the surface wrappers reject it unchanged (HTTP 401
+ * with the OAuth `WWW-Authenticate` challenge, or the rooms 4401 close). Nobody
+ * fabricates an email for the instance principal.
  */
-export function createEnvTokenResolver(secret: string): ResolveUser {
+export function createEnvTokenResolver(secret: string): ResolvePrincipal {
 	return async (c) => {
 		const presented = parseBearer(c.req.header('authorization') ?? null);
 		if (!presented) return OAuthError.InvalidToken();
 		return (await constantTimeEqual(presented, secret))
-			? Ok(INSTANCE_PRINCIPAL)
+			? Ok(Principal.assert({ id: INSTANCE_PRINCIPAL_ID }))
 			: OAuthError.InvalidToken();
 	};
 }

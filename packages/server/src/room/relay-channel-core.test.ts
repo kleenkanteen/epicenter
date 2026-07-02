@@ -57,7 +57,7 @@ function fakeSocket() {
 
 function conn(nodeId: string, userId = 'u1'): Connection {
 	return {
-		userId: userId as Connection['userId'],
+		principalId: userId as Connection['principalId'],
 		nodeId,
 		connectedAt: Date.now(),
 	};

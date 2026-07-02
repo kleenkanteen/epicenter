@@ -2,19 +2,17 @@
  * Instance-token resolver unit tests (ADR-0075).
  *
  * Pins the instance bearer path: the resolver maps an exact, constant-time bearer
- * match to the named principal and everything else to `InvalidToken`. The surface
+ * match to the instance principal id and everything else to `InvalidToken`. The surface
  * wrappers' HTTP/WebSocket shaping is covered in `require-auth.test.ts`; the pure
  * generator + entropy gate (`generateInstanceToken` / `assertStrongToken`) live in
  * `@epicenter/auth` and are tested there.
  */
 
 import { expect, test } from 'bun:test';
+import { INSTANCE_PRINCIPAL_ID } from '@epicenter/identity';
 import type { Context } from 'hono';
 import type { Env } from '../types.js';
-import {
-	createEnvTokenResolver,
-	INSTANCE_PRINCIPAL,
-} from './instance-token.js';
+import { createEnvTokenResolver } from './instance-token.js';
 
 const TOKEN = 'instance-token-0123456789abcdef0123456789abcdef';
 
@@ -37,7 +35,8 @@ test('resolves the instance principal for an exact bearer match', async () => {
 		contextWithAuthorization(`Bearer ${TOKEN}`),
 	);
 	expect(error).toBeNull();
-	expect(data).toEqual(INSTANCE_PRINCIPAL);
+	expect(data).toEqual({ id: INSTANCE_PRINCIPAL_ID });
+	expect(data?.email).toBeUndefined();
 });
 
 test('rejects a mismatched token with InvalidToken', async () => {

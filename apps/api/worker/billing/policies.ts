@@ -56,12 +56,12 @@ function billingFor(c: Context<CloudEnv>) {
 	// Billing is cloud-only: `AUTUMN_SECRET_KEY` lives on this deployment's own
 	// `Cloudflare.Env`, not the library's portable `ServerBindings` (ADR-0066),
 	// so read it through the same edge cast the runtime-port resolvers use.
-	if (c.var.user.email === undefined) {
+	if (c.var.principal.email === undefined) {
 		throw new Error('Billing requires a principal email.');
 	}
 	return createBillingService(c.env as Cloudflare.Env, {
-		userId: c.var.user.id,
-		userEmail: c.var.user.email,
+		principalId: c.var.principal.id,
+		principalEmail: c.var.principal.email,
 	});
 }
 

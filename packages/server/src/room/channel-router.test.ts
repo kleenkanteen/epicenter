@@ -36,7 +36,7 @@ function setup() {
 	]);
 	const router = createChannelRouter({
 		findDevice: (nodeId) => devices.get(nodeId) ?? null,
-		ownerOf: (socket) => owners.get(socket),
+		principalOf: (socket) => owners.get(socket),
 	});
 	return { caller, target, devices, owners, router };
 }

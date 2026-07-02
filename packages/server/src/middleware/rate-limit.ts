@@ -9,11 +9,9 @@
  * It is the in-process backstop; the real ceiling is the hard spend limit the
  * operator sets on the provider key itself (see apps/self-host/README.md).
  *
- * One counter per owner partition, keyed off `c.var.ownerId` (set by the upstream
- * `requireOwnership` that every `policies` middleware runs after). On the
- * single-partition instance that is one global bucket; on a per-user deployment it
- * is per user, with no config change, because the ownership rule already encodes
- * the right granularity.
+ * One counter per principal partition, keyed off `c.var.principal.id` (set by
+ * the upstream auth middleware). On the single-partition instance that is one
+ * global bucket; on a hosted deployment it is per principal.
  *
  * The window lives in process memory: EXACT on the blessed single-node Bun
  * instance, and per-isolate (so approximate) on Cloudflare, which is the same
@@ -47,7 +45,7 @@ export function rateLimit<E extends Env = Env>(opts: {
 	const windowMs = opts.windowSeconds * 1000;
 	const windows = new Map<string, { count: number; resetAt: number }>();
 	return createMiddleware<E>(async (c, next) => {
-		const key = c.var.ownerId;
+		const key = c.var.principal.id;
 		const now = Date.now();
 		const window = windows.get(key);
 

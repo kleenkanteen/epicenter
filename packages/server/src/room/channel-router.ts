@@ -51,12 +51,12 @@ const MAX_CHANNELS_PER_SOCKET = 64;
  * - `findDevice` resolves a target `nodeId` to its most-recently-connected open
  *   socket IN THIS ROOM (the room is one user's fleet), or `null` if offline.
  *   This is `RoomCore.pickRecipient`.
- * - `ownerOf` returns the server-resolved `userId` stamped on a socket at
- *   upgrade, so the router can refuse cross-owner routing.
+ * - `principalOf` returns the server-resolved principal id stamped on a socket
+ *   at upgrade, so the router can refuse cross-principal routing.
  */
 export type ChannelRouterDeps = {
 	findDevice(nodeId: string): RoomSocket | null;
-	ownerOf(socket: RoomSocket): string | undefined;
+	principalOf(socket: RoomSocket): string | undefined;
 };
 
 /** One live channel: the two sockets the relay forwards bytes between. */
@@ -140,8 +140,8 @@ export function createChannelRouter(deps: ChannelRouterDeps): ChannelRouter {
 		// Routing integrity: only within one owner's fleet, never across users. In a
 		// personal account room every socket shares the owner, so this is a belt to
 		// the room's structural suspenders; it is the real gate in a shared room.
-		const callerOwner = deps.ownerOf(caller);
-		if (!callerOwner || callerOwner !== deps.ownerOf(target)) {
+		const callerPrincipal = deps.principalOf(caller);
+		if (!callerPrincipal || callerPrincipal !== deps.principalOf(target)) {
 			reset(caller, frame.id, 'refused', 'cross-owner routing refused');
 			return;
 		}
@@ -151,7 +151,9 @@ export function createChannelRouter(deps: ChannelRouterDeps): ChannelRouter {
 		// reads `route` to pick its handler and answers with accept or reset.
 		send(target, {
 			...frame,
-			source: { kind: 'user', userId: callerOwner },
+			// WAVE-3-SHIM: the relay wire still spells this userId until the
+			// client protocol moves to principal vocabulary.
+			source: { kind: 'user', userId: callerPrincipal },
 		});
 	}
 

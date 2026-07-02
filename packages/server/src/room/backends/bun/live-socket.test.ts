@@ -37,7 +37,7 @@ beforeAll(() => {
 				const nodeId = url.searchParams.get('nodeId') ?? '';
 				return bunRooms.rooms.get(ROOM).handleUpgrade({
 					request: req,
-					userId: asPrincipalId('u1'),
+					principalId: asPrincipalId('u1'),
 					nodeId,
 				});
 			}

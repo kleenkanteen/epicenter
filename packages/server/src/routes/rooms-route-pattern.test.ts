@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test';
+import { Principal } from '@epicenter/auth';
 import { asPrincipalId } from '@epicenter/identity';
 import { ROOM_ROUTE } from '@epicenter/sync';
 import { Hono } from 'hono';
+import { Ok } from 'wellcrafted/result';
+import type { Env } from '../types.js';
+import { mountRoomsApp } from './rooms.js';
 
 /**
  * Regression: prove the real client/server URL contract.
@@ -42,5 +46,30 @@ describe('rooms route pattern', () => {
 			expect(body.roomId).toBe(guid);
 			expect(body.ownerId).toBe('user-1');
 		}
+	});
+
+	test('temporary owner segment must match the authenticated principal', async () => {
+		const app = new Hono<Env>();
+		app.use('*', async (c, next) => {
+			c.set('rooms', {
+				get: () => {
+					throw new Error('room lookup should not run on mismatch');
+				},
+				rejectUpgrade: async () => new Response(null, { status: 500 }),
+			});
+			await next();
+		});
+		mountRoomsApp(app, {
+			resolvePrincipal: async () =>
+				Ok(Principal.assert({ id: asPrincipalId('alice') })),
+		});
+
+		const res = await app.request(
+			ROOM_ROUTE.url('https://x', asPrincipalId('bob'), 'room-1'),
+		);
+
+		expect(res.status).toBe(403);
+		const body = (await res.json()) as { error: { name: string } };
+		expect(body.error.name).toBe('OwnerMismatch');
 	});
 });

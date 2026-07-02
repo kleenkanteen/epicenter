@@ -8,7 +8,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { Hono } from 'hono';
-import { instance } from '../ownership.js';
 import type { Env } from '../types.js';
 import { mountTranscriptionApp } from './transcription.js';
 
@@ -44,7 +43,6 @@ function createTestApp() {
 	const app = new Hono<Env>();
 	mountTranscriptionApp(app, {
 		auth: async (_c, next) => next(),
-		ownership: instance,
 	});
 	return app;
 }

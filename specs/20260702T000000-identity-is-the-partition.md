@@ -300,12 +300,12 @@ specs/20260524T021140-asset-visibility-and-client-sdk.md
 
 ### Wave 2: server seam collapse
 
-- [ ] Delete ownership middleware and ownership rule vocabulary.
-- [ ] Rename `ResolveUser` to `ResolvePrincipal` and carry `c.var.principal`.
-- [ ] Drop `ownership` options from all mounts.
-- [ ] Rewrite instance-token JSDoc so future named instance tokens, if earned, still resolve to the same instance principal id; per-token principals would re-partition and belong to Cloud-shaped auth.
-- [ ] Keep the old session JSON shape behind a temporary `WAVE-3-SHIM`.
-- [ ] Stop for Braden review.
+- [x] Delete ownership middleware and ownership rule vocabulary.
+- [x] Rename `ResolveUser` to `ResolvePrincipal` and carry `c.var.principal`.
+- [x] Drop `ownership` options from all mounts.
+- [x] Rewrite instance-token JSDoc so future named instance tokens, if earned, still resolve to the same instance principal id; per-token principals would re-partition and belong to Cloud-shaped auth.
+- [x] Keep the old session JSON shape behind a temporary `WAVE-3-SHIM`.
+- [x] Stop for Braden review.
 
 ### Wave 3: wire atom
 
