@@ -12,7 +12,7 @@
  */
 
 import { expect, test } from 'bun:test';
-import type { AppConfig } from './config.ts';
+import { loadConfig, type AppConfig } from './config.ts';
 import {
 	redeemRefreshToken,
 	refreshAccessToken,
@@ -129,6 +129,12 @@ test('runAuthorizationFlow exchanges a PKCE callback and stores the connected Gm
 	apiServer.stop(true);
 });
 
+test('production config derives the authorization issuer from accounts.google.com', () => {
+	expect(new URL(loadConfig().authorizeUrl).origin).toBe(
+		'https://accounts.google.com',
+	);
+});
+
 test('runAuthorizationFlow reports OAuth error details from the token endpoint', async () => {
 	const tokenServer = Bun.serve({
 		hostname: '127.0.0.1',
@@ -174,6 +180,71 @@ test('runAuthorizationFlow reports OAuth error details from the token endpoint',
 	expect(error?.message).toContain('The OAuth client was not found.');
 	expect(error?.message).toContain('HTTP 401');
 
+	tokenServer.stop(true);
+});
+
+test('refreshAccessToken uses a newly returned refresh token when Google rotates it', async () => {
+	const tokenServer = Bun.serve({
+		hostname: '127.0.0.1',
+		port: 0,
+		fetch() {
+			return Response.json({
+				token_type: 'Bearer',
+				access_token: 'rotated-access-token',
+				refresh_token: 'rotated-refresh-token',
+				expires_in: 3600,
+			});
+		},
+	});
+
+	const { data: token, error } = await refreshAccessToken(
+		config({
+			tokenUrl: `http://127.0.0.1:${tokenServer.port}/token`,
+		}),
+		{
+			accountEmail: 'you@example.com',
+			clientIdUsed: 'client-id-123',
+			accessToken: 'stale',
+			accessTokenExpiresAt: new Date(0).toISOString(),
+			refreshToken: 'old-refresh-token',
+			obtainedAt: new Date(0).toISOString(),
+		},
+		() => Date.parse('2026-07-01T00:00:00.000Z'),
+	);
+
+	expect(error).toBeNull();
+	expect(token?.accessToken).toBe('rotated-access-token');
+	expect(token?.refreshToken).toBe('rotated-refresh-token');
+	tokenServer.stop(true);
+});
+
+test('refreshAccessToken maps invalid_grant to ReauthRequired', async () => {
+	const tokenServer = Bun.serve({
+		hostname: '127.0.0.1',
+		port: 0,
+		fetch() {
+			return Response.json({ error: 'invalid_grant' }, { status: 400 });
+		},
+	});
+
+	const { data, error } = await refreshAccessToken(
+		config({
+			tokenUrl: `http://127.0.0.1:${tokenServer.port}/token`,
+		}),
+		{
+			accountEmail: 'you@example.com',
+			clientIdUsed: 'client-id-123',
+			accessToken: 'stale',
+			accessTokenExpiresAt: new Date(0).toISOString(),
+			refreshToken: 'dead-refresh-token',
+			obtainedAt: new Date(0).toISOString(),
+		},
+		() => Date.parse('2026-07-01T00:00:00.000Z'),
+	);
+
+	expect(data).toBeNull();
+	expect(error?.name).toBe('ReauthRequired');
+	expect(error?.message).toBe('Re-authentication required: invalid_grant.');
 	tokenServer.stop(true);
 });
 
