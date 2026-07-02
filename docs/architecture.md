@@ -242,7 +242,7 @@ export function openOpensidianBrowser() {
 }
 ```
 
-That bundle then feeds other middleware packages. `attachYjsFileSystem(workspace.ydoc, workspace.tables.files, fileContent)` turns the files table plus content docs into a real virtual filesystem, and its `fs.index` is the single owner of path validity that the sqlite mirror converges to; `actionsToAiTools(workspace)` from `@epicenter/workspace/ai` turns workspace actions into chat tools; per-row content docs use sub-doc primitives like `attachRichText`; `createOAuthAppAuth()` from `@epicenter/auth` coordinates identity, fetch, and WebSocket auth, while `projectSignedIn(auth)` supplies the signed-in `ownerId` and WebSocket transport to the workspace boot branch.
+That bundle then feeds other middleware packages. `attachYjsFileSystem(workspace.ydoc, workspace.tables.files, fileContent)` turns the files table plus content docs into a real virtual filesystem, and its `fs.index` is the single owner of path validity that the sqlite mirror converges to; `actionsToAiTools(workspace)` from `@epicenter/workspace/ai` turns workspace actions into chat tools; per-row content docs use sub-doc primitives like `attachRichText`; `createOAuthAppAuth()` from `@epicenter/auth` coordinates identity, fetch, and WebSocket auth, while `toConnection(auth, nodeId)` supplies the boot-time connection (the signed-in `ownerId` and WebSocket transport, or `null` signed out) to the workspace boot call.
 
 ```text
 createOpensidian()

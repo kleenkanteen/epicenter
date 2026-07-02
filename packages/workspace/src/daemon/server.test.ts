@@ -84,8 +84,7 @@ function claimTestLease(): DaemonLease {
  */
 function makeAccountRoom(nodeIds: string[]): DaemonServedAccountRoom {
 	return {
-		peers: () =>
-			nodeIds.map((nodeId) => ({ nodeId, connectedAt: 0, actions: {} })),
+		peers: () => nodeIds.map((nodeId) => ({ nodeId, connectedAt: 0 })),
 	};
 }
 

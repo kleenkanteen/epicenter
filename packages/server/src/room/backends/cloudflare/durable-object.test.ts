@@ -265,7 +265,6 @@ async function upgrade(
 type WirePeer = {
 	nodeId: string;
 	connectedAt: number;
-	actions: Record<string, unknown>;
 	agentId?: string;
 };
 type PresenceFrame = { type: 'presence'; peers: WirePeer[] };
@@ -295,7 +294,7 @@ function presenceFrames(ws: StubWebSocket): PresenceFrame[] {
 }
 
 /** Project a presence frame down to just its nodeIds, for assertions
- *  that don't care about connectedAt timestamps or action manifests. */
+ *  that don't care about connectedAt timestamps. */
 function nodeIds(frame: PresenceFrame): string[] {
 	return frame.peers.map((d) => d.nodeId);
 }
@@ -343,7 +342,7 @@ describe('Room presence: directed frame on upgrade', () => {
 		expect(nodeIds(presenceFrames(ws)[0]!)).toEqual(['B']);
 	});
 
-	test('directed frame entries include connectedAt and an empty actions manifest by default', async () => {
+	test('directed frame entries include connectedAt and carry no action manifest', async () => {
 		const { room } = await makeRoom();
 		await upgrade(room, 'A');
 		const ws = await upgrade(room, 'B');
@@ -353,7 +352,7 @@ describe('Room presence: directed frame on upgrade', () => {
 		expect(nodeA).toBeDefined();
 		expect(nodeA!.nodeId).toBe('A');
 		expect(typeof nodeA!.connectedAt).toBe('number');
-		expect(nodeA!.actions).toEqual({});
+		expect(nodeA).not.toHaveProperty('actions');
 	});
 });
 
@@ -365,7 +364,6 @@ describe('Room presence: agent designation', () => {
 			daemonWs,
 			JSON.stringify({
 				type: 'presence_publish',
-				actions: {},
 				agentId: 'vocab-home',
 			}),
 		);
@@ -654,17 +652,6 @@ describe('Room connection lifetime', () => {
 
 		expect(wsOld.closeCalls.map((c) => c.code)).toEqual([4408]);
 		expect(wsFresh.closeCalls).toEqual([]);
-	});
-});
-
-describe('Room sync: HTTP sync RPC', () => {
-	test('a malformed sync body resolves to Err(MalformedSyncBody)', async () => {
-		const { room } = await makeRoom();
-		// A length prefix claiming 10 payload bytes that are not present:
-		// lib0 readVarUint8Array underflows inside decodeSyncRequest.
-		const { error } = await room.sync(new Uint8Array([10]));
-
-		expect(error?.name).toBe('MalformedSyncBody');
 	});
 });
 

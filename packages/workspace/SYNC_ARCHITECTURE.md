@@ -29,8 +29,8 @@ const collaboration = openCollaboration(ydoc, {
 // Local invocation: direct function call against the registry.
 await collaboration.actions.tabs_close({ tabIds: [1, 2] });
 
-// Online peers (relay-owned presence), each carrying its published action
-// manifest and the relay-floor MCP routes it exposes.
+// Online peers (relay-owned presence), each carrying its node id and any
+// relay-floor MCP routes it exposes.
 const phone = collaboration.peers
     .list()
     .find((peer) => peer.nodeId === 'phone');
@@ -38,7 +38,7 @@ const phone = collaboration.peers
 
 Cross-device tool calls do not ride this handle. A device exposes a named MCP route over the relay-channel floor, and a signed-in client reaches it over the same socket; see [the relay-channel plane](#relay-channel-plane-text-blind) below and ADR-0073.
 
-Content docs (rich-text bodies, attachments, anything nested that syncs independently) use the same call with `actions: {}`: the published manifest is empty, while sync and presence are unchanged.
+Content docs (rich-text bodies, attachments, anything nested that syncs independently) use the same call with `actions: {}`. That registry is local to the returned handle; it is no longer published in presence.
 
 ## The `Collaboration` handle
 
@@ -56,7 +56,7 @@ Content docs (rich-text bodies, attachments, anything nested that syncs independ
 | `textPort`        | Raw text-frame port; the relay-channel floor builds blind MCP channels on top |
 | `[Symbol.dispose]`| Sugar for `ydoc.destroy()`; cascades through every attachment      |
 
-`peers.list()` returns `Peer[]`, where each peer carries `{ nodeId, connectedAt, actions, agentId?, exposedRoutes? }`. `actions` is the peer's published `ActionManifest` (the metadata-only projection of its `ActionRegistry`), suitable for rendering UI affordances, validating input against schemas, or feeding an AI tool layer. `exposedRoutes` lists the relay-floor MCP route names that peer serves with `relay: 'exposed'` (a daemon's opted-in gateway routes, for example `['books']`); a signed-in client reads it to discover which devices to auto-mount as cross-device tool catalogs.
+`peers.list()` returns `Peer[]`, where each peer carries `{ nodeId, connectedAt, agentId?, exposedRoutes? }`. Local `collaboration.actions` remains the app's callable registry; presence never publishes it. `exposedRoutes` lists the relay-floor MCP route names that peer serves with `relay: 'exposed'` (a daemon's opted-in gateway routes, for example `['books']`); a signed-in client reads it to discover which devices to auto-mount as cross-device tool catalogs.
 
 ## The wire: one socket, three channels
 
@@ -78,7 +78,7 @@ The server merges every update it sees (Yjs is multi-writer; admission control i
 
 ### Presence plane (server-owned)
 
-The relay tracks live WebSocket connections in a `connections` Map. That map is the source of truth for "who is here." On every membership or manifest change it broadcasts one server-to-client text frame carrying the whole list:
+The relay tracks live WebSocket connections in a `connections` Map. That map is the source of truth for "who is here." On every membership or identity change it broadcasts one server-to-client text frame carrying the whole list:
 
 ```ts
 type PresenceFrame = {
@@ -89,31 +89,31 @@ type PresenceFrame = {
 type Peer = {
     nodeId: string;
     connectedAt: number;
-    actions: ActionManifest;   // Record<string, ActionMeta>
     agentId?: string;          // set only by a resident agent mount (ADR-0025)
     exposedRoutes?: string[];  // relay-floor MCP route names served with `relay: 'exposed'`
 };
 ```
 
-- The frame is sent to a freshly-upgraded socket, and rebroadcast to every other socket whenever a peer joins, leaves, or republishes its manifest.
+- The frame is sent to a freshly-upgraded socket, and rebroadcast to every other socket whenever a peer joins, leaves, or republishes its identity.
 - `peers` is computed per recipient with the receiver's own install excluded, so the client stores it verbatim.
 - Multi-tab same-install collapses to one row (newest-wins by `connectedAt`); a graceful tab handoff produces no wire-visible transition (300 ms debounce).
 - A close code of `4401` (permanent auth failure) bypasses the debounce: the dropped peer disappears from everyone else's list immediately.
 
 There is no delta protocol. The relay owns the whole truth and ships the whole truth on every change; the client never reassembles `added` / `removed` events.
 
-Nodes publish their own manifest with one client-to-server frame on every (re)connect:
+Nodes publish their presence identity with one client-to-server frame on every (re)connect:
 
 ```ts
 type PresencePublishFrame = {
     type: 'presence_publish';
-    actions: ActionManifest;
+    agentId?: string;
+    exposedRoutes?: string[];
 };
 ```
 
-The relay stores the manifest against the sending socket's connection attachment (so it survives Cloudflare hibernation via `serializeAttachment`) and rebroadcasts presence so peers see the update.
+The relay stores the identity against the sending socket's connection attachment (so it survives Cloudflare hibernation via `serializeAttachment`) and rebroadcasts presence so peers see the update.
 
-`openCollaboration` builds its own manifest from the action registry via `toActionMeta` at construction and publishes it on every successful connect.
+`openCollaboration` never publishes the action registry; the wire carries no action manifest (ADR-0073 deleted the in-room dispatch subsystem, and the compatibility field was removed once deployed readers stopped requiring it).
 
 #### Why server-owned, not awareness
 
@@ -249,4 +249,4 @@ cycleController    aborts on reconnect(); kills the current iteration only
 
 ## Mental model in one paragraph
 
-`openCollaboration(ydoc, config)` is the one collaboration primitive: it opens a single WebSocket to the relay, runs the Yjs binary sync protocol, publishes its own action manifest at connect via `presence_publish`, mirrors the relay's server-owned presence channel into `peers` (including each peer's manifest and exposed route names), and exposes a raw `textPort` that the relay-channel floor rides for blind cross-device MCP. The relay is a dumb pipe: it merges Yjs updates (eventually consistent CRDT semantics, no admission control), tracks the live connections Map (source of truth for who is here), and forwards relay-channel byte frames without parsing them. Presence is the relay's `connections` Map, not Yjs Awareness. Cross-device tool calls ride the relay-channel floor as MCP (ADR-0073), not an in-room RPC. Content docs use the same primitive with `actions: {}`.
+`openCollaboration(ydoc, config)` is the one collaboration primitive: it opens a single WebSocket to the relay, runs the Yjs binary sync protocol, publishes this node's presence identity via `presence_publish`, mirrors the relay's server-owned presence channel into `peers` (including each peer's node id, agent id, and exposed route names), and exposes a raw `textPort` that the relay-channel floor rides for blind cross-device MCP. The relay is a dumb pipe: it merges Yjs updates (eventually consistent CRDT semantics, no admission control), tracks the live connections Map (source of truth for who is here), and forwards relay-channel byte frames without parsing them. Presence is the relay's `connections` Map, not Yjs Awareness. Cross-device tool calls ride the relay-channel floor as MCP (ADR-0073), not an in-room RPC. Content docs use the same primitive with `actions: {}` as a local empty registry.

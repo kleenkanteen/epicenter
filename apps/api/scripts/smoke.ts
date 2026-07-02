@@ -2,8 +2,8 @@
  * One-scenario smoke test for the runtime port. Same backend, either runtime.
  *
  * Point it at a base URL and it runs ONE end-to-end scenario against the live
- * HTTP server: read the session, open a room, and exercise the full
- * content-addressed blob lifecycle (ticket -> presigned PUT -> read back).
+ * HTTP server: read the session, verify the room HTTP refusal, and exercise the
+ * full content-addressed blob lifecycle (ticket -> presigned PUT -> read back).
  * Every step prints a single PASS/FAIL/SKIP line, so the same
  * invocation against the Bun process (:8788) and the wrangler process (:8787)
  * produces a diffable transcript of runtime parity.
@@ -102,16 +102,19 @@ async function main() {
 		}
 	}
 
-	// 3. Room: bearer-only surface. GET creates-on-first-touch and reads the doc.
+	// 3. Room: bearer-only surface. A plain GET is intentionally rejected because
+	// rooms are WebSocket-only.
 	{
 		const roomId = `smoke-${randHex(4)}`;
 		const url = `${BASE_URL}/api/owners/${encodeURIComponent(ownerId)}/rooms/${roomId}?nodeId=smoke`;
 		const res = await fetch(url, { headers: authHeaders });
-		const buf = await res.arrayBuffer();
+		const body = await res.text();
 		record(
-			res.ok ? 'PASS' : 'FAIL',
-			'room open+read',
-			`${res.status} doc=${buf.byteLength}B`,
+			res.status === 426 && body === 'Rooms are WebSocket-only'
+				? 'PASS'
+				: 'FAIL',
+			'room websocket-only',
+			`${res.status} ${body}`,
 		);
 	}
 

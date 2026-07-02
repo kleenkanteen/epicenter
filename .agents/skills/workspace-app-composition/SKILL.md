@@ -1,6 +1,6 @@
 ---
 name: workspace-app-composition
-description: 'How a workspace-backed app under `apps/*` is composed: the isomorphic doc factory (`create<App>`), the environment factories (`open<App>Browser` / `open<App>Extension` / tauri) with the boot-time preset branch (`connectLocal()` vs `connect()`, ADR-0088), the `#platform/*` build-time platform DI for multi-platform (Tauri) apps, the workspace singleton, the sign-in migration wiring, daemon/script placement under per-project `workspaces/<app>/`, and the file layout itself. Use when creating a new app, naming or placing the iso/browser/extension factory, wiring `#platform/*` subpath imports for a Tauri seam, placing the workspace singleton, wiring the first-sign-in migration, registering daemon/script bindings, or gating first paint on IndexedDB hydration (load gate vs WorkspaceGate).'
+description: 'How a workspace-backed app under `apps/*` is composed: the isomorphic doc factory (`create<App>`), the environment factories (`open<App>Browser` / `open<App>Extension` / tauri) with the one boot call (`connect(toConnection(auth, nodeId))`, ADR-0088/ADR-0094), the `#platform/*` build-time platform DI for multi-platform (Tauri) apps, the workspace singleton, the sign-in migration wiring, daemon/script placement under per-project `workspaces/<app>/`, and the file layout itself. Use when creating a new app, naming or placing the iso/browser/extension factory, wiring `#platform/*` subpath imports for a Tauri seam, placing the workspace singleton, wiring the first-sign-in migration, registering daemon/script bindings, or gating first paint on IndexedDB hydration (load gate vs WorkspaceGate).'
 metadata:
   author: epicenter
   version: '6.0'
@@ -16,17 +16,16 @@ do not live in the app package at all; they live per-project under
 `workspaces/<app>/` and are registered through `epicenter.config.ts`.
 
 There is ONE composition shape (ADR-0088: sign-in is an enhancement, never a
-door). Every app boots into a working local workspace; the environment factory
-reads the persisted `auth.state` once and picks a preset:
+door). Every app boots into a working local workspace with one call;
+`toConnection` reads the persisted `auth.state` once and projects it to the
+connection (signed in) or `null` (signed out, bare local wiring, ADR-0094):
 
 ```ts
-auth.state.status === 'signed-out'
-	? model.connectLocal(compose)
-	: model.connect({ ...projectSignedIn(auth), nodeId }, compose);
+model.connect(toConnection(auth, nodeId), compose);
 ```
 
 The workspace is never `null`, no route gates on identity, and an owner change
-reloads the page (`reloadOnOwnerChange`) so the next boot re-runs the branch.
+reloads the page (`reloadOnOwnerChange`) so the next boot re-projects.
 When a schema needs a per-platform argument, the model is a factory
 `define<App>(args)`: the id and tables stay fixed, and only defaults or other
 read-side schema inputs vary.
@@ -100,8 +99,8 @@ add a `./browser` export to the rest for symmetry's sake.
 
 | Layer | File | Job | Returns |
 | --- | --- | --- | --- |
-| Iso factory | `<app>.ts` / `workspace/index.ts` | `defineWorkspace({...})`: pure doc model | workspace model (`create`, `connect`, `connectLocal`, `mount`) |
-| Browser factory | `<app>.browser.ts` / `workspace/browser.ts` | `open<App>Browser({ auth, nodeId })`: the boot preset branch | `LocalWorkspace \| ConnectedWorkspace` bundle (idb, collaboration, wipe, child-doc openers) |
+| Iso factory | `<app>.ts` / `workspace/index.ts` | `defineWorkspace({...})`: pure doc model | workspace model (`create`, `connect`, `mount`) |
+| Browser factory | `<app>.browser.ts` / `workspace/browser.ts` | `open<App>Browser({ auth, nodeId })`: the one boot call | `LocalWorkspace \| ConnectedWorkspace` bundle (idb, collaboration, wipe, child-doc openers) |
 | Extension / tauri factory | `<app>.extension.ts` etc. | same branch after async storage resolves | iso bundle plus runtime resources |
 | Mount factory | `mount.ts` / `workspace/mount.ts` | Optional. `<app>(opts?)` calls `<app>Workspace.mount({ runtime: nodeMountRuntime(), ... })` and returns the `Mount` a project's `epicenter.config.ts` default-exports | `Mount` (node persistence, materializers) |
 | Workspace singleton | `src/lib/<app>.ts` | compose the bundle with app state, alias `whenReady` | `<app>` handle, never `null` |
@@ -133,12 +132,12 @@ Rules:
 
 ## Browser Factory
 
-`open<App>Browser({ auth, nodeId })` is the one boot branch. Both presets
-return the same bundle shape (per-row child-doc openers and `wipe()`
+`open<App>Browser({ auth, nodeId })` is the one boot call. Both connection
+arms return the same bundle shape (per-row child-doc openers and `wipe()`
 included), so nothing downstream branches on auth again:
 
 ```ts
-import { projectSignedIn } from '@epicenter/svelte/auth';
+import { toConnection } from '@epicenter/svelte/auth';
 
 export function openHoneycrispBrowser({
 	auth,
@@ -147,14 +146,15 @@ export function openHoneycrispBrowser({
 	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	return auth.state.status === 'signed-out'
-		? honeycrispWorkspace.connectLocal()
-		: honeycrispWorkspace.connect({ ...projectSignedIn(auth), nodeId });
+	return honeycrispWorkspace.connect(toConnection(auth, nodeId));
 }
 ```
 
-Pass the SAME `compose` callback to both presets when the app layers a runtime
-composition.
+When the app layers a runtime composition, pass `compose` as the second
+argument. An inline arrow infers its parameter; a named `compose` function
+annotates it with `ComposeContext<typeof myAppWorkspace>` from
+`@epicenter/workspace`, never a hand-written `Pick` or `Parameters<...>`
+extraction.
 
 ## Workspace Singleton
 

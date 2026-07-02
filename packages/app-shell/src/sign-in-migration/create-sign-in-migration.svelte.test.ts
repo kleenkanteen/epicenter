@@ -147,11 +147,11 @@ async function seedBareLocal(options: {
 	folder?: { id: string; title: string };
 	conversation?: { id: string; title: string; messages?: string };
 }) {
-	const oldBundle = model.connectLocal();
+	const oldBundle = model.connect(null);
 	await oldBundle.idb.whenLoaded;
 	await oldBundle.wipe();
 
-	const bundle = model.connectLocal();
+	const bundle = model.connect(null);
 	await bundle.idb.whenLoaded;
 
 	if (options.note) {
@@ -193,11 +193,11 @@ async function seedBareLocal(options: {
 }
 
 async function seedRowsOnlyLocal(row: { id: string; title: string }) {
-	const oldBundle = rowsOnlyModel.connectLocal();
+	const oldBundle = rowsOnlyModel.connect(null);
 	await oldBundle.idb.whenLoaded;
 	await oldBundle.wipe();
 
-	const bundle = rowsOnlyModel.connectLocal();
+	const bundle = rowsOnlyModel.connect(null);
 	await bundle.idb.whenLoaded;
 	bundle.tables.folders.set(row);
 	await tick();

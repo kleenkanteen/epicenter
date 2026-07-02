@@ -35,9 +35,12 @@ import { roomWsUrl } from './transport.js';
  * Pass `{ ...signedIn, nodeId }` at the call site.
  */
 export type ConnectionConfig = {
-	/** API origin host (e.g. `api.epicenter.so`); partitions local storage. */
-	server: string;
-	/** Full API origin URL (e.g. `https://api.epicenter.so`); scheme upgrades to `wss://`. */
+	/**
+	 * Full API origin URL (e.g. `https://api.epicenter.so`). The scheme upgrades
+	 * to `wss://` for the room socket, and the URL's host partitions local
+	 * storage (see `attachLocalStorage`), so sync target and storage scope can
+	 * never disagree.
+	 */
 	baseURL: string;
 	ownerId: OwnerId;
 	/** Bearer-attached WebSocket opener (`auth.openWebSocket`). */
@@ -63,7 +66,7 @@ export function connectDoc<TActions extends ActionRegistry = ActionRegistry>(
 	{ actions = {} as TActions }: { actions?: TActions } = {},
 ) {
 	const idb = attachLocalStorage(ydoc, {
-		server: config.server,
+		server: new URL(config.baseURL).host,
 		ownerId: config.ownerId,
 	});
 	const collaboration = openCollaboration(ydoc, {

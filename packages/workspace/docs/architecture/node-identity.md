@@ -51,14 +51,14 @@ The `nodeId` is stamped on the WebSocket upgrade URL as `?nodeId=` (built into t
 
 ### 2. Presence
 
-The relay owns presence and pushes each client its peer list: the *other* nodes, excluding self. Each entry is shaped as `Peer { nodeId, connectedAt, actions }`. The relay computes the list per recipient, so a client never has to filter itself out, and it dedupes multi-tab same-node entries (newest wins by `connectedAt`).
+The relay owns presence and pushes each client its peer list: the *other* nodes, excluding self. Each entry is shaped as `Peer { nodeId, connectedAt, agentId?, exposedRoutes? }`. The relay computes the list per recipient, so a client never has to filter itself out, and it dedupes multi-tab same-node entries (newest wins by `connectedAt`).
 
 Read presence through the collaboration handle:
 
 ```typescript
 collaboration.peers.list(); // current peers (Peer[])
 collaboration.peers.subscribe((peers) => {
-	// called on every membership or manifest change
+	// called on every membership or identity change
 });
 ```
 

@@ -1,3 +1,5 @@
+/// <reference lib="dom" />
+
 import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { defineErrors } from 'wellcrafted/error';
 import { createLogger } from 'wellcrafted/logger';

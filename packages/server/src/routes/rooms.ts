@@ -24,7 +24,6 @@ import { Hono, type MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { describeRoute } from 'hono-openapi';
 import { createOAuthUnauthorizedResourceResponse } from '../auth/oauth-resource.js';
-import { MAX_PAYLOAD_BYTES } from '../constants.js';
 import { isWebSocketUpgrade } from '../is-websocket-upgrade.js';
 import { createRequireOwnership } from '../middleware/require-ownership.js';
 import { normalizeWebSocketAuth } from '../middleware/websocket-auth.js';
@@ -33,90 +32,53 @@ import type { OwnershipRule } from '../ownership.js';
 import type { Env, ResolveUser } from '../types.js';
 
 /**
- * Wrap a Uint8Array in a Response with a fresh ArrayBuffer copy. Yjs
- * encoders return views over a larger internal buffer; the copy isolates
- * exactly the bytes that should be sent.
- */
-function binaryResponse(data: Uint8Array): Response {
-	const body = new ArrayBuffer(data.byteLength);
-	new Uint8Array(body).set(data);
-	return new Response(body, {
-		headers: { 'content-type': 'application/octet-stream' },
-	});
-}
-
-/**
  * Build the rooms sub-app. URL shape is uniform across deployments; the resolved
  * owner partition arrives on `c.var.ownerId` via the deployment-mounted
  * `requireOwnership` middleware, so handlers stay partition-blind.
+ *
+ * Rooms are WebSocket-only: the authenticated upgrade is the single way to
+ * reach a room. The former one-shot HTTP surface (GET snapshot, POST sync RPC)
+ * was deleted with its last consumer; a plain GET answers `426 Upgrade
+ * Required` so a stray non-upgrade request gets a readable refusal instead of
+ * doc bytes.
  */
 function createRoomsApp(): Hono<Env> {
-	return new Hono<Env>()
-		.get(
-			ROOM_ROUTE.pattern,
-			describeRoute({
-				description: 'Get room doc or upgrade to WebSocket',
-				tags: ['rooms'],
-			}),
-			async (c) => {
-				const roomId = c.req.param('roomId');
-				const name = doName(c.var.ownerId, roomId);
-				const room = c.var.rooms.get(name);
+	return new Hono<Env>().get(
+		ROOM_ROUTE.pattern,
+		describeRoute({
+			description: 'Upgrade to the room WebSocket',
+			tags: ['rooms'],
+		}),
+		(c) => {
+			if (!isWebSocketUpgrade(c)) {
+				return new Response('Rooms are WebSocket-only', { status: 426 });
+			}
 
-				if (isWebSocketUpgrade(c)) {
-					// Validate nodeId presence at the route boundary so the backend
-					// can trust it is set. nodeId is the address the relay
-					// channel routes frames to; a missing one would produce a
-					// presence-ghost connection (visible in presence frames but
-					// unreachable by the relay channel).
-					const nodeId = c.req.query('nodeId');
-					if (!nodeId) {
-						const err = RequestGuardError.MissingNodeId();
-						return c.json(err, err.error.status);
-					}
+			// Validate nodeId presence at the route boundary so the backend
+			// can trust it is set. nodeId is the address the relay
+			// channel routes frames to; a missing one would produce a
+			// presence-ghost connection (visible in presence frames but
+			// unreachable by the relay channel).
+			const nodeId = c.req.query('nodeId');
+			if (!nodeId) {
+				const err = RequestGuardError.MissingNodeId();
+				return c.json(err, err.error.status);
+			}
 
-					// Identity goes to the backend as data, not stamped into a
-					// reconstructed request URL: userId from auth (authoritative,
-					// never the client's), nodeId the client's own. The backend
-					// performs its runtime-specific accept (see ResolvedRoom).
-					return room.handleUpgrade({
-						request: c.req.raw,
-						userId: c.var.user.id,
-						nodeId,
-					});
-				}
+			const roomId = c.req.param('roomId');
+			const room = c.var.rooms.get(doName(c.var.ownerId, roomId));
 
-				const { data } = await room.getDoc();
-				return binaryResponse(data);
-			},
-		)
-		.post(
-			ROOM_ROUTE.pattern,
-			describeRoute({
-				description: 'Sync room doc',
-				tags: ['rooms'],
-			}),
-			async (c) => {
-				const roomId = c.req.param('roomId');
-				const name = doName(c.var.ownerId, roomId);
-
-				const body = new Uint8Array(await c.req.raw.arrayBuffer());
-				if (body.byteLength > MAX_PAYLOAD_BYTES) {
-					return new Response('Payload too large', { status: 413 });
-				}
-
-				const room = c.var.rooms.get(name);
-				const { data: synced, error } = await room.sync(body);
-				if (error) {
-					return new Response('Malformed sync body', { status: 400 });
-				}
-				const { diff } = synced;
-
-				return diff
-					? binaryResponse(diff)
-					: new Response(null, { status: 204 });
-			},
-		);
+			// Identity goes to the backend as data, not stamped into a
+			// reconstructed request URL: userId from auth (authoritative,
+			// never the client's), nodeId the client's own. The backend
+			// performs its runtime-specific accept (see ResolvedRoom).
+			return room.handleUpgrade({
+				request: c.req.raw,
+				userId: c.var.user.id,
+				nodeId,
+			});
+		},
+	);
 }
 
 /**
@@ -128,9 +90,8 @@ function createRoomsApp(): Hono<Env> {
  * permanent, 503 -> 4503 retryable), so the browser receives a close code it
  * can read. A plain HTTP error on an upgrade surfaces only as an opaque failed
  * handshake, which the client cannot tell from a network blip. A failed
- * non-upgrade rooms request (getDoc, sync) still answers with the shared HTTP
- * helper. The serialized error is the close reason; the client branches on
- * `error.name`.
+ * non-upgrade rooms request still answers with the shared HTTP helper. The
+ * serialized error is the close reason; the client branches on `error.name`.
  */
 function requireRoomBearer<E extends Env>(
 	resolveUser: ResolveUser<E>,

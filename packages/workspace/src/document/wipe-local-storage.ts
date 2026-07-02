@@ -30,7 +30,10 @@ import { getOwnedYjsPrefix } from './local-yjs-key.js';
  *
  * @example
  * ```ts
- * await wipeLocalStorage({ server: signedIn.server, ownerId: signedIn.ownerId });
+ * await wipeLocalStorage({
+ *   server: new URL(connection.baseURL).host,
+ *   ownerId: connection.ownerId,
+ * });
  * ```
  */
 export async function wipeLocalStorage({
@@ -56,7 +59,7 @@ export async function wipeLocalStorage({
  * Delete every BARE (unowned, local-first) IndexedDB database of one
  * workspace: the root doc, named by its guid, plus every child doc, whose
  * guids extend the root guid (`<guid>.<collection>.<rowId>.<field>`), so one
- * prefix scan catches the whole family. The `connectLocal()` bundle's
+ * prefix scan catches the whole family. The `connect(null)` bundle's
  * `wipe()` calls this; owner-scoped databases are untouched (those belong to
  * {@link wipeLocalStorage}).
  */

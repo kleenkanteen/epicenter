@@ -33,7 +33,6 @@ function fakeWebSocket(): Promise<WebSocket> {
 }
 
 const connection: ConnectionConfig = {
-	server: 'api.test.invalid',
 	baseURL: 'https://api.test.invalid',
 	ownerId: asOwnerId('owner-1'),
 	openWebSocket: fakeWebSocket,
@@ -313,6 +312,7 @@ describe('defineWorkspace', () => {
 
 		workspace.tables.notes.set({ id: '1', title: 'hello' });
 		expect(workspace.runtimeLabel).toBe('browser-only');
+		if (!workspace.collaboration) throw new Error('expected relay wiring');
 		expect(workspace.collaboration.actions.notes_count()).toBe(1);
 		workspace[Symbol.dispose]();
 		expect(runtimeDisposed).toBe(true);

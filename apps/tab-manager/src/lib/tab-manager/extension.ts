@@ -1,14 +1,12 @@
 /**
- * Tab-manager browser composition: the one boot branch (ADR-0088).
+ * Tab-manager browser composition: the one boot call (ADR-0088/ADR-0094).
  *
- * Reads `auth.state` once and picks a preset: `connectLocal(compose)` signed
- * out (bare guid-named IndexedDB, cross-tab channel, no relay) or
- * `connect({ ...projectSignedIn(auth), nodeId }, compose)` signed in. Both
- * presets take the SAME `compose` callback and return the same bundle shape
- * (per-row conversation child-doc openers from `@epicenter/chat` included),
- * so nothing downstream branches on auth again. `compose` wires tab and
- * bookmark actions against the connected tables, with Y.Doc transaction
- * batching.
+ * `toConnection` reads `auth.state` once: signed out projects to `null` (bare
+ * guid-named IndexedDB, cross-tab channel, no relay), signed in projects to
+ * the owner's connection. Both arms return the same bundle shape (per-row
+ * conversation child-doc openers from `@epicenter/chat` included), so nothing
+ * downstream branches on auth again. `compose` wires tab and bookmark actions
+ * against the connected tables, with Y.Doc transaction batching.
  *
  * Live browser state (tabs, windows, tab groups) is NOT stored here. Chrome is
  * the sole authority for ephemeral browser state. See `browser-state.svelte.ts`.
@@ -19,9 +17,9 @@
 
 import type { SyncAuthClient } from '@epicenter/auth';
 import { InstantString } from '@epicenter/field';
-import { projectSignedIn } from '@epicenter/svelte/auth';
+import { toConnection } from '@epicenter/svelte/auth';
 import {
-	type ConnectedWorkspaceContext,
+	type ComposeContext,
 	defineActions,
 	defineMutation,
 	defineQuery,
@@ -93,12 +91,7 @@ export function openTabManagerBrowser({
 	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	function compose(
-		workspace: ConnectedWorkspaceContext<
-			typeof tabManagerWorkspace.tables,
-			typeof tabManagerWorkspace.kv
-		>,
-	) {
+	function compose(workspace: ComposeContext<typeof tabManagerWorkspace>) {
 		const { tables } = workspace;
 		const batch = (fn: () => void) => workspace.ydoc.transact(fn);
 		return {
@@ -483,12 +476,7 @@ export function openTabManagerBrowser({
 		};
 	}
 
-	return auth.state.status === 'signed-out'
-		? tabManagerWorkspace.connectLocal(compose)
-		: tabManagerWorkspace.connect(
-				{ ...projectSignedIn(auth), nodeId },
-				compose,
-			);
+	return tabManagerWorkspace.connect(toConnection(auth, nodeId), compose);
 }
 
 export type TabManagerBrowser = ReturnType<typeof openTabManagerBrowser>;

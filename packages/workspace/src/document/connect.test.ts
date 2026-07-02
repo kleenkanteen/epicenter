@@ -1,8 +1,9 @@
 /**
- * `connectLocal()` regression guard: the bare local-first preset (ADR-0088)
- * returns the same bundle shape as `connect()`, wired to guid-named
- * IndexedDB with no relay, INCLUDING per-row child-doc openers, and its
- * `wipe()` clears the whole bare guid family (root plus children).
+ * `connect()` regression guard for both arms of the boot decision
+ * (ADR-0088/ADR-0094): `connect(null)` wires the bare local-first bundle
+ * (guid-named IndexedDB, no relay, per-row child-doc openers included) and
+ * its `wipe()` clears the whole bare guid family; `connect(connection)`
+ * persists under the owner-scoped database name.
  */
 
 import { afterEach, beforeEach, expect, test } from 'bun:test';
@@ -58,7 +59,7 @@ afterEach(() => {
 });
 
 test('bare root + bare child docs persist under guid names, no relay', async () => {
-	const bundle = model.connectLocal();
+	const bundle = model.connect(null);
 
 	expect(bundle.collaboration).toBeUndefined();
 	await bundle.idb.whenLoaded;
@@ -80,7 +81,6 @@ test('bare root + bare child docs persist under guid names, no relay', async () 
 
 test('signed-in root persists under the owner-scoped database name', async () => {
 	const bundle = model.connect({
-		server: 'api.example.com',
 		baseURL: 'https://api.example.com',
 		ownerId: asOwnerId('owner-1'),
 		nodeId: asNodeId('node-test'),
@@ -98,7 +98,7 @@ test('signed-in root persists under the owner-scoped database name', async () =>
 });
 
 test('wipe() clears the whole bare guid family', async () => {
-	const bundle = model.connectLocal();
+	const bundle = model.connect(null);
 	await bundle.idb.whenLoaded;
 	bundle.tables.notes.set({ id: 'n2', title: 'doomed' });
 	const body = bundle.tables.notes.docs.body.open('n2');

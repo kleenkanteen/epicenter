@@ -19,16 +19,16 @@
 
 The hosted hub at `https://api.epicenter.so` handles auth, real-time sync, and AI inference. It runs on Cloudflare Workers with Durable Objects. Cloud sync enters through `/api/owners/:ownerId/rooms/:roomId` (the same path in per-user cloud and self-hosted instance deployments): a cloud doc is owned by the resolved `ownerId` and addressed by its `ydoc.guid`, and the server resolves the room from the auth token. Browser apps and the workspace daemon both use this route.
 
-On the client, `@epicenter/workspace` exposes the presets directly: define your schema with `defineTable` / `defineKv`, wrap it with `defineWorkspace({ id, tables, kv, actions })`, then choose the browser storage branch once at boot. Signed out calls `connectLocal()` for bare local IndexedDB storage. Signed in calls `connect({ ...projectSignedIn(auth), nodeId })` for owner-scoped storage plus relay sync.
+On the client, `@epicenter/workspace` exposes the preset directly: define your schema with `defineTable` / `defineKv`, wrap it with `defineWorkspace({ id, tables, kv, actions })`, then connect once at boot. `toConnection(auth, nodeId)` projects the auth snapshot: `null` signed out (bare local IndexedDB storage), the owner's connection signed in (owner-scoped storage plus relay sync).
 
 ## Minimal cloud workspace shape
 
-This snippet shows the current browser shape. The per-app browser opener is the single source of truth for "how this app mounts in a browser." It reads `auth.state` once, so owner changes reload the page and rerun the branch.
+This snippet shows the current browser shape. The per-app browser opener is the single source of truth for "how this app mounts in a browser." It reads `auth.state` once, so owner changes reload the page and re-project the connection.
 
 ```typescript
 import type { SyncAuthClient } from '@epicenter/auth';
 import { field } from '@epicenter/field';
-import { projectSignedIn } from '@epicenter/svelte/auth';
+import { toConnection } from '@epicenter/svelte/auth';
 import {
 	createNodeId,
 	defineActions,
@@ -69,9 +69,7 @@ export function openMyAppBrowser({
 	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	return auth.state.status === 'signed-out'
-		? myAppWorkspace.connectLocal()
-		: myAppWorkspace.connect({ ...projectSignedIn(auth), nodeId });
+	return myAppWorkspace.connect(toConnection(auth, nodeId));
 }
 
 export const myApp = openMyAppBrowser({
@@ -82,4 +80,4 @@ export const myApp = openMyAppBrowser({
 
 The `ydoc.guid` is the bare local IndexedDB key and the cloud room id. Namespace it to your app, for example `epicenter.my-app`, to avoid collisions when multiple apps share the same IndexedDB origin. Signed-in storage adds the owner prefix, so two owners on the same browser profile never share data.
 
-`connectLocal()` returns the local-only bundle: IndexedDB, BroadcastChannel, `wipe()`, and child-doc openers, but no relay. `connect(connection)` returns the same bundle shape with owner-scoped storage and collaboration. The app shell should not branch on auth after this point; signed-in-only features should degrade inline.
+`connect(null)` returns the local-only bundle: IndexedDB, BroadcastChannel, `wipe()`, and child-doc openers, but no relay. `connect(connection)` returns the same bundle shape with owner-scoped storage and collaboration. The app shell should not branch on auth after this point; signed-in-only features should degrade inline.

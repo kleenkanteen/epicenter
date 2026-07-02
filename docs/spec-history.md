@@ -16,30 +16,70 @@
 >
 > **Regenerate (deterministic per ref set, lossless):** `bun scripts/generate-spec-history.ts`. The totals track the refs this clone can see; `--all` is deliberate so the timeline recovers specs that only lived on unmerged or deleted branches.
 
-**1282 specs ever** (567 still in tree, 715 removed).
+**1322 specs ever** (570 still in tree, 752 removed).
 
 
 ## 2026
 
 | Date | Spec | State | Path |
 |------|------|-------|------|
-| 2026-06-20 | local-books-agent-over-sql | in tree | specs/20260620T180000-local-books-agent-over-sql.md |
+| 2026-07-02 | relay-channel-layer-deletion | in tree | specs/20260702T210000-relay-channel-layer-deletion.md |
+| 2026-07-02 | identity-is-the-partition | removed | specs/20260702T000000-identity-is-the-partition.md |
+| 2026-07-02 | ungated-durable-local-open | in tree | specs/20260702T014940-ungated-durable-local-open.md |
+| 2026-07-02 | one-preset-shape-and-derived-migration-guids | removed | specs/20260702T001604-one-preset-shape-and-derived-migration-guids.md |
+| 2026-07-01 | super-chat-canonicalization-handoff | in tree | specs/20260701T235243-super-chat-canonicalization-handoff.md |
+| 2026-07-01 | api-keyring-and-vault-wiring | in tree | specs/20260701T150000-api-keyring-and-vault-wiring.md |
+| 2026-07-01 | progressive-sign-in-collapse | removed | specs/20260701T151347-progressive-sign-in-collapse.md |
+| 2026-07-01 | progressive-sign-in-collapse.prompt | removed | specs/20260701T151347-progressive-sign-in-collapse.prompt.md |
+| 2026-07-01 | honeycrisp-desktop-notes | in tree | specs/20260701T141841-honeycrisp-desktop-notes.md |
+| 2026-07-01 | blobs-are-a-url-machine | in tree | specs/20260701T150659-blobs-are-a-url-machine.md |
+| 2026-07-01 | whispering-cloud-sync-remainder | in tree | apps/whispering/specs/20260701T120000-whispering-cloud-sync-remainder.md |
+| 2026-06-30 | cross-device-topology-seam-2-the-rule | in tree | specs/20260630T173000-cross-device-topology-seam-2-the-rule.md |
+| 2026-06-30 | super-app-desktop-host-build-plan | in tree | specs/20260630T190000-super-app-desktop-host-build-plan.md |
+| 2026-06-30 | local-mail-tauri-cdc-mirror.handoff | in tree | specs/20260630T150000-local-mail-tauri-cdc-mirror.handoff.md |
+| 2026-06-30 | local-mail-tauri-cdc-mirror | in tree | specs/20260630T150000-local-mail-tauri-cdc-mirror.md |
+| 2026-06-27 | extract-recorder-vad-package | removed | specs/20260627T005829-extract-recorder-vad-package.md |
+| 2026-06-27 | credential-identity-and-shared-secrets-facade | removed | specs/20260627T230812-credential-identity-and-shared-secrets-facade.md |
+| 2026-06-27 | whispering-optional-unified-auth | in tree | specs/20260627T221642-whispering-optional-unified-auth.md |
+| 2026-06-27 | per-person-account-doc-device-layer | removed | specs/20260627T233000-per-person-account-doc-device-layer.md |
+| 2026-06-27 | super-chat-device-gateway-collapse | removed | specs/20260627T200000-super-chat-device-gateway-collapse.md |
+| 2026-06-27 | super-chat-cross-device-iroh | removed | specs/20260627T120000-super-chat-cross-device-iroh.md |
+| 2026-06-26 | local-books-mcp-and-super-chat.handoff | removed | specs/20260626T194408-local-books-mcp-and-super-chat.handoff.md |
+| 2026-06-26 | local-books-mcp-and-super-chat | removed | specs/20260626T194408-local-books-mcp-and-super-chat.md |
+| 2026-06-25 | capability-decomposition-star-service-library | removed | specs/20260625T224402-capability-decomposition-star-service-library.md |
+| 2026-06-25 | capability-decomposition.handoff | removed | specs/20260625T224402-capability-decomposition.handoff.md |
+| 2026-06-25 | cli-and-headless-credential-seam-for-self-host | in tree | specs/20260625T132139-cli-and-headless-credential-seam-for-self-host.md |
+| 2026-06-25 | self-host-first-boot-bearer-credential-source | removed | specs/20260625T115427-self-host-first-boot-bearer-credential-source.md |
+| 2026-06-25 | bun-adapter-startbunserver-and-authenticate-rename | removed | specs/20260625T111606-bun-adapter-startbunserver-and-authenticate-rename.md |
+| 2026-06-25 | matter-sqlite-launch | removed | specs/20260625T143000-matter-sqlite-launch.md |
+| 2026-06-24 | privacy-is-a-deployment-self-host-and-relay-anchor-gradations | in tree | specs/20260624T223835-privacy-is-a-deployment-self-host-and-relay-anchor-gradations.md |
+| 2026-06-24 | inference-endpoint-primitive | removed | specs/20260624T003125-inference-endpoint-primitive.md |
+| 2026-06-23 | one-server-runtime-port-vs-per-owner-instance | in tree | specs/20260623T234500-one-server-runtime-port-vs-per-owner-instance.md |
+| 2026-06-23 | content-addressed-blob-store | removed | specs/20260623T220000-content-addressed-blob-store.md |
+| 2026-06-23 | inference-connections-and-presets | removed | specs/20260623T120000-inference-connections-and-presets.md |
+| 2026-06-22 | push-to-talk-recording-lifecycle | removed | apps/whispering/specs/20260622T214212-push-to-talk-recording-lifecycle.md |
+| 2026-06-22 | chat-settle-render-and-romanizer | removed | specs/20260622T205500-chat-settle-render-and-romanizer.md |
+| 2026-06-21 | inference-server-openai-compatible-collapse | removed | specs/20260621T180000-inference-server-openai-compatible-collapse.md |
+| 2026-06-21 | local-books-cli-sync-engine | in tree | specs/20260621T100000-local-books-cli-sync-engine.md |
+| 2026-06-20 | transcription-model-selector-collapse | in tree | apps/whispering/specs/20260620T173000-transcription-model-selector-collapse.md |
+| 2026-06-20 | local-books-agent-over-sql | removed | specs/20260620T180000-local-books-agent-over-sql.md |
 | 2026-06-20 | vocab-answerer-collapse | removed | specs/20260620T000000-vocab-answerer-collapse.md |
 | 2026-06-20 | daemon-inference-backend-priority-chain | removed | specs/20260620T050257-daemon-inference-backend-priority-chain.md |
 | 2026-06-19 | collapse-inference-onto-tanstack-adapters | removed | specs/20260619T210000-collapse-inference-onto-tanstack-adapters.md |
 | 2026-06-19 | matter-json-marks-a-table | removed | apps/matter/specs/20260619T100000-matter-json-marks-a-table.md |
 | 2026-06-18 | shortcut-reach-model | removed | apps/whispering/specs/20260618T145018-shortcut-reach-model.md |
-| 2026-06-18 | chat-transcript-parts-body | in tree | specs/20260618T100631-chat-transcript-parts-body.md |
+| 2026-06-18 | chat-transcript-parts-body | removed | specs/20260618T100631-chat-transcript-parts-body.md |
 | 2026-06-18 | cloud-kickoff-to-queue-generation | removed | specs/20260618T160358-cloud-kickoff-to-queue-generation.md |
 | 2026-06-18 | dictation-feedback-projection | removed | apps/whispering/specs/20260618T120000-dictation-feedback-projection.md |
 | 2026-06-18 | playback-pause-speaking-window | removed | apps/whispering/specs/20260618T113342-playback-pause-speaking-window.md |
-| 2026-06-18 | one-conversation-core-loop-and-doc-sink | in tree | specs/20260618T113407-one-conversation-core-loop-and-doc-sink.md |
+| 2026-06-18 | one-conversation-core-loop-and-doc-sink | removed | specs/20260618T113407-one-conversation-core-loop-and-doc-sink.md |
 | 2026-06-18 | keyboard-tap-foundation-research | removed | apps/whispering/specs/20260618T000000-keyboard-tap-foundation-research.md |
 | 2026-06-17 | zhongwen-daemon-and-v0-exit | removed | specs/20260617T224538-zhongwen-daemon-and-v0-exit.md |
 | 2026-06-17 | desktop-audio-pipeline-greenfield | removed | apps/whispering/specs/20260617T170000-desktop-audio-pipeline-greenfield.md |
 | 2026-06-17 | table-vault-classification | removed | apps/matter/specs/20260617T152631-table-vault-classification.md |
 | 2026-06-17 | brand-asset-pipeline | in tree | specs/20260617T100000-brand-asset-pipeline.md |
 | 2026-06-17 | v2-coding-actor-sandbox-and-harness | removed | specs/20260617T235900-v2-coding-actor-sandbox-and-harness.md |
+| 2026-06-16 | whispering-runtime-projection | removed | specs/20260616T180000-whispering-runtime-projection.md |
 | 2026-06-16 | pause-playback-while-recording | removed | apps/whispering/specs/20260616T180000-pause-playback-while-recording.md |
 | 2026-06-16 | always-on-actors-over-synced-docs | removed | specs/20260616T225034-always-on-actors-over-synced-docs.md |
 | 2026-06-16 | actors-buildout.tracker | removed | specs/20260616T225034-actors-buildout.tracker.md |
@@ -129,7 +169,7 @@
 | 2026-05-29 | platform-dependency-injection-subpath-imports | removed | specs/20260529T230000-platform-dependency-injection-subpath-imports.md |
 | 2026-05-29 | ai-workflows-ux-grill-and-clean-break | in tree | specs/20260529T163000-ai-workflows-ux-grill-and-clean-break.md |
 | 2026-05-29 | ai-workflows-triggers-portability-durable-execution | in tree | specs/20260529T190000-ai-workflows-triggers-portability-durable-execution.md |
-| 2026-05-29 | ai-workflows-bounded-programs | in tree | specs/20260529T120000-ai-workflows-bounded-programs.md |
+| 2026-05-29 | ai-workflows-bounded-programs | removed | specs/20260529T120000-ai-workflows-bounded-programs.md |
 | 2026-05-29 | recording-input-paths-clean-break | in tree | apps/whispering/specs/20260529T000000-recording-input-paths-clean-break.md |
 | 2026-05-28 | clean-reset-and-workspace-schema-collapse | in tree | specs/20260528T222820-clean-reset-and-workspace-schema-collapse.md |
 | 2026-05-28 | auth-opaque-client-boundary | in tree | specs/20260528T211151-auth-opaque-client-boundary.md |
@@ -295,7 +335,7 @@
 | 2026-05-06 | signed-in-owns-the-workspace | in tree | specs/20260506T010807-signed-in-owns-the-workspace.md |
 | 2026-05-06 | session-state-replaces-signed-in-component | removed | specs/20260506T013348-session-state-replaces-signed-in-component.md |
 | 2026-05-06 | expose-attachments-not-aliases | removed | specs/20260506T020000-expose-attachments-not-aliases.md |
-| 2026-05-06 | from-table-readonly-view-redesign | in tree | specs/20260506T123741-from-table-readonly-view-redesign.md |
+| 2026-05-06 | from-table-readonly-view-redesign | removed | specs/20260506T123741-from-table-readonly-view-redesign.md |
 | 2026-05-06 | lazy-identity-reads-from-auth | removed | specs/20260506T143000-lazy-identity-reads-from-auth.md |
 | 2026-05-06 | encryption-keys-clean-break.execute | in tree | specs/20260506T183459-encryption-keys-clean-break.execute.md |
 | 2026-05-06 | encryption-keys-clean-break | removed | specs/20260506T183459-encryption-keys-clean-break.md |
@@ -1320,5 +1360,3 @@
 |------|------|-------|------|
 | 2023-12-23 | services-query-folder-reorganization | in tree | specs/20231223T131706-services-query-folder-reorganization.md |
 | 2023-12-23 | services-query-folder-reorganization | removed | docs/specs/20231223T131706-services-query-folder-reorganization.md |
-| 2026-07-01 | progressive-sign-in-collapse | removed | specs/20260701T151347-progressive-sign-in-collapse.md |
-| 2026-07-01 | progressive-sign-in-collapse.prompt | removed | specs/20260701T151347-progressive-sign-in-collapse.prompt.md |

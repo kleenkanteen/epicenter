@@ -21,15 +21,12 @@ export {
 	isTransportOrigin,
 	SYNC_ORIGIN,
 } from './origins';
-// Protocol (encode/decode for WS messages and HTTP sync requests)
+// Protocol (encode/decode for WS sync messages)
 export {
-	decodeSyncRequest,
-	encodeSyncRequest,
 	encodeSyncStep1,
 	encodeSyncUpdate,
 	handleSyncPayload,
 	SYNC_MESSAGE_TYPE,
 	type SyncMessageType,
-	stateVectorsEqual,
 } from './protocol';
 export { ROOM_ROUTE } from './room-route';
