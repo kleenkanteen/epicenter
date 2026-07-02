@@ -82,7 +82,7 @@ using workspace = createHoneycrispWorkspace({ keyring: signedIn.keyring });
 const actions = createHoneycrispActions(workspace);
 
 const idb = attachLocalStorage(workspace, { server, ownerId });
-openCollaboration(workspace, { url, actions, openWebSocket, onReconnectSignal });
+openCollaboration(workspace, { url, openWebSocket, onReconnectSignal });
 ```
 
 Three lines collapse to two. Every downstream attachment takes `workspace` instead of `(ydoc, { tables, kv })`. `using` makes lifecycle obvious.
@@ -124,7 +124,7 @@ Three lines collapse to two. Every downstream attachment takes `workspace` inste
 | Decision | Class | Choice | Rationale |
 |---|---|---|---|
 | Bundle ydoc + tables + kv | 2 coherence | Yes | Each is co-defined; the three materializers read at least two of them. |
-| Bundle actions | 2 coherence | **No** | Only `openCollaboration` reads actions. Actions are platform-augmentable (browser ≠ daemon ≠ test). Keep external. |
+| Bundle actions | 2 coherence | **Yes** | Actions are platform-augmentable (browser ≠ daemon ≠ test), but collaboration no longer owns or mirrors them. |
 | Encryption optional | 1 evidence | `keyring?` | Three apps construct plaintext workspaces today. Optional keyring degenerates `createWorkspace` to plaintext when absent. |
 | Fold attachEncryption | 2 coherence | Yes | Five production sites do `new Y.Doc + attachEncryption + createActions` in lockstep. No site uses `attachEncryption` standalone. |
 | Fold attachTable / attachTables / attachKv as exports | 2 coherence | Yes | After fold, the only legitimate caller is `createWorkspace` itself. Keep as internal helpers (`createTable`, `createKv`). |
@@ -274,7 +274,7 @@ These bind to a Y.Doc and need no workspace fields. They work uniformly on the r
 | attachLocalStorage | document/attach-local-storage.ts:54 | `(ydoc, { server, ownerId, keyring })` | owner-scoped (per `(server, ownerId)`) |
 | attachYjsLog | document/attach-yjs-log.ts:63 | `(ydoc, { filePath, log? })` | pure persistence of Y.Doc updates |
 | attachYjsLogReader | document/attach-yjs-log-reader.ts:59 | `(ydoc, { filePath })` | pure replay |
-| openCollaboration | document/open-collaboration.ts:158 | `(ydoc, { url, actions?, ... })` | doc-level sync; `actions` is optional and sub-docs pass `{}` |
+| openCollaboration | document/open-collaboration.ts:158 | `(ydoc, { url, ... })` | doc-level sync and presence |
 | attachDaemonInfrastructure | daemon/attach-daemon-infrastructure.ts:65 | `(ydoc, { projectDir, ownerId, deviceId, ..., actions })` | composes Y.Doc-level primitives + auth context |
 
 Callers pass `workspace.ydoc` to these. Sub-doc call sites are unchanged.

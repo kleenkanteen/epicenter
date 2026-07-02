@@ -46,11 +46,7 @@ export type DaemonRuntime = {
 	/** Called by the daemon at exit. */
 	[Symbol.asyncDispose](): MaybePromise<void>;
 
-	/**
-	 * The action registry this daemon serves locally. When `collaboration` is
-	 * present, this must be the same registry handed to `openCollaboration`, so
-	 * local runs and the published peer manifest stay in lockstep.
-	 */
+	/** The action registry this daemon serves locally. */
 	readonly actions: ActionRegistry;
 
 	/**
@@ -58,7 +54,7 @@ export type DaemonRuntime = {
 	 * presence live here when the mount participates in a collaborative Yjs
 	 * workspace.
 	 */
-	readonly collaboration?: Collaboration<ActionRegistry>;
+	readonly collaboration?: Collaboration;
 };
 
 /** One configured mount runtime hosted by the daemon. */

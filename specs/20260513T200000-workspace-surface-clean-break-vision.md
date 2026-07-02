@@ -3,7 +3,7 @@
 **Date**: 2026-05-13
 **Status**: Partially superseded
 **Landed**: flat action registry (under snake_case via `specs/20260513T231157-actions-snake-case-only-no-dots.md`); the script-vs-daemon overlap collapsed by deleting `apps/honeycrisp/blocks/script.ts`, `apps/opensidian/blocks/script.ts`, `apps/zhongwen/blocks/script.ts` and removing their jsrepo entries.
-**Reversed**: dot-path action keys (`'entries.create'`) became snake_case (`entries_create`); `attachYjsSync` was deleted and content docs now use `openCollaboration(ydoc, { actions: {} })` (see `packages/workspace/src/document/open-collaboration.ts:1-25, 71-74`).
+**Reversed**: dot-path action keys (`'entries.create'`) became snake_case (`entries_create`); `attachYjsSync` was deleted and content docs now use `openCollaboration(ydoc, config)` for sync and presence only.
 **Superseded (script-surfaces portion)**: the "Fuji-shape script as a per-app recipe" goal is replaced by `20260514T160000-script-surfaces-resolution.md`. The conclusion is sharper: no `script.ts` recipe for any app. Scripts read SQLite and write via `connectDaemonActions`.
 **Still live**: markdown link helpers exported from the root `@epicenter/workspace` barrel (`packages/workspace/src/index.ts:281-292`).
 **Related**: `20260514T170000-single-daemon-multi-workspace.md` (the daemon becomes one process hosting N workspace routes).
@@ -60,7 +60,6 @@ const collaboration = openCollaboration(doc.ydoc, {
 	waitFor: idb.whenLoaded,
 	openWebSocket,
 	identity: peer,
-	actions: createFujiActions(doc.tables),
 });
 ```
 
@@ -93,7 +92,7 @@ export function createFujiActions(tables: FujiTables) {
 Local calls use the same path the daemon, peers, CLI, and AI tools see:
 
 ```ts
-fuji.collaboration.actions['entries.create']({});
+fuji.actions['entries.create']({});
 
 await peer.invoke('entries.update', {
 	id,
@@ -178,13 +177,13 @@ Those helpers are useful, but they are markdown/editor format helpers. They do n
 ### Workspace Package
 
 ```txt
-@epicenter/workspace defines typed Yjs-backed workspace data and actions, then attaches persistence, local sync, WebSocket sync, awareness, encryption, and RPC to a caller-owned Y.Doc.
+@epicenter/workspace defines typed Yjs-backed workspace data and actions, then attaches persistence, local sync, WebSocket sync, presence, and caller-owned actions to a Y.Doc bundle.
 ```
 
 ### Collaboration
 
 ```txt
-Workspace docs expose live peers and remote actions; content docs sync quietly as leaves.
+Workspace docs expose live peers through collaboration and local actions through the workspace bundle; content docs sync quietly as leaves.
 ```
 
 ### Actions
@@ -256,7 +255,7 @@ Definition:
     -> { 'entries.create': defineMutation(...) }
 
 Local:
-  collaboration.actions['entries.create'](input)
+  workspace.actions['entries.create'](input)
 
 Boundary:
   invokeAction(actions['entries.create'], input, 'entries.create')
@@ -294,7 +293,7 @@ attachYjsSync()
 - [ ] Replace `walkActions(actions)` with `actionEntries(actions)`.
 - [ ] Replace `resolveActionPath(actions, path)` with direct lookup plus validation.
 - [ ] Make `describeActions(actions)` map flat keys directly to `ActionMeta`.
-- [ ] Update `openCollaboration` to publish `Object.keys(actions).sort()`.
+- [ ] Keep action publishing out of `openCollaboration`; actions live on the workspace bundle.
 - [ ] Update `run-handler.ts` suggestions to work from flat entries.
 - [ ] Update `actionsToAiTools` to derive tool names from flat dot paths.
 - [ ] Update `DaemonActions<T>` so flat action keys produce bracket-callable methods.
@@ -333,18 +332,18 @@ Examples:
 
 ```ts
 // Before
-fuji.collaboration.actions.entries.update({ id, title });
+fuji.actions.entries.update({ id, title });
 
 // After
-fuji.collaboration.actions['entries.update']({ id, title });
+fuji.actions['entries.update']({ id, title });
 ```
 
 ```ts
 // Before
-Parameters<typeof fuji.collaboration.actions.entries.update>[0]
+Parameters<typeof fuji.actions.entries.update>[0]
 
 // After
-Parameters<typeof fuji.collaboration.actions['entries.update']>[0]
+Parameters<typeof fuji.actions['entries.update']>[0]
 ```
 
 ### Phase 3: Prove Flat Actions
@@ -540,4 +539,3 @@ runtime request:
 - [ ] App `daemon.ts` files own Bun daemon runtime wiring.
 - [ ] App `script.ts` files either read snapshots and call daemon actions, or do not exist.
 - [ ] Markdown link helpers are imported from a link subpath, not the root workspace barrel.
-

@@ -21,7 +21,7 @@ This spec goes further: once you understand how actions are actually mediated to
 
 ### Actions already have two transports
 
-Actions are not "the daemon's private API." Any peer that calls `openCollaboration({ actions })` registers an `attachActionRunner` observer (`packages/workspace/src/document/rpc.ts:202-237`) and becomes a valid call target. Both the daemon (`apps/fuji/blocks/daemon-route.ts:54-60`) and the browser (`apps/fuji/src/routes/(signed-in)/fuji/browser.ts:94-101`) register the same `createFujiActions(tables)` registry.
+Actions are not "the daemon's private API." They live on the workspace or daemon runtime bundle and can be projected through local adapters. Both the daemon (`apps/fuji/blocks/daemon-route.ts:54-60`) and the browser (`apps/fuji/src/routes/(signed-in)/fuji/browser.ts:94-101`) register the same `createFujiActions(tables)` registry.
 
 Two transports route to the same registry:
 

@@ -125,12 +125,12 @@ again by wrapping the child cache:
 ```ts
 // apps/fuji/src/lib/workspace/browser.ts  (openFujiBrowser)  -- abbreviated
 const idb = attachLocalStorage(workspace.ydoc, { ... });                          // root storage
-const collaboration = openCollaboration(workspace.ydoc, { guid: workspace.ydoc.guid, actions: workspace.actions, ... }); // root sync
+const collaboration = openCollaboration(workspace.ydoc, { guid: workspace.ydoc.guid, ... }); // root sync
 
 const entryContentDocs = createDisposableCache((entryId) => {                     // wrap the iso cache
 	const contentDoc = workspace.entryContentDocs.open(entryId);
 	const childIdb = attachLocalStorage(contentDoc.ydoc, { ... });                // child storage
-	const childSync = openCollaboration(contentDoc.ydoc, { guid: contentDoc.ydoc.guid, actions: {}, ... }); // child sync
+	const childSync = openCollaboration(contentDoc.ydoc, { guid: contentDoc.ydoc.guid, ... }); // child sync
 	return { ...contentDoc, idb: childIdb, sync: childSync, [Symbol.dispose]() { contentDoc[Symbol.dispose](); } };
 });
 ```
@@ -262,8 +262,8 @@ attachWorkspaceProviders(workspace, attachDoc)
    docs.each(({ ydoc, role }) => attachDoc({ ydoc, role }))   <- root now + children on open
    keeps disposables; one async dispose tears all down
    |
-   +-- browser:  [ attachLocalStorage(ydoc), openCollaboration(ydoc, {guid, actions}) ]
-   +-- daemon:   [ attachYjsLog(ydoc, {docs/<guid>.db}), openCollaboration(ydoc, {guid, actions}) ]
+   +-- browser:  [ attachLocalStorage(ydoc), openCollaboration(ydoc, {guid}) ]
+   +-- daemon:   [ attachYjsLog(ydoc, {docs/<guid>.db}), openCollaboration(ydoc, {guid}) ]
 ```
 
 On-disk, flat by guid (the chosen layout):

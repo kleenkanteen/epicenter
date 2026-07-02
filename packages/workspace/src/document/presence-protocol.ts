@@ -10,7 +10,7 @@
  * Presence is liveness and participant identity, not capability
  * advertisement: the payload is each peer's `nodeId`, `connectedAt`, and
  * `agentId`. Action manifests and route catalogs are not presence; actions
- * live in the local registry, never on the wire.
+ * live on the workspace bundle, never on collaboration or the wire.
  *
  * Shared by the relay (`packages/server/src/room/core.ts`, the sender) and
  * the client (`open-collaboration.ts`, the reader).

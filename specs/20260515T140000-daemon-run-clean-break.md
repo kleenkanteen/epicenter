@@ -163,7 +163,7 @@ export async function executeRun(
   const route = runtimes.find((r) => r.route === routeName);
   if (!route) return DispatchError.ActionNotFound({ action: actionPath });
 
-  const action = route.runtime.collaboration.actions[localPath];
+  const action = route.runtime.actions[localPath];
   if (!action) return DispatchError.ActionNotFound({ action: actionPath });
 
   if (peerTarget !== undefined) {

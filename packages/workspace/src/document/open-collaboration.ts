@@ -13,16 +13,11 @@
  *                        identity: agent designation), sent once per connect.
  *
  * The Y.Doc holds durable workspace state; presence lives on the relay's
- * `connections` map.
- *
- * Content docs (rich-text bodies, attachments, nested independently-syncing
- * docs) use the same primitive with `actions: {}` as a local empty registry;
- * presence still flows in over the socket for online discovery.
+ * `connections` map. Actions live on the workspace bundle, not collaboration.
  */
 
 import type { Logger } from 'wellcrafted/logger';
 import type * as Y from 'yjs';
-import { ACTION_KEY_PATTERN, type ActionRegistry } from '../shared/actions.js';
 import {
 	createSyncSupervisor,
 	type OpenWebSocketFn,
@@ -52,7 +47,7 @@ export type { OpenWebSocketFn };
  */
 export type OnReconnectSignal = (fn: () => void) => () => void;
 
-export type OpenCollaborationConfig<TActions extends ActionRegistry> = {
+export type OpenCollaborationConfig = {
 	/**
 	 * WebSocket URL the supervisor connects to, used verbatim. Callers
 	 * build it via {@link roomWsUrl} (or any custom builder); the wire
@@ -83,14 +78,6 @@ export type OpenCollaborationConfig<TActions extends ActionRegistry> = {
 	 */
 	connectDeadlineMs?: number;
 	log?: Logger;
-	/**
-	 * Injected local action registry. The caller remains the registry owner;
-	 * Collaboration validates the action keys and exposes it as
-	 * `collaboration.actions`, the local callable surface. It is never
-	 * published in presence. Pass `{}` for content docs and consume-only
-	 * participants.
-	 */
-	actions: TActions;
 	/**
 	 * The catalog agent this peer answers as (ADR-0025), published in presence so
 	 * peers can see which agent ids are live. Set only by a resident agent mount
@@ -127,20 +114,10 @@ function withConnectDeadline(
 	});
 }
 
-export function openCollaboration<TActions extends ActionRegistry>(
+export function openCollaboration(
 	ydoc: Y.Doc,
-	config: OpenCollaborationConfig<TActions>,
+	config: OpenCollaborationConfig,
 ) {
-	const userActions = config.actions;
-
-	for (const key of Object.keys(userActions)) {
-		if (!ACTION_KEY_PATTERN.test(key)) {
-			throw new Error(
-				`Invalid action key "${key}". Action keys must match ${ACTION_KEY_PATTERN.source} (snake_case ASCII, starting with a letter, max 64 chars).`,
-			);
-		}
-	}
-
 	// Server-owned presence: the relay pushes the full peer list as a
 	// `presence` text frame on every membership or identity change. Each entry
 	// carries the peer's nodeId, connectedAt, and optional identity fields. The
@@ -227,10 +204,6 @@ export function openCollaboration<TActions extends ActionRegistry>(
 			: withConnectDeadline(supervisor.whenConnected, config.connectDeadlineMs);
 
 	return {
-		/** Local action registry exposed through this collaboration handle. */
-		get actions() {
-			return userActions;
-		},
 		/** Current sync lifecycle status. */
 		get status() {
 			return supervisor.status;
@@ -257,5 +230,4 @@ export function openCollaboration<TActions extends ActionRegistry>(
 	};
 }
 
-export type Collaboration<TActions extends ActionRegistry = ActionRegistry> =
-	ReturnType<typeof openCollaboration<TActions>>;
+export type Collaboration = ReturnType<typeof openCollaboration>;

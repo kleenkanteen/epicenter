@@ -17,7 +17,7 @@ Two parallel document primitives wrap one supervisor:
 
 ```ts
 // packages/workspace/src/document/open-collaboration.ts
-openCollaboration(ydoc, { identity, actions, url, ... }): Collaboration
+openCollaboration(ydoc, { identity, url, ... }): Collaboration
 
 // packages/workspace/src/document/attach-yjs-sync.ts
 attachYjsSync(ydoc, { url, ... }): YjsSyncAttachment   // hides 2 RPC methods
@@ -86,7 +86,7 @@ type Peer = {
 };
 
 // One document primitive; one workspace input
-openCollaboration(ydoc, { url, replica, actions: {} });
+openCollaboration(ydoc, { url, replica });
 openFujiBrowser({ replica, encryptionKeys, openWebSocket });
 ```
 
@@ -126,12 +126,12 @@ Investigation: what does `attachYjsSync` add vs `openCollaboration`?
 
 | Primitive | Supervisor config | Returns | Composes new surface |
 | --- | --- | --- | --- |
-| `openCollaboration` | awareness + RPC handlers | `Collaboration` | Yes: peers, identity, actions, `[Symbol.dispose]` |
+| `openCollaboration` | awareness | `Collaboration` | Yes: peers, identity, `[Symbol.dispose]` |
 | `attachYjsSync` | nothing extra | `YjsSyncAttachment` | No: forwards 5 lifecycle members |
 
 **Key finding**: `attachYjsSync` is 14 lines of pure type narrowing. The wrapper exists only to hide RPC methods.
 
-**Implication**: deleting `attachYjsSync` removes a file and a type but no behavior. Content docs become callers of `openCollaboration` with `actions: {}`.
+**Implication**: deleting `attachYjsSync` removes a file and a type but no behavior. Content docs become callers of `openCollaboration` with no action registry.
 
 ### Cache pattern
 
@@ -150,8 +150,8 @@ Investigation: does `createDisposableCache` earn its keep?
 | `subject` shape | 3 taste | `subject: string` (flat, not nested) | YAGNI: nest when a second field exists, not before |
 | `replica` shape | 2 coherence | `replica: { id, platform }` | `id` is install-stable, `platform` is install-property; same cohesion |
 | Drop `name` from identity | 2 coherence | Display data lives in a separate lookup (deferred to its own spec) | Display is mid-session mutable; identity is stable; conflating them breaks rename UX |
-| Delete `attachYjsSync` | 2 coherence | Content docs use `openCollaboration` with `actions: {}` | Wrapper composes nothing; one primitive collapses two surfaces |
-| `actions` default `{}` | 2 coherence | Optional with default | Content docs and consume-only peers don't need to pass an empty object |
+| Delete `attachYjsSync` | 2 coherence | Content docs use `openCollaboration` with no action registry | Wrapper composes nothing; one primitive collapses two surfaces |
+| Action ownership | 2 coherence | Workspace bundle | Content docs and consume-only peers do not pass an empty object |
 | Supervisor nullable handlers become required | 2 coherence | `awareness`, `onActionRequest`, `onRuntimeRequest` required | Follows from killing `attachYjsSync`; deletes scattered null-checks |
 | `actionPaths` stays top-level (not nested under `replica`) | 2 coherence | Top-level key | Consumed independently by peers surface; nesting adds an irrelevant dependency |
 | `presence` key in this spec | 2 coherence | Not added | Schema is per-key validated; adding a field later is one line, not a migration |
@@ -270,29 +270,29 @@ This wave is the one that needs the server-side reviewer per Open Question #1.
 
 ### Wave 3: `openCollaboration` config migration (Build)
 
-- [x] **3.1** `OpenCollaborationConfig` drops `identity`, gains `replica: Replica`. `actions` is optional and defaults to `{}` inside `openCollaboration`. `Collaboration.replica` replaces `Collaboration.identity` on the return type.
+- [x] **3.1** `OpenCollaborationConfig` drops `identity`, gains `replica: Replica`. Later cleanup removed the action registry from collaboration entirely; the registry now lives on the workspace bundle. `Collaboration.replica` replaces `Collaboration.identity` on the return type.
 - [x] **3.2** `openCollaboration` writes awareness with `{ replica, actionKeys }` (no client-side subject). The wire-level subject is stamped by the server on the envelope, not by the client.
 - [x] **3.3** `Peer` shape now has `clientID`, `subject`, `replica`, `actionKeys`, plus `invoke` / `describe`. The legacy `id` and `identity` fields are gone. `peers.find(replicaId)` matches against `replica.id`.
 - [x] **3.4** `createPeersSurface` takes the supervisor's `peerMetadata` as a parameter and joins it with the awareness payload at read time. The `peer.subject` field falls back to `""` when no envelope has arrived, so clients connected to a server that hasn't shipped attested envelopes degrade gracefully instead of throwing. Daemon `PeerSnapshot` was migrated to the new shape; CLI `peers` / `up` consumers read `subject` and `replica.id` (display names are deferred to a separate spec).
 
 ### Wave 4: Apps switch to `replica` (Build, Prove)
 
-- [x] **4.1** `openFujiBrowser`, `openHoneycrispBrowser`, `openOpensidianBrowser`, `openTabManagerBrowser` drop `peer: PeerIdentity` and take `replica: Replica`. Daemon `openCollaboration` calls in `apps/{fuji,honeycrisp,opensidian,zhongwen}/blocks/daemon-route.ts` pass `replica: { id: '<app>-daemon', platform: 'node' }`. (whispering does not currently call `openCollaboration`; opensidian daemon also drops the redundant `actions: {}` since it now defaults.)
+- [x] **4.1** `openFujiBrowser`, `openHoneycrispBrowser`, `openOpensidianBrowser`, `openTabManagerBrowser` drop `peer: PeerIdentity` and take `replica: Replica`. Daemon `openCollaboration` calls in `apps/{fuji,honeycrisp,opensidian,zhongwen}/blocks/daemon-route.ts` pass `replica: { id: '<app>-daemon', platform: 'node' }`. (whispering does not currently call `openCollaboration`; opensidian daemon also dropped the redundant empty action registry.)
 - [x] **4.2** Browser sessions construct replica id via `createReplicaId({ storage: localStorage })`. Tab-manager uses `createReplicaIdAsync({ storage: <chrome.storage adapter> })` and pairs the result with a `defaultName` ("Chrome on macOS" style) used purely to seed the device row, not the wire payload.
-- [x] **4.3** Opensidian's `browser.ts` no longer references `attachYjsSync` (the dead-import situation the spec called out was already cleaned up); the daemon block uses `openCollaboration` with the default empty actions registry.
+- [x] **4.3** Opensidian's `browser.ts` no longer references `attachYjsSync` (the dead-import situation the spec called out was already cleaned up); the daemon block uses `openCollaboration` without an action registry.
 - [x] **4.4** Tab-manager's chat path reads `tabManager.collaboration.replica` instead of `.identity`; `registerDevice` takes a `defaultName` argument and reads `replica.id` for the device-row key. The CLI `peers` table shows `subject` + `replicaId` instead of `peerId` + `name`; the daemon block in `up.ts` formats join/leave lines with `replica.id` and the envelope subject.
 - [x] **4.5** Workspace + api + sync test suites pass (645 + 59 + 49). All migrated apps typecheck clean (fuji, honeycrisp, opensidian, zhongwen, tab-manager). Smoke (server roundtrip) is deferred to a real run; the test forging `subject: 'attacker'` in the awareness payload (`sync-handlers.test.ts`) covers the protocol invariant unit-level.
 
 ### Wave 5: Verify clean break (Prove)
 
-- [~] **5.1** `attachYjsSync` still has callers in fuji/honeycrisp browser bundles (per-row content docs) and in `apps/{honeycrisp,opensidian,zhongwen}/blocks/script.ts` (daemon-side sync scripts). Wave 6 folds the call-site migration into the deletion pass (each caller switches to `openCollaboration(ydoc, { ..., actions: {} })` first, then the file goes).
+- [~] **5.1** `attachYjsSync` still has callers in fuji/honeycrisp browser bundles (per-row content docs) and in `apps/{honeycrisp,opensidian,zhongwen}/blocks/script.ts` (daemon-side sync scripts). Wave 6 folds the call-site migration into the deletion pass (each caller switches to `openCollaboration(ydoc, config)` first, then the file goes).
 - [x] **5.2** `PeerIdentity` only survives inside `packages/workspace/src/document/peer-identity.ts` and its one re-export in `packages/workspace/src/index.ts`; no app references remain.
 - [x] **5.3** `peer:` in workspace constructor arguments: zero remaining call sites (`openFujiBrowser`, `openHoneycrispBrowser`, `openOpensidianBrowser`, `openTabManagerBrowser` all take `replica:`).
 - [ ] **5.4** Devtools wire check is a manual smoke deferred to the user. Protocol-level forgery resistance is covered by `sync-handlers.test.ts` ("broadcast envelope stamps room.subject, ignoring any subject the client encoded inside the payload").
 
 ### Wave 6: Delete old paths (Remove)
 
-- [x] **6.1** Deleted `packages/workspace/src/document/attach-yjs-sync.ts` (and its smoke test). Every caller migrated to `openCollaboration(ydoc, { ..., actions: {} })`: fuji + honeycrisp browser content docs reuse the parent's `replica`, daemon scripts (`apps/{honeycrisp,opensidian,zhongwen}/blocks/script.ts`) pass a `'{app}-script'` node replica.
+- [x] **6.1** Deleted `packages/workspace/src/document/attach-yjs-sync.ts` (and its smoke test). Every caller migrated to `openCollaboration(ydoc, config)`: fuji + honeycrisp browser content docs reuse the parent's `replica`, daemon scripts (`apps/{honeycrisp,opensidian,zhongwen}/blocks/script.ts`) pass a `'{app}-script'` node replica.
 - [x] **6.2** `SyncSupervisorConfig` makes `awareness`, `onActionRequest`, `onRuntimeRequest` required. Removed every `?? null` indirection and the `if (!awareness)` / `if (!handler)` guards from `sync-supervisor.ts`. `dispatchIncomingRequest` no longer takes an `errorLabel`/fallback path.
 - [x] **6.3** `websocketUrl` moved out of `sync-supervisor.ts` to `packages/workspace/src/document/transport.ts`; re-exported from the package root.
 - [x] **6.4** Dropped the `SelfInvocationError` wire fallback in `open-collaboration.ts`. The peers surface still filters self by `replica.id`, so the only path that could have hit the fallback (stale clientID reference, test injection) now relies on caller hygiene. The `SelfInvocationError` type, its `RemoteCallError` membership, the CLI rendering branch, and the corresponding cli test were all removed.
@@ -378,7 +378,7 @@ No special workspace-internal wiring needed: auth-state changes are an applicati
 - [ ] `SyncSupervisorConfig`: `awareness`, `onActionRequest`, `onRuntimeRequest` are required. Null-checks on these fields in `sync-supervisor.ts` are deleted.
 - [ ] Awareness payload validates against `peerAwarenessSchema = { replica, actionPaths }`. No `subject` in the payload.
 - [ ] Server stamps `subject` on the envelope from the auth session. A test confirms a client-forged subject in the payload is ignored.
-- [ ] `openCollaboration` accepts `actions` as optional, defaults to `{}`. Content docs construct it without `actions`.
+- [ ] Actions are removed from `openCollaboration`. Content docs construct it without `actions`.
 - [ ] `websocketUrl` is no longer exported from `sync-supervisor.ts`.
 - [ ] `SelfInvocationError` wire fallback in `open-collaboration.ts` is removed.
 - [ ] Workspace package typechecks. Full test suite passes.

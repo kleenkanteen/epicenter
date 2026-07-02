@@ -13,8 +13,8 @@
  * once at root open and persisted under `.epicenter/`) is the relay's routing id
  * and the seed for the Y.Doc `clientID`. The owner and transport refs come from
  * `ctx.session`. The mount name is a label only, never an identity seed. The
- * caller supplies what is genuinely its own: the sync `baseURL`, its `actions`
- * choice, and any materializers.
+ * caller supplies what is genuinely its own: the sync `baseURL`, its local
+ * `actions` choice, and any materializers.
  *
  * The `actions` choice stays explicit so a mount cannot accidentally serve the
  * wrong set: app workspaces with browser-only actions pass `{}` to refuse them
@@ -85,7 +85,6 @@ export function attachMountInfrastructure<TActions extends ActionRegistry>(
 		}),
 		openWebSocket: ctx.session.openWebSocket,
 		onReconnectSignal: ctx.session.onReconnectSignal,
-		actions,
 		agentId,
 	});
 

@@ -16,19 +16,20 @@
 >
 > **Regenerate (deterministic per ref set, lossless):** `bun scripts/generate-spec-history.ts`. The totals track the refs this clone can see; `--all` is deliberate so the timeline recovers specs that only lived on unmerged or deleted branches.
 
-**1323 specs ever** (570 still in tree, 753 removed).
+**1324 specs ever** (569 still in tree, 755 removed).
 
 
 ## 2026
 
 | Date | Spec | State | Path |
 |------|------|-------|------|
-| 2026-07-02 | daemon-role-after-relay-channel-deletion | in tree | specs/20260702T233000-daemon-role-after-relay-channel-deletion.md |
-| 2026-07-02 | relay-channel-layer-deletion | removed | specs/20260702T210000-relay-channel-layer-deletion.md |
+| 2026-07-02 | daemon-role-after-relay-channel-deletion | removed | specs/20260702T233000-daemon-role-after-relay-channel-deletion.md |
 | 2026-07-02 | identity-is-the-partition | removed | specs/20260702T000000-identity-is-the-partition.md |
+| 2026-07-02 | relay-channel-layer-deletion | removed | specs/20260702T210000-relay-channel-layer-deletion.md |
 | 2026-07-02 | ungated-durable-local-open | in tree | specs/20260702T014940-ungated-durable-local-open.md |
 | 2026-07-02 | one-preset-shape-and-derived-migration-guids | removed | specs/20260702T001604-one-preset-shape-and-derived-migration-guids.md |
 | 2026-07-01 | super-chat-canonicalization-handoff | in tree | specs/20260701T235243-super-chat-canonicalization-handoff.md |
+| 2026-07-01 | local-mail-phase-2-engine | removed | specs/20260701T140000-local-mail-phase-2-engine.md |
 | 2026-07-01 | api-keyring-and-vault-wiring | in tree | specs/20260701T150000-api-keyring-and-vault-wiring.md |
 | 2026-07-01 | progressive-sign-in-collapse | removed | specs/20260701T151347-progressive-sign-in-collapse.md |
 | 2026-07-01 | progressive-sign-in-collapse.prompt | removed | specs/20260701T151347-progressive-sign-in-collapse.prompt.md |
@@ -39,6 +40,7 @@
 | 2026-06-30 | super-app-desktop-host-build-plan | in tree | specs/20260630T190000-super-app-desktop-host-build-plan.md |
 | 2026-06-30 | local-mail-tauri-cdc-mirror.handoff | in tree | specs/20260630T150000-local-mail-tauri-cdc-mirror.handoff.md |
 | 2026-06-30 | local-mail-tauri-cdc-mirror | in tree | specs/20260630T150000-local-mail-tauri-cdc-mirror.md |
+| 2026-06-30 | capability-plane-greenfield-buildout | removed | specs/20260630T120000-capability-plane-greenfield-buildout.md |
 | 2026-06-27 | extract-recorder-vad-package | removed | specs/20260627T005829-extract-recorder-vad-package.md |
 | 2026-06-27 | credential-identity-and-shared-secrets-facade | removed | specs/20260627T230812-credential-identity-and-shared-secrets-facade.md |
 | 2026-06-27 | whispering-optional-unified-auth | in tree | specs/20260627T221642-whispering-optional-unified-auth.md |
@@ -80,7 +82,6 @@
 | 2026-06-17 | table-vault-classification | removed | apps/matter/specs/20260617T152631-table-vault-classification.md |
 | 2026-06-17 | brand-asset-pipeline | in tree | specs/20260617T100000-brand-asset-pipeline.md |
 | 2026-06-17 | v2-coding-actor-sandbox-and-harness | removed | specs/20260617T235900-v2-coding-actor-sandbox-and-harness.md |
-| 2026-06-16 | whispering-runtime-projection | removed | specs/20260616T180000-whispering-runtime-projection.md |
 | 2026-06-16 | pause-playback-while-recording | removed | apps/whispering/specs/20260616T180000-pause-playback-while-recording.md |
 | 2026-06-16 | always-on-actors-over-synced-docs | removed | specs/20260616T225034-always-on-actors-over-synced-docs.md |
 | 2026-06-16 | actors-buildout.tracker | removed | specs/20260616T225034-actors-buildout.tracker.md |
