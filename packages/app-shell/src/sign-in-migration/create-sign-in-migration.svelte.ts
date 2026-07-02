@@ -115,9 +115,7 @@ function copyTable<TRow extends { id: string }>(
 }
 
 /** Child-doc guids for every staged row, derived from the source schema. */
-function deriveChildGuids<TTables extends Record<string, MigratableTable>>(
-	tables: TTables,
-): string[] {
+function deriveChildGuids(tables: Record<string, MigratableTable>): string[] {
 	return Object.values(tables).flatMap((table) =>
 		Object.values(table.docs).flatMap((field) =>
 			table.scan().rows.map((row) => field.guid(row.id)),
