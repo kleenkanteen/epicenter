@@ -182,18 +182,9 @@ function printOutcome(db: MailDb, outcome: SyncOutcome): void {
 	console.log(JSON.stringify(outcome, null, 2));
 	if (outcome.failure) return;
 
-	const counts = db.raw
-		.query<{ n: number }, []>(
-			`SELECT count(*) AS n FROM messages WHERE deleted = 0`,
-		)
-		.get();
-	const sample = db.raw
-		.query<{ subject: string | null; sender: string | null }, []>(
-			`SELECT subject, sender FROM messages WHERE deleted = 0 ORDER BY internal_date DESC LIMIT 5`,
-		)
-		.all();
-	console.log(`\n${counts?.n ?? 0} live messages mirrored. Most recent:`);
-	for (const row of sample) {
+	const { messages } = db.counts();
+	console.log(`\n${messages} live messages mirrored. Most recent:`);
+	for (const row of db.recentMessages(5)) {
 		console.log(
 			`  ${row.sender ?? '(unknown)'}: ${row.subject ?? '(no subject)'}`,
 		);

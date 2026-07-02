@@ -251,6 +251,18 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 	);
 	const deleteLabelsStmt = db.query(`DELETE FROM labels`);
 	const labelIdsStmt = db.query<{ id: string }, []>(`SELECT id FROM labels`);
+	const liveMessageCountStmt = db.query<{ n: number }, []>(
+		`SELECT count(*) AS n FROM messages WHERE deleted = 0`,
+	);
+	const labelCountStmt = db.query<{ n: number }, []>(
+		`SELECT count(*) AS n FROM labels`,
+	);
+	const recentMessagesStmt = db.query<
+		{ subject: string | null; sender: string | null },
+		[number]
+	>(
+		`SELECT subject, sender FROM messages WHERE deleted = 0 ORDER BY internal_date DESC LIMIT ?`,
+	);
 
 	function readRealmState(): RealmState {
 		return {
@@ -272,10 +284,28 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 	}
 
 	return {
-		/** Escape hatch for ad-hoc queries (tests, diagnostics). */
+		/**
+		 * Escape hatch for tests and diagnostics only. Production reads go
+		 * through the read models below or the readonly opener; the ad-hoc SQL
+		 * product surface is the `query` verb, not this handle.
+		 */
 		raw: db,
 
 		readRealmState,
+
+		counts(): { messages: number; labels: number } {
+			return {
+				messages: liveMessageCountStmt.get()?.n ?? 0,
+				labels: labelCountStmt.get()?.n ?? 0,
+			};
+		},
+
+		/** Live messages, newest first, for post-pass reporting. */
+		recentMessages(
+			limit: number,
+		): { subject: string | null; sender: string | null }[] {
+			return recentMessagesStmt.all(limit);
+		},
 
 		knownLabelIds(): Set<string> {
 			return new Set(labelIdsStmt.all().map((row) => row.id));

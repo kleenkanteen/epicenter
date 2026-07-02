@@ -255,6 +255,38 @@ describe('full pull page ingestion', () => {
 		cleanup();
 	});
 
+	test('counts and recentMessages read live rows, newest first', () => {
+		const { db, cleanup } = openTmp();
+		db.ingestFullPullPage(
+			[
+				message({ id: 'older', internalDate: '999', payload: {
+					headers: [{ name: 'Subject', value: 'Older subject' }],
+				} }),
+				message({ id: 'newest', internalDate: '1000', payload: {
+					headers: [{ name: 'Subject', value: 'Newest subject' }],
+				} }),
+			],
+			's1',
+		);
+		db.ingestLabels([{ id: 'INBOX', name: 'INBOX', type: 'system' }], 's1');
+
+		expect(db.counts()).toEqual({ messages: 2, labels: 1 });
+		expect(db.recentMessages(1)[0]?.subject).toBe('Newest subject');
+
+		db.applyHistoryBatch({
+			messagesToUpsert: [],
+			messagesToDelete: ['newest'],
+			labelPatches: [],
+			newHistoryId: '700',
+			syncedAt: 's2',
+		});
+		expect(db.counts().messages).toBe(1);
+		expect(db.recentMessages(5).map((row) => row.subject)).toEqual([
+			'Older subject',
+		]);
+		cleanup();
+	});
+
 	test('creates data and account dirs as 0700 and db files as 0600', () => {
 		const tmp = tempDir();
 		chmodSync(tmp.dir, 0o755);
