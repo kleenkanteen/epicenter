@@ -69,8 +69,14 @@ Let tool files import runtime helpers directly: rejected because compiled
 sidecars and vendored source make module resolution brittle, and duplicate
 TypeBox copies can make schema behavior drift.
 
-Use Pi-style virtual modules: rejected for now because factory injection gives
-the same author capability with less resolver machinery.
+Use Pi-style virtual modules: rejected. A later review of Pi itself grounded
+this: Pi's own extension contract is a default-exported factory that receives a
+host API object, which validates `ToolHost`-style injection as the author-facing
+shape. What we decline is Pi's jiti/virtual-module loader machinery, because
+this ADR intentionally keeps tool files free of ambient runtime imports; a
+resolver that intercepts them would reintroduce exactly that surface. Revisit
+only if Super Chat tools must run untrusted code or import arbitrary
+third-party runtime packages.
 
 Require every module to return a `ToolCatalog`: rejected because most tools are
 ordinary actions. Returning an action registry keeps the common path small while
