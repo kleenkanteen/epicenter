@@ -56,7 +56,7 @@ Content docs (rich-text bodies, attachments, anything nested that syncs independ
 | `textPort`        | Raw text-frame port; the relay-channel floor builds blind MCP channels on top |
 | `[Symbol.dispose]`| Sugar for `ydoc.destroy()`; cascades through every attachment      |
 
-`peers.list()` returns `Peer[]`, where each peer carries `{ nodeId, connectedAt, agentId?, exposedRoutes? }` plus an optional legacy `actions` field while old deployments roll forward. Local `collaboration.actions` remains the app's callable registry. Presence no longer publishes that registry. `exposedRoutes` lists the relay-floor MCP route names that peer serves with `relay: 'exposed'` (a daemon's opted-in gateway routes, for example `['books']`); a signed-in client reads it to discover which devices to auto-mount as cross-device tool catalogs.
+`peers.list()` returns `Peer[]`, where each peer carries `{ nodeId, connectedAt, agentId?, exposedRoutes? }`. Local `collaboration.actions` remains the app's callable registry; presence never publishes it. `exposedRoutes` lists the relay-floor MCP route names that peer serves with `relay: 'exposed'` (a daemon's opted-in gateway routes, for example `['books']`); a signed-in client reads it to discover which devices to auto-mount as cross-device tool catalogs.
 
 ## The wire: one socket, three channels
 
@@ -89,7 +89,6 @@ type PresenceFrame = {
 type Peer = {
     nodeId: string;
     connectedAt: number;
-    actions?: ActionManifest;  // legacy wire field, always empty until removed
     agentId?: string;          // set only by a resident agent mount (ADR-0025)
     exposedRoutes?: string[];  // relay-floor MCP route names served with `relay: 'exposed'`
 };
@@ -107,7 +106,6 @@ Nodes publish their presence identity with one client-to-server frame on every (
 ```ts
 type PresencePublishFrame = {
     type: 'presence_publish';
-    actions?: ActionManifest;  // legacy wire field, always empty until removed
     agentId?: string;
     exposedRoutes?: string[];
 };
@@ -115,7 +113,7 @@ type PresencePublishFrame = {
 
 The relay stores the identity against the sending socket's connection attachment (so it survives Cloudflare hibernation via `serializeAttachment`) and rebroadcasts presence so peers see the update.
 
-`openCollaboration` no longer publishes the action registry. It still sends `actions: {}` during the compatibility wave so older readers that require the field keep validating; after that deployment wave, the field can be deleted from the presence wire entirely.
+`openCollaboration` never publishes the action registry; the wire carries no action manifest (ADR-0073 deleted the in-room dispatch subsystem, and the compatibility field was removed once deployed readers stopped requiring it).
 
 #### Why server-owned, not awareness
 

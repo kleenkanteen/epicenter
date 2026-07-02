@@ -637,9 +637,8 @@ const unsubscribe = workspace.collaboration.peers.subscribe((peers) => {
 });
 ```
 
-Each entry is a `Peer` (`{ nodeId, connectedAt, agentId?, exposedRoutes? }`,
-plus an optional legacy `actions` field during the removal wave); the local
-install is excluded. Product-level data (display name, cursor, capability list)
+Each entry is a `Peer` (`{ nodeId, connectedAt, agentId?, exposedRoutes? }`);
+the local install is excluded. Product-level data (display name, cursor, capability list)
 lives in app-owned tables, not on the presence wire. See
 [SYNC_ARCHITECTURE.md](./SYNC_ARCHITECTURE.md) for the full model.
 
