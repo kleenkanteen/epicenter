@@ -29,6 +29,19 @@ Boot fails closed if `INSTANCE_TOKEN` is missing or too weak, and the error name
 
 A static bearer over plaintext HTTP is total compromise: anyone who sees one request can capture the token and replay it forever. Terminate TLS in front of the box (Caddy, nginx, a Cloudflare Tunnel) and serve the instance over HTTPS. A homelab on a trusted LAN behind its own boundary is your call, but the moment the box is reachable over the open internet, plain `http://` hands out the keys.
 
+### Redact WebSocket protocol headers
+
+Sync room WebSockets carry the instance bearer in `Sec-WebSocket-Protocol`
+during the upgrade. The server strips that token from the protocol it echoes
+back, but any reverse proxy in front of the instance can still log the incoming
+header. Caddy access logs, for example, redact `Authorization` and `Cookie` but
+not `Sec-WebSocket-Protocol` by default.
+
+If you enable access logs, either omit request headers from the log or redact
+`Sec-WebSocket-Protocol` explicitly. Treat a captured value the same way you
+would treat a leaked `Authorization` bearer: rotate `INSTANCE_TOKEN`, restart
+the instance, and redistribute the new token.
+
 ## Running on Cloudflare
 
 The same `@epicenter/server` composition runs as a Worker (`worker/index.ts`). It works because you supply the secret; there is no first-boot minting that would tie the instance to a single Bun process. Set the token, then deploy:
@@ -68,15 +81,15 @@ SPA, no `mountCloudAuth`. Bun reads the token once at boot and runs the entropy
 gate there:
 
 ```ts
-const token = assertStrongToken(env.INSTANCE_TOKEN);     // fail closed if weak
-const resolvePrincipal = createEnvTokenResolver(token);  // one bearer
-const auth = requireBearerPrincipal(resolvePrincipal);   // every surface
+const token = assertStrongToken(env.INSTANCE_TOKEN);            // fail closed if weak
+const resolveBearerPrincipal = createEnvTokenResolver(token);   // one bearer
+const auth = requireBearerPrincipal(resolveBearerPrincipal);    // every surface
 const app = createServerApp({
-  runtime: bun({ rooms }),                               // no db leg, no Postgres
+  runtime: bun({ rooms }),                                      // no db leg, no Postgres
   identity: { resolveOrigin, resolveTrustedOrigins },
 });
 mountSessionApp(app, { auth });
-mountRoomsApp(app, { resolvePrincipal });                // WS-aware, takes the resolver
+mountRoomsApp(app, { resolveBearerPrincipal });                 // WS-aware, takes the resolver
 mountInferenceApp(app, {
   auth,
   policies: [rateLimit({ requests: 120, windowSeconds: 60 })], // burn-rate floor
@@ -87,11 +100,11 @@ Cloudflare reads the per-request secret at the edge instead, running the same
 entropy gate per request (a Worker has no boot phase):
 
 ```ts
-const resolvePrincipal = (c) =>
+const resolveBearerPrincipal: ResolveBearerPrincipal = (c, bearer) =>
   createEnvTokenResolver(
     assertStrongToken((c.env as Cloudflare.Env).INSTANCE_TOKEN),
-  )(c);
-const auth = requireBearerPrincipal(resolvePrincipal);
+  )(c, bearer);
+const auth = requireBearerPrincipal(resolveBearerPrincipal);
 // ...createServerApp({ runtime, identity }), same session + rooms + inference mounts
 ```
 
@@ -107,5 +120,6 @@ The escape, when that pain is real, is named per-person tokens: a hashed token r
 
 - [ADR-0075](../../docs/adr/0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) for why an instance is one partition behind one bearer
 - [ADR-0076](../../docs/adr/0076-the-relational-auth-substrate-is-a-cloud-only-layer-the-instance-composes-neither.md) for why the instance composes no Better Auth and no Postgres
+- [ADR-0095](../../docs/adr/0095-websocket-room-auth-uses-route-owned-subprotocol-bearers.md) for why sync WebSockets carry the bearer as a route-owned subprotocol
 - `apps/api` for the hosted personal cloud variant (OAuth, per-user partitions, billing)
 - `packages/server` for the shared library both deployables compose

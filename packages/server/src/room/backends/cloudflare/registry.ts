@@ -8,6 +8,7 @@
  * touches `c.env.ROOM` directly.
  */
 
+import { MAIN_SUBPROTOCOL } from '@epicenter/sync';
 import type { ResolvedRoom, Rooms } from '../../contracts';
 import type { Room } from './durable-object';
 
@@ -54,10 +55,16 @@ export function createDurableObjectRooms(
 		 * detached socket pair, accepts the server half, and closes it with
 		 * `code`/`reason` so the browser receives a readable close code. This is
 		 * a Worker-level reject: no Durable Object is instantiated for an
-		 * unauthenticated upgrade, and `request` is unused (the pair needs no
-		 * inbound request). `WebSocketPair` is the Cloudflare-only global that
-		 * makes a detached pair; it lives here, in the Cloudflare backend, never
-		 * in shared auth code (ADR-0066).
+		 * unauthenticated upgrade. `WebSocketPair` is the Cloudflare-only global
+		 * that makes a detached pair; it lives here, in the Cloudflare backend,
+		 * never in shared auth code (ADR-0066).
+		 *
+		 * The 101 must echo the main subprotocol: a compliant browser that
+		 * offered subprotocols fails the connection when the 101 selects none,
+		 * which would swallow the close code and make a 4401 park signal look
+		 * like a network blip. The auth layer only takes this socket-close path
+		 * for clients that offered the main subprotocol, so echoing it
+		 * unconditionally is always a valid selection.
 		 */
 		rejectUpgrade: ({ code, reason }) => {
 			const pair = new WebSocketPair();
@@ -65,7 +72,11 @@ export function createDurableObjectRooms(
 			server.accept();
 			server.close(code, reason);
 			return Promise.resolve(
-				new Response(null, { status: 101, webSocket: client }),
+				new Response(null, {
+					status: 101,
+					webSocket: client,
+					headers: { 'sec-websocket-protocol': MAIN_SUBPROTOCOL },
+				}),
 			);
 		},
 	} satisfies Rooms;

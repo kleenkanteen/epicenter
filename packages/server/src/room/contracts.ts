@@ -130,11 +130,17 @@ export type ResolvedRoom = {
 
 /**
  * The identity and request a backend needs to accept one WebSocket upgrade.
- * `request` is the untouched inbound request (the Bun backend upgrades it in
- * place; the Cloudflare backend forwards a principalId-stamped copy to its DO).
- * `principalId` is the authenticated principal stamped server-side; `nodeId` is
- * the client's own address the relay routes by, validated present at the route
- * boundary.
+ * `request` is the untouched inbound request with its runtime identity intact:
+ * nothing upstream rewrites `c.req.raw`, because Bun's `server.upgrade` only
+ * accepts the exact object its `fetch` handler received (the Cloudflare
+ * backend forwards a principalId-stamped copy to its DO instead, which is fine
+ * there: Cloudflare matches the socket by the DO it routes to, not by
+ * request-object identity). `principalId` is the authenticated principal
+ * stamped server-side; `nodeId` is the client's own address the relay routes
+ * by, validated present at the route boundary. The route also guarantees the
+ * request offered either the main subprotocol or no subprotocols at all, so a
+ * backend echoing only the main subprotocol never breaks a handshake and never
+ * echoes a `bearer.<token>` entry.
  */
 export type RoomUpgrade = {
 	request: Request;
@@ -144,8 +150,12 @@ export type RoomUpgrade = {
 
 /**
  * What a backend needs to reject one WebSocket upgrade with an application
- * close code. `request` is the untouched inbound request; `code`/`reason` are
- * the app close (4000-4999) and its serialized payload.
+ * close code. `request` is the untouched inbound request (same identity
+ * guarantee as {@link RoomUpgrade}); `code`/`reason` are the app close
+ * (4000-4999) and its serialized payload. The auth layer only takes this path
+ * for upgrades that offered the main subprotocol, so the backend's 101 always
+ * echoes it: a compliant browser fails the handshake (and never surfaces the
+ * close code) when a 101 selects no protocol it offered.
  */
 export type RoomUpgradeRejection = {
 	request: Request;

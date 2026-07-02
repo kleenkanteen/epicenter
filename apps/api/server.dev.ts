@@ -4,7 +4,7 @@
  * surfaces without Google OAuth or a forged session.
  *
  * It boots the SAME {@link startBunApiServer} production uses, passing only the
- * dev `resolvePrincipal`. This is the ONLY file that imports the credential bypass
+ * dev `resolveBearerPrincipal`. This is the ONLY file that imports the credential bypass
  * ({@link resolveDevPrincipal}); the production entrypoints (`worker/index.ts`,
  * `server.ts`) never do, so the bypass cannot ship. Run it explicitly
  * (`bun server.dev.ts`, or `bun run dev:bun:devauth`); never wire it into a
@@ -22,4 +22,4 @@ console.warn(
 	'apps/api (Bun) DEV AUTH: Bearer dev:<principalId> resolves a synthetic principal on localhost. Never run this in production.',
 );
 
-startBunApiServer({ resolvePrincipal: resolveDevPrincipal });
+startBunApiServer({ resolveBearerPrincipal: resolveDevPrincipal });

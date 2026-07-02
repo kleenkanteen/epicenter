@@ -21,7 +21,7 @@
  */
 
 // The single-partition instance's bearer resolver (self-host; ADR-0075): the
-// `ResolvePrincipal` a Bun instance injects (`createEnvTokenResolver(token)`).
+// `ResolveBearerPrincipal` a Bun instance injects (`createEnvTokenResolver(token)`).
 // The pure generator + boot entropy gate (`generateInstanceToken` /
 // `assertStrongToken`) live in `@epicenter/auth`.
 export { createEnvTokenResolver } from './auth/instance-token.js';
@@ -56,5 +56,5 @@ export { createServerApp, type Identity } from './server-app.js';
 // process config and any secrets it re-requires).
 export { ServerBindings } from './server-bindings.js';
 // Public Hono context types: the portable `Env`, the cloud's `CloudEnv`, and the
-// `ResolvePrincipal<E>` seam the dev Bun entry closes its wrapper over for the smoke.
-export type { CloudEnv, Env, ResolvePrincipal } from './types.js';
+// `ResolveBearerPrincipal<E>` seam the dev Bun entry closes its wrapper over for the smoke.
+export type { CloudEnv, Env, ResolveBearerPrincipal } from './types.js';

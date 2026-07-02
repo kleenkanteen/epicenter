@@ -132,8 +132,16 @@ export type SyncAuthClient = AuthClient & {
 	 * Open a WebSocket using the same bearer boundary as `fetch`.
 	 *
 	 * Browsers cannot set `Authorization` on WebSocket upgrades, so the token is
-	 * carried as an Epicenter bearer subprotocol and normalized by the API before
-	 * protected route code runs.
+	 * carried as an Epicenter bearer subprotocol; the rooms route extracts it at
+	 * the upgrade and the server echoes only the main subprotocol back.
+	 *
+	 * Resolves only with a credentialed socket. When no usable bearer can be
+	 * attached it rejects with an `OpenWebSocketDenial` (`@epicenter/sync`)
+	 * instead of opening a socket doomed to a server 4401: `'permanent'`
+	 * (signed out, reauth required) means only an auth state change can help;
+	 * `'transient'` means verification was unreachable and a retry may
+	 * succeed. Waits for in-flight machine work (token refresh, `/api/session`
+	 * verification), never for a human.
 	 */
 	openWebSocket(url: string | URL, protocols?: string[]): Promise<WebSocket>;
 };

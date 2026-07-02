@@ -15,7 +15,7 @@
  */
 
 // The single-partition instance's bearer resolver (self-host; ADR-0075). The
-// deployment injects `createEnvTokenResolver(secret)` as its `ResolvePrincipal`.
+// deployment injects `createEnvTokenResolver(secret)` as its `ResolveBearerPrincipal`.
 // The pure generator + boot entropy gate (`generateInstanceToken`
 // / `assertStrongToken`) live in `@epicenter/auth`.
 export { createEnvTokenResolver } from './auth/instance-token.js';
@@ -88,6 +88,6 @@ export { createServerApp, type Identity } from './server-app.js';
 // apps/api); a Bun host validates `process.env` with the schema at boot.
 export { ServerBindings } from './server-bindings.js';
 // Public Hono context types: the portable `Env` (both deployments), the cloud's
-// `CloudEnv` (Env + Better Auth/Postgres state), and the `ResolvePrincipal<E>`
+// `CloudEnv` (Env + Better Auth/Postgres state), and the `ResolveBearerPrincipal<E>`
 // seam the deployment closes its auth wrappers over.
-export type { CloudEnv, Env, ResolvePrincipal } from './types.js';
+export type { CloudEnv, Env, ResolveBearerPrincipal } from './types.js';
