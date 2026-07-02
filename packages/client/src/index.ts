@@ -61,7 +61,7 @@ export type EpicenterClientOptions = {
 // Blob types (content-addressed store; mirror the server response shapes)
 // ---------------------------------------------------------------------------
 
-/** One row of the owner's blob listing (`GET /blobs`). */
+/** One row of the current principal's blob listing (`GET /blobs`). */
 export type BlobRow = { sha256: string; size: number; uploaded: string };
 
 /** Result of the client's `blobs.add`. */

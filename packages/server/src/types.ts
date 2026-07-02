@@ -20,11 +20,11 @@ import type { ServerBindings } from './server-bindings.js';
 /**
  * How a request resolves to the calling principal: the one auth seam.
  *
- * The surface wrappers (`requireCookieOrBearerUser`, the rooms bearer with its
- * WebSocket-reject path, `requireBearerUser`) differ only in whether they
+ * The surface wrappers (`requireCookieOrBearerPrincipal`, the rooms bearer with its
+ * WebSocket-reject path, `requireBearerPrincipal`) differ only in whether they
  * consult the cookie and how they surface a failure; the principal resolution
  * itself is this single function. The deployment builds each wrapper by closing
- * it over its resolver (`requireBearerUser(resolvePrincipal)`), so the resolver
+ * it over its resolver (`requireBearerPrincipal(resolvePrincipal)`), so the resolver
  * is held in the wrapper's closure, not stamped on the context: there is no
  * `c.var.resolvePrincipal`.
  *

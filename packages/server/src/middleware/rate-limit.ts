@@ -37,7 +37,7 @@ function openAiError(
 }
 
 export function rateLimit<E extends Env = Env>(opts: {
-	/** Max requests allowed per owner partition within one window. */
+	/** Max requests allowed per principal partition within one window. */
 	requests: number;
 	/** Window length in seconds; the count resets when it elapses. */
 	windowSeconds: number;

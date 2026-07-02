@@ -8,7 +8,7 @@ Bilingual Chinese-English chat app for learning Mandarin. Users ask questions in
 
 **Markdown + pinyin**: Settled assistant messages render through `@epicenter/ui/markdown`. Vocab injects `pinyinRomanizer` from `src/lib/romanize/pinyin.ts`, which segments Chinese runs with `pinyin-pro`; the shared Markdown component owns sanitization, markdown rendering, and `<ruby>` output.
 
-**Workspace state**: `vocabWorkspace` in `vocab.ts` is the shared isomorphic definition. It defines `epicenter-vocab`, the `conversations` table (the cheap list: title and timestamps), the `conversations.messages` child doc as a per-id LWW message store (`attachRecords<VocabMessage>`), the `showPinyin` KV value, the Vocab model constant, and the `VocabMessage` shape. Transcripts are not a table; they are per-conversation child docs opened as `vocab.tables.conversations.docs.messages.open(conversationId)`. `openVocabBrowser()` reads auth once at boot: signed out uses bare local IndexedDB storage, signed in uses owner-scoped storage plus relay sync.
+**Workspace state**: `vocabWorkspace` in `vocab.ts` is the shared isomorphic definition. It defines `epicenter-vocab`, the `conversations` table (the cheap list: title and timestamps), the `conversations.messages` child doc as a per-id LWW message store (`attachRecords<VocabMessage>`), the `showPinyin` KV value, the Vocab model constant, and the `VocabMessage` shape. Transcripts are not a table; they are per-conversation child docs opened as `vocab.tables.conversations.docs.messages.open(conversationId)`. `openVocabBrowser()` reads auth once at boot: signed out uses bare local IndexedDB storage, signed in uses principal-scoped storage plus relay sync.
 
 ```txt
 defineWorkspace()
@@ -18,7 +18,7 @@ defineWorkspace()
 
 **UI state**: split by lifetime. `src/routes/+page.svelte` owns the page-local root-doc concerns: the conversation list (the `conversations` table), which conversation is active, and CRUD. The per-conversation runtime lives in `ConversationView.svelte`, mounted via `{#key activeConversationId}`, so each conversation gets a real component lifecycle (opened in setup, disposed in `onDestroy`). `ConversationView` opens the active conversation's `messages` store and hands it to `createConversation` (`src/lib/conversation.svelte.ts`), which streams the live turn into `$state`, persists finished messages, and exposes `messages` / `isThinking` / `isGenerating` / `error` plus `send` / `stop` / `retry`.
 
-**Auth**: Google OAuth through the shared Epicenter auth path. Sign-in is optional: Vocab boots into the local workspace first, then uses owner-scoped storage and sync on signed-in boots. `AccountPopover` is the account surface.
+**Auth**: Google OAuth through the shared Epicenter auth path. Sign-in is optional: Vocab boots into the local workspace first, then uses principal-scoped storage and sync on signed-in boots. `AccountPopover` is the account surface.
 
 **Providers**: `@epicenter/constants/ai-providers` owns the shared servable model registry. `vocab.ts` owns Vocab's Gemini model.
 

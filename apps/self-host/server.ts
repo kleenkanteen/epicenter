@@ -54,7 +54,7 @@ import {
 	mountRoomsApp,
 	mountSessionApp,
 	rateLimit,
-	requireBearerUser,
+	requireBearerPrincipal,
 	ServerBindings,
 } from '@epicenter/server/bun';
 import { type } from 'arktype';
@@ -115,7 +115,7 @@ export function startSelfHostServer(): void {
 	// resolver (ADR-0075).
 	const token = requireStrongInstanceToken(env.INSTANCE_TOKEN);
 	const resolvePrincipal = createEnvTokenResolver(token);
-	const auth = requireBearerUser(resolvePrincipal);
+	const auth = requireBearerPrincipal(resolvePrincipal);
 
 	const port = Number(env.PORT ?? 8787);
 	// The auth origin must match where the process actually listens. Default to

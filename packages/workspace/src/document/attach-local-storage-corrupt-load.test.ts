@@ -111,13 +111,13 @@ afterAll(() => process.off('unhandledRejection', collectRejection));
 test('a corrupt persisted update is skipped: whenLoaded resolves and no decode error floats', async () => {
 	const userId = `user-${crypto.randomUUID()}`;
 	const guid = 'plaintext-idb-corrupt-load';
-	const databaseName = `epicenter/${SERVER}/owners/${userId}/${guid}`;
+	const databaseName = `epicenter/${SERVER}/principals/${userId}/${guid}`;
 
 	// 1. Persist a real doc so the store exists with genuine update bytes.
 	const firstDoc = new Y.Doc({ guid, gc: true });
 	const firstIdb = attachLocalStorage(firstDoc, {
 		server: SERVER,
-		ownerId: asPrincipalId(userId),
+		principalId: asPrincipalId(userId),
 	});
 	await firstIdb.whenLoaded;
 	firstDoc.getText('body').insert(0, 'real content');
@@ -132,7 +132,7 @@ test('a corrupt persisted update is skipped: whenLoaded resolves and no decode e
 	const secondDoc = new Y.Doc({ guid, gc: true });
 	const secondIdb = attachLocalStorage(secondDoc, {
 		server: SERVER,
-		ownerId: asPrincipalId(userId),
+		principalId: asPrincipalId(userId),
 	});
 
 	// Healed behavior (the patch skips the bad update and still emits 'synced'):
@@ -170,5 +170,8 @@ test('a corrupt persisted update is skipped: whenLoaded resolves and no decode e
 
 	// Best-effort cleanup; the assertions above are what matter.
 	secondDoc.destroy();
-	await wipeLocalStorage({ server: SERVER, ownerId: asPrincipalId(userId) });
+	await wipeLocalStorage({
+		server: SERVER,
+		principalId: asPrincipalId(userId),
+	});
 });

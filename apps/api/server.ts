@@ -56,8 +56,8 @@ import {
 	mountRoomsApp,
 	mountSessionApp,
 	type ResolvePrincipal,
-	requireBearerUser,
-	requireCookieOrBearerUser,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
 	resolveRequestOAuthPrincipal,
 	ServerBindings,
 } from '@epicenter/server/bun';
@@ -90,7 +90,7 @@ const ApiBunBindings = ServerBindings.merge(CloudAuthBindings).merge({
 });
 
 /**
- * Boot the apps/api Bun server, optionally with an injected user resolver.
+ * Boot the apps/api Bun server, optionally with an injected principal resolver.
  *
  * Production (`server.ts` as the entrypoint) passes nothing, so
  * `createServerApp` keeps the real OAuth resolver. `server.dev.ts` passes a
@@ -140,8 +140,8 @@ export function startBunApiServer(
 	// keeps the real OAuth bearer resolver. Each protected wrapper closes over it.
 	const resolvePrincipal =
 		opts.resolvePrincipal ?? resolveRequestOAuthPrincipal;
-	const cookieOrBearer = requireCookieOrBearerUser(resolvePrincipal);
-	const bearer = requireBearerUser(resolvePrincipal);
+	const cookieOrBearer = requireCookieOrBearerPrincipal(resolvePrincipal);
+	const bearer = requireBearerPrincipal(resolvePrincipal);
 
 	app.get('/', (c) =>
 		c.json({ product: 'hub', version: '0.1.0', runtime: 'bun' }),

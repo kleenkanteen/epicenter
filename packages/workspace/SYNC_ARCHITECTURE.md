@@ -123,7 +123,7 @@ Cursor and selection sync, when they arrive, bring Awareness back, used for what
 
 ### Relay-channel plane (text, blind)
 
-A cross-device tool call rides text frames on the same socket as presence and sync, but the relay never understands them: the relay-channel layer multiplexes named request/response channels, and the relay forwards each channel's bytes BLIND. This is the relay floor (ADR-0073): one per-user authenticated socket that routes typed channels to a person's own devices, with sync as the first channel and cross-device tool calls as another.
+A cross-device tool call rides text frames on the same socket as presence and sync, but the relay never understands them: the relay-channel layer multiplexes named request/response channels, and the relay forwards each channel's bytes BLIND. This is the relay floor (ADR-0073): one principal-authenticated socket that routes typed channels to a person's own devices, with sync as the first channel and cross-device tool calls as another.
 
 The wire is a four-frame, reset-only channel protocol. `id` is the caller-minted channel correlation id, echoed unchanged:
 
@@ -161,7 +161,7 @@ There is no in-room request/response RPC on this socket. Cross-device capability
 
 ## URLs and routing
 
-A cloud document is owned by the authenticated `OwnerId` and addressed by its own `ydoc.guid`. The client builds the URL from `(baseURL, ownerId, guid, nodeId)`:
+A cloud document is partitioned by the authenticated `PrincipalId` and addressed by its own `ydoc.guid`. The client builds the public URL from `(baseURL, guid, nodeId)`:
 
 ```ts
 roomWsUrl({
@@ -181,8 +181,8 @@ partition for operator-authorized requests.
 This is the consumer Google Docs model and the first of three account layers, introduced over time:
 
 - **Layer 1 (this)**: personal content. `principals/${principalId}` owns the doc.
-- **Layer 1.5 (future)**: sharing. A per-document ACL grants other users access; the owner's DO name does not change.
-- **Layer 2 (future)**: shared-drive content. A self-hosted instance uses `ownerId === 'instance'` so content is decoupled from any caller identity.
+- **Layer 1.5 (future)**: sharing. A per-document ACL grants other users access; the home DO name does not change.
+- **Layer 2 (future)**: shared-drive content. A self-hosted instance uses `principalId === 'instance'` so content is decoupled from any caller identity.
 - **Layer 3 (future)**: tenancy and billing. An organization groups user accounts for one invoice and admin policy; it never owns a document.
 
 `nodeId` is appended as a query parameter (`?nodeId=`) on every connect, including reconnects. It is a routing label stamped on the socket at upgrade, not an auth principal: the relay authorizes the room from the token, and within that room `nodeId` only decides which socket the relay routes a frame to (a presence push, or a relay-channel byte chunk).

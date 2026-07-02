@@ -19,7 +19,7 @@
  * the channel logic to the sync logic is the trap this separation avoids.
  *
  * The relay enforces routing integrity from the already-authenticated identity:
- * it routes only among sockets of the same owner (the per-user fleet that shares
+ * it routes only among sockets of the same principal (the per-principal fleet that shares
  * the account room) and never lets a caller forge the peer it reaches. It is NOT
  * the security boundary on the tool call; that stays the device endpoint's own
  * check (the [collapse spec]'s "the endpoint is the boundary, never the relay").
@@ -65,7 +65,7 @@ type Channel = { caller: RoomSocket; target: RoomSocket };
 export type ChannelRouter = {
 	/**
 	 * Route one validated {@link ChannelFrame} from `socket`. An `channel_open`
-	 * establishes a channel to a same-owner device (or rejects); every other frame
+	 * establishes a channel to a same-principal device (or rejects); every other frame
 	 * is forwarded to the channel's peer, dropped if `socket` is not a party to it.
 	 */
 	handleFrame(socket: RoomSocket, frame: ChannelFrame): void;
@@ -137,12 +137,12 @@ export function createChannelRouter(deps: ChannelRouterDeps): ChannelRouter {
 			reset(caller, frame.id, 'offline');
 			return;
 		}
-		// Routing integrity: only within one owner's fleet, never across users. In a
-		// personal account room every socket shares the owner, so this is a belt to
-		// the room's structural suspenders; it is the real gate in a shared room.
+		// Routing integrity: only within one principal's fleet, never across users.
+		// In a personal account room every socket shares the principal, so this is
+		// a belt to the room's structural suspenders; it is the real gate in a shared room.
 		const callerPrincipal = deps.principalOf(caller);
 		if (!callerPrincipal || callerPrincipal !== deps.principalOf(target)) {
-			reset(caller, frame.id, 'refused', 'cross-owner routing refused');
+			reset(caller, frame.id, 'refused', 'cross-principal routing refused');
 			return;
 		}
 		channels.set(frame.id, { caller, target });

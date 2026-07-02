@@ -1,7 +1,7 @@
 /**
  * The channel router is the relay's blind forwarder, so the test pins exactly
- * what it forwards and what it refuses: an open reaches a same-owner online
- * device, an offline or cross-owner target is rejected to the caller, bytes flow
+ * what it forwards and what it refuses: an open reaches a same-principal online
+ * device, an offline or cross-principal target is rejected to the caller, bytes flow
  * both ways, a reset tears the channel down, a non-party cannot inject, and a
  * dropped socket resets its peer.
  */
@@ -22,7 +22,7 @@ function fakeSocket(readyState = 1) {
 	return { socket, sent };
 }
 
-/** A caller and a same-owner online target wired into a fresh router. */
+/** A caller and a same-principal online target wired into a fresh router. */
 function setup() {
 	const caller = fakeSocket();
 	const target = fakeSocket();
@@ -30,15 +30,15 @@ function setup() {
 		['phone', caller.socket],
 		['laptop', target.socket],
 	]);
-	const owners = new Map<RoomSocket, string>([
+	const principals = new Map<RoomSocket, string>([
 		[caller.socket, 'u1'],
 		[target.socket, 'u1'],
 	]);
 	const router = createChannelRouter({
 		findDevice: (nodeId) => devices.get(nodeId) ?? null,
-		principalOf: (socket) => owners.get(socket),
+		principalOf: (socket) => principals.get(socket),
 	});
-	return { caller, target, devices, owners, router };
+	return { caller, target, devices, principals, router };
 }
 
 const open: ChannelFrame = {
@@ -49,7 +49,7 @@ const open: ChannelFrame = {
 };
 
 describe('channel open', () => {
-	test('forwards an open to a same-owner online target, no reset to caller', () => {
+	test('forwards an open to a same-principal online target, no reset to caller', () => {
 		const { caller, target, router } = setup();
 		router.handleFrame(caller.socket, open);
 		// The relay stamps the server-authored source onto the forwarded open.
@@ -72,9 +72,9 @@ describe('channel open', () => {
 		]);
 	});
 
-	test('refuses an open to a different owner', () => {
-		const { caller, target, owners, router } = setup();
-		owners.set(target.socket, 'u2'); // target now a different user
+	test('refuses an open to a different principal', () => {
+		const { caller, target, principals, router } = setup();
+		principals.set(target.socket, 'u2'); // target now a different user
 		router.handleFrame(caller.socket, open);
 		expect(target.sent).toEqual([]);
 		expect(caller.sent[0]).toMatchObject({

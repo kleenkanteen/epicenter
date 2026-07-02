@@ -58,7 +58,7 @@ const SameOriginAuthError = defineErrors({
  * client uses the cookie directly:
  *
  *   - resource calls go out same-origin with `credentials: 'include'` and no
- *     `Authorization` header; `requireCookieOrBearerUser` resolves the user from
+ *     `Authorization` header; `requireCookieOrBearerPrincipal` resolves the user from
  *     the cookie and `requireOriginForCookieMutations` guards CSRF.
  *   - `startSignIn` navigates to the hosted `/sign-in` page (Google sign-in sets
  *     the cookie), then returns to `callbackURL`.

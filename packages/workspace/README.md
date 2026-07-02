@@ -44,7 +44,7 @@ satisfiesWorkspace()
 The app-facing path is `defineWorkspace({ id, tables, kv, actions }).connect(...)`.
 `open()` returns only the root document for daemon composition. The connection
 is the boot decision: `connect(null)` adds bare browser storage, wipe, and
-table child-doc openers with no relay; `connect(connection)` adds owner-scoped
+table child-doc openers with no relay; `connect(connection)` adds principal-scoped
 browser storage, root sync, wipe, and table child-doc openers.
 `connect(connection, compose)` lets a runtime add extras and publish its final
 action registry before collaboration starts.
@@ -55,7 +55,7 @@ The recipe below ships a workspace with no auth, no cloud
 sync. It is the right shape for a single-user desktop notes app, an
 offline CLI, a test fixture, or any consumer whose data stays on the
 device. Cloud-synced workspaces swap `attachIndexedDb` + `attachBroadcastChannel`
-for the owner-scoped `attachLocalStorage` composite; see
+for the principal-scoped `attachLocalStorage` composite; see
 [Local-only vs cloud-synced](#local-only-vs-cloud-synced).
 
 ```bash
@@ -157,7 +157,7 @@ refcounting, and the `gcTime` grace period between last dispose and teardown.
 
 Both shapes ship from this package, and the workspace factory is the same for each.
 
-`createWorkspace({ id, tables, kv })` constructs the root Y.Doc, materializes the table and KV stores onto it, and registers cascade disposal. Local-only docs attach `attachIndexedDb`; cloud-synced docs attach the owner-scoped `attachLocalStorage` composite and `openCollaboration`. The relay is trusted and reads plaintext, so there is no client-side encryption to configure.
+`createWorkspace({ id, tables, kv })` constructs the root Y.Doc, materializes the table and KV stores onto it, and registers cascade disposal. Local-only docs attach `attachIndexedDb`; cloud-synced docs attach the principal-scoped `attachLocalStorage` composite and `openCollaboration`. The relay is trusted and reads plaintext, so there is no client-side encryption to configure.
 
 Apps usually export one pure definition next to their schema. That definition is
 the durable contract: workspace id, tables, KV defaults, action registry, and any
@@ -224,11 +224,11 @@ export const myApp = openMyAppBrowser({
 ```
 
 `connect(null)` uses bare IndexedDB storage under the doc guid and does not
-open relay sync. `connect(connection)` pairs owner-scoped IndexedDB with a
+open relay sync. `connect(connection)` pairs principal-scoped IndexedDB with a
 BroadcastChannel, opens root collaboration, wires `wipe()`, and gives each
 table handle a `.docs` namespace of row child-doc openers such as
-`workspace.tables.items.docs.body.open(itemId)`. Two tabs of the same owner share
-both persisted state and live updates, while two different owners on the same
+`workspace.tables.items.docs.body.open(itemId)`. Two tabs of the same principal share
+both persisted state and live updates, while two different principals on the same
 browser profile never see each other's data.
 
 `openCollaboration` remains the lower-level sync primitive behind this opener.
@@ -271,7 +271,7 @@ That split is not cosmetic. It lets you share definitions across modules, infer 
 ### Inline composition is the extension system
 
 There is no builder chain. Runtime-specific extras are composed inline in
-`open(connection, compose)`, after owner-scoped local storage and before
+`open(connection, compose)`, after principal-scoped local storage and before
 collaboration starts:
 
 ```typescript
@@ -853,15 +853,15 @@ import { attachYjsLog } from '@epicenter/workspace/node';
 
 ### Persistence
 
-Browser apps use `attachIndexedDb(ydoc)` for unauthenticated docs, or `attachLocalStorage(ydoc, { server, ownerId })` for an authenticated workspace that needs owner-scoped persistence plus cross-tab pairing. Bun/Node daemons use `attachYjsLog(ydoc, { filePath })`. All bind to the Y.Doc and tear down on `ydoc.destroy()`.
+Browser apps use `attachIndexedDb(ydoc)` for unauthenticated docs, or `attachLocalStorage(ydoc, { server, principalId })` for an authenticated workspace that needs principal-scoped persistence plus cross-tab pairing. Bun/Node daemons use `attachYjsLog(ydoc, { filePath })`. All bind to the Y.Doc and tear down on `ydoc.destroy()`.
 
 | Primitive | Runtime | Barrier | Other | Purpose |
 |---|---|---|---|---|
 | `attachIndexedDb(ydoc)` | browser | `whenLoaded`, `whenDisposed` | `clearLocal()` | Local Yjs persistence via `y-indexeddb` |
-| `attachLocalStorage(ydoc, { server, ownerId })` | browser | `whenLoaded`, `whenDisposed` | paired BroadcastChannel | Owner-scoped IDB plus cross-tab pairing |
+| `attachLocalStorage(ydoc, { server, principalId })` | browser | `whenLoaded`, `whenDisposed` | paired BroadcastChannel | Principal-scoped IDB plus cross-tab pairing |
 | `attachYjsLog(ydoc, { filePath })` | Bun/Node | `whenDisposed` (sync replay; no `whenLoaded` needed) | `clearLocal()` | Append-log SQLite file the daemon writes |
 
-For authenticated apps, call `await wipeLocalStorage({ server, ownerId })` after disposing the bundle to delete every owner-scoped IDB database on the current browser profile (sign-out, "delete my local data", account switch).
+For authenticated apps, call `await wipeLocalStorage({ server, principalId })` after disposing the bundle to delete every principal-scoped IDB database on the current browser profile (sign-out, "delete my local data", account switch).
 
 `attachBunSqliteMaterializer` and `attachMarkdownExport` are not persistence: they project workspace rows into queryable SQLite tables or `.md` files. They are read surfaces, not write surfaces. Projection actions such as `sqlite_rebuild`, `sqlite_search`, and `markdown_rebuild` maintain or query the projection; app data mutations stay in app-defined actions. See the materializer subsections below.
 
@@ -896,13 +896,12 @@ void openNotes;
 
 ### Sync
 
-One primitive wraps the WebSocket transport: `openCollaboration`. The workspace document passes a real `actions` registry; content documents that only need bytes-on-the-wire pass `actions: {}`. Compose it with `attachBroadcastChannel(ydoc)` for unauthenticated local-only documents. Authenticated browser workspaces use `attachLocalStorage(ydoc, { server, ownerId })`, which pairs owner-scoped IDB with an owner-scoped BroadcastChannel in one call.
+One primitive wraps the WebSocket transport: `openCollaboration`. The workspace document passes a real `actions` registry; content documents that only need bytes-on-the-wire pass `actions: {}`. Compose it with `attachBroadcastChannel(ydoc)` for unauthenticated local-only documents. Authenticated browser workspaces use `attachLocalStorage(ydoc, { server, principalId })`, which pairs principal-scoped IDB with a principal-scoped BroadcastChannel in one call.
 
 ```typescript
 import { field } from '@epicenter/field';
 import {
-	attachBroadcastChannel,
-	attachIndexedDb,
+	attachLocalStorage,
 	createNodeId,
 	createWorkspace,
 	defineTable,
@@ -910,7 +909,7 @@ import {
 	roomWsUrl,
 } from '@epicenter/workspace';
 import type { AuthClient } from '@epicenter/auth';
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 
 const tabs = defineTable({
 	id: field.string(),
@@ -918,11 +917,11 @@ const tabs = defineTable({
 });
 
 function openTabs({
-	ownerId,
+	principalId,
 	openWebSocket,
 	onReconnectSignal,
 }: {
-	ownerId: OwnerId;
+	principalId: PrincipalId;
 	openWebSocket: AuthClient['openWebSocket'];
 	onReconnectSignal: AuthClient['onStateChange'];
 }) {
@@ -931,13 +930,15 @@ function openTabs({
 		tables: { tabs },
 		kv: {},
 	});
-	const idb = attachIndexedDb(workspace.ydoc);
-	attachBroadcastChannel(workspace.ydoc);
+	const baseURL = 'https://api.epicenter.so';
+	const idb = attachLocalStorage(workspace.ydoc, {
+		server: new URL(baseURL).host,
+		principalId,
+	});
 	const nodeId = createNodeId({ storage: localStorage });
 	const collaboration = openCollaboration(workspace.ydoc, {
 		url: roomWsUrl({
-			baseURL: 'https://api.epicenter.so',
-			ownerId,
+			baseURL,
 			guid: workspace.ydoc.guid,
 			nodeId,
 		}),

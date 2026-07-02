@@ -26,3 +26,19 @@ test('/api/session returns the principal projection', async () => {
 		email: 'alice@example.com',
 	});
 });
+
+test('/api/session omits email when the principal has none', async () => {
+	const app = new Hono<Env>();
+	mountSessionApp(app, {
+		auth: async (c, next) => {
+			c.set('principal', { id: asPrincipalId('instance') });
+			await next();
+		},
+	});
+
+	const res = await app.request(API_ROUTES.session.url('https://x'));
+
+	expect(res.status).toBe(200);
+	const body = (await res.json()) as unknown;
+	expect(body).toEqual({ principalId: 'instance' });
+});

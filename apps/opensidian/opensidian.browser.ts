@@ -3,7 +3,7 @@
  *
  * `toConnection` reads `auth.state` once: signed out projects to `null` (bare
  * guid-named IndexedDB, cross-tab channel, no relay), signed in projects to
- * the owner's connection (owner-scoped storage plus relay). `compose` adds
+ * the principal's connection (principal-scoped storage plus relay). `compose` adds
  * browser-only filesystem, search, shell, and action surfaces on top of
  * whichever root wiring the connection chose:
  *
@@ -12,7 +12,7 @@
  *  3. runtime storage (+ sync when signed in) around per-file content child docs
  *  4. filesystem, sqlite index, bash, and action registry
  *
- * The bundle's `wipe()` drops every owner-scoped IDB database (or the bare
+ * The bundle's `wipe()` drops every principal-scoped IDB database (or the bare
  * guid family when signed out); `Symbol.dispose` tears down the root and
  * cached child Y.Docs without touching local storage.
  */

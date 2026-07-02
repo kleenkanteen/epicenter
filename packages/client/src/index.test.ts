@@ -52,7 +52,8 @@ describe('blobs.get follows the 302 by hand', () => {
 		// A bearer-authed fetch pins `redirect: 'manual'`, so the server's 302
 		// surfaces raw. The client must read `Location` and hit the presigned URL
 		// through the global `fetch` (no bearer), then hand back the bytes.
-		const presignedUrl = 'https://store.example.com/owners/o/blobs/abc?sig=1';
+		const presignedUrl =
+			'https://store.example.com/principals/o/blobs/abc?sig=1';
 		const storeCalls: string[] = [];
 		globalThis.fetch = (async (input: string | URL | Request) => {
 			storeCalls.push(String(input));

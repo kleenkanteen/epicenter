@@ -12,7 +12,7 @@
  * principal may be a Better Auth user id; on an instance it is the pinned constant
  * `INSTANCE_PRINCIPAL_ID` (the literal `instance`). The path is honest either way:
  * every durable identifier the server writes is rooted at
- * `principals/<ownerId>`.
+ * `principals/<principalId>`.
  *
  * Every durable string follows the rule:
  *   `principals/<principalId>/<resource type>/<id>`
@@ -34,7 +34,7 @@ export type RoomDoName = `principals/${string}/rooms/${string}`;
 export type BlobR2Key = `principals/${string}/blobs/${string}`;
 
 /** Common prefix for one partition's blobs, used by the S3 client's list enumeration. */
-export type BlobOwnerPrefix = `principals/${string}/blobs/`;
+export type BlobPrincipalPrefix = `principals/${string}/blobs/`;
 
 /** Durable name of a room's Cloudflare Durable Object. */
 export function doName(principalId: PrincipalId, roomId: string): RoomDoName {
@@ -47,6 +47,8 @@ export function blobKey(principalId: PrincipalId, sha256: string): BlobR2Key {
 }
 
 /** Prefix matching every blob this partition has stored. */
-export function blobOwnerPrefix(principalId: PrincipalId): BlobOwnerPrefix {
+export function blobPrincipalPrefix(
+	principalId: PrincipalId,
+): BlobPrincipalPrefix {
 	return `principals/${principalId}/blobs/`;
 }

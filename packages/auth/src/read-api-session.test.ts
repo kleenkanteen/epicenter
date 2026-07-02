@@ -18,22 +18,22 @@ describe('readApiSession', () => {
 		const fetch: AuthFetch = async (input, init) => {
 			calls.push({ url: String(input), init });
 			return json({
-				principalId: 'owner-1',
-				email: 'owner-1@example.com',
+				principalId: 'principal-1',
+				email: 'principal-1@example.com',
 			});
 		};
 		const { data, error } = await readApiSession({
 			baseURL,
-			token: 'dev:owner-1',
+			token: 'dev:principal-1',
 			fetch,
 		});
 		expect(error).toBeNull();
-		expect(data?.principalId).toBe(asPrincipalId('owner-1'));
-		expect(data?.email).toBe('owner-1@example.com');
+		expect(data?.principalId).toBe(asPrincipalId('principal-1'));
+		expect(data?.email).toBe('principal-1@example.com');
 		expect(calls[0]?.url).toBe(`${baseURL}/api/session`);
 		expect(calls[0]?.init?.credentials).toBe('omit');
 		expect(new Headers(calls[0]?.init?.headers).get('authorization')).toBe(
-			'Bearer dev:owner-1',
+			'Bearer dev:principal-1',
 		);
 	});
 

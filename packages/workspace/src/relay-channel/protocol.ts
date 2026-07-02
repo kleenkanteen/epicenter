@@ -58,7 +58,7 @@ export type ChannelSource = Static<typeof ChannelSourceSchema>;
 /**
  * Caller -> relay -> target: open a channel `id` to device `target` on its named
  * `route`. The caller omits `source`; the relay validates `target` is a live
- * same-owner device, stamps the server-authored `source`, and forwards the
+ * same-principal device, stamps the server-authored `source`, and forwards the
  * frame. The target reads `route` to pick its local handler and `source` to
  * authorize the open (the stdio route target has no header to carry a bearer, so
  * the acceptor IS the endpoint gate on the relay path).

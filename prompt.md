@@ -132,8 +132,8 @@ Product sentence to build toward:
   `instance` constants and dropped a dead `ownerId` field. Superseded by this
   plan; nothing to recover from it.
 - PR #2272 and the progressive sign-in wave train (merged): rewrote app
-  boot/session surfaces; it is why the owner-change reload now lives in
-  `packages/svelte-utils/src/reload-on-owner-change.ts` (shared by
+  boot/session surfaces; it is why the principal-change reload now lives in
+  `packages/svelte-utils/src/reload-on-principal-change.ts` (shared by
   whispering, opensidian, and vocab `+layout.svelte`), not under
   `apps/whispering/`.
 
@@ -145,8 +145,8 @@ Product sentence to build toward:
    is approved.
 2. **Target-byte files; any unplanned output shape = stop immediately**:
    `packages/encryption/src/derivation.ts` (HKDF `principal:${label}` info
-   bytes), `packages/server/src/owner.ts` output strings
-   (`doName`/`blobKey`/`blobOwnerPrefix`), the Cloudflare DO `idFromName`
+   bytes), `packages/server/src/principal.ts` output strings
+   (`doName`/`blobKey`/`blobPrincipalPrefix`), the Cloudflare DO `idFromName`
    derivation, `packages/workspace/src/document/local-yjs-key.ts` output
    strings, and the Bun registry's `sha256(roomName)` file naming. These
    files intentionally change from owner vocabulary to principal vocabulary
@@ -193,8 +193,8 @@ git worktree add ~/Code/epicenter-worktrees/identity-is-the-partition -b feat/id
   Read ADRs 0066, 0067, 0070, 0071, 0075, 0076 first.
 - Add target pin tests asserting the clean-break durable strings, so the
   refactor diffs against executable truth, not memory:
-  `doName`/`blobKey`/`blobOwnerPrefix` outputs in
-  `packages/server/src/owner.test.ts`, the IDB key shape in
+  `doName`/`blobKey`/`blobPrincipalPrefix` outputs in
+  `packages/server/src/principal.test.ts`, the IDB key shape in
   `packages/workspace/src/document/local-yjs-key.test.ts`, and the HKDF info
   bytes in `packages/encryption/src/crypto.test.ts`. The target strings use
   `principals/<id>/...` and `principal:${label}`. These tests must pass
@@ -320,10 +320,8 @@ across disjoint files):
   (`ownerUserId: accountRoom.ownerId` becomes the one principalId),
   `packages/cli/src/commands/auth.ts` (status prints email only when
   present).
-- UI state: `packages/svelte-utils/src/session.svelte.ts`,
-  `connect-local-first.ts`, `reload-on-owner-change.ts` (rename file+export
-  to `reload-on-principal-change`/`reloadOnPrincipalChange`; same behavior,
-  keyed on `state.principalId`), `auth.svelte.ts` re-export, barrel;
+- UI state: `packages/svelte-utils/src/auth.svelte.ts`,
+  `to-connection.ts`, `reload-on-principal-change.ts`, package barrel;
   `packages/app-shell/src/account-popover/account-popover.svelte` (shows
   email when `getProfile` yields one, instance identity/baseURL otherwise),
   `packages/app-shell/src/sign-in-migration/create-sign-in-migration.svelte.ts`.
@@ -438,8 +436,8 @@ answers that took digging, so nobody re-derives them:
   `principal:${label}`; label is the partition string. Re-keying would orphan
   old ciphertext, which is accepted only because there is no durable data to
   preserve. There is also `workspace:${workspaceId}`, unrelated.
-- R2 keys are built ONLY in `packages/server/src/owner.ts`
-  (`blobKey`, `blobOwnerPrefix`, plus `doName` for DO names);
+- R2 keys are built ONLY in `packages/server/src/principal.ts`
+  (`blobKey`, `blobPrincipalPrefix`, plus `doName` for DO names);
   the target prefix is `principals/`; `s3-blob-store.ts` consumes keys and
   mentions the shape in JSDoc only.
 - `'instance-owner'` is hardcoded in exactly one place:

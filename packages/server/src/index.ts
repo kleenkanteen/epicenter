@@ -18,9 +18,7 @@
 // deployment injects `createEnvTokenResolver(secret)` as its `ResolvePrincipal`.
 // The pure generator + boot entropy gate (`generateInstanceToken`
 // / `assertStrongToken`) live in `@epicenter/auth`.
-export {
-	createEnvTokenResolver,
-} from './auth/instance-token.js';
+export { createEnvTokenResolver } from './auth/instance-token.js';
 export { connectHyperdriveDb } from './db/backends/cloudflare.js';
 // Database concern (cloud-only). `createDb(client)` wraps a connected pg
 // client/pool in drizzle with the auth schema; a cloud entry hands the result to
@@ -39,12 +37,12 @@ export { rateLimit } from './middleware/rate-limit.js';
 //
 // Auth middleware + the cloud's OAuth bearer resolver. A deployment passes one of
 // these as the `auth` for each protected mount (the cloud passes
-// `requireCookieOrBearerUser`, an instance `requireBearerUser`) and passes
+// `requireCookieOrBearerPrincipal`, an instance `requireBearerPrincipal`) and passes
 // `resolveRequestOAuthPrincipal` as the cloud resolver; an instance passes its
 // bearer resolver instead (ADR-0075).
 export {
-	requireBearerUser,
-	requireCookieOrBearerUser,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
 	resolveRequestOAuthPrincipal,
 } from './middleware/require-auth.js';
 // The cloud-only relational layer, in two halves the cloud installs after
@@ -58,7 +56,7 @@ export { CloudAuthBindings, mountCloudAuth } from './mount-cloud-auth.js';
 export { mountCloudDb } from './mount-cloud-db.js';
 // `doName` builds a room's principal-scoped DO name, deployment-agnostic and
 // exported for composing apps.
-export { doName } from './owner.js';
+export { doName } from './principal.js';
 // Re-export the Cloudflare Durable Object class so each deployment's
 // wrangler.jsonc can resolve `class_name: "Room"` against this entrypoint.
 export { Room } from './room/backends/cloudflare/durable-object.js';

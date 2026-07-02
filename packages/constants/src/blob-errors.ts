@@ -51,7 +51,7 @@ export const BlobError = defineErrors({
 		size,
 		maxBytes,
 	}),
-	/** No object exists at `owners/<ownerId>/blobs/<sha256>`. */
+	/** No object exists at `principals/<principalId>/blobs/<sha256>`. */
 	NotFound: () => ({
 		message: 'Blob not found.',
 		status: 404 as const,

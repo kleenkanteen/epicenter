@@ -8,7 +8,7 @@
  * extension).
  *
  * For routes that are external-clients only (`/api/ai/*`, `/api/.../rooms/*`),
- * prefer {@link requireBearerUser}, which skips the cookie attempt.
+ * prefer {@link requireBearerPrincipal}, which skips the cookie attempt.
  *
  * Cookie-vs-bearer is resolved deterministically here, cookie-first: a
  * request carrying both uses the cookie session and never consults the
@@ -34,7 +34,7 @@ import * as schema from '../db/schema/index.js';
 import type { CloudEnv, Env, ResolvePrincipal } from '../types.js';
 
 /**
- * Resolve the OAuth bearer on the current request to the calling user.
+ * Resolve the OAuth bearer on the current request to the calling principal.
  *
  * Both infrastructure reads (the signing keys and the user row) mean the token
  * could not be CHECKED, not that it is bad, so the HTTP status is decided by
@@ -62,9 +62,9 @@ import type { CloudEnv, Env, ResolvePrincipal } from '../types.js';
  * network auth over a transient server blip.
  *
  * The API origin (`c.var.authBaseURL`) is the resource audience; the same
- * origin plus `/auth` is the issuer. Cheap by design: only the calling user
- * is needed once the token proves issuer, audience, signature, expiration,
- * and subject.
+ * origin plus `/auth` is the issuer. Cheap by design: only the calling
+ * principal is needed once the token proves issuer, audience, signature,
+ * expiration, and subject.
  */
 export async function resolveRequestOAuthPrincipal(
 	c: Context<CloudEnv>,
@@ -109,7 +109,7 @@ export async function resolveRequestOAuthPrincipal(
 	return Ok(Principal.assert(user));
 }
 
-export function requireCookieOrBearerUser(
+export function requireCookieOrBearerPrincipal(
 	resolvePrincipal: ResolvePrincipal<CloudEnv>,
 ): MiddlewareHandler<CloudEnv> {
 	return createMiddleware<CloudEnv>(async (c, next) => {
@@ -128,7 +128,7 @@ export function requireCookieOrBearerUser(
 }
 
 /**
- * Bearer-only authentication. Same as {@link requireCookieOrBearerUser}
+ * Bearer-only authentication. Same as {@link requireCookieOrBearerPrincipal}
  * but skips the cookie path, so the route always reports 401 with a
  * standard OAuth `WWW-Authenticate` header instead of the cookie failure
  * path. Use on protected resource routes that should never see a browser
@@ -138,7 +138,7 @@ export function requireCookieOrBearerUser(
  * passes {@link resolveRequestOAuthPrincipal}, an instance its env-token resolver.
  * There is no `c.var.resolvePrincipal` seam; the wrapper holds its resolver directly.
  */
-export function requireBearerUser<E extends Env = Env>(
+export function requireBearerPrincipal<E extends Env = Env>(
 	resolvePrincipal: ResolvePrincipal<E>,
 ): MiddlewareHandler<E> {
 	return createMiddleware<E>(async (c, next) => {

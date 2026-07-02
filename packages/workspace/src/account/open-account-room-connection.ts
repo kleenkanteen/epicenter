@@ -1,7 +1,7 @@
 /**
- * Open the per-person account room as a relay-floor connection. Browser-safe.
+ * Open the principal account room as a relay-floor connection. Browser-safe.
  *
- * The account room is the per-user fleet room: an ordinary sync room at the
+ * The account room is the per-principal fleet room: an ordinary sync room at the
  * reserved guid {@link RESERVED_ACCOUNT_ROOM_GUID}, so every device a person
  * runs (the daemon, a browser tab) joins the SAME room and can route typed
  * channels to one another over the one socket each already holds. This is the
@@ -48,8 +48,8 @@ import { RESERVED_ACCOUNT_ROOM_GUID } from './reserved-guid.js';
 export type AccountRoomConnectionConfig = {
 	/** This device's durable relay routing id and dial target. */
 	nodeId: NodeId;
-	/** The signed-in account owner; selects the partitioned room URL path. */
-	ownerId: PrincipalId;
+	/** The signed-in principal; auth selects this partition server-side. */
+	principalId: PrincipalId;
 	/** Full API origin URL (e.g. `https://api.epicenter.so`); upgrades to `wss://`. */
 	baseURL: string;
 	/** Bearer-attached WebSocket opener (`auth.openWebSocket`). */
@@ -83,8 +83,8 @@ export type AccountRoomConnectionConfig = {
 export type AccountRoomConnection = {
 	/** The reserved guid this room was opened at. */
 	guid: string;
-	/** The signed-in account owner (userId); the relay floor's authorized identity. */
-	ownerId: string;
+	/** The signed-in principal; the relay floor's authorized identity. */
+	principalId: PrincipalId;
 	/**
 	 * This device's relay routing id and dial target: the relay routes by it (it
 	 * is stamped on the account-room socket as `?nodeId=`), and a peer reaches this
@@ -122,7 +122,7 @@ export function openAccountRoomConnection(
 ): AccountRoomConnection {
 	const {
 		nodeId,
-		ownerId,
+		principalId,
 		baseURL,
 		openWebSocket,
 		onReconnectSignal,
@@ -163,7 +163,7 @@ export function openAccountRoomConnection(
 
 		return {
 			guid: ydoc.guid,
-			ownerId,
+			principalId,
 			nodeId,
 			channelPort: createChannelPort(collaboration.textPort),
 			peers: () => collaboration.peers.list(),

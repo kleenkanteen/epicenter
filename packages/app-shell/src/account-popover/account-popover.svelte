@@ -124,9 +124,9 @@
 			? undefined
 			: new URL(instanceConnect.setting.read().baseURL).host,
 	);
-	// Identity lives on the auth client: `state` carries the capability id
-	// (`ownerId`), and `getProfile()` reads presentational identity (the email)
-	// on demand. TanStack Query owns the reactive cache here, keyed by owner, and
+	// Identity lives on the auth client: `state` carries the principal partition,
+	// and `getProfile()` reads presentational identity (the email) on demand.
+	// TanStack Query owns the reactive cache here, keyed by account, and
 	// `queryOptions` bridges the Result into its throw-on-error contract.
 	const profile = createQuery(
 		() =>

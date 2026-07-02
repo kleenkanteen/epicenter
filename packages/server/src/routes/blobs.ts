@@ -2,10 +2,10 @@
  * Blobs sub-app: a content-addressed object store where S3 IS the index.
  *
  * Uniform principal-partitioned URL shape:
- *   POST   /api/blobs              authed — request an upload ticket
- *   GET    /api/blobs              authed — list the principal's blobs
- *   GET    /api/blobs/:sha256      authed — read (302 → presigned GET)
- *   DELETE /api/blobs/:sha256      authed — delete
+ *   POST   /api/blobs              authed: request an upload ticket
+ *   GET    /api/blobs              authed: list the principal's blobs
+ *   GET    /api/blobs/:sha256      authed: read (302 to presigned GET)
+ *   DELETE /api/blobs/:sha256      authed: delete
  *
  * There is NO database row, NO queue, and NO event notification. The blob's
  * key IS its sha256 content address, so the store itself answers "does it
@@ -19,7 +19,7 @@
  * presigned PUT and the client streams bytes straight to the store, which
  * enforces the sha256 checksum and rejects a mismatch. That removes the ~100 MB
  * Worker request-body ceiling and the in-server hashing cost. The object
- * appearing under its hash IS the record of a successful upload — no confirm
+ * appearing under its hash IS the record of a successful upload; no confirm
  * step.
  *
  * v1 is all-private: every route is auth gated (R2 public access is
@@ -35,7 +35,7 @@ import { Hono, type MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { describeRoute } from 'hono-openapi';
 import { MAX_BLOB_BYTES } from '../constants.js';
-import { blobKey, blobOwnerPrefix } from '../owner.js';
+import { blobKey, blobPrincipalPrefix } from '../principal.js';
 import {
 	createS3BlobStore,
 	type S3BlobStore,
@@ -125,7 +125,7 @@ const requireBlobStore: MiddlewareHandler = createMiddleware<BlobEnv>(
 );
 
 const blobsApp = new Hono<BlobEnv>()
-	// POST — request an upload ticket (presigned PUT, or a duplicate hit).
+	// POST: request an upload ticket (presigned PUT, or a duplicate hit).
 	.post(
 		API_ROUTES.blobs.list.pattern,
 		describeRoute({
@@ -155,12 +155,9 @@ const blobsApp = new Hono<BlobEnv>()
 			}
 
 			const key = blobKey(principalId, sha256);
-			const url = API_ROUTES.blobs.byHash.url(
-				c.var.authBaseURL,
-				sha256,
-			);
+			const url = API_ROUTES.blobs.byHash.url(c.var.authBaseURL, sha256);
 
-			// Dedup within the owner boundary: if the object already exists, the
+			// Dedup within the principal boundary: if the object already exists, the
 			// upload is a no-op. Content addressing makes this safe and cheap (one
 			// HEAD).
 			if (await c.var.blobStore.exists(key)) {
@@ -187,11 +184,11 @@ const blobsApp = new Hono<BlobEnv>()
 			});
 		},
 	)
-	// GET — list the owner's blobs (S3 is the index).
+	// GET: list the principal's blobs (S3 is the index).
 	.get(
 		API_ROUTES.blobs.list.pattern,
 		describeRoute({
-			description: "List the current owner's blobs.",
+			description: "List the current principal's blobs.",
 			tags: ['blobs'],
 		}),
 		async (c) => {
@@ -200,7 +197,7 @@ const blobsApp = new Hono<BlobEnv>()
 			return c.json(blobs);
 		},
 	)
-	// GET by hash — read (302 → short-TTL presigned GET).
+	// GET by hash: read (302 to short-TTL presigned GET).
 	.get(
 		API_ROUTES.blobs.byHash.pattern,
 		describeRoute({
@@ -223,11 +220,11 @@ const blobsApp = new Hono<BlobEnv>()
 			return c.redirect(presignedGet, 302);
 		},
 	)
-	// DELETE by hash — owner-local, idempotent.
+	// DELETE by hash: principal-local, idempotent.
 	.delete(
 		API_ROUTES.blobs.byHash.pattern,
 		describeRoute({
-			description: 'Delete a blob (owner only).',
+			description: 'Delete a blob for the current principal.',
 			tags: ['blobs'],
 		}),
 		async (c) => {
@@ -246,7 +243,7 @@ async function listPrincipalBlobs(
 	store: S3BlobStore,
 	principalId: Env['Variables']['principal']['id'],
 ): Promise<{ sha256: string; size: number; uploaded: string }[]> {
-	const prefix = blobOwnerPrefix(principalId);
+	const prefix = blobPrincipalPrefix(principalId);
 	const objects = await store.list(prefix);
 	return objects.map((obj) => ({
 		sha256: obj.key.slice(prefix.length),
@@ -260,7 +257,7 @@ async function listPrincipalBlobs(
  *
  * There is no public-read bypass in v1, so every route is
  * uniformly gated by the same chain: the deployment's auth (the cloud passes
- * `requireCookieOrBearerUser`), then {@link requireBlobStore}
+ * `requireCookieOrBearerPrincipal`), then {@link requireBlobStore}
  * (which 503s a deployment with no object storage and otherwise stamps
  * `c.var.blobStore`), then any deployment policies. Cloud passes no policies in v1
  * (storage is unmetered until Autumn is wired); a future `syncBlobStorageWithAutumn`

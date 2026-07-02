@@ -3,11 +3,11 @@
  * door).
  *
  * `openVocabBrowser` reads the persisted `auth.state` ONCE at startup and
- * wires either bare local IndexedDB (signed out) or owner-scoped storage
+ * wires either bare local IndexedDB (signed out) or principal-scoped storage
  * plus relay sync (signed in / reauth-required), including the
  * per-conversation message child docs. Construction is synchronous; data
  * still loads async behind `whenReady`. Identity changes are never an
- * in-place swap: `reloadOnOwnerChange` (mounted in the root layout) reloads
+ * in-place swap: `reloadOnPrincipalChange` (mounted in the root layout) reloads
  * the page so the next boot re-runs this selection.
  *
  * There is no `require*()` accessor and no HMR dispose block: the workspace

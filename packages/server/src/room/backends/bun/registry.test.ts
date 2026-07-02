@@ -70,7 +70,7 @@ function nodeIds(frame: PresenceFrame): string[] {
 // HARNESS
 // ────────────────────────────────────────────────────────────────────────────
 
-const ROOM = 'owners/u1/rooms/r1';
+const ROOM = 'principals/u1/rooms/r1';
 let dir: string;
 
 beforeAll(() => {

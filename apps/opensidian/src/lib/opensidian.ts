@@ -4,10 +4,10 @@
  *
  * `openOpensidianBrowser` (see `opensidian.browser.ts` at the package root)
  * reads the persisted `auth.state` ONCE at startup and wires either the bare
- * local doc (signed out) or owner-scoped storage plus relay sync (signed in /
+ * local doc (signed out) or principal-scoped storage plus relay sync (signed in /
  * reauth-required). Construction is synchronous; data still loads async
  * behind `whenReady`. Identity changes are never an in-place swap:
- * `reloadOnOwnerChange` (mounted in the root layout) reloads the page so the
+ * `reloadOnPrincipalChange` (mounted in the root layout) reloads the page so the
  * next boot re-runs this selection.
  *
  * `opensidian` composes that browser bundle with Opensidian's reactive

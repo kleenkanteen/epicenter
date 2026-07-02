@@ -27,20 +27,17 @@ export type RelayRouteOpenerOptions = {
 	/** The named, default-closed route table this daemon serves. */
 	routes: RouteTable;
 	/** This daemon's authenticated principal; the only source admitted. */
-	ownerPrincipalId: string;
+	principalId: string;
 };
 
 /** Build the relay-path {@link RouteOpener} that gates inbound channels for a daemon. */
 export function createRelayRouteOpener(
 	options: RelayRouteOpenerOptions,
 ): RouteOpener {
-	const { routes, ownerPrincipalId } = options;
+	const { routes, principalId } = options;
 	return ({ route, source }) => {
 		// The caller must be this principal, as the relay authenticated them.
-		if (
-			source?.kind !== 'principal' ||
-			source.principalId !== ownerPrincipalId
-		) {
+		if (source?.kind !== 'principal' || source.principalId !== principalId) {
 			return null;
 		}
 		// The route must exist AND be opted in to the relay floor.

@@ -35,8 +35,8 @@ const sessionApp = new Hono<Env>().get(
  * Mount the session surface on a deployment's server app.
  *
  * The deployment supplies the auth middleware: the cloud passes
- * `requireCookieOrBearerUser` (the session endpoint serves both browser apps and
- * API clients), the single-partition instance passes `requireBearerUser` (it has
+ * `requireCookieOrBearerPrincipal` (the session endpoint serves both browser apps and
+ * API clients), the single-partition instance passes `requireBearerPrincipal` (it has
  * no cookies, ADR-0075). Bundles that auth and the route mount into one call.
  */
 export function mountSessionApp<E extends Env = Env>(

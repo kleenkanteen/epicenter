@@ -21,10 +21,10 @@ import type { ChannelPort } from './transport.js';
  * Open the local byte target for an inbound channel, or `null` to refuse it (the
  * route table's default-closed gate). All
  * authorization lives HERE, in the injected opener, not in the acceptor: the
- * daemon refuses unless `source` is its own authenticated owner and the route is
- * explicitly relay-exposed, then returns `openRouteTarget(...)`. `source` is the
- * relay-authored identity (absent only if no compliant relay stamped it, which a
- * strict opener also refuses).
+ * daemon refuses unless `source` is its own authenticated principal and the
+ * route is explicitly relay-exposed, then returns `openRouteTarget(...)`.
+ * `source` is the relay-authored identity (absent only if no compliant relay
+ * stamped it, which a strict opener also refuses).
  */
 export type RouteOpener = (request: {
 	route: string;

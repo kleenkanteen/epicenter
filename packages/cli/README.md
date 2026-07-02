@@ -58,7 +58,7 @@ epicenter peers -C ~/workspace
 
 ## Cross-device tools
 
-Your signed-in devices reach each other's tools over the relay floor: one per-user authenticated relay routes a typed channel to a device over the account-room WebSocket each daemon already holds. You ask for a device by its nodeId, not a tool floating in a global namespace, and the channel reaches a named route on that device's daemon (a route like `books` spawns that device's MCP server).
+Your signed-in devices reach each other's tools over the relay floor: one principal-authenticated relay routes a typed channel to a device over the account-room WebSocket each daemon already holds. You ask for a device by its nodeId, not a tool floating in a global namespace, and the channel reaches a named route on that device's daemon (a route like `books` spawns that device's MCP server).
 
 A route is default-closed over the relay. The relay stamps an unforgeable identity on every channel (the authenticated account it belongs to), and a device admits an inbound channel only when the caller is your own account AND the route is explicitly relay-exposed. A sensitive route (`books` exposes financial data) stays refused until the operator opts it in with `--relay-expose`, knowingly accepting the relay's plaintext ceiling (a self-hosted relay removes the third party; privacy is which relay you run).
 

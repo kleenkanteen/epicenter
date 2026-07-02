@@ -3,7 +3,7 @@
  *
  * `toConnection` reads `auth.state` once: signed out projects to `null` (bare
  * guid-named IndexedDB, cross-tab channel, no relay), signed in projects to
- * the owner's connection (owner-scoped storage plus relay). Both arms return
+ * the principal's connection (principal-scoped storage plus relay). Both arms return
  * the same bundle shape, per-row note-body openers and `wipe()` included, so
  * nothing downstream branches on auth again.
  */

@@ -57,7 +57,7 @@ Internal links use `[[` autocomplete: typing `[[` opens a file picker, and selec
 
 Sync uses the Yjs protocol (STEP1/STEP2/UPDATE messages) over WebSocket, with exponential backoff and jitter on reconnect. A BroadcastChannel handles tab-to-tab sync within the same browser without going through the server. The server side runs on Cloudflare Durable Objects with a SQLite update log and auto-compaction.
 
-The relay reads plaintext: it runs Yjs and applies your updates, which is what makes server-side search and AI possible. Epicenter Cloud holds your data inside its trust boundary; self-host the sync server and the only machine holding it is yours. IndexedDB is owner-scoped and is only deleted by the explicit "Forget this device" action.
+The relay reads plaintext: it runs Yjs and applies your updates, which is what makes server-side search and AI possible. Epicenter Cloud holds your data inside its trust boundary; self-host the sync server and the only machine holding it is yours. IndexedDB is principal-scoped and is only deleted by the explicit "Forget this device" action.
 
 ### Search
 

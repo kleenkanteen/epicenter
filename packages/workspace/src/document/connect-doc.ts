@@ -2,7 +2,7 @@
  * `connectDoc`: wire one Y.Doc to local storage + cloud sync.
  *
  * This is the shared primitive behind every doc a workspace owns. A workspace is
- * a tree of Y.Docs that all speak to the same relay under one owner: the root
+ * a tree of Y.Docs that all speak to the same relay under one principal: the root
  * doc (tables + KV, carrying the workspace's action registry) and every body
  * child doc (an `attach*` layout, no actions). Both want the exact same wiring,
  * which every app's `browser.ts` had hand-copied as a local `wire` helper.
@@ -28,11 +28,8 @@ import { roomWsUrl } from './transport.js';
 
 /**
  * Everything a workspace's docs need to reach local storage and the relay,
- * shared by the root doc and every body. Structurally a superset of the auth
- * `SignedIn` payload plus the per-client `nodeId`; typed against
- * workspace-native types so the runtime never imports the auth/Svelte layer.
- *
- * Pass `{ ...signedIn, nodeId }` at the call site.
+ * shared by the root doc and every body. Typed against workspace-native types
+ * so the runtime never imports the auth/Svelte layer.
  */
 export type ConnectionConfig = {
 	/**
@@ -42,7 +39,7 @@ export type ConnectionConfig = {
 	 * never disagree.
 	 */
 	baseURL: string;
-	ownerId: PrincipalId;
+	principalId: PrincipalId;
 	/** Bearer-attached WebSocket opener (`auth.openWebSocket`). */
 	openWebSocket: OpenWebSocketFn;
 	/** Auth state-change publication; sync reconnects after token refreshes. */
@@ -67,7 +64,7 @@ export function connectDoc<TActions extends ActionRegistry = ActionRegistry>(
 ) {
 	const idb = attachLocalStorage(ydoc, {
 		server: new URL(config.baseURL).host,
-		ownerId: config.ownerId,
+		principalId: config.principalId,
 	});
 	const collaboration = openCollaboration(ydoc, {
 		url: roomWsUrl({

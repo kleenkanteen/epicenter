@@ -27,8 +27,8 @@ import {
 	mountSessionApp,
 	mountTranscriptionApp,
 	Room,
-	requireBearerUser,
-	requireCookieOrBearerUser,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
 	resolveRequestOAuthPrincipal,
 	type ServerBindings,
 } from '@epicenter/server';
@@ -71,8 +71,8 @@ const app = createServerApp<CloudEnv>({
 // JWKS (`resolveRequestOAuthPrincipal` reads `c.var.auth` + `c.var.db`, both present
 // below). Each protected wrapper closes over that one resolver; an instance
 // closes over its env-token resolver instead (ADR-0075).
-const cookieOrBearer = requireCookieOrBearerUser(resolveRequestOAuthPrincipal);
-const bearer = requireBearerUser(resolveRequestOAuthPrincipal);
+const cookieOrBearer = requireCookieOrBearerPrincipal(resolveRequestOAuthPrincipal);
+const bearer = requireBearerPrincipal(resolveRequestOAuthPrincipal);
 
 // Public health endpoint at root.
 app.get('/', (c) =>

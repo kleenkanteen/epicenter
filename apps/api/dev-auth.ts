@@ -4,6 +4,8 @@
  * `Authorization: Bearer dev:<principalId>` resolves to the principal
  * `{ id: <principalId>, email: <principalId>@dev.invalid }` with no interactive
  * login.
+ * The fabricated email is allowed here because dev auth simulates Cloud, where
+ * Better Auth always supplies an email; instance principals have none.
  * It exists so `apps/api/scripts/smoke.ts` (and CI) can drive the authed
  * surfaces without Google OAuth or a forged Better Auth session, which is the
  * only thing that scenario cannot obtain over plain HTTP.

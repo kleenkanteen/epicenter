@@ -12,7 +12,7 @@ import type {
 const baseURL = 'https://api.epicenter.so';
 const clientId = 'client-1';
 
-function sessionBody(principalId = 'owner-1') {
+function sessionBody(principalId = 'principal-1') {
 	return {
 		principalId,
 		email: `${principalId}@example.com`,
@@ -39,7 +39,7 @@ function grant(overrides: Partial<OAuthTokenGrant> = {}): OAuthTokenGrant {
 function persistedAuth(): PersistedAuth {
 	return {
 		grant: grant(),
-		principalId: asPrincipalId('owner-1'),
+		principalId: asPrincipalId('principal-1'),
 	};
 }
 
@@ -91,7 +91,7 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		expect(error).toBeNull();
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			principalId: asPrincipalId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 		// The verified grant and the ids the session reported are persisted.
 		expect(storage.current).toEqual(persistedAuth());
@@ -154,7 +154,7 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		// Boots signed-in (unverified) from the persisted cell.
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			principalId: asPrincipalId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 
 		await auth.fetch('/api/blobs');
@@ -211,7 +211,7 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		await auth.fetch('/api/blobs');
 		expect(auth.state).toEqual({
 			status: 'reauth-required',
-			principalId: asPrincipalId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 	});
 
@@ -228,8 +228,8 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		const { data, error } = await auth.getProfile();
 		expect(error).toBeNull();
 		expect(data).toEqual({
-			id: asPrincipalId('owner-1'),
-			email: 'owner-1@example.com',
+			id: asPrincipalId('principal-1'),
+			email: 'principal-1@example.com',
 		});
 	});
 });

@@ -236,7 +236,7 @@ function xmlTag(xml: string, name: string): string | undefined {
  * Parse the fields we need out of an S3 ListObjectsV2 XML response.
  *
  * Direct extraction (not a full XML parse) is safe here because blob keys are
- * `owners/<ownerId>/blobs/<sha256-hex>` — only `[a-z0-9/]`, never an
+ * `principals/<principalId>/blobs/<sha256-hex>` — only `[a-z0-9/]`, never an
  * XML-special character, so no entity-unescaping is required. The continuation
  * token is opaque base64 and likewise carries no `<`, `>`, or `&`.
  */

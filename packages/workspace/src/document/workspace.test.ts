@@ -34,7 +34,7 @@ function fakeWebSocket(): Promise<WebSocket> {
 
 const connection: ConnectionConfig = {
 	baseURL: 'https://api.test.invalid',
-	ownerId: asPrincipalId('owner-1'),
+	principalId: asPrincipalId('principal-1'),
 	openWebSocket: fakeWebSocket,
 	onReconnectSignal: () => () => {},
 	nodeId: asNodeId('node-1'),

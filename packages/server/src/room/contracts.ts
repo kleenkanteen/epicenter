@@ -159,7 +159,7 @@ export type RoomUpgradeRejection = {
  * `Map<string, RoomCore>` with lazy synchronous creation.
  *
  * The host-owned room name is built upstream by `doName(principalId, roomId)`
- * in `owner.ts`, producing `principals/<principalId>/rooms/<roomId>`.
+ * in `principal.ts`, producing `principals/<principalId>/rooms/<roomId>`.
  * This contract treats the name as opaque.
  */
 export type Rooms = {

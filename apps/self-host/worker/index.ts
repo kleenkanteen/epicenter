@@ -32,7 +32,7 @@ import {
 	type ResolvePrincipal,
 	Room,
 	rateLimit,
-	requireBearerUser,
+	requireBearerPrincipal,
 } from '@epicenter/server';
 import { resolveSelfHostTrustedOrigins } from '../trusted-origins.js';
 
@@ -67,7 +67,7 @@ const resolvePrincipal: ResolvePrincipal = (c) =>
 	createEnvTokenResolver(
 		assertStrongToken((c.env as Cloudflare.Env).INSTANCE_TOKEN),
 	)(c);
-const auth = requireBearerUser(resolvePrincipal);
+const auth = requireBearerPrincipal(resolvePrincipal);
 
 app.get('/', (c) =>
 	c.json({ product: 'instance', version: '0.1.0', runtime: 'cloudflare' }),

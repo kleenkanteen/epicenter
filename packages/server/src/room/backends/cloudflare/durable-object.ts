@@ -175,6 +175,7 @@ export class Room extends DurableObject {
 			principalId,
 			nodeId,
 			connectedAt: Date.now(),
+			actions: {},
 		};
 		server.serializeAttachment(attachment);
 

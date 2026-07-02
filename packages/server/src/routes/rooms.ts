@@ -23,7 +23,7 @@ import { describeRoute } from 'hono-openapi';
 import { createOAuthUnauthorizedResourceResponse } from '../auth/oauth-resource.js';
 import { isWebSocketUpgrade } from '../is-websocket-upgrade.js';
 import { normalizeWebSocketAuth } from '../middleware/websocket-auth.js';
-import { doName } from '../owner.js';
+import { doName } from '../principal.js';
 import type { Env, ResolvePrincipal } from '../types.js';
 
 /**
@@ -76,7 +76,7 @@ function createRoomsApp(): Hono<Env> {
 /**
  * Bearer auth for the rooms surface, the only WebSocket surface.
  *
- * Same bearer-only resolution as `requireBearerUser`, but a failed WebSocket
+ * Same bearer-only resolution as `requireBearerPrincipal`, but a failed WebSocket
  * upgrade is rejected through the runtime's {@link Rooms.rejectUpgrade}: the
  * socket is accepted and immediately closed with `4000 + status` (401 -> 4401
  * permanent, 503 -> 4503 retryable), so the browser receives a close code it

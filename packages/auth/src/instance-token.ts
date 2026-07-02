@@ -11,9 +11,10 @@
  * `@epicenter/auth`, not `@epicenter/server`.
  *
  * The matching RESOLVER side (turn a presented bearer into a principal, the
- * `ResolveUser` a deployment injects) needs the server's `Principal`/`ResolveUser`
- * types, so it stays in `@epicenter/server` (`createEnvTokenResolver`,
- * `INSTANCE_PRINCIPAL`).
+ * `ResolvePrincipal` a deployment injects) needs the server's `Principal` and
+ * `ResolvePrincipal` types, so it stays in `@epicenter/server`.
+ * `createEnvTokenResolver` resolves any exact-match bearer to
+ * `{ id: INSTANCE_PRINCIPAL_ID }`.
  *
  * Portable (ADR-0066): nothing here names `node:` or touches disk. The token
  * generator uses the Web Crypto `crypto` global (`getRandomValues`, `btoa`), which

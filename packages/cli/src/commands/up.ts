@@ -185,7 +185,7 @@ export async function runUp(
 	// peer auto-mounts.
 	const { spawn: exposedRoutes } = exposedRoutesByKind(routes);
 
-	// Open the per-person account room alongside the mount: it holds the relay
+	// Open the principal account room alongside the mount: it holds the relay
 	// floor's connection (its live presence and the channel port), not per-room
 	// workspace presence. It is best-effort and independent of the mount: a
 	// signed-out daemon has none (null), and a failure to open it never aborts the
@@ -207,7 +207,7 @@ export async function runUp(
 	}
 
 	// Wire the relay floor over the account-room socket: this device both DIALS its
-	// peers and ACCEPTS inbound channels over the one per-user authenticated
+	// peers and ACCEPTS inbound channels over the one principal-authenticated
 	// connection the account room already holds. Both need a present account room
 	// (a signed-in session), so a signed-out daemon has neither. The dial transport
 	// is threaded into the daemon socket app so `tools`/`call` reach a peer over the
@@ -223,7 +223,7 @@ export async function runUp(
 		const relayAcceptor = openRelayAcceptor({
 			channelPort: accountRoom.channelPort,
 			routes,
-			ownerPrincipalId: accountRoom.ownerId,
+			principalId: accountRoom.principalId,
 		});
 		stack.defer(() => relayAcceptor.close());
 

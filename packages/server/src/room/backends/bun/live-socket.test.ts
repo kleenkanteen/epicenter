@@ -21,7 +21,7 @@ import type { Server } from 'bun';
 import * as Y from 'yjs';
 import { type BunRoomSocketData, createBunRooms } from './registry.js';
 
-const ROOM = 'owners/u1/rooms/r1';
+const ROOM = 'principals/u1/rooms/r1';
 
 let dir: string;
 let server: Server<BunRoomSocketData>;

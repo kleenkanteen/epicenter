@@ -5,9 +5,9 @@ import type { AuthConnectionState, AuthFetch } from './auth-contract.js';
 import { createInstanceTokenAuth } from './instance-token-auth.js';
 
 const baseURL = 'http://localhost:8788';
-const token = 'dev:owner-1';
+const token = 'dev:principal-1';
 
-function sessionBody(principalId = 'owner-1') {
+function sessionBody(principalId = 'principal-1') {
 	return {
 		principalId,
 		email: `${principalId}@example.com`,
@@ -38,7 +38,7 @@ describe('createInstanceTokenAuth', () => {
 
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			principalId: asPrincipalId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 		expect(calls[0]?.url).toBe(`${baseURL}/api/session`);
 		expect(calls[0]?.init?.credentials).toBe('omit');
@@ -158,7 +158,7 @@ describe('createInstanceTokenAuth', () => {
 		expect(error).toBeNull();
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			principalId: asPrincipalId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 	});
 
@@ -170,8 +170,8 @@ describe('createInstanceTokenAuth', () => {
 		const { data, error } = await auth.getProfile();
 		expect(error).toBeNull();
 		expect(data).toEqual({
-			id: asPrincipalId('owner-1'),
-			email: 'owner-1@example.com',
+			id: asPrincipalId('principal-1'),
+			email: 'principal-1@example.com',
 		});
 	});
 

@@ -1,7 +1,7 @@
 /**
  * Tests for the dev-only `Bearer dev:<principalId>` resolver.
  *
- * Drives {@link resolveDevPrincipal} through the real `requireBearerUser` wrapper
+ * Drives {@link resolveDevPrincipal} through the real `requireBearerPrincipal` wrapper
  * (the production library middleware) by closing the wrapper over it, exactly
  * how a deployment builds its auth. This proves two things at once: the
  * resolver's own behavior (localhost guard, bearer parsing, synthetic principal) and
@@ -13,7 +13,7 @@
  */
 
 import { expect, test } from 'bun:test';
-import { type CloudEnv, requireBearerUser } from '@epicenter/server/bun';
+import { type CloudEnv, requireBearerPrincipal } from '@epicenter/server/bun';
 import { Hono } from 'hono';
 import { resolveDevPrincipal } from './dev-auth.js';
 
@@ -21,7 +21,7 @@ import { resolveDevPrincipal } from './dev-auth.js';
 function devAuthApp() {
 	return new Hono<CloudEnv>().get(
 		'/protected',
-		requireBearerUser(resolveDevPrincipal),
+		requireBearerPrincipal(resolveDevPrincipal),
 		(c) => c.json(c.var.principal),
 	);
 }

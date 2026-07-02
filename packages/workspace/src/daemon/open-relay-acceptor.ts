@@ -26,7 +26,7 @@ export type OpenRelayAcceptorOptions = {
 	/** The served route table. */
 	routes: RouteTable;
 	/** This daemon's authenticated principal; the only caller admitted. */
-	ownerPrincipalId: string;
+	principalId: string;
 	logger?: Logger;
 };
 
@@ -42,13 +42,13 @@ export function openRelayAcceptor(
 	const {
 		channelPort,
 		routes,
-		ownerPrincipalId,
+		principalId,
 		logger = createLogger('workspace/relay-acceptor'),
 	} = options;
 
 	const acceptor = createChannelAcceptor(
 		channelPort,
-		createRelayRouteOpener({ routes, ownerPrincipalId }),
+		createRelayRouteOpener({ routes, principalId }),
 	);
 
 	const exposed = Object.keys(routes).filter((name) =>

@@ -79,7 +79,7 @@ const InstanceTokenAuthError = defineErrors({
  *     (reverting to hosted) is an app-level concern.
  *
  * It returns a {@link SyncAuthClient} (it carries the bearer subprotocol the
- * rooms route requires), so it is a drop-in for owner-scoped cloud sync.
+ * rooms route requires), so it is a drop-in for principal-scoped cloud sync.
  */
 export function createInstanceTokenAuth({
 	baseURL,

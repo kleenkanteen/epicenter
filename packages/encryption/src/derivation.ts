@@ -73,7 +73,7 @@ async function deriveLabelKey(
  * const rootKeyring = parseRootKeyring(env.ENCRYPTION_SECRETS);
  * const keyring = await deriveKeyring({
  *   rootKeyring,
- *   label: ownerId,
+ *   label: principalId,
  * });
  * ```
  */

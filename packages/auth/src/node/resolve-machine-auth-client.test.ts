@@ -24,9 +24,9 @@ import {
 } from './resolve-machine-auth-client.js';
 
 const BASE_URL = 'http://localhost:8788';
-const TOKEN = 'dev:owner-1';
+const TOKEN = 'dev:principal-1';
 
-function sessionBody(principalId = 'owner-1') {
+function sessionBody(principalId = 'principal-1') {
 	return { principalId, email: `${principalId}@example.com` };
 }
 
@@ -157,7 +157,7 @@ describe('resolveMachineAuthClient', () => {
 		// The /api/session confirmation is awaited, so state is already settled.
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			principalId: asPrincipalId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 		expect(calls[0]?.url).toBe(`${BASE_URL}/api/session`);
 		expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
@@ -214,7 +214,7 @@ describe('resolveMachineAuthClient', () => {
 				refreshToken: 'r',
 				accessTokenExpiresAt: 1_700_000_600_000,
 			},
-			principalId: asPrincipalId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 		const fetch: AuthFetch = async () => json(sessionBody());
 
@@ -225,7 +225,7 @@ describe('resolveMachineAuthClient', () => {
 		// The OAuth client seeds state synchronously from the cached cell.
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			principalId: asPrincipalId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 	});
 });

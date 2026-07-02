@@ -1,11 +1,11 @@
 /**
  * First-sign-in migration: move this device's signed-out local doc into the
- * signed-in, owner-partitioned synced doc (ADR-0088).
+ * signed-in, principal-partitioned synced doc (ADR-0088).
  *
  * Flag-free: the local data itself is the state. On each signed-in boot the
  * app probes the local doc for any migratable rows; a non-empty table opens
  * the dialog, which nags again next boot until the user picks Add or Delete.
- * "Add" copies local rows into the owner doc (idempotent by id) then deletes
+ * "Add" copies local rows into the principal doc (idempotent by id) then deletes
  * the plaintext local copy, so the deletion both removes the lingering
  * plaintext duplicate AND is why no "migrated" flag is needed (the tables
  * drop to 0).
@@ -35,8 +35,8 @@ type MigratableTable = {
 	docs: Record<string, { guid(rowId: string): string }>;
 };
 
-/** Owner-scoped storage coordinates for the child-doc merge. */
-type OwnerScope = Parameters<typeof attachLocalStorage>[1];
+/** Principal-scoped storage coordinates for the child-doc merge. */
+type PrincipalScope = Parameters<typeof attachLocalStorage>[1];
 
 /**
  * Delete one bare (unowned) local IndexedDB database by doc guid. Bare docs
@@ -53,9 +53,9 @@ async function clearBareDoc(guid: string): Promise<void> {
 }
 
 /**
- * Merge one bare child doc's content into its owner-scoped storage.
+ * Merge one bare child doc's content into its principal-scoped storage.
  *
- * Reads the bare doc's full Yjs state, then applies it onto the owner-scoped
+ * Reads the bare doc's full Yjs state, then applies it onto the principal-scoped
  * doc (both keyed by the same guid; only the storage partition differs). CRDT
  * merge is commutative and idempotent, so a retry is always safe. Local
  * storage only, no relay connection: the next time the doc opens, the normal
@@ -63,9 +63,9 @@ async function clearBareDoc(guid: string): Promise<void> {
  * out. The bare copy is NOT deleted here; deletion happens only after the
  * whole Add succeeds.
  */
-async function mergeBareDocIntoOwner(
+async function mergeBareDocIntoPrincipal(
 	guid: string,
-	scope: OwnerScope,
+	scope: PrincipalScope,
 ): Promise<void> {
 	const bareDoc = new Y.Doc({ guid, gc: true });
 	const bareIdb = attachIndexedDb(bareDoc);
@@ -77,12 +77,12 @@ async function mergeBareDocIntoOwner(
 	// for a child doc that was never opened locally.
 	if (update.byteLength <= 2) return;
 
-	const ownerDoc = new Y.Doc({ guid, gc: true });
-	const ownerIdb = attachLocalStorage(ownerDoc, scope);
-	await ownerIdb.whenLoaded;
-	Y.applyUpdate(ownerDoc, update);
-	ownerDoc.destroy();
-	await ownerIdb.whenDisposed;
+	const principalDoc = new Y.Doc({ guid, gc: true });
+	const principalIdb = attachLocalStorage(principalDoc, scope);
+	await principalIdb.whenLoaded;
+	Y.applyUpdate(principalDoc, update);
+	principalDoc.destroy();
+	await principalIdb.whenDisposed;
 }
 
 /** Per-table row counts measured from the local source at probe time. */
@@ -131,7 +131,7 @@ function deriveChildGuids(tables: Record<string, MigratableTable>): string[] {
  *
  * - `openLocalSource()` opens the app's BARE doc (plain `attachIndexedDb`
  *   under the doc guid) as a throwaway second instance. It never collides
- *   with the active owner-partitioned doc, whose storage key is owner-scoped.
+ *   with the active principal-partitioned doc, whose storage key is principal-scoped.
  * - `target` is the live signed-in workspace singleton.
  *
  * Every table on the source is copied; a source table missing from the
@@ -161,7 +161,7 @@ export function createSignInMigration<
 		clearLocal(): Promise<void>;
 		dispose(): void;
 	};
-	/** The live owner-doc workspace singleton the rows migrate into. */
+	/** The live principal-partitioned workspace singleton the rows migrate into. */
 	target: {
 		whenReady: Promise<unknown>;
 		ydoc: { transact(fn: () => void): void };
@@ -195,17 +195,17 @@ export function createSignInMigration<
 	type MigrationError = InferErrors<typeof MigrationError>;
 
 	/**
-	 * Copy the whole local doc into the owner doc in one transaction (one
+	 * Copy the whole local doc into the principal doc in one transaction (one
 	 * observer fire, one relay batch), then delete the plaintext local copy.
 	 * Yjs does not roll back a `transact()` callback on throw, so a mid-loop
-	 * failure can leave partial rows already committed to the owner doc; the
+	 * failure can leave partial rows already committed to the principal doc; the
 	 * safety net is that `copyTable` is idempotent by id, not that the
 	 * transaction is atomic. Either way `clearLocal` only runs after the whole
 	 * copy resolves without throwing, so a failure leaves the local copy
 	 * intact and the next attempt re-runs safely over whatever partial state
 	 * exists.
 	 */
-	async function addLocalToOwner(
+	async function addLocalToPrincipal(
 		source: ReturnType<typeof openLocalSource>,
 	): Promise<void> {
 		await target.whenReady;
@@ -226,13 +226,18 @@ export function createSignInMigration<
 		await source.clearLocal();
 	}
 
-	/** Owner-scoped storage coordinates; unreachable signed out (the dialog only opens on a signed-in boot). */
-	function ownerScope(): OwnerScope {
+	/** Principal-scoped storage coordinates; unreachable signed out (the dialog only opens on a signed-in boot). */
+	function principalScope(): PrincipalScope {
 		const state = auth.state;
 		if (state.status === 'signed-out') {
-			throw new Error('[sign-in-migration] owner scope read while signed out.');
+			throw new Error(
+				'[sign-in-migration] principal scope read while signed out.',
+			);
 		}
-		return { server: new URL(auth.baseURL).host, ownerId: state.principalId };
+		return {
+			server: new URL(auth.baseURL).host,
+			principalId: state.principalId,
+		};
 	}
 
 	/** Child-doc guids for every staged row, via a throwaway local source. */
@@ -278,7 +283,7 @@ export function createSignInMigration<
 
 		/**
 		 * Probe once per boot. When signed in, open the local doc, count every
-		 * table `addLocalToOwner` will copy, and dispose it. Any non-empty table
+		 * table `addLocalToPrincipal` will copy, and dispose it. Any non-empty table
 		 * opens the dialog. No flag: the presence of local rows is the state, so
 		 * the prompt returns next signed-in boot until resolved.
 		 *
@@ -311,12 +316,12 @@ export function createSignInMigration<
 		},
 
 		/**
-		 * Copy local data into the owner doc, then delete the plaintext local
-		 * copy. With child docs: merge child content into owner storage FIRST
+		 * Copy local data into the principal doc, then delete the plaintext local
+		 * copy. With child docs: merge child content into principal storage FIRST
 		 * (a failure or crash there leaves the root rows intact, so the dialog
 		 * re-prompts and the idempotent merge re-runs), then rows + root clear,
 		 * then best-effort deletion of the bare child copies (everything is
-		 * already safe in owner storage, so a failure leaves only removable
+		 * already safe in principal storage, so a failure leaves only removable
 		 * residue).
 		 */
 		async addToAccount(): Promise<void> {
@@ -328,9 +333,9 @@ export function createSignInMigration<
 				try: async () => {
 					childGuids = await readChildGuids();
 					if (childGuids.length > 0) {
-						const scope = ownerScope();
+						const scope = principalScope();
 						for (const guid of childGuids) {
-							await mergeBareDocIntoOwner(guid, scope);
+							await mergeBareDocIntoPrincipal(guid, scope);
 						}
 					}
 				},
@@ -347,7 +352,7 @@ export function createSignInMigration<
 					const source = openLocalSource();
 					try {
 						await source.whenLoaded;
-						await addLocalToOwner(source);
+						await addLocalToPrincipal(source);
 					} finally {
 						source.dispose();
 					}

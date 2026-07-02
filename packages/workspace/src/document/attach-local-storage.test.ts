@@ -2,11 +2,11 @@
  * `attachLocalStorage` and `wipeLocalStorage` behavior tests.
  *
  * Covers the identity-scoped pairing of plaintext IDB persistence and
- * cross-tab BroadcastChannel, keyed by `(server, ownerId, ydoc.guid)`. Pins
+ * cross-tab BroadcastChannel, keyed by `(server, principalId, ydoc.guid)`. Pins
  * the durable storage shape so any accidental change to the layout is
  * caught here:
  *
- *   epicenter/<server>/owners/<ownerId>/<guid>
+ *   epicenter/<server>/principals/<principalId>/<guid>
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
@@ -69,9 +69,9 @@ async function databaseNames(): Promise<string[]> {
 }
 
 describe('attachLocalStorage', () => {
-	test('round trips Yjs updates through IndexedDB at the owner prefix', async () => {
+	test('round trips Yjs updates through IndexedDB at the principal prefix', async () => {
 		const userId = `user-${crypto.randomUUID()}`;
-		const databaseName = `epicenter/${SERVER}/owners/${userId}/plaintext-idb-roundtrip`;
+		const databaseName = `epicenter/${SERVER}/principals/${userId}/plaintext-idb-roundtrip`;
 
 		const firstDoc = new Y.Doc({
 			guid: 'plaintext-idb-roundtrip',
@@ -79,7 +79,7 @@ describe('attachLocalStorage', () => {
 		});
 		const firstIdb = attachLocalStorage(firstDoc, {
 			server: SERVER,
-			ownerId: asPrincipalId(userId),
+			principalId: asPrincipalId(userId),
 		});
 		await firstIdb.whenLoaded;
 		firstDoc.getText('body').insert(0, 'stored text');
@@ -99,7 +99,7 @@ describe('attachLocalStorage', () => {
 		});
 		const secondIdb = attachLocalStorage(secondDoc, {
 			server: SERVER,
-			ownerId: asPrincipalId(userId),
+			principalId: asPrincipalId(userId),
 		});
 		await secondIdb.whenLoaded;
 
@@ -115,7 +115,7 @@ describe('attachLocalStorage', () => {
 		const firstDoc = new Y.Doc({ guid: 'plaintext-idb-clear', gc: true });
 		const firstIdb = attachLocalStorage(firstDoc, {
 			server: SERVER,
-			ownerId: asPrincipalId(userId),
+			principalId: asPrincipalId(userId),
 		});
 		await firstIdb.whenLoaded;
 		firstDoc.getText('body').insert(0, 'clear me');
@@ -127,7 +127,7 @@ describe('attachLocalStorage', () => {
 		const secondDoc = new Y.Doc({ guid: 'plaintext-idb-clear', gc: true });
 		const secondIdb = attachLocalStorage(secondDoc, {
 			server: SERVER,
-			ownerId: asPrincipalId(userId),
+			principalId: asPrincipalId(userId),
 		});
 		await secondIdb.whenLoaded;
 
@@ -165,19 +165,19 @@ describe('attachLocalStorage BroadcastChannel naming', () => {
 		Object.assign(globalThis, { BroadcastChannel: originalBroadcastChannel });
 	});
 
-	test('uses an owner-scoped channel key without changing ydoc.guid', () => {
+	test('uses a principal-scoped channel key without changing ydoc.guid', () => {
 		const ydoc = new Y.Doc({ guid: 'epicenter-fuji' });
 
 		attachLocalStorage(ydoc, {
 			server: SERVER,
-			ownerId: asPrincipalId('user-123'),
+			principalId: asPrincipalId('user-123'),
 		});
 
 		// y-indexeddb compatibility: attachBroadcastChannel prepends `yjs.` so
 		// channels coordinate with the same name y-indexeddb writes for the
-		// shared database. The owner-scoped portion is everything after.
+		// shared database. The principal-scoped portion is everything after.
 		expect(FakeBroadcastChannel.names).toEqual([
-			`yjs.epicenter/${SERVER}/owners/user-123/epicenter-fuji`,
+			`yjs.epicenter/${SERVER}/principals/user-123/epicenter-fuji`,
 		]);
 		expect(ydoc.guid).toBe('epicenter-fuji');
 		ydoc.destroy();
@@ -191,33 +191,39 @@ describe('wipeLocalStorage', () => {
 		);
 	});
 
-	test('clears every database under the (server, ownerId) prefix', async () => {
-		await createDatabase(`epicenter/${SERVER}/owners/user-1/doc-a`);
-		await createDatabase(`epicenter/${SERVER}/owners/user-1/doc-b`);
+	test('clears every database under the (server, principalId) prefix', async () => {
+		await createDatabase(`epicenter/${SERVER}/principals/user-1/doc-a`);
+		await createDatabase(`epicenter/${SERVER}/principals/user-1/doc-b`);
 
 		await wipeLocalStorage({
 			server: SERVER,
-			ownerId: asPrincipalId('user-1'),
+			principalId: asPrincipalId('user-1'),
 		});
 
 		const remaining = await databaseNames();
-		expect(remaining).not.toContain(`epicenter/${SERVER}/owners/user-1/doc-a`);
-		expect(remaining).not.toContain(`epicenter/${SERVER}/owners/user-1/doc-b`);
+		expect(remaining).not.toContain(
+			`epicenter/${SERVER}/principals/user-1/doc-a`,
+		);
+		expect(remaining).not.toContain(
+			`epicenter/${SERVER}/principals/user-1/doc-b`,
+		);
 	});
 
-	test('leaves other owners and unscoped databases alone', async () => {
-		await createDatabase(`epicenter/${SERVER}/owners/user-1/doc-a`);
-		await createDatabase(`epicenter/${SERVER}/owners/user-2/doc-c`);
+	test('leaves other principals and unscoped databases alone', async () => {
+		await createDatabase(`epicenter/${SERVER}/principals/user-1/doc-a`);
+		await createDatabase(`epicenter/${SERVER}/principals/user-2/doc-c`);
 		await createDatabase('unscoped-doc');
 
 		await wipeLocalStorage({
 			server: SERVER,
-			ownerId: asPrincipalId('user-1'),
+			principalId: asPrincipalId('user-1'),
 		});
 
 		const remaining = await databaseNames();
-		expect(remaining).not.toContain(`epicenter/${SERVER}/owners/user-1/doc-a`);
-		expect(remaining).toContain(`epicenter/${SERVER}/owners/user-2/doc-c`);
+		expect(remaining).not.toContain(
+			`epicenter/${SERVER}/principals/user-1/doc-a`,
+		);
+		expect(remaining).toContain(`epicenter/${SERVER}/principals/user-2/doc-c`);
 		expect(remaining).toContain('unscoped-doc');
 	});
 });

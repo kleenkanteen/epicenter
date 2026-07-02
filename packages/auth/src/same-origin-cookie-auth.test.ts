@@ -5,7 +5,7 @@ import { createSameOriginCookieAuth } from './same-origin-cookie-auth.js';
 
 const baseURL = 'https://api.epicenter.so';
 
-function sessionBody(principalId = 'owner-1') {
+function sessionBody(principalId = 'principal-1') {
 	return {
 		principalId,
 		email: `${principalId}@example.com`,
@@ -36,7 +36,7 @@ describe('createSameOriginCookieAuth', () => {
 
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			principalId: asPrincipalId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 		expect(calls[0]?.url).toBe(`${baseURL}/api/session`);
 		expect(calls[0]?.init?.credentials).toBe('include');
@@ -131,8 +131,8 @@ describe('createSameOriginCookieAuth', () => {
 		const { data, error } = await auth.getProfile();
 		expect(error).toBeNull();
 		expect(data).toEqual({
-			id: asPrincipalId('owner-1'),
-			email: 'owner-1@example.com',
+			id: asPrincipalId('principal-1'),
+			email: 'principal-1@example.com',
 		});
 		const profileRead = calls.at(-1);
 		expect(profileRead?.url).toBe(`${baseURL}/api/session`);

@@ -81,7 +81,7 @@ export type DaemonListSnapshot = {
 };
 
 /**
- * Row shape returned by `/relay-peers`. One row per same-owner device currently
+ * Row shape returned by `/relay-peers`. One row per same-principal device currently
  * connected to the relay floor (the account room's live presence). `nodeId` is
  * the dial target: `tools`/`call` route to it over the relay. Distinct from
  * `/peers`, which is who is editing THIS workspace room.
@@ -119,7 +119,7 @@ export type CallRequest = typeof CallRequest.infer;
  * Tagged error for the cross-device tool routes. `Unavailable` means this daemon
  * has no live gateway to dial through (signed out, or it failed to open).
  * `DialFailed` means the channel to the target route could not be opened: the
- * route refused this device (wrong owner, or the route is not relay-exposed), the
+ * route refused this device (wrong principal, or the route is not relay-exposed), the
  * peer is offline, or the MCP handshake timed out. The refusal and the offline
  * case are indistinguishable to the dialer by design (a refused channel is just
  * reset), so both surface here.

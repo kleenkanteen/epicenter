@@ -40,13 +40,13 @@ import type { DaemonRuntime } from './types.js';
  * machine auth is signed in. Built once per Epicenter root for its mount;
  * `null` on the context while signed out.
  *
- * - `ownerId` is the workspace owner the daemon syncs as.
+ * - `principalId` is the partition the daemon syncs as.
  * - `openWebSocket` / `onReconnectSignal` / `fetch` are the auth-owned transport
  *   refs forwarded into `openCollaboration` for sync, presence, and the relay
  *   channel, and into one-shot HTTP reads.
  */
 export type MountSession = {
-	readonly ownerId: PrincipalId;
+	readonly principalId: PrincipalId;
 	readonly openWebSocket: OpenWebSocketFn;
 	readonly onReconnectSignal: OnReconnectSignal;
 	readonly fetch: AuthedFetch;
