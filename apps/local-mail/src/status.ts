@@ -10,7 +10,7 @@ export type MailStatus = {
 	tokenFile: string;
 	connected: boolean;
 	accessToken: { valid: boolean; expiresAt: string } | null;
-	mirrorBuilt: boolean;
+	mirror: 'empty' | 'building' | 'ready';
 	schemaVersion: string | null;
 	historyId: string | null;
 	lastFullPullAt: string | null;
@@ -45,7 +45,7 @@ export async function readMailStatus({
 	if (!existsSync(path)) {
 		return {
 			...base,
-			mirrorBuilt: false,
+			mirror: 'empty',
 			schemaVersion: null,
 			historyId: null,
 			lastFullPullAt: null,
@@ -59,7 +59,7 @@ export async function readMailStatus({
 		const realm = db.realmState();
 		return {
 			...base,
-			mirrorBuilt: true,
+			mirror: realm.historyId === null ? 'building' : 'ready',
 			schemaVersion: db.schemaVersion(),
 			historyId: realm.historyId,
 			lastFullPullAt: realm.lastFullPullAt,
