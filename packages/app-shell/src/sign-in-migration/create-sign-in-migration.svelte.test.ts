@@ -406,6 +406,9 @@ test('a local-source table subset excludes rows and child docs together', async 
 	]);
 	expect(await readOwnerText(includedGuid, 'body')).toBe('moves');
 	expect(await readOwnerText(excludedGuid, 'messages')).toBe('');
+	// The excluded child's bare copy must survive: cleanup only iterates the
+	// derived (included) guids, never data the app chose to leave out.
+	expect(await readBareText(excludedGuid, 'messages')).toBe('stays bare only');
 	expect(await readBareRows()).toEqual({
 		notes: [],
 		folders: [],
