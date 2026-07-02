@@ -12,7 +12,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { asOwnerId, INSTANCE_OWNER_ID } from '@epicenter/identity';
-import { doName } from './owner.js';
+import { blobKey, blobOwnerPrefix, doName } from './owner.js';
 
 const userOwner = asOwnerId('abc');
 const instance = INSTANCE_OWNER_ID;
@@ -23,5 +23,29 @@ describe('doName', () => {
 	});
 	test('instance partitions DO names under the literal instance owner', () => {
 		expect(doName(instance, 'r123')).toBe('owners/instance/rooms/r123');
+	});
+});
+
+describe('blobKey', () => {
+	test('per-user partitions blob objects under the user', () => {
+		expect(blobKey(userOwner, 'f'.repeat(64))).toBe(
+			`owners/abc/blobs/${'f'.repeat(64)}`,
+		);
+	});
+
+	test('instance partitions blob objects under the literal instance owner', () => {
+		expect(blobKey(instance, 'a'.repeat(64))).toBe(
+			`owners/instance/blobs/${'a'.repeat(64)}`,
+		);
+	});
+});
+
+describe('blobOwnerPrefix', () => {
+	test('per-user blob listings keep the owners prefix', () => {
+		expect(blobOwnerPrefix(userOwner)).toBe('owners/abc/blobs/');
+	});
+
+	test('instance blob listings keep the owners prefix', () => {
+		expect(blobOwnerPrefix(instance)).toBe('owners/instance/blobs/');
 	});
 });
