@@ -1320,3 +1320,5 @@
 |------|------|-------|------|
 | 2023-12-23 | services-query-folder-reorganization | in tree | specs/20231223T131706-services-query-folder-reorganization.md |
 | 2023-12-23 | services-query-folder-reorganization | removed | docs/specs/20231223T131706-services-query-folder-reorganization.md |
+| 2026-07-01 | progressive-sign-in-collapse | removed | specs/20260701T151347-progressive-sign-in-collapse.md |
+| 2026-07-01 | progressive-sign-in-collapse.prompt | removed | specs/20260701T151347-progressive-sign-in-collapse.prompt.md |

@@ -10,7 +10,7 @@
  * canonical schema.
  *
  * Composition lives elsewhere:
- *  - `apps/honeycrisp/src/lib/workspace/browser.ts` -> `openHoneycrispBrowser({ signedIn, nodeId })`
+ *  - `apps/honeycrisp/src/lib/workspace/browser.ts` -> `openHoneycrispBrowser({ auth, nodeId })`
  */
 
 import { field } from '@epicenter/field';
