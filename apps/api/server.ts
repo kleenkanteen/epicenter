@@ -25,11 +25,11 @@
  * deleted. The library ships the parts; each Bun entry composes its own product.
  *
  * The wiring lives in {@link startBunApiServer} so `server.dev.ts` can boot the
- * SAME server with a dev `resolvePrincipal` injected (the parity smoke's credential)
+ * SAME server with a dev `resolveBearerPrincipal` injected (the parity smoke's credential)
  * without duplicating it. The bottom of this file runs production only when this
  * file IS the entrypoint (`import.meta.main`), so `server.dev.ts` importing the
  * builder does not also start a second listener. Production passes no
- * `resolvePrincipal` and keeps the real OAuth resolver; this file never imports the
+ * `resolveBearerPrincipal` and keeps the real OAuth resolver; this file never imports the
  * dev bypass.
  *
  * Runtime skew is fenced by design: a DO-only behavior (hibernation restore,
@@ -55,7 +55,7 @@ import {
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
-	type ResolvePrincipal,
+	type ResolveBearerPrincipal,
 	requireBearerPrincipal,
 	requireCookieOrBearerPrincipal,
 	resolveRequestOAuthPrincipal,
@@ -99,7 +99,7 @@ const ApiBunBindings = ServerBindings.merge(CloudAuthBindings).merge({
  * identical across the two, so they cannot drift.
  */
 export function startBunApiServer(
-	opts: { resolvePrincipal?: ResolvePrincipal<CloudEnv> } = {},
+	opts: { resolveBearerPrincipal?: ResolveBearerPrincipal<CloudEnv> } = {},
 ): void {
 	// Validate this Bun host's environment once, at boot. The validated result IS
 	// the typed env handed to the Hono app: no `as`-cast over `process.env`, no
@@ -138,10 +138,10 @@ export function startBunApiServer(
 
 	// The dev entry passes a dev bearer resolver for the parity smoke; production
 	// keeps the real OAuth bearer resolver. Each protected wrapper closes over it.
-	const resolvePrincipal =
-		opts.resolvePrincipal ?? resolveRequestOAuthPrincipal;
-	const cookieOrBearer = requireCookieOrBearerPrincipal(resolvePrincipal);
-	const bearer = requireBearerPrincipal(resolvePrincipal);
+	const resolveBearerPrincipal =
+		opts.resolveBearerPrincipal ?? resolveRequestOAuthPrincipal;
+	const cookieOrBearer = requireCookieOrBearerPrincipal(resolveBearerPrincipal);
+	const bearer = requireBearerPrincipal(resolveBearerPrincipal);
 
 	app.get('/', (c) =>
 		c.json({ product: 'hub', version: '0.1.0', runtime: 'bun' }),
@@ -163,7 +163,7 @@ export function startBunApiServer(
 	mountCloudAuth(app, { resolveAuthSecrets: () => env });
 	mountSessionApp(app, { auth: cookieOrBearer });
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
-	mountRoomsApp(app, { resolvePrincipal });
+	mountRoomsApp(app, { resolveBearerPrincipal });
 	mountInferenceApp(app, { auth: bearer });
 	mountBlobsApp(app, { auth: cookieOrBearer });
 

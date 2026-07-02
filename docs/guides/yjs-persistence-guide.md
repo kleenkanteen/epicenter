@@ -36,12 +36,11 @@ export function openMyApp() {
 		kv: {},
 	});
 	const idb = attachIndexedDb(workspace.ydoc);                  // local persistence
-	const collaboration = openCollaboration(workspace.ydoc, {     // sync + presence + dispatch
+	const collaboration = openCollaboration(workspace.ydoc, {     // sync + presence
 		url: roomWsUrl({ baseURL: auth.baseURL, guid: workspace.ydoc.guid, nodeId }),
 		openWebSocket: auth.openWebSocket,
 		onReconnectSignal: auth.onStateChange,
 		waitFor: idb.whenLoaded,                                    // delta-only on reconnect
-		actions: {},
 	});
 
 	return { ...workspace, idb, collaboration };
@@ -57,6 +56,6 @@ Offline and sync behavior:
 3. `openCollaboration` waits for `idb.whenLoaded` before opening the WebSocket, so the first remote exchange is a CRDT delta against an already-populated local state, not a full document transfer.
 4. When offline, writes accumulate in IndexedDB/SQLite; when back online, Yjs replays them against whatever peers did in the meantime. CRDT merge rules guarantee convergence.
 
-For content documents that only need bytes-on-the-wire, use `openCollaboration` with `actions: {}`. Inbound dispatch frames reply `ActionNotFound`; the byte transport and presence channel are identical.
+For content documents that only need bytes on the wire, use `openCollaboration` for the byte transport and presence channel. Actions stay on the workspace bundle.
 
 For the server side that accepts these connections, see the `apps/api/` hub: a Hono app on Cloudflare Workers with Durable Objects. Its [README](../../apps/api/README.md) covers the route family and trust model.

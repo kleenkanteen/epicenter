@@ -1,6 +1,6 @@
 ---
 name: agent-instruction-hygiene
-description: Review AGENTS.md, CLAUDE.md, and `.agents/skills` for instruction sprawl, duplicated guidance, routing overlap, and misplaced process detail. Use when adding or revising agent instructions, deciding whether a rule belongs globally or in a skill, grilling whether a new skill should exist, or cutting down skill complexity.
+description: Review AGENTS.md, CLAUDE.md, and `.agents/skills` for instruction sprawl, duplicated guidance, routing overlap, and misplaced process detail. Use when adding or revising agent instructions, deciding whether a rule belongs globally or in a skill, deciding whether a new skill should exist, or cutting down skill complexity.
 ---
 
 # Agent Instruction Hygiene

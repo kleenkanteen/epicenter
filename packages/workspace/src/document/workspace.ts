@@ -328,7 +328,7 @@ export type ConnectedWorkspace<
 	TActions extends ActionRegistry = ActionRegistry,
 > = ConnectedWorkspaceContext<TTables, TKv, TActions> & {
 	readonly storage: ReturnType<typeof connectDoc>['idb'];
-	readonly collaboration: Collaboration<TActions>;
+	readonly collaboration: Collaboration;
 	wipe(): Promise<void>;
 };
 
@@ -843,8 +843,7 @@ export function defineWorkspace<
 		// Connect the per-row child-doc openers, then run the caller's composer,
 		// then solder infrastructure on. compose sees live tables/ydoc and the
 		// base actions (carried on `workspace.actions`); the `actions` it returns
-		// is final, and signed in it is the registry `connectDoc` serves to
-		// peers, which is why infrastructure must wire after compose. Omitting
+		// is the final local registry exposed on the workspace bundle. Omitting
 		// compose serves the base actions unchanged. The child-doc caches cascade
 		// off the root `ydoc.destroy()`; each opened body's storage disposal is
 		// still registered here so `wipe()` can wait before deleting the guid
@@ -893,9 +892,7 @@ export function defineWorkspace<
 			});
 		}
 
-		const { idb, collaboration } = connectDoc(workspace.ydoc, connection, {
-			actions: runtime.actions,
-		});
+		const { idb, collaboration } = connectDoc(workspace.ydoc, connection);
 		return satisfiesWorkspace({
 			...workspace,
 			...runtime,
@@ -984,15 +981,15 @@ export function defineWorkspace<
 						baseURL,
 					});
 				}
-				// `attachInfrastructure` serves `composition.actions` to peers and
-				// drains every registered materializer in order on shutdown, so it
-				// runs after compose has registered them.
+				// `attachInfrastructure` wires sync/presence and drains every
+				// registered materializer in order on shutdown, so it runs after
+				// compose has registered them. The composition's actions stay on the
+				// returned daemon runtime bundle.
 				const infrastructure = runtime.attachInfrastructure(
 					workspace.ydoc,
 					ctx,
 					{
 						baseURL,
-						actions: composition.actions,
 						// Publish the mount's agent so peers can decorate it as live in
 						// a picker (ADR-0025); the same id the child-doc workers use for
 						// designation. Absent when the mount answers as no named agent.
@@ -1101,7 +1098,6 @@ function connectTableChildDocs<TTableDefinitions extends TableDefinitions>({
 			const cache = createDisposableCache((rowId: string) => {
 				const guid = guidEntry.guid(rowId);
 				const bodyDoc = new Y.Doc({ guid, gc: true });
-				// A body is a doc like any other: connected, `connectDoc` is the same
 				// wiring the root uses (no action registry: the body's only writers
 				// are the `attach*` layout and the server generation worker streaming
 				// in); bare, it gets the same injected local persistence the bare root

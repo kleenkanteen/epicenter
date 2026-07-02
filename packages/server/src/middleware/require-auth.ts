@@ -15,7 +15,7 @@
  * bearer. The two credentials are read by disjoint paths and never merge,
  * so there is nothing to police at the edge: `getSession` reads only the
  * cookie (Better Auth's `bearer()` plugin is not enabled), while the bearer
- * fallback runs the {@link ResolvePrincipal} the deployment closed this wrapper over
+ * fallback runs the {@link ResolveBearerPrincipal} the deployment closed this wrapper over
  * (in production {@link resolveRequestOAuthPrincipal}, which verifies the JWT against
  * JWKS; an instance closes over its env-token resolver instead).
  */
@@ -31,10 +31,10 @@ import { createOAuthIssuerURL } from '../auth/oauth-metadata.js';
 import { createOAuthUnauthorizedResourceResponse } from '../auth/oauth-resource.js';
 import { parseBearer } from '../auth/parse-bearer.js';
 import * as schema from '../db/schema/index.js';
-import type { CloudEnv, Env, ResolvePrincipal } from '../types.js';
+import type { CloudEnv, Env, ResolveBearerPrincipal } from '../types.js';
 
 /**
- * Resolve the OAuth bearer on the current request to the calling principal.
+ * Resolve an OAuth bearer token to the calling principal.
  *
  * Both infrastructure reads (the signing keys and the user row) mean the token
  * could not be CHECKED, not that it is bad, so the HTTP status is decided by
@@ -68,10 +68,8 @@ import type { CloudEnv, Env, ResolvePrincipal } from '../types.js';
  */
 export async function resolveRequestOAuthPrincipal(
 	c: Context<CloudEnv>,
+	accessToken: string,
 ): Promise<Result<Principal, OAuthError>> {
-	const accessToken = parseBearer(c.req.header('authorization') ?? null);
-	if (!accessToken) return OAuthError.InvalidToken();
-
 	const audience = c.var.authBaseURL;
 	let keysUnreadable = false;
 	let payload: Awaited<ReturnType<typeof verifyJwsAccessToken>>;
@@ -110,7 +108,7 @@ export async function resolveRequestOAuthPrincipal(
 }
 
 export function requireCookieOrBearerPrincipal(
-	resolvePrincipal: ResolvePrincipal<CloudEnv>,
+	resolveBearerPrincipal: ResolveBearerPrincipal<CloudEnv>,
 ): MiddlewareHandler<CloudEnv> {
 	return createMiddleware<CloudEnv>(async (c, next) => {
 		const session = await c.var.auth.api.getSession({
@@ -120,7 +118,14 @@ export function requireCookieOrBearerPrincipal(
 			c.set('principal', Principal.assert(session.user));
 			return next();
 		}
-		const { data: principal, error } = await resolvePrincipal(c);
+		const bearer = parseBearer(c.req.header('authorization') ?? null);
+		if (!bearer) {
+			return createOAuthUnauthorizedResourceResponse(
+				c,
+				OAuthError.InvalidToken().error,
+			);
+		}
+		const { data: principal, error } = await resolveBearerPrincipal(c, bearer);
 		if (error) return createOAuthUnauthorizedResourceResponse(c, error);
 		c.set('principal', principal);
 		await next();
@@ -134,15 +139,23 @@ export function requireCookieOrBearerPrincipal(
  * path. Use on protected resource routes that should never see a browser
  * cookie (rooms, AI chat).
  *
- * A factory that closes over the deployment's {@link ResolvePrincipal}: the cloud
- * passes {@link resolveRequestOAuthPrincipal}, an instance its env-token resolver.
- * There is no `c.var.resolvePrincipal` seam; the wrapper holds its resolver directly.
+ * A factory that closes over the deployment's {@link ResolveBearerPrincipal}:
+ * the cloud passes {@link resolveRequestOAuthPrincipal}, an instance its
+ * env-token resolver. There is no `c.var.resolveBearerPrincipal` seam; the
+ * wrapper holds its resolver directly.
  */
 export function requireBearerPrincipal<E extends Env = Env>(
-	resolvePrincipal: ResolvePrincipal<E>,
+	resolveBearerPrincipal: ResolveBearerPrincipal<E>,
 ): MiddlewareHandler<E> {
 	return createMiddleware<E>(async (c, next) => {
-		const { data: principal, error } = await resolvePrincipal(c);
+		const bearer = parseBearer(c.req.header('authorization') ?? null);
+		if (!bearer) {
+			return createOAuthUnauthorizedResourceResponse(
+				c,
+				OAuthError.InvalidToken().error,
+			);
+		}
+		const { data: principal, error } = await resolveBearerPrincipal(c, bearer);
 		if (error) return createOAuthUnauthorizedResourceResponse(c, error);
 		c.set('principal', principal);
 		await next();

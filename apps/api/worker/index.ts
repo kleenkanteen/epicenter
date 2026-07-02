@@ -109,7 +109,7 @@ mountCloudAuth(app, {
 mountSessionApp(app, { auth: cookieOrBearer });
 // Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver, not
 // a prebuilt wrapper.
-mountRoomsApp(app, { resolvePrincipal: resolveRequestOAuthPrincipal });
+mountRoomsApp(app, { resolveBearerPrincipal: resolveRequestOAuthPrincipal });
 // Content-addressed blob store (supersedes the retired assets surface). v1 is
 // unmetered (no Autumn policy): Autumn's check() denies by default with no plan
 // attached, so deferred quota means not calling it. A `syncBlobStorageWithAutumn`

@@ -70,6 +70,8 @@ shapes, see `docs/adr/`.
   key-value store.
 - **`satisfiesWorkspace`**: the bundle-conformance helper (renamed from the older
   `defineWorkspaceBundle`).
+- **Actions and collaboration**: actions live on the workspace bundle;
+  collaboration is sync and presence only.
 - **`scan()`**: the single bulk table read. Returns three buckets, conforming,
   nonconforming, and newer-writer, plus point probes. The valid-only read family
   (`getAllValid`, `getAllInvalid`, `getAll`, `conformance`, `filter`) was deleted.

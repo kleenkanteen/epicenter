@@ -195,9 +195,6 @@ function connectMountChildDoc(
 			}),
 			openWebSocket: ctx.session.openWebSocket,
 			onReconnectSignal: ctx.session.onReconnectSignal,
-			// A body's writers are the layout and the generation worker; the body
-			// doc exposes no actions of its own.
-			actions: {},
 			log: createLogger(`${ctx.mount}-worker-sync`),
 		});
 		return {

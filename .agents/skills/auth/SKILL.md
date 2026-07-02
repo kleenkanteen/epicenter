@@ -95,7 +95,6 @@ Hono app
   -> CORS
   -> per-request DB
   -> createAuth({ db, env, baseURL })
-  -> singleCredential
   -> /auth/* Better Auth handler
   -> /api/session (mountSessionApp: cookie-or-bearer + ownership)
   -> protected resources (bearer + ownership)
@@ -354,9 +353,12 @@ const collaboration = openCollaboration(workspace.ydoc, {
 
 Browsers cannot attach `Authorization` headers to `new WebSocket()`, so auth
 carries the bearer token as a WebSocket subprotocol
-(`BEARER_SUBPROTOCOL_PREFIX`). The API's `singleCredential` middleware
-normalizes that subprotocol into `Authorization` and rejects requests that
-carry multiple credentials.
+(`BEARER_SUBPROTOCOL_PREFIX`). The rooms route extracts that credential itself
+on upgrade (an explicit `Authorization` header wins; else exactly one
+`bearer.<token>` entry) and feeds the bare token to the deployment's
+`ResolveBearerPrincipal`. Nothing rewrites `c.req.raw`: Bun's `server.upgrade`
+only accepts the runtime-minted request. The backends echo only the `epicenter`
+subprotocol on every 101 (accept and reject), so the token never round-trips.
 
 ## Stateless access tokens and revocation windows
 
@@ -501,8 +503,9 @@ mode flag on it.
 - Do not let `accessTokenExpiresAt` decide local identity state. It is a
   transport refresh hint only; the resource server is the source of truth for
   token validity.
-- Do not send both cookies and bearer tokens to resource routes.
-  `singleCredential` rejects ambiguity before Better Auth sees it.
+- Do not send both cookies and bearer tokens to resource routes. The two
+  credentials are read by disjoint paths (`requireCookieOrBearerPrincipal`
+  cookie-first, `requireBearerPrincipal` bearer-only) and never merge.
 - Do not hide persistence failures in storage adapters. If `set` cannot save
   the refreshed cell, the failure must propagate, not silently look saved.
 - Do not import `requireSignedIn`, `InferSignedIn`, `openFuji`,

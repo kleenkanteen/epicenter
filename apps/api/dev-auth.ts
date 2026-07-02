@@ -12,7 +12,7 @@
  *
  * This IS a bypass, so it is quarantined: it is wired ONLY by `server.dev.ts`,
  * which the production entrypoints (`worker/index.ts`, `server.ts`) never
- * import, so it cannot ship. It is a `ResolvePrincipal` injected on
+ * import, so it cannot ship. It is a `ResolveBearerPrincipal` injected on
  * `createServerApp`, never an env-gated branch inside `@epicenter/server` (that
  * would compile the bypass into production). Belt-and-suspenders: it refuses
  * unless the request landed on localhost, so even a misconfigured deploy that
@@ -25,30 +25,30 @@
 import { Principal } from '@epicenter/auth';
 import { OAuthError } from '@epicenter/constants/oauth-errors';
 import { asPrincipalId } from '@epicenter/identity';
-import type { CloudEnv, ResolvePrincipal } from '@epicenter/server/bun';
+import type { CloudEnv, ResolveBearerPrincipal } from '@epicenter/server/bun';
 import { Ok } from 'wellcrafted/result';
 
-const BEARER_PREFIX = 'Bearer ';
 const DEV_TOKEN_PREFIX = 'dev:';
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
 
 /**
- * Resolve `Authorization: Bearer dev:<principalId>` to a synthetic principal, on
- * localhost only. Any other request (off-box, missing header, non-`dev:`
- * token, empty id) is an `InvalidToken`, the same `Result` arm the real
- * resolver returns, so the surface wrappers reject it unchanged.
+ * Resolve a `dev:<principalId>` bearer to a synthetic principal, on localhost
+ * only. The surface wrapper owns extraction (the `Authorization` header, or the
+ * `bearer.<token>` subprotocol on a room upgrade), so this only sees the bare
+ * token. Any other input (off-box, non-`dev:` token, empty id) is an
+ * `InvalidToken`, the same `Result` arm the real resolver returns, so the
+ * surface wrappers reject it unchanged.
  */
-export const resolveDevPrincipal: ResolvePrincipal<CloudEnv> = async (c) => {
+export const resolveDevPrincipal: ResolveBearerPrincipal<CloudEnv> = async (
+	c,
+	bearer,
+) => {
 	const hostname = new URL(c.req.url).hostname;
 	if (!LOCAL_HOSTNAMES.has(hostname)) return OAuthError.InvalidToken();
 
-	const header = c.req.header('authorization') ?? '';
-	const token = header.startsWith(BEARER_PREFIX)
-		? header.slice(BEARER_PREFIX.length)
-		: '';
-	if (!token.startsWith(DEV_TOKEN_PREFIX)) return OAuthError.InvalidToken();
+	if (!bearer.startsWith(DEV_TOKEN_PREFIX)) return OAuthError.InvalidToken();
 
-	const principalId = token.slice(DEV_TOKEN_PREFIX.length);
+	const principalId = bearer.slice(DEV_TOKEN_PREFIX.length);
 	if (!principalId) return OAuthError.InvalidToken();
 
 	return Ok(

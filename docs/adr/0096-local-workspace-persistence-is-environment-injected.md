@@ -1,4 +1,4 @@
-# 0095. Local workspace persistence is environment-injected
+# 0096. Local workspace persistence is environment-injected
 
 - **Status:** Accepted
 - **Date:** 2026-07-02

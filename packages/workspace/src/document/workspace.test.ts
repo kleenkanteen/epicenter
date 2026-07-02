@@ -289,7 +289,7 @@ describe('defineWorkspace', () => {
 		}
 	});
 
-	test('open(connection, compose) publishes runtime actions and disposes runtime extras', () => {
+	test('open(connection, compose) exposes runtime actions and disposes runtime extras', () => {
 		let runtimeDisposed = false;
 		const workspace = defineWorkspace({
 			id: 'ws-definition-runtime',
@@ -313,7 +313,7 @@ describe('defineWorkspace', () => {
 		workspace.tables.notes.set({ id: '1', title: 'hello' });
 		expect(workspace.runtimeLabel).toBe('browser-only');
 		if (!workspace.collaboration) throw new Error('expected relay wiring');
-		expect(workspace.collaboration.actions.notes_count()).toBe(1);
+		expect(workspace.actions.notes_count()).toBe(1);
 		workspace[Symbol.dispose]();
 		expect(runtimeDisposed).toBe(true);
 	});

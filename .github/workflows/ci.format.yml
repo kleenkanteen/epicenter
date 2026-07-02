@@ -33,9 +33,9 @@ jobs:
         run: bun run lint:check
       - name: Type check
         run: bun run typecheck
-      # Rejects backtick-wrapped apps/** and packages/** file paths in living
-      # docs that no longer resolve. Excludes specs, articles, skills, agent
-      # prompts, and Historical-marked docs. See scripts/check-doc-paths.ts.
+      # Rejects backtick-wrapped repo-rooted file paths in living docs that are
+      # not tracked. Excludes specs, articles, skills, agent prompts, and
+      # ignore-file-marked docs. See scripts/check-doc-paths.ts.
       - name: Check doc file references
         run: bun run check:doc-paths
       # Rejects specs that declare a terminal status (a finished spec should be

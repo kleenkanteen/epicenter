@@ -1,8 +1,8 @@
-# 0096. Super Chat tool modules receive a host API
+# 0097. Super Chat tool modules receive a host API
 
 - **Status:** Accepted
 - **Date:** 2026-07-02
-- **Relates:** [ADR-0084](0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md), [ADR-0095](0095-local-workspace-persistence-is-environment-injected.md)
+- **Relates:** [ADR-0084](0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md), [ADR-0096](0096-local-workspace-persistence-is-environment-injected.md)
 
 ## Context
 
