@@ -26,10 +26,20 @@ export const OAuthError = defineErrors({
 			'Missing Gmail OAuth credentials. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET ' +
 			'(or pass --client-id with GMAIL_CLIENT_SECRET set, or run via `infisical run --path=/apps/local-mail`).',
 	}),
-	TokenExchangeFailed: ({ cause }: { cause: unknown }) => ({
-		message: `Gmail token exchange failed: ${extractOAuthErrorMessage(cause)}`,
-		cause,
-	}),
+	TokenExchangeFailed: ({ cause }: { cause: unknown }) => {
+		const message =
+			cause instanceof oauth.ResponseBodyError
+				? `${extractErrorMessage(cause)} (${
+						cause.error_description
+							? `${cause.error}: ${cause.error_description}`
+							: cause.error
+					}, HTTP ${cause.status})`
+				: extractErrorMessage(cause);
+		return {
+			message: `Gmail token exchange failed: ${message}`,
+			cause,
+		};
+	},
 	AuthorizationDenied: ({
 		error,
 		description,
@@ -79,16 +89,6 @@ export type AuthorizationFlowOptions = {
 };
 
 const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
-
-function extractOAuthErrorMessage(cause: unknown): string {
-	if (cause instanceof oauth.ResponseBodyError) {
-		const detail = cause.error_description
-			? `${cause.error}: ${cause.error_description}`
-			: cause.error;
-		return `${extractErrorMessage(cause)} (${detail}, HTTP ${cause.status})`;
-	}
-	return extractErrorMessage(cause);
-}
 
 /** Hand-built server metadata; Google's OAuth endpoints are known constants. */
 function authServer(config: AppConfig): oauth.AuthorizationServer {
@@ -143,8 +143,15 @@ function defaultOpenBrowser(url: string): void {
 
 async function fetchAccountEmail(
 	config: AppConfig,
-	accessToken: string,
+	grant: oauth.TokenEndpointResponse,
 ): Promise<Result<string, OAuthError>> {
+	const accessToken =
+		typeof grant.access_token === 'string' ? grant.access_token : null;
+	if (!accessToken) {
+		return OAuthError.ProfileLookupFailed({
+			cause: new Error('token response did not include access_token'),
+		});
+	}
 	const client = createGmailClient({
 		config,
 		tokens: {
@@ -230,17 +237,7 @@ export async function runAuthorizationFlow(
 			client,
 			response,
 		);
-		const accessToken =
-			typeof grant.access_token === 'string' ? grant.access_token : null;
-		if (!accessToken) {
-			return OAuthError.ProfileLookupFailed({
-				cause: new Error('token response did not include access_token'),
-			});
-		}
-		const { data: accountEmail, error } = await fetchAccountEmail(
-			config,
-			accessToken,
-		);
+		const { data: accountEmail, error } = await fetchAccountEmail(config, grant);
 		if (error) return { data: null, error };
 		return tokenSetFromGrant(grant, {
 			accountEmail,
@@ -351,16 +348,9 @@ export async function redeemRefreshToken(
 		refreshToken,
 	});
 	if (error) return { data: null, error };
-	const accessToken =
-		typeof grant.access_token === 'string' ? grant.access_token : null;
-	if (!accessToken) {
-		return OAuthError.ProfileLookupFailed({
-			cause: new Error('token response did not include access_token'),
-		});
-	}
 	const { data: accountEmail, error: profileError } = await fetchAccountEmail(
 		config,
-		accessToken,
+		grant,
 	);
 	if (profileError) return { data: null, error: profileError };
 	return tokenSetFromGrant(grant, {
