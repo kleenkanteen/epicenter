@@ -15,7 +15,12 @@ import { Buffer } from 'node:buffer';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type MailDb, openMailDb, openMailDbReadonly } from './db.ts';
+import {
+	mailDbPath,
+	type MailDb,
+	openMailDb,
+	openMailDbReadonly,
+} from './db.ts';
 import type { GmailMessage } from './schema.ts';
 
 function tempDir() {
@@ -23,11 +28,12 @@ function tempDir() {
 	return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
-function openTmp(): { db: MailDb; cleanup: () => void } {
+function openTmp(): { db: MailDb; dataDir: string; cleanup: () => void } {
 	const tmp = tempDir();
-	const db = openMailDb(join(tmp.dir, 'you@example.com', 'mail.db'));
+	const db = openMailDb({ dataDir: tmp.dir, accountEmail: 'you@example.com' });
 	return {
 		db,
+		dataDir: tmp.dir,
 		cleanup: () => {
 			db.close();
 			tmp.cleanup();
@@ -254,7 +260,10 @@ describe('full pull page ingestion', () => {
 		chmodSync(tmp.dir, 0o755);
 		const accountDir = join(tmp.dir, 'you@example.com');
 		const path = join(accountDir, 'mail.db');
-		const db = openMailDb(path);
+		const db = openMailDb({
+			dataDir: tmp.dir,
+			accountEmail: 'you@example.com',
+		});
 		db.ingestFullPullPage([message()], 's1');
 
 		expect(mode(tmp.dir)).toBe(0o700);
@@ -405,7 +414,10 @@ describe('readonly open', () => {
 		`);
 		old.close();
 
-		const reader = openMailDbReadonly(path);
+		const reader = openMailDbReadonly({
+			dataDir: tmp.dir,
+			accountEmail: 'you@example.com',
+		});
 		expect(reader.schemaVersion()).toBe('1');
 		expect(reader.realmState().historyId).toBe('42');
 		expect(reader.counts()).toEqual({ messages: 1, labels: 0 });
@@ -414,23 +426,41 @@ describe('readonly open', () => {
 	});
 
 	test('the readonly handle rejects writes', () => {
-		const { db, cleanup } = openTmp();
+		const { db, dataDir, cleanup } = openTmp();
 		db.ingestFullPullPage([message()], 's1');
-		const reader = openMailDbReadonly(
-			db.raw.filename,
-		);
+		const reader = openMailDbReadonly({
+			dataDir,
+			accountEmail: 'you@example.com',
+		});
 		expect(() => reader.raw.exec(`DELETE FROM messages`)).toThrow();
 		reader.close();
 		cleanup();
 	});
 });
 
+describe('mirror layout', () => {
+	test('an account email that is not one path segment cannot name a mirror directory', () => {
+		expect(() => mailDbPath('/data', '../evil')).toThrow(
+			'cannot name a mirror directory',
+		);
+		expect(() => mailDbPath('/data', 'a/b@example.com')).toThrow(
+			'cannot name a mirror directory',
+		);
+		expect(() => mailDbPath('/data', '')).toThrow(
+			'cannot name a mirror directory',
+		);
+		expect(mailDbPath('/data', 'you@example.com')).toBe(
+			join('/data', 'you@example.com', 'mail.db'),
+		);
+	});
+});
+
 describe('schema-version migration', () => {
 	test('a stale schema_version drops and recreates the data tables in the same open, not a subsequent one', () => {
 		const tmp = tempDir();
-		const path = join(tmp.dir, 'you@example.com', 'mail.db');
+		const location = { dataDir: tmp.dir, accountEmail: 'you@example.com' };
 
-		const first = openMailDb(path);
+		const first = openMailDb(location);
 		first.ingestFullPullPage([message()], 's1');
 		// Simulate an older mirror on disk: force the stored version behind
 		// SCHEMA_VERSION so the next open must drop-and-recreate.
@@ -440,7 +470,7 @@ describe('schema-version migration', () => {
 		// Reopening (not a second, later open) must both drop the stale tables
 		// AND recreate them, so a write right after `openMailDb` returns
 		// succeeds instead of hitting "no such table".
-		const second = openMailDb(path);
+		const second = openMailDb(location);
 		expect(() =>
 			second.ingestFullPullPage([message({ id: 'm2' })], 's2'),
 		).not.toThrow();

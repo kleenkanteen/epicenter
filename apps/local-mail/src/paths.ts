@@ -24,11 +24,6 @@ export function resolveDataDir(): string {
 	return defaultDataDir();
 }
 
-/** One SQLite file per connected account, scoped by account email under the data dir. */
-export function dbPath(dataDir: string, accountEmail: string): string {
-	return join(dataDir, accountEmail, 'mail.db');
-}
-
 /**
  * The default file token store: `credentials.json` at the data-dir root, sibling
  * to each account's `<accountEmail>/` mirror dir. Deliberately not inside the

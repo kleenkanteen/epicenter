@@ -5,7 +5,7 @@ import {
 	type InferErrors,
 } from 'wellcrafted/error';
 import { Ok, type Result } from 'wellcrafted/result';
-import { openMailDbReadonly } from './db.ts';
+import { mailDbPath, openMailDbReadonly } from './db.ts';
 
 export const MailQueryError = defineErrors({
 	NoMirror: ({ path }: { path: string }) => ({
@@ -27,15 +27,18 @@ export type MailQueryResult = {
 };
 
 export function queryMail({
-	dbPath,
+	dataDir,
+	accountEmail,
 	sql,
 }: {
-	dbPath: string;
+	dataDir: string;
+	accountEmail: string;
 	sql: string;
 }): Result<MailQueryResult, MailQueryError> {
-	if (!existsSync(dbPath)) return MailQueryError.NoMirror({ path: dbPath });
+	const path = mailDbPath(dataDir, accountEmail);
+	if (!existsSync(path)) return MailQueryError.NoMirror({ path });
 	try {
-		const db = openMailDbReadonly(dbPath);
+		const db = openMailDbReadonly({ dataDir, accountEmail });
 		try {
 			const rows: Record<string, unknown>[] = [];
 			let truncated = false;

@@ -4,7 +4,6 @@ import { openMailDb } from './db.ts';
 import { createGmailClient } from './gmail-client.ts';
 import { runMcpServer } from './mcp.ts';
 import { runAuthorizationFlow } from './oauth.ts';
-import { dbPath } from './paths.ts';
 import { queryMail } from './query.ts';
 import { readMailStatus } from './status.ts';
 import { runSyncLoop, type SyncOutcome, syncMailbox } from './sync.ts';
@@ -217,7 +216,7 @@ async function runSync(args: ParsedArgs): Promise<number> {
 		config,
 		log: (m) => console.log(`[gmail] ${m}`),
 	});
-	const db = openMailDb(dbPath(config.dataDir, accountEmail));
+	const db = openMailDb({ dataDir: config.dataDir, accountEmail });
 	const deps = {
 		db,
 		client,
@@ -268,7 +267,8 @@ async function runQuery(args: ParsedArgs): Promise<number> {
 		return 1;
 	}
 	const { data, error } = queryMail({
-		dbPath: dbPath(config.dataDir, accountEmail),
+		dataDir: config.dataDir,
+		accountEmail,
 		sql,
 	});
 	if (error) {

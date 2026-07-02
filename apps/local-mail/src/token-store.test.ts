@@ -124,19 +124,36 @@ describe('account resolution from the token store', () => {
 		cleanup();
 	});
 
-	test('resolveAccount lets LOCAL_MAIL_ACCOUNT override stored accounts', async () => {
+	test('resolveAccount lets LOCAL_MAIL_ACCOUNT pick one of the stored accounts', async () => {
 		const { path, cleanup } = tempTokenFile();
 		const store = createFileTokenStore(path);
 		await store.set(token('a@example.com'));
 		await store.set(token('b@example.com'));
 
 		const { data, error } = await resolveAccount(
-			config('override@example.com'),
+			config('b@example.com'),
 			store,
 		);
 
 		expect(error).toBeNull();
-		expect(data).toBe('override@example.com');
+		expect(data).toBe('b@example.com');
+		cleanup();
+	});
+
+	test('resolveAccount rejects a LOCAL_MAIL_ACCOUNT that is not connected', async () => {
+		const { path, cleanup } = tempTokenFile();
+		const store = createFileTokenStore(path);
+		await store.set(token('a@example.com'));
+
+		const { data, error } = await resolveAccount(
+			config('typo@example.com'),
+			store,
+		);
+
+		expect(data).toBeNull();
+		expect(error?.message).toBe(
+			'LOCAL_MAIL_ACCOUNT is set to typo@example.com, which is not a connected account (connected: a@example.com).',
+		);
 		cleanup();
 	});
 });

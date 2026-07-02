@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { Buffer } from 'node:buffer';
 import { chmodSync, mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { type GmailLabel, type GmailMessage, headerValue } from './schema.ts';
 
 /**
@@ -127,9 +127,35 @@ function secureDbFiles(path: string): void {
 	chmodIfExists(`${path}-shm`, 0o600);
 }
 
-export function openMailDb(path: string) {
-	secureDir(dirname(dirname(path)));
-	secureDir(dirname(path));
+/**
+ * One SQLite file per connected account: `<data-dir>/<accountEmail>/mail.db`.
+ * The mirror owns this layout; nothing outside this file assembles mirror
+ * paths. The account email names a directory, so it must be exactly one path
+ * segment: emails reach here from Google's profile endpoint or a
+ * store-validated override, and this guard keeps any other string from
+ * escaping the data dir.
+ */
+export function mailDbPath(dataDir: string, accountEmail: string): string {
+	if (
+		accountEmail.length === 0 ||
+		accountEmail === '.' ||
+		accountEmail === '..' ||
+		accountEmail.includes('/') ||
+		accountEmail.includes('\\')
+	) {
+		throw new Error(
+			`Account email ${JSON.stringify(accountEmail)} cannot name a mirror directory.`,
+		);
+	}
+	return join(dataDir, accountEmail, 'mail.db');
+}
+
+export type MailDbLocation = { dataDir: string; accountEmail: string };
+
+export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
+	const path = mailDbPath(dataDir, accountEmail);
+	secureDir(dataDir);
+	secureDir(join(dataDir, accountEmail));
 	const db = new Database(path, { create: true });
 
 	db.exec('PRAGMA journal_mode = WAL;');
@@ -358,8 +384,10 @@ export type MailDbReader = ReturnType<typeof openMailDbReadonly>;
  * writes at the SQLite level, and `busy_timeout` keeps reads from failing
  * against a lock a concurrent sync briefly holds.
  */
-export function openMailDbReadonly(path: string) {
-	const db = new Database(path, { readonly: true });
+export function openMailDbReadonly({ dataDir, accountEmail }: MailDbLocation) {
+	const db = new Database(mailDbPath(dataDir, accountEmail), {
+		readonly: true,
+	});
 	db.exec('PRAGMA busy_timeout = 5000;');
 
 	const meta = (key: string): string | null =>

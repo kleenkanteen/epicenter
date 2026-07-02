@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs';
 import type { AppConfig } from './config.ts';
-import { openMailDbReadonly } from './db.ts';
-import { dbPath } from './paths.ts';
+import { mailDbPath, openMailDbReadonly } from './db.ts';
 import type { TokenStore } from './token-store.ts';
 import { isAccessTokenExpired } from './tokens.ts';
 
@@ -42,7 +41,7 @@ export async function readMailStatus({
 			: null,
 	};
 
-	const path = dbPath(config.dataDir, accountEmail);
+	const path = mailDbPath(config.dataDir, accountEmail);
 	if (!existsSync(path)) {
 		return {
 			...base,
@@ -55,7 +54,7 @@ export async function readMailStatus({
 		};
 	}
 
-	const db = openMailDbReadonly(path);
+	const db = openMailDbReadonly({ dataDir: config.dataDir, accountEmail });
 	try {
 		const realm = db.realmState();
 		return {

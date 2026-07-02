@@ -18,7 +18,7 @@ import { syncMailbox } from './sync.ts';
 
 function tempDb(): { db: MailDb; cleanup: () => void } {
 	const dir = mkdtempSync(join(tmpdir(), 'local-mail-sync-test-'));
-	const db = openMailDb(join(dir, 'you@example.com', 'mail.db'));
+	const db = openMailDb({ dataDir: dir, accountEmail: 'you@example.com' });
 	return {
 		db,
 		cleanup: () => {

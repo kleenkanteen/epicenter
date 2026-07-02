@@ -43,7 +43,6 @@ import { Err, Ok, type Result } from 'wellcrafted/result';
 import type { AppConfig } from './config.ts';
 import { openMailDb } from './db.ts';
 import { createGmailClient } from './gmail-client.ts';
-import { dbPath } from './paths.ts';
 import { queryMail } from './query.ts';
 import { readMailStatus } from './status.ts';
 import { syncMailbox } from './sync.ts';
@@ -102,7 +101,8 @@ const TOOLS: ToolDescriptor[] = [
 		tier: 'read',
 		async run(ctx, args) {
 			return queryMail({
-				dbPath: dbPath(ctx.config.dataDir, ctx.accountEmail),
+				dataDir: ctx.config.dataDir,
+				accountEmail: ctx.accountEmail,
 				sql: args.sql,
 			});
 		},
@@ -151,7 +151,10 @@ const TOOLS: ToolDescriptor[] = [
 				now: ctx.now,
 			});
 			const client = createGmailClient({ config: ctx.config, tokens });
-			const db = openMailDb(dbPath(ctx.config.dataDir, ctx.accountEmail));
+			const db = openMailDb({
+				dataDir: ctx.config.dataDir,
+				accountEmail: ctx.accountEmail,
+			});
 			try {
 				const outcome = await syncMailbox(
 					{ db, client, config: ctx.config, now: ctx.now },

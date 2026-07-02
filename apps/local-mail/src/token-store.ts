@@ -1,8 +1,15 @@
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	writeFileSync,
+} from 'node:fs';
 import { dirname } from 'node:path';
 import { Value } from 'typebox/value';
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import type { AppConfig } from './config.ts';
+import { mailDbPath } from './db.ts';
 import { type TokenSet, TokenSetSchema } from './tokens.ts';
 
 /**
@@ -24,9 +31,27 @@ export async function resolveAccount(
 	config: AppConfig,
 	store: TokenStore,
 ): Promise<Result<string, { message: string }>> {
-	if (config.account) return Ok(config.account);
-
 	const accounts = await store.listAccounts();
+	if (config.account) {
+		// An override is valid when we hold credentials for it, or when its
+		// mirror already exists on disk: the read verbs (query, status) work
+		// without a token, and a disconnected account's mirror stays readable.
+		if (accounts.includes(config.account)) return Ok(config.account);
+		let hasMirror = false;
+		try {
+			hasMirror = existsSync(mailDbPath(config.dataDir, config.account));
+		} catch {
+			// Not even one path segment; the error below names the real accounts.
+		}
+		if (hasMirror) return Ok(config.account);
+		return Err({
+			message:
+				accounts.length === 0
+					? `LOCAL_MAIL_ACCOUNT is set to ${config.account}, but no Gmail account is connected. Run "local-mail connect" first.`
+					: `LOCAL_MAIL_ACCOUNT is set to ${config.account}, which is not a connected account (connected: ${accounts.join(', ')}).`,
+		});
+	}
+
 	if (accounts.length === 1) return Ok(accounts[0] as string);
 	if (accounts.length === 0) {
 		return Err({

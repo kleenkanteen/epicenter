@@ -58,7 +58,7 @@ function seedMirror(dir: string): void {
 			],
 		},
 	};
-	const db = openMailDb(join(dir, ACCOUNT, 'mail.db'));
+	const db = openMailDb({ dataDir: dir, accountEmail: ACCOUNT });
 	db.ingestFullPullPage([message], '2026-07-01T00:00:00.000Z');
 	db.ingestLabels([{ id: 'INBOX', name: 'INBOX', type: 'system' }], 's1');
 	db.finishFullPull('1000', '2026-07-01T00:00:00.000Z');
