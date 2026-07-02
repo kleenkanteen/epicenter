@@ -33,7 +33,6 @@ function fakeWebSocket(): Promise<WebSocket> {
 }
 
 const connection: ConnectionConfig = {
-	server: 'api.test.invalid',
 	baseURL: 'https://api.test.invalid',
 	ownerId: asOwnerId('owner-1'),
 	openWebSocket: fakeWebSocket,

@@ -44,7 +44,10 @@ import { createOwnedYjsKey } from './local-yjs-key.js';
  *
  * @example
  * ```ts
- * const idb = attachLocalStorage(ydoc, signedIn);
+ * const idb = attachLocalStorage(ydoc, {
+ *   server: new URL(connection.baseURL).host,
+ *   ownerId: connection.ownerId,
+ * });
  * await idb.whenLoaded;
  * ```
  */

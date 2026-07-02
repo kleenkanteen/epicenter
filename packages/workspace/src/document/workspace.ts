@@ -825,7 +825,7 @@ export function defineWorkspace<
 				dispose();
 				await Promise.all([idb.whenDisposed, collaboration.whenDisposed]);
 				await wipeLocalStorage({
-					server: connection.server,
+					server: new URL(connection.baseURL).host,
 					ownerId: connection.ownerId,
 				});
 			},

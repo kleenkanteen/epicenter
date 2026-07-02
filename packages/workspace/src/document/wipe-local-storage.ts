@@ -30,7 +30,10 @@ import { getOwnedYjsPrefix } from './local-yjs-key.js';
  *
  * @example
  * ```ts
- * await wipeLocalStorage({ server: signedIn.server, ownerId: signedIn.ownerId });
+ * await wipeLocalStorage({
+ *   server: new URL(connection.baseURL).host,
+ *   ownerId: connection.ownerId,
+ * });
  * ```
  */
 export async function wipeLocalStorage({

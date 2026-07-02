@@ -81,7 +81,6 @@ test('bare root + bare child docs persist under guid names, no relay', async () 
 
 test('signed-in root persists under the owner-scoped database name', async () => {
 	const bundle = model.connect({
-		server: 'api.example.com',
 		baseURL: 'https://api.example.com',
 		ownerId: asOwnerId('owner-1'),
 		nodeId: asNodeId('node-test'),

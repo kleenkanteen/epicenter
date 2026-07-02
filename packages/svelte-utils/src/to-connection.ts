@@ -11,7 +11,7 @@ import type { ConnectionConfig, NodeId } from '@epicenter/workspace';
  *
  * Signed out projects to `null` (the bare local-first wiring); any
  * identity-bearing state (signed in, reauth-required) projects to the owner's
- * connection coordinates. `server`/`baseURL` are constant across auth states
+ * connection coordinates. `baseURL` is constant across auth states
  * (one API per client). This reads `auth.state` ONCE: identity changes never
  * swap the connection in place, `reloadOnOwnerChange` reloads so the next
  * boot re-projects.
@@ -22,10 +22,8 @@ export function toConnection(
 ): ConnectionConfig | null {
 	const state = auth.state;
 	if (state.status === 'signed-out') return null;
-	const baseURL = auth.baseURL;
 	return {
-		server: new URL(baseURL).host,
-		baseURL,
+		baseURL: auth.baseURL,
 		ownerId: state.ownerId,
 		nodeId,
 		openWebSocket: auth.openWebSocket,
