@@ -17,7 +17,7 @@
 
 ## Overview
 
-The hosted hub at `https://api.epicenter.so` handles auth, real-time sync, and AI inference. It runs on Cloudflare Workers with Durable Objects. Cloud sync enters through `/api/rooms/:roomId` (the same path in per-user cloud and self-hosted instance deployments): a cloud doc is owned by the resolved `principalId` and addressed by its `ydoc.guid`, and the server resolves the room from the auth token. Browser apps and the workspace daemon both use this route.
+The hosted hub at `https://api.epicenter.so` handles auth, real-time sync, and AI inference. It runs on Cloudflare Workers with Durable Objects. Cloud sync enters through `/api/rooms/:roomId` (the same path in Cloud and self-hosted instance deployments): a cloud doc is scoped to the resolved `principalId` and addressed by its `ydoc.guid`, and the server resolves the room from the auth token. Browser apps and the workspace daemon both use this route.
 
 On the client, `@epicenter/workspace` exposes the preset directly: define your schema with `defineTable` / `defineKv`, wrap it with `defineWorkspace({ id, tables, kv, actions })`, then connect once at boot. `toConnection(auth, nodeId)` projects the auth snapshot: `null` signed out (bare local IndexedDB storage), the principal's connection signed in (principal-scoped storage plus relay sync).
 
@@ -78,6 +78,6 @@ export const myApp = openMyAppBrowser({
 });
 ```
 
-The `ydoc.guid` is both the local IndexedDB key and the cloud room id. Namespace it to your app, for example `epicenter.my-app`, to avoid collisions when multiple apps share the same IndexedDB origin. The cloud sync route is `/api/rooms/:roomId` in per-user cloud and self-hosted instance deployments, taking the room id straight from `ydoc.guid`; the server resolves the DO name `principals/${principalId}/rooms/${room}` from the auth token, with no workspace lookup.
+The `ydoc.guid` is both the local IndexedDB key and the cloud room id. Namespace it to your app, for example `epicenter.my-app`, to avoid collisions when multiple apps share the same IndexedDB origin. The cloud sync route is `/api/rooms/:roomId` in Cloud and self-hosted instance deployments, taking the room id straight from `ydoc.guid`; the server resolves the DO name `principals/${principalId}/rooms/${room}` from the auth token, with no workspace lookup.
 
 `connect(null)` returns the local-only bundle: IndexedDB, BroadcastChannel, `wipe()`, and child-doc openers, but no relay. `connect(connection)` returns the same bundle shape with principal-scoped storage and collaboration. The app shell should not branch on auth after this point; signed-in-only features should degrade inline.

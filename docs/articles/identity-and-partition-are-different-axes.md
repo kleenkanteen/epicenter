@@ -2,6 +2,8 @@
 
 The self-host naming question only gets clear once identity and partition are separated.
 
+> **Postscript, 2026-07-02:** ADR-0092 overturned this article's conclusion while keeping its useful vocabulary. After implementation, the two axes proved 100% correlated in every shipped deployable: Cloud authenticated Better Auth users into per-user partitions, and the instance authenticated one bearer into one partition. Epicenter now treats the authenticated principal id as the partition id by definition, with the remaining flexibility inside `ResolvePrincipal`. The surviving word is `principal`, because Better Auth still owns `user` and the authenticated thing is not always a person.
+
 An authenticated principal is who the server thinks made the request. An owner partition is the storage namespace the request may touch. Those are the same value in Epicenter Cloud. They are intentionally different values on a self-hosted instance.
 
 ```txt

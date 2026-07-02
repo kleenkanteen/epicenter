@@ -1,6 +1,6 @@
 # 0092. Identity is the partition
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-02
 - **Amends:** [ADR-0067](0067-auth-owns-the-session-endpoint-the-data-client-is-owner-scoped.md), [ADR-0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md)
 - **Relates:** [ADR-0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md), [ADR-0070](0070-self-host-adds-no-new-ownership-or-auth-mode.md), [ADR-0071](0071-oauth-is-hosted-only-a-custom-instance-requires-a-token.md), [ADR-0076](0076-the-relational-auth-substrate-is-a-cloud-only-layer-the-instance-composes-neither.md)
@@ -32,6 +32,8 @@ ADR-0067's session contract changes. Auth still owns `/api/session`, but the res
 ADR-0075's self-host conclusion is tightened. The instance remains one partition behind one operator bearer, but the partition principal is the literal `instance` principal. The old named `instance-owner` principal goes away because it was never durable input. Named instance tokens remain refused for now; if they are earned, they map to the same principal id and put attribution in presence or audit metadata, not in storage partitioning.
 
 This is a clean break under the zero-users and no-durable-data assumption. Old clients that still call `/api/owners/:ownerId/...` or persist `ownerId` may fail to sync until upgraded. Durable local or server data written under the old shape is allowed to become unreachable because there is no data to preserve.
+
+Encrypted payloads derived with the old `owner:${label}` HKDF info bytes are also intentionally unreadable. That compatibility break is accepted only because no deployed durable data exists yet.
 
 ## Considered alternatives
 

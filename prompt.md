@@ -227,7 +227,10 @@ Scope is TWO packages (the brands live in different ones):
 
 ### Wave 2: server seam collapse
 
-- DELETE `packages/server/src/ownership.ts` and
+- DELETE
+  <!-- doc-path-check: ignore-next-line (historical handoff: Wave 2 deleted this file) -->
+  `packages/server/src/ownership.ts` and
+  <!-- doc-path-check: ignore-next-line (historical handoff: Wave 2 deleted this file) -->
   `packages/server/src/middleware/require-ownership.ts` (+ its test).
 - `packages/server/src/types.ts`: `ResolveUser` -> `ResolvePrincipal`
   returning `Principal`; context vars: `principal: Principal` replaces both

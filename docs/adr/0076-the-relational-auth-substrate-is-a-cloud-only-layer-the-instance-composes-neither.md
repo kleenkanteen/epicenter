@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-06-27
-- **Relates:** [ADR-0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) (the instance is one pinned partition behind one operator bearer; this is its server-substrate consequence), [ADR-0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md) (the db handle is a per-concern injected seam; this makes that seam optional so a deployment can decline it)
+- **Relates:** [ADR-0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) (the instance is one pinned partition behind one operator bearer; this is its server-substrate consequence), [ADR-0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md) (the db handle is a per-concern injected seam; this makes that seam optional so a deployment can decline it), [ADR-0092](0092-identity-is-the-partition.md) (the instance still composes no Better Auth; its bearer resolver returns the `instance` principal)
 
 ## Context
 
