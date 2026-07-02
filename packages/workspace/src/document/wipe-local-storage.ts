@@ -51,3 +51,24 @@ export async function wipeLocalStorage({
 		);
 	await Promise.all(names.map((name) => clearDocument(name)));
 }
+
+/**
+ * Delete every BARE (unowned, local-first) IndexedDB database of one
+ * workspace: the root doc, named by its guid, plus every child doc, whose
+ * guids extend the root guid (`<guid>.<collection>.<rowId>.<field>`), so one
+ * prefix scan catches the whole family. The `connectLocal()` bundle's
+ * `wipe()` calls this; owner-scoped databases are untouched (those belong to
+ * {@link wipeLocalStorage}).
+ */
+export async function wipeBareStorage(rootGuid: string): Promise<void> {
+	if (!('databases' in indexedDB)) return;
+	const databases = await indexedDB.databases().catch(() => []);
+	const names = databases
+		.map((db) => db.name)
+		.filter(
+			(name): name is string =>
+				typeof name === 'string' &&
+				(name === rootGuid || name.startsWith(`${rootGuid}.`)),
+		);
+	await Promise.all(names.map((name) => clearDocument(name)));
+}

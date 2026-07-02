@@ -1,10 +1,10 @@
 /**
  * Epicenter Cloud Worker entry.
  *
- * Composes `@epicenter/server` with the `personal` ownership rule and
+ * Composes `@epicenter/server` with the `perUser` ownership rule and
  * layers cloud-only billing, admin, and dashboard surfaces on top.
  * The self-hosted single-partition instance lives in a sibling apps/* folder
- * and composes the same library with `instance()` and no Autumn policies
+ * and composes the same library with `instance` and no Autumn policies
  * (ADR-0075).
  *
  * Read top to bottom for the full URL surface of cloud. Each `mount*`
@@ -26,7 +26,7 @@ import {
 	mountRoomsApp,
 	mountSessionApp,
 	mountTranscriptionApp,
-	personal,
+	perUser,
 	Room,
 	requireBearerUser,
 	requireCookieOrBearerUser,
@@ -46,7 +46,7 @@ import { buildEpicenterTrustedOrigins } from './trusted-origins.js';
 // not deep inside library files compiled in this program.
 ({}) as Cloudflare.Env satisfies ServerBindings;
 
-const ownership = personal();
+const ownership = perUser;
 
 const app = createServerApp<CloudEnv>({
 	// The one runtime-specific portable concern: bind this Worker's Durable Object

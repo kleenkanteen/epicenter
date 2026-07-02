@@ -3,8 +3,8 @@
  *
  * Point it at a base URL and it runs ONE end-to-end scenario against the live
  * HTTP server: read the session, open a room, and exercise the full
- * content-addressed blob lifecycle (ticket -> presigned PUT -> read back ->
- * usage). Every step prints a single PASS/FAIL/SKIP line, so the same
+ * content-addressed blob lifecycle (ticket -> presigned PUT -> read back).
+ * Every step prints a single PASS/FAIL/SKIP line, so the same
  * invocation against the Bun process (:8788) and the wrangler process (:8787)
  * produces a diffable transcript of runtime parity.
  *
@@ -15,8 +15,8 @@
  * is disabled and Google is interactive), so it relies on the server running
  * with the dev resolver injected: boot it via `bun run dev:bun:devauth`
  * (server.dev.ts), which resolves `Authorization: Bearer dev:<userId>` to a
- * synthetic user on localhost. The smoke just sends that header. In personal
- * mode the resolved id is the owner partition directly, so no user is seeded and
+ * synthetic user on localhost. The smoke just sends that header. In the per-user
+ * topology the resolved id is the owner partition directly, so no user is seeded and
  * the script needs no database access of its own.
  *
  * Requirements to run:
@@ -38,7 +38,7 @@ const BASE_URL = (
 	`http://localhost:${API_BUN_DEV_PORT}`
 ).replace(/\/+$/, '');
 
-// The dev resolver synthesizes the user from this id; personal-mode ownership
+// The dev resolver synthesizes the user from this id; per-user ownership
 // makes it the owner partition too. Random per run so repeated smokes never
 // collide on room or blob state.
 const userId = `smoke-${randHex(4)}`;
@@ -193,21 +193,6 @@ async function main() {
 			);
 		} else {
 			record('FAIL', 'blob read back', `expected 302, got ${readRes.status}`);
-		}
-
-		// Usage.
-		const usageRes = await fetch(API_ROUTES.blobs.usage.url(BASE_URL, owner), {
-			headers: authHeaders,
-		});
-		if (usageRes.ok) {
-			const { totalBytes } = (await usageRes.json()) as { totalBytes: number };
-			record(
-				'PASS',
-				'blob usage',
-				`${usageRes.status} totalBytes=${totalBytes}`,
-			);
-		} else {
-			record('FAIL', 'blob usage', `${usageRes.status}`);
 		}
 
 		// Cleanup the uploaded object (idempotent).

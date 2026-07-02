@@ -44,7 +44,7 @@ function createTestApp() {
 	const app = new Hono<Env>();
 	mountTranscriptionApp(app, {
 		auth: async (_c, next) => next(),
-		ownership: instance(),
+		ownership: instance,
 	});
 	return app;
 }

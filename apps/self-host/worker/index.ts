@@ -3,8 +3,8 @@
  *
  * The instance on Cloudflare: the SAME `@epicenter/server` composition the Bun
  * entry (`server.ts`) builds, wired to Cloudflare bindings instead of plain
- * primitives (ADR-0066). One single-partition instance, not a shared wiki and not
- * a mode: ownership is `instance()` (every request resolves to the pinned
+ * primitives (ADR-0066). One single-partition instance, not a multi-user wiki and not
+ * a mode: ownership is `instance` (every request resolves to the pinned
  * `owners/instance` partition), and authentication is one operator-supplied static
  * bearer (`INSTANCE_TOKEN`), constant-time compared. No OAuth, no allowlist, no
  * sessions. "Solo" vs "shared" is only how many people hold the token.
@@ -37,7 +37,7 @@ import {
 } from '@epicenter/server';
 import { resolveSelfHostTrustedOrigins } from '../trusted-origins.js';
 
-const ownership = instance();
+const ownership = instance;
 
 const app = createServerApp({
 	// The one runtime-specific concern: bind this Worker's Durable Object room

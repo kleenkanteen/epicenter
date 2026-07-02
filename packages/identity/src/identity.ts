@@ -2,16 +2,16 @@ import { type } from 'arktype';
 import type { Brand } from 'wellcrafted/brand';
 
 /**
- * Workspace partition key. In personal mode equals the signed-in user's
- * id (bytes preserve pre-collapse HKDF labels). On an instance the literal
- * 'instance'. Every server path, every R2 key, every local IDB name, and the
- * HKDF derivation label all use this one value.
+ * Workspace partition key. On the hosted cloud it equals the signed-in user's
+ * id (the `perUser` topology, bytes preserve pre-collapse HKDF labels). On an
+ * instance it is the literal 'instance'. Every server path, every R2 key, every
+ * local IDB name, and the HKDF derivation label all use this one value.
  *
- * Deployment shape (personal vs instance) is never carried as its own field: it
+ * Deployment shape (`perUser` vs instance) is never carried as its own field: it
  * is a property of the server, not of any cell or wire payload. This is the
  * canonical site for the rare consumer that genuinely must distinguish them:
  * derive it as `ownerId === INSTANCE_OWNER_ID` (instance) versus
- * `ownerId === userId` (personal). Most code should not branch at all and just
+ * `ownerId === userId` (`perUser`). Most code should not branch at all and just
  * use `ownerId` as the opaque partition key.
  *
  * The validator is declared first; the type is derived from it via `.infer`
@@ -37,10 +37,10 @@ export const asOwnerId = (value: string): OwnerId => value as OwnerId;
  * IndexedDB key prefix for every instance deployment. Changing the bytes breaks
  * every existing instance's data. Do not edit.
  *
- * Pinned to a CONSTANT independent of caller identity (the `instance()`
- * topology, not `personal()` keyed by user id): every operator-supplied bearer
+ * Pinned to a CONSTANT independent of caller identity (the `instance`
+ * topology, not `perUser` keyed by user id): every operator-supplied bearer
  * resolves to the same partition, so a future per-person named token adds
  * identity without re-partitioning the box's data. The hosted cloud never reads
- * this; its owner partition is the signed-in user's id (`personal()`).
+ * this; its owner partition is the signed-in user's id (`perUser`).
  */
 export const INSTANCE_OWNER_ID = asOwnerId('instance');

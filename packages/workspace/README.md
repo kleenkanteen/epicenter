@@ -142,7 +142,7 @@ Every exported function in this package falls into one of three verbs. The prefi
 | Verb | Side effect | Input | Output | Examples |
 |---|---|---|---|---|
 | `define*` | **None**: pure data or type contract | Schemas, defaults, typed bundle values | Plain config object or same value back | `defineTable`, `defineKv`, `defineMutation`, `defineQuery`, `defineWorkspace` |
-| `create*` | **Constructs**: bundles, models, registries, or pure definitions | Definitions, options | Disposable bundle or pure value | `createWorkspace` (root bundle: ydoc + tables + kv + empty actions + dispose), `createFuji` (app model), `createDisposableCache` (refcounted per-row cache) |
+| `create*` | **Constructs**: bundles, models, registries, or pure definitions | Definitions, options | Disposable bundle or pure value | `createWorkspace` (root bundle: ydoc + tables + kv + empty actions + dispose), `createDisposableCache` (refcounted per-row cache) |
 | `attach*` | **Mutates a Y.Doc**: binds a slot, registers `ydoc.on('destroy')` | An existing `Y.Doc` + config (workspace materializers take the bundle from `createWorkspace`) | Typed handle, non-idempotent, hold the reference | `attachRichText`, `attachPlainText`, `attachRecords`, `attachTimeline`, `attachIndexedDb`, `attachLocalStorage`, `attachYjsLog`, `attachBroadcastChannel`, `attachMarkdownExport`, `attachBunSqliteMaterializer` |
 | `open*` | **Opens a runtime over a Y.Doc or a local resource**: returns a typed handle with its own teardown. The Y.Doc-bound case (`openCollaboration`) registers `ydoc.on('destroy')` like `attach*` does; the resource case (`openSqliteReader`) takes no Y.Doc and returns a `[Symbol.dispose]()` handle. | Y.Doc + config, or resource config | Typed runtime handle | `openCollaboration`, `openSqliteReader`, `openWorkspaceSqlite` |
 
@@ -241,16 +241,17 @@ floor rides to carry cross-device MCP tool calls over the same socket. See
 The `id` you pass to `defineWorkspace(...)` becomes `workspace.ydoc.guid` when
 you call `.connect(...)`. Namespace it to your app (e.g. `epicenter.my-app`) to
 avoid collisions when multiple apps share the same IndexedDB origin. Cloud sync
-targets the single uniform shape `/api/owners/:ownerId/rooms/:roomId` in both
-modes: build the URL with
+targets the single uniform shape `/api/owners/:ownerId/rooms/:roomId` in
+per-user cloud and self-hosted instance deployments: build the URL with
 `roomWsUrl({ baseURL, ownerId, guid: workspace.ydoc.guid, nodeId })`. A cloud
 doc is owned by the authenticated `OwnerId`, so the server resolves the Durable
-Object name `owners/${ownerId}/rooms/${room}` from the auth token (personal:
-`ownerId === userId`; shared: `ownerId === 'shared'`), with no workspace lookup.
+Object name `owners/${ownerId}/rooms/${room}` from the auth token (per-user
+cloud: `ownerId === userId`; instance: `ownerId === 'instance'`), with no
+workspace lookup.
 
 For production-shaped browser wiring, see
-`apps/fuji/src/lib/workspace/browser.ts`. For auth session transitions, see
-`apps/fuji/src/lib/session.ts`.
+`apps/honeycrisp/src/lib/workspace/browser.ts`. For the boot-time doc selection, see
+`apps/honeycrisp/src/lib/honeycrisp.ts`.
 
 ## Core Philosophy
 
@@ -525,9 +526,8 @@ Each `.open(rowId)` returns a disposable handle. Multiple consumers can open the
 same row and share one underlying Y.Doc safely; the workspace-owned cache handles
 construction, refcounting, and `gcTime`-delayed teardown.
 
-Reference implementations: `apps/opensidian/opensidian.browser.ts`,
-`apps/fuji/src/lib/workspace/browser.ts`, `apps/fuji/src/lib/workspace/mount.ts`,
-and `apps/honeycrisp/honeycrisp.browser.ts`.
+Reference implementations: `apps/opensidian/opensidian.browser.ts` and
+`apps/honeycrisp/src/lib/workspace/browser.ts`.
 
 ## Schema definition
 

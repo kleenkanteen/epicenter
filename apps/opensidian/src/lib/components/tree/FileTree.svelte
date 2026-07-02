@@ -5,11 +5,10 @@
 	import * as Empty from '@epicenter/ui/empty';
 	import { Spinner } from '@epicenter/ui/spinner';
 	import * as TreeView from '@epicenter/ui/tree-view';
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 	import FileTreeItem from './FileTreeItem.svelte';
 	import InlineNameInput from './InlineNameInput.svelte';
 
-	const opensidian = requireOpensidian();
 	/**
 	 * Flat list of visible item IDs in visual order.
 	 * Respects folder expansion state: collapsed folders hide their descendants.

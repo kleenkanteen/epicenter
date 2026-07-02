@@ -10,8 +10,8 @@ The dependency shape runs bottom to top. Apps depend on middleware; middleware d
 +----------------------------------------------------------------------------+
 | APPS                                                                       |
 |                                                                            |
-| opensidian   whispering   tab-manager   fuji   zhongwen                    |
-| honeycrisp   dashboard    api           landing                            |
+| opensidian   whispering   tab-manager   vocab                              |
+| honeycrisp   self-host    api           landing                            |
 +----------------------------------------------------------------------------+
                                       |
                                       v
@@ -87,9 +87,8 @@ Apps wrap `createWorkspace` in a per-app factory. That is where the app id, tabl
 
 ```txt
 createWorkspace()
-  -> createFuji()
-    -> openFujiBrowser()
-    -> fuji() (mount)
+  -> honeycrispWorkspace (defineWorkspace())
+    -> openHoneycrispBrowser()
 ```
 
 Use `defineWorkspace()` when returning the composed object so TypeScript keeps the exact inferred bundle shape after spreads.

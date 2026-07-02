@@ -10,7 +10,7 @@
 	import { mode } from 'mode-watcher';
 	import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next';
 	import type * as Y from 'yjs';
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 	import { getEditorExtensions } from './extensions/language-support';
 
 	let {
@@ -23,7 +23,6 @@
 		extensions: Extension[];
 	} = $props();
 
-	const opensidian = requireOpensidian();
 	let container: HTMLDivElement | undefined = $state();
 
 	$effect(() => {

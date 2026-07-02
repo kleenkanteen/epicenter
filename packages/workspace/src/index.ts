@@ -67,7 +67,7 @@ export {
 // Daemon, config, and Epicenter-root surfaces are node-only (they resolve real
 // paths or sit on the mount contract) and ship from `@epicenter/workspace/node`
 // and `@epicenter/workspace/daemon`. Keeping them out of this root barrel stops
-// browser bundles (fuji, whispering, etc.) from traversing `node:*` modules.
+// browser bundles (honeycrisp, whispering, etc.) from traversing `node:*` modules.
 
 // ════════════════════════════════════════════════════════════════════════════
 // ID + DATE PRIMITIVES
@@ -172,10 +172,13 @@ export {
 //
 // `roomWsUrl({ baseURL, ownerId, guid, nodeId })` builds the WebSocket
 // URL for the partitioned `/api/owners/:ownerId/rooms/:roomId` endpoint. The
-// same single URL form is used by both personal and instance deployments. Both
-// browser apps and the daemon use this one builder.
+// same single URL form is used by per-user cloud and self-hosted instance
+// deployments. Browser apps and the daemon use this one builder.
 export { type RoomWsUrlOptions, roomWsUrl } from './document/transport.js';
-export { wipeLocalStorage } from './document/wipe-local-storage.js';
+export {
+	wipeBareStorage,
+	wipeLocalStorage,
+} from './document/wipe-local-storage.js';
 export {
 	type ConnectComposition,
 	type ConnectedTables,
@@ -185,6 +188,7 @@ export {
 	createWorkspace,
 	type DefineWorkspaceOptions,
 	defineWorkspace,
+	type LocalWorkspace,
 	type MountComposeContext,
 	type MountComposition,
 	type MountOptions,

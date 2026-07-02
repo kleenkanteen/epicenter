@@ -7,11 +7,11 @@ import { defineErrors, type InferErrors } from 'wellcrafted/error';
  * to R2 (the Worker never sees the bytes), and R2 itself is the index, so
  * there is no database row to conflict on. These variants cover only what the
  * Worker decides at ticket-mint and read time. See
- * `specs/20260623T220000-content-addressed-blob-store.md`.
+ * ADR-0089 (the blob store is a presigned-S3 kernel and the bucket is its only index).
  *
- * Mirrors `AssetError`'s contract: defined once in the shared constants
- * package so the server runtime and any blob client SDK reference the same
- * discriminated union; the serialized envelope is `wellcrafted`'s
+ * Defined once in the shared constants package so the server runtime and any
+ * blob client SDK reference the same discriminated union; the serialized
+ * envelope is `wellcrafted`'s
  * `{ data: null, error: { name, message, ...fields } }`; each variant bakes
  * in its own HTTP `status`.
  *

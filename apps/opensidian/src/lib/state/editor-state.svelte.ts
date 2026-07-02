@@ -25,7 +25,7 @@ let vimConfigured = false;
  *
  * Bridges CodeMirror 6 editor state into Svelte 5 reactivity via
  * an `EditorView.updateListener` that pushes values into `$state`.
- * The signed-in session creates one instance and exposes it at
+ * The `$lib/opensidian` singleton creates one instance and exposes it at
  * `opensidian.state.editor`.
  *
  * Vim preference is backed by `createPersistedState`: cross-tab sync
@@ -37,7 +37,7 @@ let vimConfigured = false;
  * @example
  * ```svelte
  * <script>
- *   const opensidian = requireOpensidian();
+ *   import { opensidian } from '$lib/opensidian';
  *   const line = $derived(opensidian.state.editor.cursorLine);
  * </script>
  *

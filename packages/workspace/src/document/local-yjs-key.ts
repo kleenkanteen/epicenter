@@ -12,9 +12,9 @@
  *   epicenter/<server>/owners/<ownerId>/<ydoc.guid>
  *
  * The server segment is the API origin host (e.g. `api.epicenter.so`). In
- * personal mode `ownerId` equals the user id; on an instance it is the literal
- * `'instance'` for every operator, so the server segment is what keeps two
- * instances on one machine from colliding.
+ * per-user cloud, `ownerId` equals the user id; on an instance it is the
+ * literal `'instance'` for every operator, so the server segment is what keeps
+ * two instances on one machine from colliding.
  */
 
 import type { OwnerId } from '@epicenter/identity';
@@ -33,9 +33,10 @@ export function getOwnedYjsPrefix(server: string, ownerId: OwnerId): string {
 /**
  * Browser-local persistence and BroadcastChannel key for a Y.Doc.
  *
- * The `server` and `ownerId` arguments scope local data on shared browser
- * profiles. This key is a local runtime name only; it does not change
- * `ydoc.guid`, sync room names, or child document GUIDs.
+ * The `server` and `ownerId` arguments scope local data when one browser
+ * profile uses multiple accounts or instances. This key is a local runtime
+ * name only; it does not change `ydoc.guid`, sync room names, or child document
+ * GUIDs.
  */
 export function createOwnedYjsKey(
 	server: string,

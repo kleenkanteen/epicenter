@@ -14,6 +14,7 @@
 		"./agent-chat": "./src/agent-chat/index.ts",
 		"./inference-picker": "./src/inference-picker/index.ts",
 		"./instance-settings": "./src/instance-settings/index.ts",
+		"./sign-in-migration": "./src/sign-in-migration/index.ts",
 		"./workspace-gate": "./src/workspace-gate/index.ts"
 	},
 	"scripts": {
@@ -30,7 +31,8 @@
 		"@standard-schema/spec": "catalog:",
 		"@tanstack/svelte-query": "catalog:",
 		"arktype": "catalog:",
-		"wellcrafted": "catalog:"
+		"wellcrafted": "catalog:",
+		"yjs": "catalog:"
 	},
 	"devDependencies": {
 		"@types/bun": "catalog:",

@@ -182,8 +182,8 @@ export type RoomUpgradeRejection = {
  *
  * The host-owned room name is built upstream by `doName(ownerId, roomId)`
  * in `owner.ts`, producing `owners/<ownerId>/rooms/<roomId>` for either
- * deployment (in personal mode `ownerId === user.id`, on an instance `ownerId`
- * is the pinned `INSTANCE_OWNER_ID`).
+ * deployment (in the per-user topology `ownerId === user.id`, on an instance
+ * `ownerId` is the pinned `INSTANCE_OWNER_ID`).
  * This contract treats the name as opaque.
  */
 export type Rooms = {

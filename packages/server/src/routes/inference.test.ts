@@ -51,7 +51,7 @@ function createTestApp() {
 	mountInferenceApp(app, {
 		// Permissive auth for the slice under test.
 		auth: async (_c, next) => next(),
-		ownership: instance(),
+		ownership: instance,
 	});
 	return app;
 }

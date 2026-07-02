@@ -17,7 +17,7 @@
  * validated without the server graph.
  *
  * It is a credential SOURCE, not a new auth mode: it feeds the one total gate
- * exactly like `resolveRequestOAuthUser`, and it pairs with `instance()` (the
+ * exactly like `resolveRequestOAuthUser`, and it pairs with `instance` (the
  * pin-to-constant `owners/instance` partition), so the 401 gate, the partition
  * switch, and every owner-scoped route never learn that "self-host" exists. There
  * is no OAuth on an instance; OAuth stays the hosted star's only (ADR-0071).
@@ -46,7 +46,7 @@ import { parseBearer } from './parse-bearer.js';
 /**
  * The instance's single principal: a NAMED `AuthUser`, not a boolean. Returned by
  * the v1 verifier for any valid bearer. Its `id` is decoupled from the partition
- * (`owners/instance` is pinned by `instance()` regardless of caller identity), so
+ * (`owners/instance` is pinned by `instance` regardless of caller identity), so
  * this value is purely the authenticated identity stamped onto `c.var.user` and
  * presence frames, never the partition key. When the named-token registry seam is
  * built, the verifier returns per-token principals here instead; the partition
@@ -90,7 +90,7 @@ async function constantTimeEqual(a: string, b: string): Promise<boolean> {
  * OAuth resolver returns, so the surface wrappers reject it unchanged (HTTP 401 with
  * the OAuth `WWW-Authenticate` challenge, or the rooms 4401 close). The whole secret
  * lives in this closure. The deployment injects the returned function as
- * `createServerApp`'s `resolveUser` (ADR-0066), paired with `instance()`.
+ * `createServerApp`'s `resolveUser` (ADR-0066), paired with `instance`.
  */
 export function createEnvTokenResolver(secret: string): ResolveUser {
 	return async (c) => {

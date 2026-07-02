@@ -15,7 +15,7 @@
  * unless the request landed on localhost, so even a misconfigured deploy that
  * somehow wired it would admit nobody off-box.
  *
- * In personal mode the resolved `id` becomes the owner partition directly (no
+ * In the per-user topology the resolved `id` becomes the owner partition directly (no
  * user row is read), so the smoke needs no seeded user and no database access
  * of its own.
  */

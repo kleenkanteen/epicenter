@@ -6,8 +6,7 @@
 	import * as Tooltip from '@epicenter/ui/tooltip';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import TextIcon from '@lucide/svelte/icons/text';
-	import { requireOpensidian } from '$lib/session';
-	import AiChat from './chat/AiChat.svelte';
+	import { opensidian } from '$lib/opensidian';
 	import ContentPanel from './editor/ContentPanel.svelte';
 	import StatusBar from './editor/StatusBar.svelte';
 	import SidebarHeader from './SidebarHeader.svelte';
@@ -15,9 +14,7 @@
 	import TerminalPanel from './terminal/TerminalPanel.svelte';
 	import FileTree from './tree/FileTree.svelte';
 
-	const opensidian = requireOpensidian();
 	let paletteOpen = $state(false);
-	let chatOpen = $state(false);
 
 	$effect(() => {
 		if (!paletteOpen) opensidian.state.paletteSearch.reset();
@@ -59,11 +56,6 @@
 				opensidian.state.terminal.toggle();
 			}
 		}
-
-		if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'l') {
-			e.preventDefault();
-			chatOpen = !chatOpen;
-		}
 	}
 </script>
 
@@ -84,7 +76,7 @@
 			</div>
 		</Resizable.Pane>
 		<Resizable.Handle withHandle />
-		<Resizable.Pane defaultSize={chatOpen ? 45: 75}>
+		<Resizable.Pane defaultSize={75}>
 			<Resizable.PaneGroup direction="vertical">
 				<Resizable.Pane
 					defaultSize={opensidian.state.terminal.open ? 55: 100}
@@ -100,14 +92,8 @@
 				{/if}
 			</Resizable.PaneGroup>
 		</Resizable.Pane>
-		{#if chatOpen}
-			<Resizable.Handle withHandle />
-			<Resizable.Pane defaultSize={30} minSize={20} maxSize={50}>
-				<AiChat />
-			</Resizable.Pane>
-		{/if}
 	</Resizable.PaneGroup>
-	<StatusBar bind:chatOpen />
+	<StatusBar />
 	<CommandPalette
 		items={opensidian.state.paletteSearch.searchResults}
 		bind:open={paletteOpen}

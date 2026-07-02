@@ -22,7 +22,7 @@
 
 // The single-partition instance's bearer resolver (self-host; ADR-0075): the
 // `ResolveUser` a Bun instance injects (`createEnvTokenResolver(token)`, paired with
-// `instance()`). The pure generator + boot entropy gate (`generateInstanceToken` /
+// `instance`). The pure generator + boot entropy gate (`generateInstanceToken` /
 // `assertStrongToken`) live in `@epicenter/auth`.
 export {
 	createEnvTokenResolver,
@@ -44,7 +44,7 @@ export {
 export { CloudAuthBindings, mountCloudAuth } from './mount-cloud-auth.js';
 export { mountCloudDb } from './mount-cloud-db.js';
 export { doName } from './owner.js';
-export { instance, type OwnershipRule, personal } from './ownership.js';
+export { instance, type OwnershipRule, perUser } from './ownership.js';
 // The Bun room backend: an in-process Rooms map + bun:sqlite update log,
 // plus the Bun `websocket` handler and `bindServer` the entry wires. Its `.rooms`
 // is what a Bun entry passes as `createServerApp`'s `resolveRooms`.

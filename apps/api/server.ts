@@ -55,7 +55,7 @@ import {
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
-	personal,
+	perUser,
 	type ResolveUser,
 	requireBearerUser,
 	requireCookieOrBearerUser,
@@ -129,7 +129,7 @@ export function startBunApiServer(
 	const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
 	const db = createDb(pool);
 
-	const ownership = personal();
+	const ownership = perUser;
 	const app = createServerApp<CloudEnv>({
 		resolveRooms: () => bunRooms.rooms,
 		identity: {

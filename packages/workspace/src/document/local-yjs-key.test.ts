@@ -7,7 +7,7 @@ const ALICE = asOwnerId('user-a');
 const INSTANCE = INSTANCE_OWNER_ID;
 
 describe('getOwnedYjsPrefix', () => {
-	test('personal mode owner id partitions the prefix under owners/', () => {
+	test('per-user owner id partitions the prefix under owners/', () => {
 		expect(getOwnedYjsPrefix(SERVER, ALICE)).toBe(
 			'epicenter/api.epicenter.so/owners/user-a/',
 		);
