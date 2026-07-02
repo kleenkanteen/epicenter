@@ -32,6 +32,8 @@ The shared server keeps one auth injection point: `ResolvePrincipal`. It returns
 
 Cloud and the self-hosted instance differ only in how they authenticate principals. Cloud uses Better Auth to resolve many principals and includes `email` on the principal. The self-hosted instance uses the operator bearer to resolve one principal, `{ id: INSTANCE_PRINCIPAL_ID }`, with no email. Nobody fabricates an email.
 
+The surviving id brand is `PrincipalId`, not `UserId`. Better Auth keeps owning `user`: its `user` table and `session.user` remain live, and Epicenter OAuth bearers cannot be handed to Better Auth profile endpoints. Better Auth users are one source of principals; the instance bearer is another.
+
 The HTTP and WebSocket wire drops the owner segment: `/api/rooms/:roomId`, `/api/blobs`, and `/api/blobs/:sha256`. Durable bytes keep their historical `owners/<id>/...` shape, including R2 keys, Durable Object names, Bun SQLite room filenames derived from those names, IndexedDB keys, and HKDF info bytes.
 
 ## Review Stops
@@ -301,6 +303,7 @@ specs/20260524T021140-asset-visibility-and-client-sdk.md
 - [ ] Delete ownership middleware and ownership rule vocabulary.
 - [ ] Rename `ResolveUser` to `ResolvePrincipal` and carry `c.var.principal`.
 - [ ] Drop `ownership` options from all mounts.
+- [ ] Rewrite instance-token JSDoc so future named instance tokens, if earned, still resolve to the same instance principal id; per-token principals would re-partition and belong to Cloud-shaped auth.
 - [ ] Keep the old session JSON shape behind a temporary `WAVE-3-SHIM`.
 - [ ] Stop for Braden review.
 
@@ -328,6 +331,8 @@ specs/20260524T021140-asset-visibility-and-client-sdk.md
 ## ADR Notes
 
 ADR-0092 is drafted as Proposed in Wave 0. It amends ADR-0075 where that ADR deliberately decoupled identity from partition for the instance, reinforces ADR-0070's "auth stays one total gate" finding, and revises ADR-0067's session contract. It also records the future hosted "team brain" shape: many Better Auth accounts may resolve to one principal, so the new invariant must not assume one human account per partition.
+
+ADR-0092 also records the naming boundary: `PrincipalId` survives because `user` remains Better Auth vocabulary, and because the authenticated thing is not always a person.
 
 Wave 3 must add the stale-cell caveat to the ADR before acceptance: a persisted cell holding `instance-owner` may fail relay admission against an upgraded server until it re-fetches `/api/session`; that is accepted under the zero-users window.
 

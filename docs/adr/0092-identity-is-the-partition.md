@@ -21,6 +21,8 @@ The public API drops owner path segments. Rooms and blobs are addressed as `/api
 
 The forward seam is resolver shaped, not ownership shaped. A future hosted team brain may map many Better Auth accounts to one shared principal; that is still `ResolvePrincipal` deciding which principal the session represents. It does not require a second ownership rule.
 
+The surviving word is `principal`, not `user`, because Better Auth still owns `user`: its `user` table and `session.user` remain live, and Epicenter OAuth bearers cannot be handed to Better Auth profile endpoints. Better Auth users are one source of principals; the instance bearer is another.
+
 ## Consequences
 
 The shared server keeps ADR-0066's injection posture, but one injected concern disappears. Deployments differ only in how they authenticate principals: Better Auth mints many Cloud principals, and the instance bearer mints the one `INSTANCE_PRINCIPAL_ID` principal. The server no longer compares a URL owner against an authenticated owner, because the URL no longer echoes the owner. Partition bugs become auth bugs, audited at the one resolver path.
@@ -35,7 +37,7 @@ This is a clean break under the zero-users assumption. Old clients that still ca
 
 **Keep identity and partition as separate axes.** Rejected: every shipped deployment selects the same pair every time, so the second seam is an attractive nuisance. It also keeps the "owner" vocabulary alive after the product has refused cross-owner access.
 
-**Rename the brand to `UserId`.** Rejected: the instance principal is not a Better Auth user, and future hosted shared principals may not be one human account either.
+**Rename the brand to `UserId`.** Rejected: the instance principal is not a Better Auth user, and future hosted shared principals may not be one human account either. `UserId` would also collide with Better Auth's live `user` table and `session.user`, making it look like Epicenter principal ids can be sent back to Better Auth profile APIs. They cannot.
 
 **Rename the brand to `PartitionId`.** Rejected: the resolver authenticates a principal. Storage derives a partition from that principal id by definition, not the other way around.
 
