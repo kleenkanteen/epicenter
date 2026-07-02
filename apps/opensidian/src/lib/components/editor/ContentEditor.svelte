@@ -3,12 +3,10 @@
 	import { asFileId, type FileId } from '@epicenter/filesystem';
 	import { fromDisposableCache } from '@epicenter/svelte';
 	import { Loading } from '@epicenter/ui/loading';
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 	import CodeMirrorEditor from './CodeMirrorEditor.svelte';
 	import { linkDecorations } from './extensions/link-decorations';
 	import { wikilinkAutocomplete } from './extensions/wikilink-autocomplete';
-
-	const opensidian = requireOpensidian();
 
 	let {
 		fileId,
