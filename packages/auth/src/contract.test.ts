@@ -785,6 +785,123 @@ test('network gate: no WebSocket bearer protocol until /api/session confirms sam
 	auth[Symbol.dispose]();
 });
 
+test('openWebSocket rejects with a permanent denial when signed out', async () => {
+	const setup = createStorage(null);
+	const { openings, WebSocketRecorder } = createWebSocketRecorder();
+	const auth = createOAuthAppAuth({
+		baseURL: 'http://localhost:8787',
+		clientId: 'client-1',
+		now: () => now,
+		persistedAuthStorage: setup.storage,
+		launcher: { startSignIn: async () => launched() },
+		WebSocket: WebSocketRecorder,
+		fetch: async () => new Response(null, { status: 204 }),
+	});
+
+	await expect(auth.openWebSocket('ws://localhost:8787/sync')).rejects.toMatchObject(
+		{
+			name: 'OpenWebSocketDenied',
+			permanence: 'permanent',
+			code: 'signed-out',
+		},
+	);
+	expect(openings).toEqual([]);
+	auth[Symbol.dispose]();
+});
+
+test('openWebSocket rejects with a permanent denial after /api/session rejects the cell', async () => {
+	const setup = createStorage(cell());
+	const { openings, WebSocketRecorder } = createWebSocketRecorder();
+	const auth = createOAuthAppAuth({
+		baseURL: 'http://localhost:8787',
+		clientId: 'client-1',
+		now: () => now,
+		persistedAuthStorage: setup.storage,
+		launcher: { startSignIn: async () => launched() },
+		WebSocket: WebSocketRecorder,
+		fetch: async (input) => {
+			if (String(input).endsWith('/api/session')) {
+				return new Response(null, { status: 401 });
+			}
+			return new Response(null, { status: 204 });
+		},
+	});
+
+	await expect(auth.openWebSocket('ws://localhost:8787/sync')).rejects.toMatchObject(
+		{
+			name: 'OpenWebSocketDenied',
+			permanence: 'permanent',
+			code: 'reauth-required',
+		},
+	);
+	await Promise.resolve();
+	expect(openings).toEqual([]);
+	auth[Symbol.dispose]();
+});
+
+test('openWebSocket rejects with a permanent denial when a stale grant cannot refresh', async () => {
+	// Pins current auth-core behavior: refreshGrant pauses network auth on ANY
+	// thrown refresh failure, including a transport outage, so a stale grant
+	// with an unreachable token endpoint lands in reauth-required and denies
+	// permanently. If the gate ever distinguishes refresh outage from refresh
+	// rejection, this case should flip to a transient denial.
+	const setup = createStorage(
+		cell({ grant: grant({ accessTokenExpiresAt: now - 1 }) }),
+	);
+	const { openings, WebSocketRecorder } = createWebSocketRecorder();
+	const auth = createOAuthAppAuth({
+		baseURL: 'http://localhost:8787',
+		clientId: 'client-1',
+		now: () => now,
+		persistedAuthStorage: setup.storage,
+		launcher: { startSignIn: async () => launched() },
+		WebSocket: WebSocketRecorder,
+		fetch: async () => {
+			throw new Error('token endpoint unreachable');
+		},
+	});
+
+	await expect(auth.openWebSocket('ws://localhost:8787/sync')).rejects.toMatchObject(
+		{
+			name: 'OpenWebSocketDenied',
+			permanence: 'permanent',
+			code: 'reauth-required',
+		},
+	);
+	expect(auth.state.status).toBe('reauth-required');
+	expect(openings).toEqual([]);
+	auth[Symbol.dispose]();
+});
+
+test('openWebSocket rejects with a transient denial when /api/session is unreachable', async () => {
+	const setup = createStorage(cell());
+	const { openings, WebSocketRecorder } = createWebSocketRecorder();
+	const auth = createOAuthAppAuth({
+		baseURL: 'http://localhost:8787',
+		clientId: 'client-1',
+		now: () => now,
+		persistedAuthStorage: setup.storage,
+		launcher: { startSignIn: async () => launched() },
+		WebSocket: WebSocketRecorder,
+		fetch: async () => {
+			throw new Error('offline');
+		},
+	});
+
+	await expect(auth.openWebSocket('ws://localhost:8787/sync')).rejects.toMatchObject(
+		{
+			name: 'OpenWebSocketDenied',
+			permanence: 'transient',
+			code: 'auth-unavailable',
+		},
+	);
+	await Promise.resolve();
+	// Offline verification is not a rejection: the cell stays signed-in.
+	expect(auth.state.status).toBe('signed-in');
+	expect(openings).toEqual([]);
+	auth[Symbol.dispose]();
+});
+
 test('cold-boot offline keeps signed-in with cached principalId and no profile field', async () => {
 	const setup = createStorage(cell());
 	const auth = createOAuthAppAuth({

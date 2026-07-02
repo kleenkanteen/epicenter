@@ -1,10 +1,13 @@
 import { EPICENTER_API_URL } from '@epicenter/constants/apps';
-import { BEARER_SUBPROTOCOL_PREFIX } from '@epicenter/sync';
+import {
+	BEARER_SUBPROTOCOL_PREFIX,
+	type OpenWebSocketDenial,
+} from '@epicenter/sync';
 import { defineErrors, extractErrorMessage } from 'wellcrafted/error';
 import { createLogger, type Logger } from 'wellcrafted/logger';
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import type { AuthFetch, AuthState, SyncAuthClient } from './auth-contract.js';
-import { AuthError } from './auth-errors.js';
+import { AuthError, OpenWebSocketDenied } from './auth-errors.js';
 import {
 	ApiSessionResponse,
 	type OAuthTokenGrant,
@@ -462,10 +465,30 @@ export function createOAuthAppAuth({
 		getProfile: () => getProfileVia(authedFetch, baseURL),
 		async openWebSocket(url, protocols = []) {
 			const accessToken = await bearerForNetwork(false);
-			const authProtocols = accessToken
-				? [...protocols, `${BEARER_SUBPROTOCOL_PREFIX}${accessToken}`]
-				: protocols;
-			return new WebSocketImpl(String(url), authProtocols);
+			if (!accessToken) {
+				// Never open credential-less: the socket would only eat a doomed
+				// round trip and a server 4401. Reject with the typed denial the
+				// sync supervisor classifies. `bearerForNetwork` already paused
+				// network auth on every definitive rejection (refresh refused,
+				// /api/session 401), so any still-signed-in null here means
+				// verification was unreachable: the grant may be fine, retry.
+				const permanent =
+					authSession.persistedAuth === null || authSession.networkAuthPaused;
+				const denial: OpenWebSocketDenial = OpenWebSocketDenied({
+					permanence: permanent ? 'permanent' : 'transient',
+					code:
+						authSession.persistedAuth === null
+							? 'signed-out'
+							: permanent
+								? 'reauth-required'
+								: 'auth-unavailable',
+				}).error;
+				throw denial;
+			}
+			return new WebSocketImpl(String(url), [
+				...protocols,
+				`${BEARER_SUBPROTOCOL_PREFIX}${accessToken}`,
+			]);
 		},
 		[Symbol.dispose]() {
 			authSession.dispose();

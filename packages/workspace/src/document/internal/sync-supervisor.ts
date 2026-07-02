@@ -6,14 +6,17 @@
  *
  * Lifecycle is supervisor-driven: connect, exponential backoff with jitter,
  * liveness via 60s pings and 90s timeout, browser online/offline/visibility
- * wakeups, permanent-failure park on 4401 close codes. The supervisor emits a
- * `SyncStatus` and exposes `whenConnected`, `reconnect()`, and `whenDisposed`.
+ * wakeups, permanent-failure park on 4401 close codes and on permanent local
+ * auth denials (`OpenWebSocketDenial`), immediate reconnect on the server's
+ * scheduled 4408 lifetime close. The supervisor emits a `SyncStatus` and
+ * exposes `whenConnected`, `reconnect()`, and `whenDisposed`.
  */
 
 import {
 	encodeSyncStep1,
 	encodeSyncUpdate,
 	handleSyncPayload,
+	isOpenWebSocketDenial,
 	isTransportOrigin,
 	MAIN_SUBPROTOCOL,
 	SYNC_MESSAGE_TYPE,
@@ -38,9 +41,11 @@ export type SyncError = { type: 'connection' };
 /**
  * Reason a sync entered the terminal `failed` phase.
  *
- * `code` is `string` (not a closed enum): the server is the source of truth
- * for the vocabulary, so unknown codes pass through. Documented codes today:
- * 'invalid_token', 'token_expired', 'deauthorized', 'unknown'.
+ * `code` is `string` (not a closed enum): the credential owner is the source
+ * of truth for the vocabulary, so unknown codes pass through. Documented
+ * codes today: server close reasons ('invalid_token', 'token_expired',
+ * 'deauthorized', 'unknown') and local auth denials ('signed-out',
+ * 'reauth-required') from a permanent `OpenWebSocketDenial`.
  */
 export type SyncFailedReason = { type: 'auth'; code: string };
 
@@ -83,6 +88,10 @@ const SyncSupervisorError = defineErrors({
 		message: `[sync] server sent permanent close ${closeCode}: ${reason.code}`,
 		closeCode,
 		reason,
+	}),
+	LocalAuthDenial: ({ code }: { code: string }) => ({
+		message: `[sync] auth refused to open a socket: ${code}`,
+		code,
 	}),
 });
 type SyncSupervisorError = InferErrors<typeof SyncSupervisorError>;
@@ -131,6 +140,23 @@ const CONNECT_TIMEOUT_MS = 15_000;
  * transient close codes (1006 network blip, 1011 server error, etc.).
  */
 const PERMANENT_AUTH_CLOSE_CODE = 4401;
+/**
+ * App-defined close code the server sends when a connection exceeds its
+ * bounded lifetime (the relay authenticates only at upgrade, so it closes
+ * over-age sockets to force a fresh authenticated handshake). A scheduled
+ * close, not a failure: the supervisor reconnects immediately instead of
+ * sleeping through backoff, so the fresh socket lands inside the server's
+ * presence-rebroadcast grace window and peers never see a departure.
+ */
+const CONNECTION_LIFETIME_CLOSE_CODE = 4408;
+/**
+ * Floor a session must have lasted for its 4408 close to count as scheduled.
+ * The real lifetime bound is 30 minutes, so any legitimate lifetime close
+ * clears this easily; a server that closes every handshake with 4408 right
+ * away (a clock bug, a hostile relay) falls back to normal backoff instead
+ * of inducing a zero-delay reconnect loop.
+ */
+const SCHEDULED_CLOSE_MIN_SESSION_MS = 1_000;
 
 /**
  * Failsafe: returns null when `event` is not a permanent-failure signal,
@@ -221,6 +247,14 @@ export function createSyncSupervisor(
 
 	let websocket: WebSocket | null = null;
 
+	// Close code and open duration of the most recent socket close. Only
+	// consulted right after `attemptConnection` returns 'connected', where
+	// they are guaranteed fresh: a 'connected' result requires
+	// `closePromise`, which resolves inside the same `onclose` that recorded
+	// both values.
+	let lastCloseCode = 0;
+	let lastSessionMs = 0;
+
 	function send(message: Uint8Array<ArrayBuffer> | string) {
 		if (websocket?.readyState !== WebSocket.OPEN) return;
 		if (typeof message === 'string') {
@@ -272,7 +306,20 @@ export function createSyncSupervisor(
 				[MAIN_SUBPROTOCOL],
 			);
 			ws = await opened;
-		} catch {
+		} catch (error) {
+			// A permanent local denial (signed out, reauth required) takes the
+			// same park path as a server 4401 close: only an auth state change
+			// can produce a credential, and `onReconnectSignal` (auth state
+			// changes) is the wake. Everything else, including transient
+			// denials, is an ordinary failed attempt that backs off.
+			if (isOpenWebSocketDenial(error) && error.permanence === 'permanent') {
+				const reason: SyncFailedReason = { type: 'auth', code: error.code };
+				setStatus({ phase: 'failed', reason });
+				connected.reject(
+					SyncFailedError.AuthRejected({ code: reason.code }).error,
+				);
+				log.warn(SyncSupervisorError.LocalAuthDenial({ code: reason.code }));
+			}
 			return 'failed';
 		}
 		if (signal.aborted) {
@@ -316,8 +363,10 @@ export function createSyncSupervisor(
 			signal.addEventListener('abort', onAbort, { once: true });
 		}
 
+		let openedAt = 0;
 		ws.onopen = () => {
 			clearTimeout(connectTimeout);
+			openedAt = performance.now();
 			send(encodeSyncStep1({ doc: ydoc }));
 			liveness.start();
 			resolveOpen(true);
@@ -327,6 +376,8 @@ export function createSyncSupervisor(
 			clearTimeout(connectTimeout);
 			cleanupAbortListener();
 			liveness.stop();
+			lastCloseCode = event.code;
+			lastSessionMs = openedAt ? performance.now() - openedAt : 0;
 			const failure = parsePermanentFailure(event);
 			if (failure) {
 				setStatus({ phase: 'failed', reason: failure });
@@ -438,7 +489,17 @@ export function createSyncSupervisor(
 					lastError = { type: 'connection' };
 				}
 
+				// A lifetime close after a real session is the server's scheduled
+				// re-handshake, not a failure: reconnect without the backoff sleep
+				// so peers never see a presence departure. The duration floor keeps
+				// a misbehaving server from turning this into a zero-delay loop.
+				const scheduledReconnect =
+					result === 'connected' &&
+					lastCloseCode === CONNECTION_LIFETIME_CLOSE_CODE &&
+					lastSessionMs >= SCHEDULED_CLOSE_MIN_SESSION_MS;
+
 				if (
+					!scheduledReconnect &&
 					!masterController.signal.aborted &&
 					status.get().phase !== 'failed' &&
 					!signal.aborted

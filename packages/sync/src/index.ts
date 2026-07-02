@@ -11,7 +11,9 @@
 // WebSocket subprotocol auth (shared client/server constants + helpers)
 export {
 	BEARER_SUBPROTOCOL_PREFIX,
+	isOpenWebSocketDenial,
 	MAIN_SUBPROTOCOL,
+	type OpenWebSocketDenial,
 	parseSubprotocols,
 } from './auth-subprotocol';
 // Transport origin sentinels (shared across all sync layers)
