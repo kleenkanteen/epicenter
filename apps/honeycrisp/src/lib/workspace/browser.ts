@@ -14,10 +14,11 @@
  *     its cache-and-teardown shape using the same exported primitives
  *     `connectLocalFirst` itself is built from.
  *
- * `wipe()` drops every owner-scoped IDB database on this device (root and
- * every note body share the `(server, ownerId)` prefix `wipeLocalStorage`
- * scans, so one call catches both); it is a no-op signed out, since a bare
- * local doc has no owner-scoped storage to drop. `Symbol.dispose` tears down
+ * `wipe()` drops every local IDB database this app owns on this device. Signed
+ * in that is the `(server, ownerId)` prefix `wipeLocalStorage` scans (root and
+ * every note body live under it); signed out it is the bare guid family (the
+ * root guid plus its `<guid>.*` children), so the WorkspaceGate's
+ * forget-this-device rescue works in both states. `Symbol.dispose` tears down
  * the root and cached body docs without touching local storage.
  */
 
@@ -32,6 +33,7 @@ import {
 	wipeLocalStorage,
 } from '@epicenter/workspace';
 import * as Y from 'yjs';
+import { clearBareDoc } from './clear-bare-doc.js';
 import { honeycrispWorkspace, type NoteId } from './index.js';
 
 export function openHoneycrispBrowser({
@@ -100,10 +102,29 @@ export function openHoneycrispBrowser({
 		whenReady,
 		collaboration,
 		async wipe(): Promise<void> {
-			if (auth.state.status === 'signed-out') return;
-			const ownerId = auth.state.ownerId;
+			const state = auth.state;
 			workspace[Symbol.dispose]();
-			await wipeLocalStorage({ server: new URL(auth.baseURL).host, ownerId });
+			if (state.status === 'signed-out') {
+				// Bare local docs name their databases after their guids, and every
+				// child guid extends the root guid, so one prefix scan catches the
+				// root and all note bodies (mirrors `wipeLocalStorage`'s scan).
+				const guid = workspace.ydoc.guid;
+				if (!('databases' in indexedDB)) return;
+				const databases = await indexedDB.databases().catch(() => []);
+				const names = databases
+					.map((db) => db.name)
+					.filter(
+						(name): name is string =>
+							typeof name === 'string' &&
+							(name === guid || name.startsWith(`${guid}.`)),
+					);
+				await Promise.all(names.map(clearBareDoc));
+				return;
+			}
+			await wipeLocalStorage({
+				server: new URL(auth.baseURL).host,
+				ownerId: state.ownerId,
+			});
 		},
 		[Symbol.dispose]() {
 			workspace[Symbol.dispose]();
