@@ -175,7 +175,10 @@ export {
 // same single URL form is used by both personal and instance deployments. Both
 // browser apps and the daemon use this one builder.
 export { type RoomWsUrlOptions, roomWsUrl } from './document/transport.js';
-export { wipeLocalStorage } from './document/wipe-local-storage.js';
+export {
+	wipeBareStorage,
+	wipeLocalStorage,
+} from './document/wipe-local-storage.js';
 export {
 	type ConnectComposition,
 	type ConnectedTables,
@@ -185,6 +188,7 @@ export {
 	createWorkspace,
 	type DefineWorkspaceOptions,
 	defineWorkspace,
+	type LocalWorkspace,
 	type MountComposeContext,
 	type MountComposition,
 	type MountOptions,
