@@ -8,7 +8,7 @@ import { createSignInMigration } from '@epicenter/app-shell/sign-in-migration';
 import { attachIndexedDb } from '@epicenter/workspace';
 import { auth } from '#platform/auth';
 import { whispering } from '#platform/whispering';
-import { createWhispering } from '$lib/workspace';
+import { defineWhispering } from '$lib/workspace';
 
 /**
  * Open a throwaway handle to the signed-out plaintext local doc (the migration
@@ -19,7 +19,7 @@ import { createWhispering } from '$lib/workspace';
  * service default is irrelevant here: only table rows are copied, never KV.
  */
 function openLocalSource() {
-	const workspace = createWhispering({ defaultTranscriptionService: 'OpenAI' });
+	const workspace = defineWhispering('OpenAI').create();
 	const idb = attachIndexedDb(workspace.ydoc);
 	return {
 		tables: workspace.tables,

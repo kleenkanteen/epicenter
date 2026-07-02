@@ -2,9 +2,10 @@
  * The reload half of the one composition shape (sync singleton + reload,
  * ADR-0088).
  *
- * `connectLocalFirst` picks the doc once at boot from `auth.state`; this
- * reloads the page when the owner identity later changes, so the next boot
- * rebuilds the right doc and the app's importers never see a swapping doc.
+ * The workspace preset branch picks the doc once at boot from `auth.state`;
+ * this reloads the page when the owner identity later changes, so the next
+ * boot rebuilds the right doc and the app's importers never see a swapping
+ * doc.
  *
  * The name says "reload" out loud on purpose: this is a deliberate full-page
  * restart, the settled tradeoff (a live in-place doc swap would be a

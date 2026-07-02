@@ -91,9 +91,9 @@ export function createFolders(honeycrisp: HoneycrispBrowser) {
 		 * Calls the workspace action directly (`honeycrisp.actions`, not
 		 * `honeycrisp.collaboration.actions`): the action is a local table
 		 * mutation, not a network RPC, and `collaboration` is `undefined`
-		 * signed out (ADR-0088). `connectLocalFirst` serves the same registry
-		 * to peers through `collaboration.actions` when it exists; both names
-		 * point at the same object.
+		 * signed out (ADR-0088). The signed-in preset serves the same registry
+		 * to peers through `collaboration.actions`; both names point at the
+		 * same object.
 		 *
 		 * @example
 		 * ```typescript

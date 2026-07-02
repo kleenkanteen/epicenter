@@ -27,8 +27,9 @@ auth.state.status === 'signed-out'
 
 The workspace is never `null`, no route gates on identity, and an owner change
 reloads the page (`reloadOnOwnerChange`) so the next boot re-runs the branch.
-Whispering predates `defineWorkspace` and does the same branch at the doc
-level with `connectLocalFirst`; new apps use the presets.
+When a schema needs a per-platform argument, the model is a factory
+`define<App>(args)`: the id and tables stay fixed, and only defaults or other
+read-side schema inputs vary.
 
 ## File Layout
 

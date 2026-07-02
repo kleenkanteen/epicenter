@@ -13,10 +13,10 @@ import { createBrowserOAuthLauncher } from '@epicenter/auth/oauth-launchers';
 import { createSubscriber } from 'svelte/reactivity';
 
 // The one composition shape (ADR-0088): boot-time doc selection plus
-// reload-on-owner-change, extracted from Whispering's shipped wiring.
+// reload-on-owner-change.
 // Bundle-level apps branch presets themselves:
 // `signed-out ? model.connectLocal(...) : model.connect({ ...projectSignedIn(auth), nodeId }, ...)`.
-export { connectLocalFirst, projectSignedIn } from './connect-local-first.js';
+export { projectSignedIn } from './project-signed-in.js';
 export { reloadOnOwnerChange } from './reload-on-owner-change.js';
 // `createSession`/`SignedIn` still support auxiliary signed-in-only resources.
 // Keep them on the auth subpath with the reactive auth client rather than the
