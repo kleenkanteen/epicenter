@@ -251,7 +251,6 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 		 ON CONFLICT(id) DO UPDATE SET raw = excluded.raw, synced_at = excluded.synced_at`,
 	);
 	const deleteLabelsStmt = db.query(`DELETE FROM labels`);
-	const labelIdsStmt = db.query<{ id: string }, []>(`SELECT id FROM labels`);
 	const liveMessageCountStmt = db.query<{ n: number }, []>(
 		`SELECT count(*) AS n FROM messages`,
 	);
@@ -306,10 +305,6 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 			limit: number,
 		): { subject: string | null; sender: string | null }[] {
 			return recentMessagesStmt.all(limit);
-		},
-
-		knownLabelIds(): Set<string> {
-			return new Set(labelIdsStmt.all().map((row) => row.id));
 		},
 
 		/**

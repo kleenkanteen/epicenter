@@ -320,7 +320,7 @@ describe('syncMailbox: INCREMENTAL', () => {
 		cleanup();
 	});
 
-	test('unknown label in labelsAdded refreshes labels once and advances the cursor', async () => {
+	test('incremental pass refreshes labels once and advances the cursor', async () => {
 		const { db, cleanup } = seededDb();
 		const client = createFakeGmailClient({
 			mailbox: new Map(),
@@ -366,12 +366,12 @@ describe('syncMailbox: INCREMENTAL', () => {
 		cleanup();
 	});
 
-	test('all referenced labels known skips labels.list', async () => {
+	test('incremental pass refreshes labels even when all referenced labels are known', async () => {
 		const { db, cleanup } = seededDb();
 		db.ingestLabels(
 			[
 				{ id: 'INBOX', name: 'INBOX', type: 'system' },
-				{ id: 'IMPORTANT', name: 'IMPORTANT', type: 'system' },
+				{ id: 'IMPORTANT', name: 'Old important', type: 'system' },
 			],
 			'2026-06-30T00:00:00.000Z',
 		);
@@ -398,42 +398,9 @@ describe('syncMailbox: INCREMENTAL', () => {
 				},
 			],
 			profileHistoryId: '999',
-		});
-
-		const outcome = await syncMailbox(
-			{ db, client, config, now: () => Date.parse('2026-06-30T01:00:00.000Z') },
-			{ forceFull: false },
-		);
-
-		expect(outcome.failure).toBeNull();
-		expect(client.calls.listLabels()).toBe(0);
-		cleanup();
-	});
-
-	test('new label arriving only via fetched messagesAdded labelIds still refreshes labels', async () => {
-		const { db, cleanup } = seededDb();
-		const mailbox = new Map([
-			['new-msg', message('new-msg', { labelIds: ['INBOX', 'Label_2'] })],
-		]);
-		const client = createFakeGmailClient({
-			mailbox,
-			historyPages: [
-				{
-					historyId: '502',
-					history: [
-						{
-							id: 'h1',
-							messagesAdded: [
-								{ message: { id: 'new-msg', threadId: 't-new-msg' } },
-							],
-						},
-					],
-				},
-			],
-			profileHistoryId: '999',
 			labels: [
 				{ id: 'INBOX', name: 'INBOX', type: 'system' },
-				{ id: 'Label_2', name: 'From filter', type: 'user' },
+				{ id: 'IMPORTANT', name: 'IMPORTANT', type: 'system' },
 			],
 		});
 
@@ -443,16 +410,15 @@ describe('syncMailbox: INCREMENTAL', () => {
 		);
 
 		expect(outcome.failure).toBeNull();
-		expect(client.calls.getMessage()).toBe(1);
 		expect(client.calls.listLabels()).toBe(1);
 		const label = db.raw
 			.query<{ name: string }, [string]>(`SELECT name FROM labels WHERE id = ?`)
-			.get('Label_2');
-		expect(label?.name).toBe('From filter');
+			.get('IMPORTANT');
+		expect(label?.name).toBe('IMPORTANT');
 		cleanup();
 	});
 
-	test('referenced label absent from labels.list refreshes once and terminates on later passes', async () => {
+	test('referenced label absent from labels.list refreshes once per pass and terminates', async () => {
 		const { db, cleanup } = seededDb();
 		const client = createFakeGmailClient({
 			mailbox: new Map(),
@@ -494,7 +460,7 @@ describe('syncMailbox: INCREMENTAL', () => {
 		expect(first.cursorAfter).toBe('502');
 		expect(second.failure).toBeNull();
 		expect(second.cursorAfter).toBe('503');
-		expect(client.calls.listLabels()).toBe(1);
+		expect(client.calls.listLabels()).toBe(2);
 		cleanup();
 	});
 
@@ -667,6 +633,7 @@ describe('syncMailbox: INCREMENTAL', () => {
 		);
 
 		expect(outcome.mode).toBe('FULL');
+		expect(outcome.reason).toBe('historyId expired mid-pass');
 		expect(outcome.failure).toBeNull();
 		expect(outcome.cursorAfter).toBe('9000');
 		expect(db.readRealmState().historyId).toBe('9000');

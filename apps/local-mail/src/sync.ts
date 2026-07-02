@@ -302,27 +302,11 @@ async function incrementalPoll(
 		}
 	}
 
-	const referencedLabelIds = new Set<string>();
-	for (const { labelIds } of labelPatches) {
-		for (const labelId of labelIds) referencedLabelIds.add(labelId);
-	}
-	for (const message of messagesToUpsert) {
-		for (const labelId of message.labelIds ?? [])
-			referencedLabelIds.add(labelId);
-	}
-	const knownLabelIds = db.knownLabelIds();
-	const hasUnknownLabel = [...referencedLabelIds].some(
-		(labelId) => !knownLabelIds.has(labelId),
-	);
-	if (hasUnknownLabel) {
-		const labels = await client.listLabels();
-		if (labels.error) {
-			log(
-				`labels.list failed during unknown-label refresh: ${labels.error.message}`,
-			);
-		} else {
-			db.ingestLabels(labels.data, syncedAt);
-		}
+	const labels = await client.listLabels();
+	if (labels.error) {
+		log(`labels.list failed during incremental refresh: ${labels.error.message}`);
+	} else {
+		db.ingestLabels(labels.data, syncedAt);
 	}
 
 	db.applyHistoryBatch({
@@ -368,6 +352,7 @@ export async function syncMailbox(
 	});
 	const cursorBefore = realmState.historyId;
 	const syncedAt = new Date(nowMs).toISOString();
+	let fullReason = decision.reason;
 	log(`sync: ${decision.mode} (${decision.reason})`);
 
 	// SQLITE_BUSY past the busy timeout throws out of the MailDb mutations;
@@ -381,6 +366,7 @@ export async function syncMailbox(
 			if (!outcome.failure || outcome.failure.name !== 'HistoryExpired') {
 				return outcome;
 			}
+			fullReason = 'historyId expired mid-pass';
 			log('sync: historyId expired mid-pass, falling back to FULL');
 		}
 
@@ -388,7 +374,7 @@ export async function syncMailbox(
 		if (profile.error) {
 			return failedOutcome(
 				'FULL',
-				decision.reason,
+				fullReason,
 				cursorBefore,
 				profile.error,
 			);
@@ -398,7 +384,7 @@ export async function syncMailbox(
 		if (failure) {
 			return failedOutcome(
 				'FULL',
-				decision.reason,
+				fullReason,
 				cursorBefore,
 				failure,
 				upserted,
@@ -411,7 +397,7 @@ export async function syncMailbox(
 		);
 		return {
 			mode: 'FULL',
-			reason: decision.reason,
+			reason: fullReason,
 			cursorBefore,
 			cursorAfter: profile.data.historyId,
 			messagesUpserted: upserted,
