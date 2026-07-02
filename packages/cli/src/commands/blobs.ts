@@ -13,6 +13,9 @@
  * auth client (the persisted OAuth cell, or a configured instance token for a
  * self-hosted star); none route through the local daemon, unlike `run`. See
  * `docs/adr/0091-blobs-trade-a-file-for-a-durable-content-addressed-url-documents-are-the-only-manifest.md`.
+ *
+ * Exit codes: 1 for a local problem (auth, reading a source file), 2 when the
+ * cloud round-trip itself fails.
  */
 
 import { createHash } from 'node:crypto';
@@ -95,34 +98,6 @@ const lsCommand = cmd({
 	},
 });
 
-const rmCommand = cmd({
-	command: 'rm <sha256>',
-	// Removes the cloud object only; local files are yours to manage. Every
-	// document URL citing this hash 404s from now on.
-	describe:
-		'Delete a blob from the store by content address; every URL citing it breaks forever (idempotent)',
-	builder: (yargs) =>
-		yargs
-			.positional('sha256', {
-				type: 'string',
-				demandOption: true,
-				describe: 'The lowercase-hex sha256 content address',
-			})
-			.options(formatOptions)
-			.strict(),
-	handler: async (argv) => {
-		const epicenter = await connectCloud();
-		if (!epicenter) return;
-
-		const { error } = await epicenter.blobs.delete(argv.sha256);
-		if (error !== null) {
-			fail(error.message, { code: 2 });
-			return;
-		}
-		output({ sha256: argv.sha256, deleted: true }, { format: argv.format });
-	},
-});
-
 const getCommand = cmd({
 	command: 'get <sha256>',
 	describe: 'Download a blob by content address and write it to a file',
@@ -183,6 +158,33 @@ const getCommand = cmd({
 			},
 			{ format: argv.format },
 		);
+	},
+});
+
+// Removes the cloud object only; local files are yours to manage.
+const rmCommand = cmd({
+	command: 'rm <sha256>',
+	describe:
+		'Delete a blob from the store by content address; every URL citing it breaks forever (idempotent)',
+	builder: (yargs) =>
+		yargs
+			.positional('sha256', {
+				type: 'string',
+				demandOption: true,
+				describe: 'The lowercase-hex sha256 content address',
+			})
+			.options(formatOptions)
+			.strict(),
+	handler: async (argv) => {
+		const epicenter = await connectCloud();
+		if (!epicenter) return;
+
+		const { error } = await epicenter.blobs.delete(argv.sha256);
+		if (error !== null) {
+			fail(error.message, { code: 2 });
+			return;
+		}
+		output({ sha256: argv.sha256, deleted: true }, { format: argv.format });
 	},
 });
 
