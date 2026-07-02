@@ -68,15 +68,15 @@ SPA, no `mountCloudAuth`. Bun reads the token once at boot and runs the entropy
 gate there:
 
 ```ts
-const token = assertStrongToken(env.INSTANCE_TOKEN);     // fail closed if weak
-const resolvePrincipal = createEnvTokenResolver(token);  // one bearer
-const auth = requireBearerPrincipal(resolvePrincipal);   // every surface
+const token = assertStrongToken(env.INSTANCE_TOKEN);            // fail closed if weak
+const resolveBearerPrincipal = createEnvTokenResolver(token);   // one bearer
+const auth = requireBearerPrincipal(resolveBearerPrincipal);    // every surface
 const app = createServerApp({
-  runtime: bun({ rooms }),                               // no db leg, no Postgres
+  runtime: bun({ rooms }),                                      // no db leg, no Postgres
   identity: { resolveOrigin, resolveTrustedOrigins },
 });
 mountSessionApp(app, { auth });
-mountRoomsApp(app, { resolvePrincipal });                // WS-aware, takes the resolver
+mountRoomsApp(app, { resolveBearerPrincipal });                 // WS-aware, takes the resolver
 mountInferenceApp(app, {
   auth,
   policies: [rateLimit({ requests: 120, windowSeconds: 60 })], // burn-rate floor
@@ -87,11 +87,11 @@ Cloudflare reads the per-request secret at the edge instead, running the same
 entropy gate per request (a Worker has no boot phase):
 
 ```ts
-const resolvePrincipal = (c) =>
+const resolveBearerPrincipal: ResolveBearerPrincipal = (c, bearer) =>
   createEnvTokenResolver(
     assertStrongToken((c.env as Cloudflare.Env).INSTANCE_TOKEN),
-  )(c);
-const auth = requireBearerPrincipal(resolvePrincipal);
+  )(c, bearer);
+const auth = requireBearerPrincipal(resolveBearerPrincipal);
 // ...createServerApp({ runtime, identity }), same session + rooms + inference mounts
 ```
 

@@ -29,7 +29,7 @@ import {
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
-	type ResolvePrincipal,
+	type ResolveBearerPrincipal,
 	Room,
 	rateLimit,
 	requireBearerPrincipal,
@@ -63,11 +63,11 @@ const app = createServerApp({
 // request and a throw surfaces as a 500 instead of admitting a weak credential. It
 // also returns the trimmed token, so there is no `?? ''` coalesce whose removal
 // could silently let an unset secret reach the compare.
-const resolvePrincipal: ResolvePrincipal = (c) =>
+const resolveBearerPrincipal: ResolveBearerPrincipal = (c, bearer) =>
 	createEnvTokenResolver(
 		assertStrongToken((c.env as Cloudflare.Env).INSTANCE_TOKEN),
-	)(c);
-const auth = requireBearerPrincipal(resolvePrincipal);
+	)(c, bearer);
+const auth = requireBearerPrincipal(resolveBearerPrincipal);
 
 app.get('/', (c) =>
 	c.json({ product: 'instance', version: '0.1.0', runtime: 'cloudflare' }),
@@ -78,7 +78,7 @@ app.get('/', (c) =>
 // bearer-authenticated (ADR-0075).
 mountSessionApp(app, { auth });
 // Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
-mountRoomsApp(app, { resolvePrincipal });
+mountRoomsApp(app, { resolveBearerPrincipal });
 // Cap the inference burn rate so a leaked or overused bearer cannot run the
 // operator's house key up unbounded. Per-isolate on Cloudflare (approximate);
 // the real ceiling is the hard spend limit on the provider key itself (README).

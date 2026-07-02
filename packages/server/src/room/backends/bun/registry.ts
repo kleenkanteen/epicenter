@@ -44,6 +44,7 @@ import { Database } from 'bun:sqlite';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { PrincipalId } from '@epicenter/identity';
+import { MAIN_SUBPROTOCOL, parseSubprotocols } from '@epicenter/sync';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import type { Connection } from '../../../types.js';
 import type { ResolvedRoom, Rooms, RoomUpgrade } from '../../contracts.js';
@@ -75,6 +76,40 @@ function serverNotBound(): Promise<Response> {
 	return Promise.resolve(
 		new Response('room server not bound', { status: 500 }),
 	);
+}
+
+/**
+ * Force the 101 to echo only the main subprotocol, by rewriting the inbound
+ * request's `Sec-WebSocket-Protocol` header in place before `server.upgrade`.
+ *
+ * Bun's uWS layer negotiates by auto-echoing the client's FIRST offered
+ * subprotocol, so without this a client that ordered `bearer.<token>` first
+ * would get its credential echoed on the 101. The two other channels do not
+ * work here: passing `Sec-WebSocket-Protocol` via `options.headers` writes a
+ * SECOND copy of the header beside uWS's negotiated one (clients then fail
+ * the handshake with 1002; verified on Bun 1.3.3), and reconstructing the
+ * request severs the internal upgrade context (`server.upgrade` returns
+ * false on anything but the exact object `fetch` received). Mutating the
+ * live header on the original object threads that needle: identity is
+ * preserved and uWS reads the rewritten value at upgrade time (also
+ * verified).
+ *
+ * Callers guarantee a main-subprotocol offer on every path that upgrades
+ * (the route refuses offers without it; the auth layer only socket-rejects
+ * when it was offered), so the sanitized header is `epicenter` exactly, and
+ * the delete branch is defense in depth for a client that offered only
+ * non-main protocols: no header, nothing to auto-echo.
+ */
+function sanitizeSubprotocols(request: Request): void {
+	const offered = parseSubprotocols(
+		request.headers.get('sec-websocket-protocol'),
+	);
+	if (offered.length === 0) return;
+	if (offered.includes(MAIN_SUBPROTOCOL)) {
+		request.headers.set('sec-websocket-protocol', MAIN_SUBPROTOCOL);
+	} else {
+		request.headers.delete('sec-websocket-protocol');
+	}
 }
 
 /**
@@ -183,18 +218,13 @@ export function createBunRooms({ dir }: { dir: string }): {
 					// until the `open` handler attaches the socket.
 					getOrCreate(name);
 
-					// Bun negotiates the subprotocol itself, echoing the client's
-					// first offer (the client sends `<MAIN_SUBPROTOCOL>, bearer.<token>`,
-					// so it selects the main subprotocol). Setting the
-					// `Sec-WebSocket-Protocol` header here instead breaks the
-					// handshake (double-negotiation), so identity is the only thing
-					// passed, as `ws.data`.
 					const data: BunRoomSocketData = {
 						kind: 'room',
 						roomName: name,
 						principalId,
 						nodeId,
 					};
+					sanitizeSubprotocols(request);
 					const upgraded = server.upgrade(request, { data });
 					if (!upgraded) {
 						return Promise.resolve(
@@ -214,6 +244,7 @@ export function createBunRooms({ dir }: { dir: string }): {
 			// handshake carries none). Same `server.upgrade` path as a real
 			// connection, discriminated by `ws.data.kind`.
 			const data: BunRoomSocketData = { kind: 'reject', code, reason };
+			sanitizeSubprotocols(request);
 			const upgraded = server.upgrade(request, { data });
 			if (!upgraded) {
 				// Not an upgrade request after all; answer the plain HTTP status

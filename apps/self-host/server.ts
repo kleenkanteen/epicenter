@@ -114,8 +114,8 @@ export function startSelfHostServer(): void {
 	// over that one resolver, the same total gate the cloud builds from its OAuth
 	// resolver (ADR-0075).
 	const token = requireStrongInstanceToken(env.INSTANCE_TOKEN);
-	const resolvePrincipal = createEnvTokenResolver(token);
-	const auth = requireBearerPrincipal(resolvePrincipal);
+	const resolveBearerPrincipal = createEnvTokenResolver(token);
+	const auth = requireBearerPrincipal(resolveBearerPrincipal);
 
 	const port = Number(env.PORT ?? 8787);
 	// The auth origin must match where the process actually listens. Default to
@@ -149,7 +149,7 @@ export function startSelfHostServer(): void {
 	// bearer-authenticated (ADR-0075).
 	mountSessionApp(app, { auth });
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
-	mountRoomsApp(app, { resolvePrincipal });
+	mountRoomsApp(app, { resolveBearerPrincipal });
 	// Inference spends the operator's house key on every request. Cap the burn
 	// rate so a leaked or overused bearer cannot run the provider bill up
 	// unbounded between invoices. This is the in-process backstop; the real

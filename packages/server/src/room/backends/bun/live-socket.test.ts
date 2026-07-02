@@ -13,6 +13,7 @@
 
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
+import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { asPrincipalId } from '@epicenter/identity';
@@ -34,6 +35,13 @@ beforeAll(() => {
 		fetch(req) {
 			const url = new URL(req.url);
 			if (url.pathname === '/ws') {
+				if (url.searchParams.get('reject') === 'true') {
+					return bunRooms.rooms.rejectUpgrade({
+						request: req,
+						code: 4401,
+						reason: 'rejected',
+					});
+				}
 				const nodeId = url.searchParams.get('nodeId') ?? '';
 				return bunRooms.rooms.get(ROOM).handleUpgrade({
 					request: req,
@@ -94,6 +102,36 @@ function presenceNodeIds(frames: Frame[]): string[][] {
 		.map((m: { peers: { nodeId: string }[] }) => m.peers.map((p) => p.nodeId));
 }
 
+async function readRawHandshake(path: string, protocols: string): Promise<string> {
+	return new Promise<string>((resolve, reject) => {
+		const client = net.createConnection({ port: Number(server.port) }, () => {
+			client.write(
+				`GET ${path} HTTP/1.1\r\n` +
+					`Host: localhost:${server.port}\r\n` +
+					'Upgrade: websocket\r\n' +
+					'Connection: Upgrade\r\n' +
+					'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n' +
+					'Sec-WebSocket-Version: 13\r\n' +
+					`Sec-WebSocket-Protocol: ${protocols}\r\n` +
+					'\r\n',
+			);
+		});
+		let buf = '';
+		const timer = setTimeout(
+			() => reject(new Error('no 101 within timeout')),
+			1500,
+		);
+		client.on('data', (chunk) => {
+			buf += chunk.toString('latin1');
+			if (!buf.includes('\r\n\r\n')) return;
+			clearTimeout(timer);
+			client.destroy();
+			resolve(buf.split('\r\n\r\n')[0] ?? buf);
+		});
+		client.on('error', reject);
+	});
+}
+
 test('a real WebSocket upgrade syncs presence and a binary update across clients', async () => {
 	// Client A connects: it gets a binary SyncStep1 and an empty presence list.
 	const a = await openClient('A');
@@ -118,4 +156,41 @@ test('a real WebSocket upgrade syncs presence and a binary update across clients
 
 	a.ws.close();
 	b.ws.close();
+});
+
+test('the 101 echoes only the main subprotocol, never a bearer entry', async () => {
+	// Bun's uWS layer auto-echoes the client's FIRST offered subprotocol, so a
+	// client ordering its bearer first would get the credential echoed back on
+	// the wire without the registry's in-place header sanitization. A raw
+	// socket reads the actual 101 header bytes; the WebSocket client API hides
+	// them.
+	const statusAndProtocols = await readRawHandshake(
+		'/ws?nodeId=raw',
+		`bearer.secret-token, ${MAIN_SUBPROTOCOL}`,
+	);
+
+	expect(statusAndProtocols).toStartWith('HTTP/1.1 101');
+	const protocolLines = statusAndProtocols
+		.split('\r\n')
+		.filter((line) => line.toLowerCase().startsWith('sec-websocket-protocol:'));
+	expect(protocolLines).toEqual([
+		`Sec-WebSocket-Protocol: ${MAIN_SUBPROTOCOL}`,
+	]);
+	expect(statusAndProtocols).not.toContain('secret-token');
+});
+
+test('a rejected upgrade echoes only the main subprotocol before closing', async () => {
+	const statusAndProtocols = await readRawHandshake(
+		'/ws?reject=true',
+		`bearer.secret-token, ${MAIN_SUBPROTOCOL}`,
+	);
+
+	expect(statusAndProtocols).toStartWith('HTTP/1.1 101');
+	const protocolLines = statusAndProtocols
+		.split('\r\n')
+		.filter((line) => line.toLowerCase().startsWith('sec-websocket-protocol:'));
+	expect(protocolLines).toEqual([
+		`Sec-WebSocket-Protocol: ${MAIN_SUBPROTOCOL}`,
+	]);
+	expect(statusAndProtocols).not.toContain('secret-token');
 });

@@ -18,20 +18,24 @@ import type { Rooms } from './room/contracts.js';
 import type { ServerBindings } from './server-bindings.js';
 
 /**
- * How a request resolves to the calling principal: the one auth seam.
+ * How an explicit bearer token resolves to the calling principal: the one auth
+ * seam.
  *
- * The surface wrappers (`requireCookieOrBearerPrincipal`, the rooms bearer with its
- * WebSocket-reject path, `requireBearerPrincipal`) differ only in whether they
- * consult the cookie and how they surface a failure; the principal resolution
- * itself is this single function. The deployment builds each wrapper by closing
- * it over its resolver (`requireBearerPrincipal(resolvePrincipal)`), so the resolver
- * is held in the wrapper's closure, not stamped on the context: there is no
- * `c.var.resolvePrincipal`.
+ * The surface wrappers (`requireCookieOrBearerPrincipal`, `requireBearerPrincipal`,
+ * the rooms bearer with its WebSocket-reject path) own credential EXTRACTION:
+ * each knows where its transport carries the token (`Authorization` header, or
+ * the `bearer.<token>` WebSocket subprotocol for rooms) and hands the resolver
+ * a bare token. The resolver only VERIFIES; it never reads request headers, so
+ * no transport ever has to fake another transport's header to authenticate.
+ * The deployment builds each wrapper by closing it over its resolver
+ * (`requireBearerPrincipal(resolveBearerPrincipal)`), so the resolver is held in
+ * the wrapper's closure, not stamped on the context: there is no
+ * `c.var.resolveBearerPrincipal`.
  *
  * The cloud closes over the real resolver (`resolveRequestOAuthPrincipal`: an
  * OAuth bearer verified against JWKS); an instance closes over its env-token
  * resolver (`createEnvTokenResolver`). A dev-only entrypoint closes over a trivial
- * `Bearer dev:<principalId>` resolver so the runtime-parity smoke needs no interactive
+ * `dev:<principalId>` resolver so the runtime-parity smoke needs no interactive
  * login; that bypass lives in a dev entry production never imports, never an
  * env-gated branch in this library.
  *
@@ -41,12 +45,13 @@ import type { ServerBindings } from './server-bindings.js';
  *
  * Generic over the context it reads: the instance's env-token resolver needs only
  * the portable {@link Env}; the cloud's `resolveRequestOAuthPrincipal` reads
- * `c.var.auth` + `c.var.db`, so it is a `ResolvePrincipal<CloudEnv>`. The
+ * `c.var.auth` + `c.var.db`, so it is a `ResolveBearerPrincipal<CloudEnv>`. The
  * wrapper that closes over a resolver carries the same `E`, so a cloud resolver
  * only composes onto a cloud app.
  */
-export type ResolvePrincipal<E extends Env = Env> = (
+export type ResolveBearerPrincipal<E extends Env = Env> = (
 	c: Context<E>,
+	bearer: string,
 ) => Promise<Result<Principal, OAuthError>>;
 
 /**
@@ -116,16 +121,6 @@ export type Env = {
 		trustedOrigins: string[];
 		principal: Principal;
 		rooms: Rooms;
-		/**
-		 * The upgrade Request exactly as the runtime minted it, stashed by
-		 * `normalizeWebSocketAuth` before it rewrites `c.req.raw` for auth.
-		 * The rooms surface hands this object to the backend: Bun's
-		 * `server.upgrade` accepts only the original request object (a rebuilt
-		 * clone fails the upgrade, so the client sees "Expected 101"), and the
-		 * Durable Object rebuilds its own response headers, so the original is
-		 * safe on both runtimes. Absent on non-upgrade requests.
-		 */
-		wsUpgradeRequest?: Request;
 	};
 };
 
