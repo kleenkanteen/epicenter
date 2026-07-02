@@ -212,9 +212,12 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 					});
 				}
 				bytes = await source.arrayBuffer();
+				// `||`, matching the Blob branch below: an empty-string content type
+				// (an override of '' or a bare header) falls through to the default
+				// instead of being pinned into the stored object verbatim.
 				contentType =
-					params.contentType ??
-					source.headers.get('content-type') ??
+					params.contentType ||
+					source.headers.get('content-type') ||
 					'application/octet-stream';
 			} else {
 				bytes = await fileOrUrl.arrayBuffer();
