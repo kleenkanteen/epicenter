@@ -224,7 +224,9 @@ export function createSyncSupervisor(
 
 	function send(message: Uint8Array | string) {
 		if (websocket?.readyState === WebSocket.OPEN) {
-			websocket.send(message);
+			websocket.send(
+				message instanceof Uint8Array ? new Uint8Array(message) : message,
+			);
 		}
 	}
 
