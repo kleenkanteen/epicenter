@@ -26,11 +26,7 @@ import {
 } from 'wellcrafted/error';
 import { Ok, type Result, tryAsync } from 'wellcrafted/result';
 import type { RunError } from './action-errors.js';
-import type {
-	DaemonListSnapshot,
-	PeerSnapshot,
-	RunRequest,
-} from './app.js';
+import type { DaemonListSnapshot, PeerSnapshot, RunRequest } from './app.js';
 import { socketPathFor } from './paths.js';
 
 /**
