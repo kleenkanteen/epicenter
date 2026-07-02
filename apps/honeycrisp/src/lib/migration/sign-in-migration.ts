@@ -13,8 +13,8 @@
  * note's title and folder but silently leave its actual text behind.
  */
 
-import { createSignInMigration } from '@epicenter/app-shell/sign-in-migration';
 import type { SignInMigrationState } from '@epicenter/app-shell/sign-in-migration';
+import { createSignInMigration } from '@epicenter/app-shell/sign-in-migration';
 import { attachIndexedDb, attachLocalStorage } from '@epicenter/workspace';
 import * as Y from 'yjs';
 import { auth } from '#platform/auth';
