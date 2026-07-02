@@ -16,7 +16,7 @@ import type { Room } from './durable-object';
  * Object stubs.
  *
  * The returned `get(name)` is cheap (one `idFromName` + one `get`);
- * the stub itself is lazy until an RPC or `fetch` is invoked on it.
+ * the stub itself is lazy until `fetch` is invoked on it.
  *
  * @param namespace - The `ROOM` binding from `wrangler.jsonc`, typed via
  *   the generated `worker-configuration.d.ts`.
@@ -31,15 +31,12 @@ export function createDurableObjectRooms(
 		 * for either deployment: in the per-user topology `ownerId === user.id`,
 		 * on an instance `ownerId` is the pinned `INSTANCE_OWNER_ID`).
 		 *
-		 * Returns a {@link ResolvedRoom} whose methods forward to the DO
-		 * stub: RPC for `sync` and `getDoc`, and `fetch` for the
-		 * WebSocket upgrade (the only path that needs HTTP semantics).
+		 * Returns a {@link ResolvedRoom} whose `handleUpgrade` forwards to the
+		 * DO stub's `fetch` (a 101-returning upgrade).
 		 */
 		get(name: string): ResolvedRoom {
 			const stub = namespace.get(namespace.idFromName(name));
 			return {
-				sync: (body) => stub.sync(body),
-				getDoc: () => stub.getDoc(),
 				// The DO reads `userId`/`nodeId` from the forwarded request URL.
 				// `nodeId` already rides the client's URL; stamp the server-resolved
 				// `userId` over any client-supplied value, then forward to the stub

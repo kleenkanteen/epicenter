@@ -31,12 +31,11 @@
  *
  * ## Adapter contract
  *
- * Backends drive `RoomCore` through six entry points:
+ * Backends drive `RoomCore` through these entry points:
  *
  *   - `addConnection(socket, connection)`     on accept
  *   - `removeConnection(socket, code)`         on close
  *   - `handleMessage(socket, message)`         on inbound frame
- *   - `sync(body)` / `getDoc()`                for HTTP RPC
  *   - `compact()`                              after idle
  *
  * `connectionCount` is exposed as a query so the backend can schedule
@@ -44,12 +43,10 @@
  */
 
 import {
-	decodeSyncRequest,
 	encodeSyncStep1,
 	encodeSyncUpdate,
 	handleSyncPayload,
 	type SyncMessageType,
-	stateVectorsEqual,
 } from '@epicenter/sync';
 import {
 	checkPresencePublishFrame,
@@ -58,7 +55,7 @@ import {
 } from '@epicenter/workspace/document/presence';
 import * as decoding from 'lib0/decoding';
 import { createLogger } from 'wellcrafted/logger';
-import { Err, Ok, trySync } from 'wellcrafted/result';
+import { trySync } from 'wellcrafted/result';
 import * as Y from 'yjs';
 import { MAX_PAYLOAD_BYTES } from '../constants.js';
 import type { Connection } from '../types.js';
@@ -561,58 +558,6 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 				return;
 			}
 			if (reply) socket.send(reply);
-		},
-
-		/**
-		 * HTTP sync RPC.
-		 *
-		 * Binary body format:
-		 * `[length-prefixed stateVector][length-prefixed update]`
-		 * (encoded via `encodeSyncRequest` from `@epicenter/sync`).
-		 *
-		 * Applies the client update to the live doc and returns the
-		 * binary diff the client is missing (or `null` if already in
-		 * sync) wrapped in `Ok`. Returns `Err(MalformedSyncBody)` when
-		 * the untrusted body fails to decode so the route can answer 400
-		 * instead of 500.
-		 */
-		sync(body: Uint8Array) {
-			const { data: clientSV, error } = trySync({
-				try: () => {
-					const { stateVector, update } = decodeSyncRequest(body);
-					if (update.byteLength > 0) {
-						Y.applyUpdateV2(doc, update, 'http');
-					}
-					return stateVector;
-				},
-				catch: (cause) => RoomError.MalformedSyncBody({ cause }),
-			});
-			if (error) return Err(error);
-
-			const serverSV = Y.encodeStateVector(doc);
-			const diff = stateVectorsEqual(serverSV, clientSV)
-				? null
-				: Y.encodeStateAsUpdateV2(doc, clientSV);
-
-			return Ok({
-				diff,
-				storageBytes: updateLog.byteSize(),
-			});
-		},
-
-		/**
-		 * Snapshot bootstrap.
-		 *
-		 * Returns the full doc state via `Y.encodeStateAsUpdateV2`.
-		 * Clients apply this with `Y.applyUpdateV2` to hydrate their
-		 * local doc before opening a WebSocket, reducing the initial
-		 * sync payload.
-		 */
-		getDoc(): { data: Uint8Array; storageBytes: number } {
-			return {
-				data: Y.encodeStateAsUpdateV2(doc),
-				storageBytes: updateLog.byteSize(),
-			};
 		},
 
 		/**

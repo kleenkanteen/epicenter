@@ -5,7 +5,7 @@
  * `createRoomCore` imports nothing Cloudflare and never branches on runtime, so
  * every invariant a backend relies on lives here: presence (debounce, the 4401
  * immediate path, multi-tab same-node dedup), the unknown-text-frame close,
- * binary + HTTP sync, compaction, the connection-lifetime bound (`handleMessage`
+ * binary sync, compaction, the connection-lifetime bound (`handleMessage`
  * for active sockets, `sweepExpiredConnections` for idle ones), and liveness
  * ping/pong. The backends only own their adapter glue (the
  * Durable Object hibernation accept + alarm, the Bun `server.upgrade` + timer),
@@ -23,7 +23,6 @@
 import { describe, expect, test } from 'bun:test';
 import { asUserId } from '@epicenter/auth';
 import {
-	encodeSyncRequest,
 	encodeSyncStep1,
 	encodeSyncUpdate,
 	SYNC_MESSAGE_TYPE,
@@ -47,7 +46,6 @@ function memoryUpdateLog(): RoomUpdateLog {
 		replaceAll: (c) => {
 			rows = [new Uint8Array(c)];
 		},
-		byteSize: () => rows.reduce((n, r) => n + r.byteLength, 0),
 		entryCount: () => rows.length,
 	};
 }
@@ -194,7 +192,7 @@ describe('RoomCore: text frames', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
-// Sync (binary WS + HTTP RPC)
+// Sync (binary WS)
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('RoomCore: sync', () => {
@@ -222,29 +220,6 @@ describe('RoomCore: sync', () => {
 		);
 		expect(b.binary().length).toBe(beforeB + 1);
 		expect(a.binary().length).toBe(beforeA);
-	});
-
-	test('HTTP sync returns the diff a fresh client is missing', () => {
-		const core = newRoom();
-		const ws = connect(core, 'A');
-		const src = new Y.Doc();
-		src.getMap('d').set('k', 'v');
-		core.handleMessage(
-			ws,
-			encodeSyncUpdate({ update: Y.encodeStateAsUpdateV2(src) }),
-		);
-
-		const client = new Y.Doc();
-		const { data, error } = core.sync(
-			encodeSyncRequest(Y.encodeStateVector(client)),
-		);
-		expect(error).toBeNull();
-		expect(data?.diff).not.toBeNull();
-	});
-
-	test('HTTP sync rejects a malformed body with Err(MalformedSyncBody)', () => {
-		const { error } = newRoom().sync(new Uint8Array([10]));
-		expect(error?.name).toBe('MalformedSyncBody');
 	});
 });
 

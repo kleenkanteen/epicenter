@@ -57,12 +57,11 @@ That example is the same shape used in the package tests and in the API room boo
 
 ## Dumb server, separate transport
 
-This package is strict about one boundary: it handles protocol framing, not connection management. That split is why the same message helpers work over WebSockets, one-shot HTTP sync, or any custom relay you want to write.
+This package is strict about one boundary: it handles protocol framing, not connection management. That split is why the same message helpers work over WebSockets, BroadcastChannel, or any custom relay you want to write.
 
 The design shows up in a few places:
 
 - `encodeSyncStep1`, `encodeSyncStep2`, and `encodeSyncUpdate` only deal with Yjs payloads.
-- `encodeSyncRequest` and `decodeSyncRequest` collapse the WebSocket handshake into a binary HTTP request/response format.
 - RPC framing is separate from RPC behavior. The package defines request/response bytes and shared error variants, not the transport policy around retries or timeouts.
 
 If you want lifecycle helpers for a WebSocket server, this package is the protocol layer under them. Not the server itself.
@@ -74,8 +73,6 @@ Main exports from `src/index.ts`:
 - Message constants: `MESSAGE_TYPE`, `SYNC_MESSAGE_TYPE`, `RPC_TYPE`
 - Sync encode/decode: `encodeSyncStep1`, `encodeSyncStep2`, `encodeSyncUpdate`, `decodeSyncMessage`, `handleSyncPayload`
 - Awareness helpers: `encodeAwareness`, `encodeAwarenessStates`, `encodeQueryAwareness`
-- HTTP sync helpers: `encodeSyncRequest`, `decodeSyncRequest`
-- State helpers: `stateVectorsEqual`
 - RPC helpers: `encodeRpcRequest`, `encodeRpcResponse`, `decodeRpcMessage`, `decodeRpcPayload`
 - RPC types and guards: `DecodedRpcMessage`, `RpcError`, `isRpcError`
 

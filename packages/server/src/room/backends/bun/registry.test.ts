@@ -171,16 +171,8 @@ describe('Node backend: binary sync', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
-// HTTP SYNC RPC + TEXT FRAMES
+// TEXT FRAMES
 // ────────────────────────────────────────────────────────────────────────────
-
-describe('Node backend: HTTP sync RPC', () => {
-	test('a malformed sync body resolves to Err(MalformedSyncBody)', async () => {
-		const { rooms } = makeRooms();
-		const { error } = await rooms.get(ROOM).sync(new Uint8Array([10]));
-		expect(error?.name).toBe('MalformedSyncBody');
-	});
-});
 
 describe('Node backend: text frames', () => {
 	test('an unknown text frame closes the socket with 4400', () => {
@@ -205,7 +197,6 @@ describe('bun:sqlite update log', () => {
 		log.append(b);
 		expect(log.entryCount()).toBe(2);
 		expect(log.loadAll()).toEqual([a, b]);
-		expect(log.byteSize()).toBeGreaterThan(0);
 		db.close();
 	});
 

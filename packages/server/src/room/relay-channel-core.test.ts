@@ -29,7 +29,6 @@ function memLog(): RoomUpdateLog {
 			entries.length = 0;
 			entries.push(compacted);
 		},
-		byteSize: () => entries.reduce((sum, entry) => sum + entry.byteLength, 0),
 		entryCount: () => entries.length,
 	};
 }

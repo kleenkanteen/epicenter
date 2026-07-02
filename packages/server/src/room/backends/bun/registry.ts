@@ -26,8 +26,8 @@
  * ## Eviction
  *
  * When a room's last socket closes, a grace timer compacts the log and closes
- * the sqlite handle, evicting the room from the `Map` (any access, sync or
- * connect, cancels it first via `getOrCreate`). A truncate-checkpoint runs
+ * the sqlite handle, evicting the room from the `Map` (any access, i.e. a
+ * connecting socket, cancels it first via `getOrCreate`). A truncate-checkpoint runs
  * before close so the WAL sidecars do not persist (the macOS persistent-WAL
  * caveat); keep `dir` on a local disk, never a networked filesystem.
  *
@@ -121,8 +121,8 @@ export function createBunRooms({ dir }: { dir: string }): {
 
 	/**
 	 * Resolve a room's entry, lazily opening its sqlite file and core. Any
-	 * access (sync, getDoc, or a connecting socket) cancels a pending eviction,
-	 * so a room stays live as long as something is using it.
+	 * access (a connecting socket) cancels a pending eviction, so a room stays
+	 * live as long as something is using it.
 	 */
 	function getOrCreate(name: string): RoomEntry {
 		const existing = entries.get(name);
@@ -176,8 +176,6 @@ export function createBunRooms({ dir }: { dir: string }): {
 	const rooms: Rooms = {
 		get(name: string): ResolvedRoom {
 			return {
-				sync: (body) => Promise.resolve(getOrCreate(name).core.sync(body)),
-				getDoc: () => Promise.resolve(getOrCreate(name).core.getDoc()),
 				handleUpgrade: ({ request, userId, nodeId }: RoomUpgrade) => {
 					if (!server) return serverNotBound();
 					// Resolve the room now (creating it if needed); `getOrCreate`

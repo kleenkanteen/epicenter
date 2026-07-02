@@ -43,8 +43,6 @@ export function createBunSqliteUpdateLog(db: Database): RoomUpdateLog {
 	const countRow = db.query<{ count: number }, []>(
 		'SELECT COUNT(*) as count FROM updates',
 	);
-	const pageCount = db.query<{ page_count: number }, []>('PRAGMA page_count');
-	const pageSize = db.query<{ page_size: number }, []>('PRAGMA page_size');
 
 	// One atomic DELETE + INSERT, the same `transactionSync` guarantee the
 	// Cloudflare backend gets from `storage.transactionSync`.
@@ -64,11 +62,6 @@ export function createBunSqliteUpdateLog(db: Database): RoomUpdateLog {
 		},
 		replaceAll(compacted: Uint8Array): void {
 			replaceAllTx(compacted);
-		},
-		byteSize(): number {
-			const count = pageCount.get()?.page_count ?? 0;
-			const size = pageSize.get()?.page_size ?? 0;
-			return count * size;
 		},
 		entryCount(): number {
 			return countRow.get()?.count ?? 0;

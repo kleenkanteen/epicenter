@@ -14,8 +14,7 @@
  *    that builds the {@link RoomUpdateLog} over `ctx.storage`, creates
  *    the `RoomCore`, and re-registers any sockets that survived
  *    hibernation via `ctx.getWebSockets()`.
- * 2. **`fetch`**: only handles WebSocket upgrades; HTTP sync goes via
- *    RPC (`stub.sync()`, `stub.getDoc()`).
+ * 2. **`fetch`**: handles WebSocket upgrades, the room's only surface.
  * 3. **Hibernation callbacks**: forward to `core` directly.
  * 4. **`alarm`**: one multiplexed timer. While clients are connected it sweeps
  *    and closes over-age sockets ({@link CONNECTION_SWEEP_INTERVAL_MS}); once
@@ -63,17 +62,14 @@ const CONNECTION_SWEEP_INTERVAL_MS = 5 * 60_000;
  *
  * ## Worker to DO interface
  *
- * - **RPC** (`stub.sync()`, `stub.getDoc()`): for HTTP sync and snapshot
- *   bootstrap. Direct method calls avoid Request/Response serialization
- *   overhead for binary payloads.
- * - **fetch** (`stub.fetch(request)`): for WebSocket upgrades only;
+ * - **fetch** (`stub.fetch(request)`): WebSocket upgrades, the only entry;
  *   the 101 Switching Protocols handshake requires HTTP semantics.
  *
  * ## Auth & data isolation
  *
  * Handled upstream by Hono routes in `@epicenter/server`. The Worker
  * validates the caller, checks any route-owned policy, and builds the
- * internal DO name before calling RPC methods or forwarding `fetch`. The
+ * internal DO name before forwarding `fetch`. The
  * DO itself does not re-validate. DO names are host-owned opaque strings
  * built by `doName(ownerId, roomId)`, producing `owners/<ownerId>/rooms/<roomId>`
  * for either deployment (in the per-user topology `ownerId === user.id`, on an
@@ -130,10 +126,7 @@ export class Room extends DurableObject {
 	}
 
 	/**
-	 * Only handles WebSocket upgrades. HTTP sync operations are exposed
-	 * as RPC methods called directly on the stub (see {@link Room.sync}
-	 * / {@link Room.getDoc}), avoiding the overhead of constructing and
-	 * parsing Request/Response objects for binary payloads.
+	 * Handles WebSocket upgrades, the room's only surface.
 	 *
 	 * Trusts the rooms route to have validated and stamped both `userId`
 	 * (from auth) and `nodeId` (from the client query, presence-checked
@@ -296,23 +289,5 @@ export class Room extends DurableObject {
 			return;
 		}
 		this.core.compact();
-	}
-
-	// --- RPC methods (called via stub.sync() / stub.getDoc()) ---
-
-	/**
-	 * HTTP sync via RPC. Forwards to {@link RoomCore.sync}, which
-	 * returns a `Result` so the route can answer 400 on a malformed
-	 * body without throwing.
-	 */
-	async sync(body: Uint8Array) {
-		return this.core.sync(body);
-	}
-
-	/**
-	 * Snapshot bootstrap via RPC. Forwards to {@link RoomCore.getDoc}.
-	 */
-	async getDoc() {
-		return this.core.getDoc();
 	}
 }

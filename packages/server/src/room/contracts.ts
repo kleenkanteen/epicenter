@@ -17,7 +17,7 @@
  * - {@link ResolvedRoom} / {@link Rooms}: name-to-room routing
  *   consumed by route middleware in `app.ts`.
  * - {@link RoomError}: error variants surfaced across the room's
- *   untrusted-input boundaries (HTTP sync body, binary WebSocket frame).
+ *   untrusted-input boundary (the binary WebSocket frame).
  *
  * @see `room/core.ts` for the consumer (`createRoomCore`).
  * @see `room/backends/cloudflare/` for the Cloudflare backend.
@@ -29,7 +29,6 @@ import {
 	extractErrorMessage,
 	type InferErrors,
 } from 'wellcrafted/error';
-import type { Result } from 'wellcrafted/result';
 
 // ============================================================================
 // RoomUpdateLog
@@ -59,8 +58,6 @@ export type RoomUpdateLog = {
 	append(update: Uint8Array): void;
 	/** Replace the entire log with one compacted blob. Atomic. */
 	replaceAll(compacted: Uint8Array): void;
-	/** Total bytes used by the log; surfaced as `storageBytes` to callers. */
-	byteSize(): number;
 	/** Number of entries currently in the log; used to skip no-op compactions. */
 	entryCount(): number;
 };
@@ -113,25 +110,6 @@ export type RoomSocket = {
  * `Promise.resolve` of synchronous results, satisfying the same contract.
  */
 export type ResolvedRoom = {
-	/**
-	 * HTTP sync RPC. Apply the client's update to this room's doc and
-	 * return the diff the client is missing (`null` if already in sync),
-	 * along with the post-write storage size.
-	 *
-	 * Returns `Err(MalformedSyncBody)` when the untrusted body fails to
-	 * decode so the route can answer 400.
-	 */
-	sync(
-		body: Uint8Array,
-	): Promise<
-		Result<{ diff: Uint8Array | null; storageBytes: number }, RoomError>
-	>;
-	/**
-	 * Snapshot bootstrap. Returns the full doc state via
-	 * `Y.encodeStateAsUpdateV2`; clients apply this to hydrate before
-	 * opening a WebSocket.
-	 */
-	getDoc(): Promise<{ data: Uint8Array; storageBytes: number }>;
 	/**
 	 * Accept a WebSocket upgrade for this room. The route resolves identity
 	 * out-of-band ({@link RoomUpgrade}: `userId` from auth, `nodeId` from the
@@ -210,21 +188,13 @@ export type Rooms = {
 // ============================================================================
 
 /**
- * Errors surfaced across the room's untrusted-input boundaries.
- *
- * - `MessageDecode` covers the WebSocket binary frame path.
- * - `MalformedSyncBody` covers the HTTP sync RPC body.
- *
- * Both wrap lib0 buffer underflow (truncated input) and any other
- * decode-time exception thrown on untrusted bytes.
+ * Errors surfaced across the room's untrusted-input boundary: the binary
+ * WebSocket frame path. Wraps lib0 buffer underflow (truncated input) and any
+ * other decode-time exception thrown on untrusted bytes.
  */
 export const RoomError = defineErrors({
 	MessageDecode: ({ cause }: { cause: unknown }) => ({
 		message: `Failed to decode WebSocket message: ${extractErrorMessage(cause)}`,
-		cause,
-	}),
-	MalformedSyncBody: ({ cause }: { cause: unknown }) => ({
-		message: `Failed to decode HTTP sync body: ${extractErrorMessage(cause)}`,
 		cause,
 	}),
 });
