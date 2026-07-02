@@ -8,6 +8,9 @@
 	import { reloadOnPrincipalChange } from '@epicenter/svelte/auth';
 	import { queryClient } from '$lib/rpc/client';
 	import '@epicenter/ui/app.css';
+	// Whispering's brand overrides, layered after the shared theme so they win.
+	// Keep this import last among the stylesheets.
+	import '../app.css';
 	import * as Tooltip from '@epicenter/ui/tooltip';
 
 	let { children } = $props();
