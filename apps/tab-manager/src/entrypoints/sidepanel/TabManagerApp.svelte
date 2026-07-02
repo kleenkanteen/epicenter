@@ -22,11 +22,11 @@
 	import AiDrawer from '$lib/components/AiDrawer.svelte';
 	import { createCommandPaletteItems } from '$lib/components/command-palette-items';
 	import UnifiedTabList from '$lib/components/tabs/UnifiedTabList.svelte';
-	import { requireTabManager, tabManagerSession } from '$lib/session.svelte';
+	import { tabManagerBoot } from '$lib/session.svelte';
 	import { browserState } from '$lib/state/browser-state.svelte';
 
-	const tabManager = requireTabManager();
-	const auth = tabManagerSession.auth;
+	const tabManager = tabManagerBoot.tabManager;
+	const auth = tabManagerBoot.auth;
 	const items = createCommandPaletteItems(tabManager.state.savedTabs);
 	let searchInputRef = $state<HTMLInputElement | null>(null);
 	let commandPaletteOpen = $state(false);
@@ -205,6 +205,7 @@
 					collaboration={tabManager.collaboration}
 					syncNoun="tabs"
 					onForgetDevice={() => tabManager.wipe()}
+					instanceConnect={{ appName: 'Epicenter', setting: tabManagerBoot.instanceSetting }}
 				/>
 			</div>
 		</header>

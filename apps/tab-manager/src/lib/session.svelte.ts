@@ -1,7 +1,31 @@
+/**
+ * Boot-time Tab Manager client (ADR-0088: sign-in is an enhancement, never a
+ * door).
+ *
+ * `chrome.storage.local` is async, so unlike Honeycrisp's synchronous
+ * top-level singleton, everything here is deferred-init: the reactive auth
+ * client, the workspace bundle (`openTabManagerBrowser`'s preset branch, see
+ * `tab-manager/extension.ts`), and the composed app state (savedTabs,
+ * bookmarks, toolTrust, unifiedView, aiChat) are all built exactly once,
+ * inside `whenReady`, after the persisted auth cell, the instance setting,
+ * and the device profile have resolved. `reloadOnOwnerChange` is wired the
+ * moment the auth client exists, so an identity change reloads the sidepanel
+ * document and the next boot re-runs the preset branch.
+ *
+ * The workspace is never `null` once ready: there is no `require*()`
+ * accessor. `App.svelte` mounts its whole tree under
+ * `{#await tabManagerBoot.whenReady}`, so by the time a descendant reads
+ * `tabManagerBoot.tabManager` the bundle is guaranteed to exist; the getter's
+ * throw is a boot-order guard, not a signed-out branch.
+ */
+
 import { createAgentChatState } from '@epicenter/app-shell/agent-chat';
 import type { InstanceSetting, SyncAuthClient } from '@epicenter/auth';
 import { EPICENTER_TAB_MANAGER_OAUTH_CLIENT_ID } from '@epicenter/constants/oauth-clients';
-import { createAppAuthClient, createSession } from '@epicenter/svelte/auth';
+import {
+	createAppAuthClient,
+	reloadOnOwnerChange,
+} from '@epicenter/svelte/auth';
 import {
 	createLocalToolCatalog,
 	defaultApprovalDecision,
@@ -24,20 +48,21 @@ import { createToolTrustState } from './state/tool-trust.svelte';
 import { createUnifiedViewState } from './state/unified-view-state.svelte';
 import { openTabManagerBrowser } from './tab-manager/extension';
 
-/**
- * Deferred-init values: set exactly once when `persistedAuthStoragePromise`
- * AND the peer identity have resolved. They are plain `let`, not `$state`,
- * because nothing needs the assignment itself to drive reactivity; consumers
- * await `tabManagerSession.whenReady` before reading.
- *
- * Once storage and peer are ready, `session` is the synchronous
- * `createSession()` return value. Its `current` getter is `null` when signed
- * out and the augmented tab-manager binding (binding fields + `state`) when
- * signed in.
- */
+/** The composed app state layered onto the connected workspace bundle. */
+type TabManagerState = {
+	savedTabs: ReturnType<typeof createSavedTabState>;
+	bookmarks: ReturnType<typeof createBookmarkState>;
+	toolTrust: ReturnType<typeof createToolTrustState>;
+	unifiedView: ReturnType<typeof createUnifiedViewState>;
+	aiChat: ReturnType<typeof createAgentChatState>;
+};
+
+/** Everything a component reads once the boot promise resolves. */
+export type TabManagerBundle = ReturnType<typeof buildTabManager>;
+
 let authClient: SyncAuthClient | undefined;
 let instanceSettingValue: InstanceSetting | undefined;
-let session: ReturnType<typeof buildSession> | undefined;
+let bundle: TabManagerBundle | undefined;
 
 const whenReady = Promise.all([
 	persistedAuthStoragePromise,
@@ -54,67 +79,71 @@ const whenReady = Promise.all([
 	});
 	authClient = auth;
 	instanceSettingValue = instanceSetting;
-	session = buildSession(auth, profile);
+	bundle = buildTabManager(auth, profile);
+	// Option A (ADR-0088): the doc is picked once at boot (the preset branch
+	// inside `openTabManagerBrowser`); an owner-identity change reloads the
+	// sidepanel document so the next boot rebuilds the right doc.
+	reloadOnOwnerChange(auth);
 });
 
-function buildSession(
+function buildTabManager(
 	auth: SyncAuthClient,
 	profile: Awaited<ReturnType<typeof createDeviceProfile>>,
 ) {
-	return createSession({
-		auth,
-		build: (signedIn) => {
-			const tabManager = openTabManagerBrowser({
-				signedIn,
-				nodeId: profile.nodeId,
-			});
+	const tabManager = openTabManagerBrowser({ auth, nodeId: profile.nodeId });
 
-			const savedTabs = createSavedTabState(tabManager);
-			const bookmarks = createBookmarkState(tabManager);
-			const toolTrust = createToolTrustState(tabManager);
-			const unifiedView = createUnifiedViewState({ bookmarks, savedTabs });
-			// The shared chat registry (ADR-0047/0059) with tab-manager's variation
-			// injected: device-constraint + base prompts read per turn, its in-process
-			// browser actions as the tool surface, and the "Always Allow" trust set
-			// folded into the approval policy.
-			const aiChat = createAgentChatState({
-				table: tabManager.tables.conversations,
-				whenLoaded: tabManager.idb.whenLoaded,
-				connections: inferenceConnections,
-				agent: {
-					buildSystemPrompts: () => [
-						buildDeviceConstraints(tabManager.nodeId),
-						TAB_MANAGER_SYSTEM_PROMPT,
-					],
-					defaultModel: DEFAULT_MODEL,
-					toolCatalog: createLocalToolCatalog(tabManager.actions),
-					// A tool the user chose to "Always Allow" auto-approves; otherwise a
-					// query runs unattended and a mutation asks (ADR-0044).
-					decideApproval: (call, definition) =>
-						toolTrust.shouldAutoApprove(call.toolName)
-							? 'auto'
-							: defaultApprovalDecision(call, definition),
-				},
-			});
-			const state = { savedTabs, bookmarks, toolTrust, unifiedView, aiChat };
-
-			void tabManager.idb.whenLoaded.then(() =>
-				registerDevice(tabManager, profile.defaultName),
-			);
-
-			return {
-				...tabManager,
-				state,
-				[Symbol.dispose]() {
-					aiChat[Symbol.dispose]();
-					tabManager[Symbol.dispose]();
-				},
-			};
+	const savedTabs = createSavedTabState(tabManager);
+	const bookmarks = createBookmarkState(tabManager);
+	const toolTrust = createToolTrustState(tabManager);
+	const unifiedView = createUnifiedViewState({ bookmarks, savedTabs });
+	// The shared chat registry (ADR-0047/0059) with tab-manager's variation
+	// injected: device-constraint + base prompts read per turn, its in-process
+	// browser actions as the tool surface, and the "Always Allow" trust set
+	// folded into the approval policy.
+	const aiChat = createAgentChatState({
+		table: tabManager.tables.conversations,
+		whenLoaded: tabManager.idb.whenLoaded,
+		connections: inferenceConnections,
+		agent: {
+			buildSystemPrompts: () => [
+				buildDeviceConstraints(tabManager.nodeId),
+				TAB_MANAGER_SYSTEM_PROMPT,
+			],
+			defaultModel: DEFAULT_MODEL,
+			toolCatalog: createLocalToolCatalog(tabManager.actions),
+			// A tool the user chose to "Always Allow" auto-approves; otherwise a
+			// query runs unattended and a mutation asks (ADR-0044).
+			decideApproval: (call, definition) =>
+				toolTrust.shouldAutoApprove(call.toolName)
+					? 'auto'
+					: defaultApprovalDecision(call, definition),
 		},
 	});
+	const state: TabManagerState = {
+		savedTabs,
+		bookmarks,
+		toolTrust,
+		unifiedView,
+		aiChat,
+	};
+
+	void tabManager.idb.whenLoaded.then(() =>
+		registerDevice(tabManager, profile.defaultName),
+	);
+
+	return {
+		...tabManager,
+		state,
+		/** Resolves when local persistence has hydrated the root doc. */
+		whenReady: tabManager.idb.whenLoaded,
+		[Symbol.dispose]() {
+			aiChat[Symbol.dispose]();
+			tabManager[Symbol.dispose]();
+		},
+	};
 }
 
-export const tabManagerSession = {
+export const tabManagerBoot = {
 	get auth(): SyncAuthClient {
 		if (!authClient) {
 			throw new Error('[tab-manager] auth read before storage readiness.');
@@ -129,31 +158,23 @@ export const tabManagerSession = {
 		}
 		return instanceSettingValue;
 	},
-	get current() {
-		if (!session) {
+	get tabManager(): TabManagerBundle {
+		if (!bundle) {
 			throw new Error(
-				'[tab-manager] tabManagerSession.current read before storage readiness.',
+				'[tab-manager] tabManagerBoot.tabManager read before storage ' +
+					'readiness. Components must mount under ' +
+					'`{#await tabManagerBoot.whenReady}`.',
 			);
 		}
-		return session.current;
+		return bundle;
 	},
 	whenReady,
 	[Symbol.dispose]() {
-		session?.[Symbol.dispose]();
+		bundle?.[Symbol.dispose]();
 		authClient?.[Symbol.dispose]();
 	},
 };
 
 if (import.meta.hot) {
-	import.meta.hot.dispose(() => tabManagerSession[Symbol.dispose]());
-}
-
-export function requireTabManager() {
-	if (!session) {
-		throw new Error(
-			'[tab-manager] requireTabManager() called before storage readiness. ' +
-				'Components must mount under `{#await tabManagerSession.whenReady}`.',
-		);
-	}
-	return session.require();
+	import.meta.hot.dispose(() => tabManagerBoot[Symbol.dispose]());
 }
