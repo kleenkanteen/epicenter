@@ -117,7 +117,8 @@ const TOOLS: ToolDescriptor[] = [
 		input: Type.Object({
 			full: Type.Optional(
 				Type.Boolean({
-					description: 'Force a full re-pull instead of incremental history sync.',
+					description:
+						'Force a full re-pull instead of incremental history sync.',
 				}),
 			),
 		}),

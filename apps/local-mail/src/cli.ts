@@ -133,7 +133,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
 async function runConnect(args: ParsedArgs): Promise<number> {
 	const loaded = loadConfig();
-	const config = args.clientId ? { ...loaded, clientId: args.clientId } : loaded;
+	const config = args.clientId
+		? { ...loaded, clientId: args.clientId }
+		: loaded;
 
 	const { data: token, error } = await runAuthorizationFlow(config, {
 		now: () => Date.now(),

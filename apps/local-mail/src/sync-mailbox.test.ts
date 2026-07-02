@@ -177,7 +177,8 @@ describe('syncMailbox: FULL pull', () => {
 				await release.promise;
 				active -= 1;
 				const found = mailbox.get(id);
-				if (!found) return GmailApiError.Http({ status: 404, body: 'not found' });
+				if (!found)
+					return GmailApiError.Http({ status: 404, body: 'not found' });
 				return { data: found, error: null };
 			},
 		};
@@ -213,7 +214,8 @@ describe('syncMailbox: FULL pull', () => {
 					return GmailApiError.Http({ status: 500, body: 'boom' });
 				}
 				const found = mailbox.get(id);
-				if (!found) return GmailApiError.Http({ status: 404, body: 'not found' });
+				if (!found)
+					return GmailApiError.Http({ status: 404, body: 'not found' });
 				return { data: found, error: null };
 			},
 		};
@@ -369,7 +371,7 @@ describe('syncMailbox: INCREMENTAL', () => {
 		cleanup();
 	});
 
-	test("new label arriving only via fetched messagesAdded labelIds still refreshes labels", async () => {
+	test('new label arriving only via fetched messagesAdded labelIds still refreshes labels', async () => {
 		const { db, cleanup } = seededDb();
 		const mailbox = new Map([
 			['new-msg', message('new-msg', { labelIds: ['INBOX', 'Label_2'] })],

@@ -12,14 +12,14 @@ export function defaultDataDir(): string {
 	if (process.platform === 'darwin') {
 		return join(homedir(), 'Library', 'Application Support', 'local-mail');
 	}
-	const xdg = process.env['XDG_DATA_HOME'];
+	const xdg = process.env.XDG_DATA_HOME;
 	if (xdg && xdg.length > 0) return join(xdg, 'local-mail');
 	return join(homedir(), '.local', 'share', 'local-mail');
 }
 
 /** `LOCAL_MAIL_DIR` beats the OS default. */
 export function resolveDataDir(): string {
-	const env = process.env['LOCAL_MAIL_DIR'];
+	const env = process.env.LOCAL_MAIL_DIR;
 	if (env && env.length > 0) return env;
 	return defaultDataDir();
 }

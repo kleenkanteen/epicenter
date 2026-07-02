@@ -121,10 +121,11 @@ test('runAuthorizationFlow exchanges a PKCE callback and stores the connected Gm
 	expect(request?.get('grant_type')).toBe('authorization_code');
 	expect(request?.get('client_secret')).toBeNull();
 	expect(
-		Buffer.from(tokenAuthHeaders[0]?.replace('Basic ', '') ?? '', 'base64').toString(),
-	).toBe(
-		'client%2Did%2D123:client%2Dsecret%2D456',
-	);
+		Buffer.from(
+			tokenAuthHeaders[0]?.replace('Basic ', '') ?? '',
+			'base64',
+		).toString(),
+	).toBe('client%2Did%2D123:client%2Dsecret%2D456');
 	expect(request?.get('code_verifier')).toBeTruthy();
 
 	tokenServer.stop(true);
@@ -193,10 +194,8 @@ test('refreshAccessToken refuses a token minted by a different OAuth client, bef
 
 	// tokenUrl points at port 0: any attempted request would throw, so a
 	// clean ClientIdMismatch also proves the guard fires before the network.
-	const { data, error } = await refreshAccessToken(
-		config({}),
-		token,
-		() => Date.parse('2026-07-01T00:00:00.000Z'),
+	const { data, error } = await refreshAccessToken(config({}), token, () =>
+		Date.parse('2026-07-01T00:00:00.000Z'),
 	);
 
 	expect(data).toBeNull();

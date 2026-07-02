@@ -16,8 +16,8 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-	mailDbPath,
 	type MailDb,
+	mailDbPath,
 	openMailDb,
 	openMailDbReadonly,
 } from './db.ts';
@@ -259,12 +259,20 @@ describe('full pull page ingestion', () => {
 		const { db, cleanup } = openTmp();
 		db.ingestFullPullPage(
 			[
-				message({ id: 'older', internalDate: '999', payload: {
-					headers: [{ name: 'Subject', value: 'Older subject' }],
-				} }),
-				message({ id: 'newest', internalDate: '1000', payload: {
-					headers: [{ name: 'Subject', value: 'Newest subject' }],
-				} }),
+				message({
+					id: 'older',
+					internalDate: '999',
+					payload: {
+						headers: [{ name: 'Subject', value: 'Older subject' }],
+					},
+				}),
+				message({
+					id: 'newest',
+					internalDate: '1000',
+					payload: {
+						headers: [{ name: 'Subject', value: 'Newest subject' }],
+					},
+				}),
 			],
 			's1',
 		);
@@ -413,7 +421,9 @@ describe('labels', () => {
 				`SELECT id, name, type FROM labels ORDER BY id`,
 			)
 			.all();
-		expect(rows).toEqual([{ id: 'INBOX', name: 'Inbox renamed', type: 'system' }]);
+		expect(rows).toEqual([
+			{ id: 'INBOX', name: 'Inbox renamed', type: 'system' },
+		]);
 		cleanup();
 	});
 });

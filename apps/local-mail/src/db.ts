@@ -452,9 +452,8 @@ export function openMailDbReadonly({ dataDir, accountEmail }: MailDbLocation) {
 						)
 						.get()?.n ?? 0,
 				labels:
-					db
-						.query<{ n: number }, []>(`SELECT count(*) AS n FROM labels`)
-						.get()?.n ?? 0,
+					db.query<{ n: number }, []>(`SELECT count(*) AS n FROM labels`).get()
+						?.n ?? 0,
 			};
 		},
 

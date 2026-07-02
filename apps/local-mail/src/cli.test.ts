@@ -80,7 +80,8 @@ test('status resolves the sole stored account and prints JSON', async () => {
 		else process.env.LOCAL_MAIL_DIR = previousDir;
 		if (previousAccount === undefined) delete process.env.LOCAL_MAIL_ACCOUNT;
 		else process.env.LOCAL_MAIL_ACCOUNT = previousAccount;
-		if (previousTokenFile === undefined) delete process.env.LOCAL_MAIL_TOKEN_FILE;
+		if (previousTokenFile === undefined)
+			delete process.env.LOCAL_MAIL_TOKEN_FILE;
 		else process.env.LOCAL_MAIL_TOKEN_FILE = previousTokenFile;
 		rmSync(dir, { recursive: true, force: true });
 	}

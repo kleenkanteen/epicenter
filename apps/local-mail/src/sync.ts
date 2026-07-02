@@ -307,7 +307,8 @@ async function incrementalPoll(
 		for (const labelId of labelIds) referencedLabelIds.add(labelId);
 	}
 	for (const message of messagesToUpsert) {
-		for (const labelId of message.labelIds ?? []) referencedLabelIds.add(labelId);
+		for (const labelId of message.labelIds ?? [])
+			referencedLabelIds.add(labelId);
 	}
 	const knownLabelIds = db.knownLabelIds();
 	const hasUnknownLabel = [...referencedLabelIds].some(
@@ -316,7 +317,9 @@ async function incrementalPoll(
 	if (hasUnknownLabel) {
 		const labels = await client.listLabels();
 		if (labels.error) {
-			log(`labels.list failed during unknown-label refresh: ${labels.error.message}`);
+			log(
+				`labels.list failed during unknown-label refresh: ${labels.error.message}`,
+			);
 		} else {
 			db.ingestLabels(labels.data, syncedAt);
 		}
