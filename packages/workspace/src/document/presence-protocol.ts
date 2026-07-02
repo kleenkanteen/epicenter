@@ -51,7 +51,13 @@ export const ActionManifestSchema = Type.Record(
 export const PeerSchema = Type.Object({
 	nodeId: Type.String(),
 	connectedAt: Type.Number(),
-	actions: ActionManifestSchema,
+	/**
+	 * Decommissioned (see the module header). Optional as the first wave of
+	 * removal: readers no longer require it, but senders keep emitting `{}`
+	 * until every deployed reader accepts its absence. Delete outright once the
+	 * relay deploy after this change has shipped.
+	 */
+	actions: Type.Optional(ActionManifestSchema),
 	agentId: Type.Optional(Type.String()),
 	/**
 	 * The relay-floor route names this peer serves with `relay: 'exposed'` (a
@@ -89,7 +95,8 @@ export type PresenceFrame = Static<typeof PresenceFrameSchema>;
  */
 export const PresencePublishFrameSchema = Type.Object({
 	type: Type.Literal('presence_publish'),
-	actions: ActionManifestSchema,
+	/** Decommissioned; optional as removal wave 1 (see {@link PeerSchema.actions}). */
+	actions: Type.Optional(ActionManifestSchema),
 	agentId: Type.Optional(Type.String()),
 	/** This node's relay-exposed route names; see {@link PeerSchema.exposedRoutes}. */
 	exposedRoutes: Type.Optional(Type.Array(Type.String())),

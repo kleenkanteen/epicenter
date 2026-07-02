@@ -233,7 +233,9 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 			seen.set(attachment.nodeId, {
 				nodeId: attachment.nodeId,
 				connectedAt: attachment.connectedAt,
-				actions: attachment.actions,
+				// Decommissioned; `?? {}` keeps the wire field present for deployed
+				// readers whose validators still require it (removal wave 1).
+				actions: attachment.actions ?? {},
 				agentId: attachment.agentId,
 				exposedRoutes: attachment.exposedRoutes,
 			});

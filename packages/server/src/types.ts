@@ -62,9 +62,9 @@ export type ResolveUser<E extends Env = Env> = (
  * receivers can render an "online since" affordance and tie-break multi-tab
  * same-node (newest wins).
  *
- * `actions` is the published action manifest for this socket. Starts as `{}`
- * at upgrade; updated to the node's manifest when `presence_publish` arrives.
- * Relay treats the value as opaque (it forwards JSON to peers, never inspects).
+ * `actions` is the decommissioned action manifest (removal wave 1: optional
+ * everywhere, senders still emit `{}` so deployed readers whose validators
+ * require the field keep validating; delete after the next relay deploy).
  *
  * In the per-user topology every connection to a given DO shares the same
  * `userId` (the DO name partitions by user). On an instance every connection
@@ -75,7 +75,7 @@ export type Connection = {
 	userId: UserId;
 	nodeId: string;
 	connectedAt: number;
-	actions: ActionManifest;
+	actions?: ActionManifest;
 	/**
 	 * The catalog agent this connection answers as (ADR-0025), set from the
 	 * node's `presence_publish` and mirrored on the wire so a picker can decorate
