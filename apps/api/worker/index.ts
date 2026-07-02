@@ -94,16 +94,15 @@ mountCloudDb(app, {
 });
 
 // Cloud-only relational-auth layer: per-request Better Auth on `c.var.auth`
-// plus the auth surface (sign-in, consent, OAuth metadata). Epicenter cloud
-// serves app.epicenter.so and api.epicenter.so, which share a session via a
-// cookie scoped to the registrable domain (host-only on localhost regardless).
+// plus the auth surface (sign-in, consent, OAuth metadata). Session cookies are
+// host-only to api.epicenter.so and consumed only by the dashboard the API
+// serves itself; every other client is a bearer client (ADR-0079).
 // Mounted before the owner-scoped surfaces so `c.var.auth` is set when their
 // cookie-or-bearer wrappers run. The single-partition instance composes none of
 // this (ADR-0075). The Cloud-only auth secrets are read at this Worker's own edge
 // from its deploy-gated bindings (`c.env as Cloudflare.Env`), never the portable
 // `ServerBindings` (ADR-0076/0066).
 mountCloudAuth(app, {
-	cookieDomain: '.epicenter.so',
 	resolveAuthSecrets: (c) => c.env as Cloudflare.Env,
 });
 
