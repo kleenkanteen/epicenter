@@ -6,28 +6,17 @@ This document describes the runtime: the one public primitive (`openCollaboratio
 
 ## One primitive: `openCollaboration`
 
-Every document that participates in sync, the workspace doc and every nested content doc, goes through `openCollaboration`. There is no second primitive. The workspace doc passes a real action registry; content docs pass `actions: {}`.
+Every document that participates in sync, the workspace doc and every nested content doc, goes through `openCollaboration`. There is no second primitive. Actions live on the workspace bundle; collaboration is sync and presence only.
 
 ```ts
-import {
-    defineActions,
-    defineMutation,
-    openCollaboration,
-    roomWsUrl,
-} from '@epicenter/workspace';
+import { openCollaboration, roomWsUrl } from '@epicenter/workspace';
 
 const collaboration = openCollaboration(ydoc, {
     url: roomWsUrl({ baseURL, guid: ydoc.guid, nodeId }),
     waitFor: idb.whenLoaded,
     openWebSocket: auth.openWebSocket,
     onReconnectSignal: auth.onStateChange,
-    actions: defineActions({
-        tabs_close: defineMutation({ /* ... */ }),
-    }),
 });
-
-// Local invocation: direct function call against the registry.
-await collaboration.actions.tabs_close({ tabIds: [1, 2] });
 
 // Online peers (relay-owned presence), each carrying its node id.
 const phone = collaboration.peers
@@ -35,7 +24,7 @@ const phone = collaboration.peers
     .find((peer) => peer.nodeId === 'phone');
 ```
 
-Content docs (rich-text bodies, attachments, anything nested that syncs independently) use the same call with `actions: {}`. That registry is local to the returned handle; it is no longer published in presence.
+Content docs (rich-text bodies, attachments, anything nested that syncs independently) use the same call without an empty action registry ritual.
 
 ## The `Collaboration` handle
 
@@ -43,7 +32,6 @@ Content docs (rich-text bodies, attachments, anything nested that syncs independ
 
 | Field             | What it is                                                         |
 | ----------------- | ------------------------------------------------------------------ |
-| `actions`         | Live local action registry; call directly                          |
 | `status`          | Current `SyncStatus` (`offline`/`connecting`/`connected`/`failed`) |
 | `whenConnected`   | Resolves on first successful handshake; rejects on permanent fail  |
 | `whenDisposed`    | Resolves once the supervisor exits and the socket closes           |
@@ -52,7 +40,7 @@ Content docs (rich-text bodies, attachments, anything nested that syncs independ
 | `peers`           | `list()` / `subscribe()` over the server-owned presence channel    |
 | `[Symbol.dispose]`| Sugar for `ydoc.destroy()`; cascades through every attachment      |
 
-`peers.list()` returns `Peer[]`, where each peer carries `{ nodeId, connectedAt, agentId? }`. Local `collaboration.actions` remains the app's callable registry; presence never publishes it.
+`peers.list()` returns `Peer[]`, where each peer carries `{ nodeId, connectedAt, agentId? }`. The app's callable registry lives on `workspace.actions`; presence never publishes it.
 
 ## The wire: one socket, two surfaces
 
@@ -201,4 +189,4 @@ cycleController    aborts on reconnect(); kills the current iteration only
 
 ## Mental model in one paragraph
 
-`openCollaboration(ydoc, config)` is the one collaboration primitive: it opens a single WebSocket to the relay, runs the Yjs binary sync protocol, publishes this node's presence identity via `presence_publish`, and mirrors the relay's server-owned presence channel into `peers` (including each peer's node id and agent id). The relay merges Yjs updates (eventually consistent CRDT semantics, no admission control) and tracks the live connections Map (source of truth for who is here). Presence is the relay's `connections` Map, not Yjs Awareness. Content docs use the same primitive with `actions: {}` as a local empty registry.
+`openCollaboration(ydoc, config)` is the one collaboration primitive: it opens a single WebSocket to the relay, runs the Yjs binary sync protocol, publishes this node's presence identity via `presence_publish`, and mirrors the relay's server-owned presence channel into `peers` (including each peer's node id and agent id). The relay merges Yjs updates (eventually consistent CRDT semantics, no admission control) and tracks the live connections Map (source of truth for who is here). Presence is the relay's `connections` Map, not Yjs Awareness. Content docs use the same primitive without an action registry.

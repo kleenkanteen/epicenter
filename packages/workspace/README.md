@@ -46,8 +46,8 @@ The app-facing path is `defineWorkspace({ id, tables, kv, actions }).connect(...
 is the boot decision: `connect(null)` adds bare browser storage, wipe, and
 table child-doc openers with no relay; `connect(connection)` adds principal-scoped
 browser storage, root sync, wipe, and table child-doc openers.
-`connect(connection, compose)` lets a runtime add extras and publish its final
-action registry before collaboration starts.
+`connect(connection, compose)` lets a runtime add extras and expose its final
+action registry on the workspace bundle.
 
 ## Quick Start: local-only workspace
 
@@ -305,7 +305,6 @@ function openBlogDaemon() {
 		url,
 		openWebSocket,
 		onReconnectSignal,
-		actions: {},
 	});
 	return { ...workspace, collaboration };
 }
@@ -485,7 +484,7 @@ Actions are callable functions with metadata.
 
 - `defineQuery(...)` creates a read action
 - `defineMutation(...)` creates a write action
-- Include isomorphic actions in `defineWorkspace({ actions })`. Runtime-specific actions belong in `open(connection, compose)`, where the final registry is published before collaboration starts. `defineActions` enforces snake_case ASCII keys at compile time and runtime; consumers index by string or iterate with `Object.entries`.
+- Include isomorphic actions in `defineWorkspace({ actions })`. Runtime-specific actions belong in `open(connection, compose)`, where the final registry is exposed on the workspace bundle. `defineActions` enforces snake_case ASCII keys at compile time and runtime; consumers index by string or iterate with `Object.entries`.
 
 Handlers close over `tables`, `kv`, and anything else the builder has in scope through normal JavaScript closure. They do not receive a framework context object.
 
@@ -895,7 +894,7 @@ void openNotes;
 
 ### Sync
 
-One primitive wraps the WebSocket transport: `openCollaboration`. The workspace document passes a real `actions` registry; content documents that only need bytes-on-the-wire pass `actions: {}`. Compose it with `attachBroadcastChannel(ydoc)` for unauthenticated local-only documents. Authenticated browser workspaces use `attachLocalStorage(ydoc, { server, principalId })`, which pairs principal-scoped IDB with a principal-scoped BroadcastChannel in one call.
+One primitive wraps the WebSocket transport: `openCollaboration`. Actions live on the workspace bundle; collaboration is sync and presence only. Compose it with `attachBroadcastChannel(ydoc)` for unauthenticated local-only documents. Authenticated browser workspaces use `attachLocalStorage(ydoc, { server, principalId })`, which pairs principal-scoped IDB with a principal-scoped BroadcastChannel in one call.
 
 ```typescript
 import { field } from '@epicenter/field';
@@ -944,7 +943,6 @@ function openTabs({
 		waitFor: idb.whenLoaded,
 		openWebSocket,
 		onReconnectSignal,
-		actions: {},
 	});
 
 	return { ...workspace, idb, collaboration };
@@ -1424,7 +1422,7 @@ await handle.idb.whenDisposed;
 
 What the package does give you is the raw material a server adapter needs:
 
-- `bundle.collaboration.actions` (the typed `ActionRegistry` from `openCollaboration`)
+- `bundle.actions` (the typed `ActionRegistry` owned by the workspace bundle)
 - `defineActions(actions)` to author a flat snake_case registry
 - `toActionMeta(action)` to project an action to its wire-safe metadata
 - iterate with `Object.entries(actions)`
@@ -1570,7 +1568,7 @@ import {
 } from '@epicenter/workspace';
 ```
 
-`openCollaboration` returns a `Collaboration`. Online peers are relay-owned presence rows with each peer's `nodeId`, `connectedAt`, and optional `agentId`. The local `actions` registry remains on the `Collaboration` handle; it is no longer published as a peer manifest:
+`openCollaboration` returns a `Collaboration`. Online peers are relay-owned presence rows with each peer's `nodeId`, `connectedAt`, and optional `agentId`. Actions live on the workspace bundle, not the collaboration handle:
 
 - `collaboration.peers.list()`: `Peer[]`, the local install excluded
 - `collaboration.peers.subscribe(fn)`: returns an unsubscribe function

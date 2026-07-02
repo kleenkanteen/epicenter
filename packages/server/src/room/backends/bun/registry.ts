@@ -241,7 +241,6 @@ export function createBunRooms({ dir }: { dir: string }): {
 				principalId,
 				nodeId,
 				connectedAt: Date.now(),
-				actions: {},
 			};
 			entry.core.addConnection(ws, connection);
 		},

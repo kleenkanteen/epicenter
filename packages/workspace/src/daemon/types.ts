@@ -11,19 +11,8 @@
  */
 
 import type { Collaboration } from '../document/open-collaboration.js';
-import type { Peer } from '../document/presence-protocol.js';
 import type { ActionRegistry } from '../shared/actions.js';
 import type { MaybePromise } from '../shared/types.js';
-
-/**
- * Collaboration fields the daemon socket app reads while serving `/peers`: the
- * live peer list for this workspace room.
- */
-type DaemonServedCollaboration = {
-	peers: {
-		list(): Peer[];
-	};
-};
 
 /**
  * One mounted runtime as served by the daemon socket app.
@@ -35,7 +24,7 @@ export type DaemonServedMount = {
 	mount: string;
 	runtime: {
 		actions: ActionRegistry;
-		collaboration?: DaemonServedCollaboration;
+		collaboration?: { peers: Pick<Collaboration['peers'], 'list'> };
 	};
 };
 
@@ -46,11 +35,7 @@ export type DaemonRuntime = {
 	/** Called by the daemon at exit. */
 	[Symbol.asyncDispose](): MaybePromise<void>;
 
-	/**
-	 * The action registry this daemon serves locally. When `collaboration` is
-	 * present, this must be the same registry handed to `openCollaboration`, so
-	 * local runs and the published peer manifest stay in lockstep.
-	 */
+	/** The action registry this daemon serves locally. */
 	readonly actions: ActionRegistry;
 
 	/**
@@ -58,7 +43,7 @@ export type DaemonRuntime = {
 	 * presence live here when the mount participates in a collaborative Yjs
 	 * workspace.
 	 */
-	readonly collaboration?: Collaboration<ActionRegistry>;
+	readonly collaboration?: Collaboration;
 };
 
 /** One configured mount runtime hosted by the daemon. */

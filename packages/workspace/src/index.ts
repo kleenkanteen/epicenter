@@ -1,12 +1,11 @@
 /**
  * Epicenter: YJS-First Collaborative Workspace System
  *
- * `@epicenter/workspace` attaches typed primitives: tables, KV, plain/rich
- * text, timeline, and an action registry to a `Y.Doc`, then wires the
- * result to IndexedDB persistence and WebSocket sync via
- * `openCollaboration`. `openCollaboration` also consumes the
- * server-owned presence channel and exposes the live-peer surface
- * (`peers.list()`).
+ * `@epicenter/workspace` builds typed Yjs-backed workspaces: tables, KV,
+ * plain/rich text, timeline, and an action registry. Runtime openers wire the
+ * workspace's `Y.Doc` to IndexedDB persistence and WebSocket sync via
+ * `openCollaboration`, which consumes the server-owned presence channel and
+ * exposes the live-peer surface (`peers.list()`).
  *
  * @example
  * ```typescript

@@ -3,9 +3,9 @@
  *
  * This is the shared primitive behind every doc a workspace owns. A workspace is
  * a tree of Y.Docs that all speak to the same relay under one principal: the root
- * doc (tables + KV, carrying the workspace's action registry) and every body
- * child doc (an `attach*` layout, no actions). Both want the exact same wiring,
- * which every app's `browser.ts` had hand-copied as a local `wire` helper.
+ * doc (tables + KV) and every body child doc (an `attach*` layout). Both want
+ * the exact same storage and sync wiring, which every app's `browser.ts` had
+ * hand-copied as a local `wire` helper.
  *
  * Returns the local persistence and collaboration handles. Sync is opened for
  * its side effect (the relay streams updates in, every signed-in node watches
@@ -16,7 +16,6 @@
 
 import type { PrincipalId } from '@epicenter/identity';
 import type * as Y from 'yjs';
-import type { ActionRegistry } from '../shared/actions.js';
 import { attachLocalStorage } from './attach-local-storage.js';
 import type { NodeId } from './node-id.js';
 import {
@@ -52,16 +51,10 @@ export type ConnectionConfig = {
  *
  * @param ydoc    - the doc to connect (its `guid` selects the room).
  * @param config  - connection coordinates, pre-bound once per workspace.
- * @param actions - the doc's action registry. Defaults to `{}`, which is what
- *                  every body child doc wants; the root passes its own registry.
  * @returns `{ idb, collaboration }` - local persistence + sync handles, both
  *          disposed when `ydoc.destroy()` fires.
  */
-export function connectDoc<TActions extends ActionRegistry = ActionRegistry>(
-	ydoc: Y.Doc,
-	config: ConnectionConfig,
-	{ actions = {} as TActions }: { actions?: TActions } = {},
-) {
+export function connectDoc(ydoc: Y.Doc, config: ConnectionConfig) {
 	const idb = attachLocalStorage(ydoc, {
 		server: new URL(config.baseURL).host,
 		principalId: config.principalId,
@@ -75,7 +68,6 @@ export function connectDoc<TActions extends ActionRegistry = ActionRegistry>(
 		openWebSocket: config.openWebSocket,
 		onReconnectSignal: config.onReconnectSignal,
 		waitFor: idb.whenLoaded,
-		actions,
 	});
 	return { idb, collaboration };
 }

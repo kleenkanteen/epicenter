@@ -88,12 +88,9 @@ export function createFolders(honeycrisp: HoneycrispBrowser) {
 		 * folder are moved to the unfiled section (folderId set to undefined).
 		 * If the deleted folder was selected, the folder and note selections are cleared.
 		 *
-		 * Calls the workspace action directly (`honeycrisp.actions`, not
-		 * `honeycrisp.collaboration.actions`): the action is a local table
-		 * mutation, not a network RPC, and `collaboration` is `undefined`
-		 * signed out (ADR-0088). The signed-in preset serves the same registry
-		 * to peers through `collaboration.actions`; both names point at the
-		 * same object.
+		 * Calls the workspace action directly (`honeycrisp.actions`): the action
+		 * is a local table mutation, not a network RPC. Collaboration is sync and
+		 * presence only, and is `undefined` signed out (ADR-0088).
 		 *
 		 * @example
 		 * ```typescript
