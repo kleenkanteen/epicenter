@@ -8,8 +8,8 @@
  *      {@link resolveOwnerPartition}. This cannot fail: a per-user request
  *      owns its user's partition, an instance request its pinned constant.
  *   2. If the route declares `:ownerId`, assert the URL segment equals
- *      the resolved partition. Mismatch is 403 OwnerMismatch in both
- *      modes.
+ *      the resolved partition. Mismatch is 403 OwnerMismatch in every
+ *      deployment.
  *   3. Routes without `:ownerId` (the session endpoint) skip the URL
  *      check; the partition still resolves and attaches.
  *

@@ -1,5 +1,5 @@
 /**
- * Owner derivations: every durable string for both modes.
+ * Owner derivations: every durable string for per-user and instance topologies.
  *
  * The point of these tests is to pin the wire formats. If any of these
  * strings change, every existing DO, R2 object, and owner-scoped local
