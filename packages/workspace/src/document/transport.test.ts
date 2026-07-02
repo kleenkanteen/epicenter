@@ -23,9 +23,7 @@ describe('roomWsUrl', () => {
 				guid: 'epicenter-fuji',
 				nodeId: asNodeId('client-1'),
 			}),
-		).toBe(
-			'wss://api.example.com/api/rooms/epicenter-fuji?nodeId=client-1',
-		);
+		).toBe('wss://api.example.com/api/rooms/epicenter-fuji?nodeId=client-1');
 	});
 
 	test('encodes the guid and strips trailing slashes', () => {
@@ -35,9 +33,7 @@ describe('roomWsUrl', () => {
 				guid: 'a/b?c#d',
 				nodeId: asNodeId('client-1'),
 			}),
-		).toBe(
-			'wss://api.example.com/api/rooms/a%2Fb%3Fc%23d?nodeId=client-1',
-		);
+		).toBe('wss://api.example.com/api/rooms/a%2Fb%3Fc%23d?nodeId=client-1');
 	});
 
 	test('converts http origins to ws and https origins to wss', () => {
@@ -47,8 +43,6 @@ describe('roomWsUrl', () => {
 				guid: 'epicenter-fuji',
 				nodeId: asNodeId('client-1'),
 			}),
-		).toBe(
-			'ws://localhost:8787/api/rooms/epicenter-fuji?nodeId=client-1',
-		);
+		).toBe('ws://localhost:8787/api/rooms/epicenter-fuji?nodeId=client-1');
 	});
 });

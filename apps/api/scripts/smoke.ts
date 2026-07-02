@@ -91,9 +91,8 @@ async function main() {
 			headers: authHeaders,
 		});
 		if (res.ok) {
-			resolvedPrincipalId = (
-				(await res.json()) as { principalId: string }
-			).principalId;
+			resolvedPrincipalId = ((await res.json()) as { principalId: string })
+				.principalId;
 			record(
 				'PASS',
 				'session',
@@ -180,10 +179,10 @@ async function main() {
 		}
 
 		// Read back: 302 -> presigned GET -> compare bytes.
-		const readRes = await fetch(
-			API_ROUTES.blobs.byHash.url(BASE_URL, sha256),
-			{ headers: authHeaders, redirect: 'manual' },
-		);
+		const readRes = await fetch(API_ROUTES.blobs.byHash.url(BASE_URL, sha256), {
+			headers: authHeaders,
+			redirect: 'manual',
+		});
 		const presigned = readRes.headers.get('location');
 		if (readRes.status === 302 && presigned) {
 			const objRes = await fetch(presigned);

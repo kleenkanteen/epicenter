@@ -88,7 +88,10 @@ function createAuth(
 	overrides: { state?: AuthState; baseURL?: string } = {},
 ): AuthClient {
 	return {
-		state: overrides.state ?? { status: 'signed-in', principalId: PRINCIPAL_ID },
+		state: overrides.state ?? {
+			status: 'signed-in',
+			principalId: PRINCIPAL_ID,
+		},
 		baseURL: overrides.baseURL ?? `https://${SERVER}`,
 		onStateChange: () => () => {},
 		startSignIn: async () => Ok(undefined),
@@ -215,7 +218,10 @@ async function readBareText(guid: string, textName: string): Promise<string> {
 	return text;
 }
 
-async function readPrincipalText(guid: string, textName: string): Promise<string> {
+async function readPrincipalText(
+	guid: string,
+	textName: string,
+): Promise<string> {
 	const ydoc = new Y.Doc({ guid, gc: true });
 	const idb = attachLocalStorage(ydoc, principalScope);
 	await idb.whenLoaded;

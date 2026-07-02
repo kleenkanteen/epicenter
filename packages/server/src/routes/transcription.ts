@@ -182,10 +182,6 @@ export function mountTranscriptionApp<E extends Env = Env>(
 	},
 ): void {
 	const policies = opts.policies ?? [];
-	app.use(
-		API_ROUTES.ai.transcriptions.prefixPattern,
-		opts.auth,
-		...policies,
-	);
+	app.use(API_ROUTES.ai.transcriptions.prefixPattern, opts.auth, ...policies);
 	app.route('/', transcriptionApp);
 }

@@ -182,8 +182,10 @@ test('requireBearerPrincipal returns 503 ServerError when the signing keys canno
 				} as unknown as CloudEnv['Variables']['auth']);
 				await next();
 			})
-			.get('/protected', requireBearerPrincipal(resolveRequestOAuthPrincipal), (c) =>
-				c.json(c.var.principal),
+			.get(
+				'/protected',
+				requireBearerPrincipal(resolveRequestOAuthPrincipal),
+				(c) => c.json(c.var.principal),
 			);
 
 		const response = await app.request('/protected', {
@@ -234,7 +236,9 @@ test('requireCookieOrBearerPrincipal falls back to the bearer resolver when ther
 		id: 'bearer-user-id',
 		email: 'bearer@example.com',
 	});
-	const cookieOrBearer = requireCookieOrBearerPrincipal(async () => Ok(bearerUser));
+	const cookieOrBearer = requireCookieOrBearerPrincipal(async () =>
+		Ok(bearerUser),
+	);
 	const app = new Hono<CloudEnv>()
 		.use('*', async (c, next) => {
 			c.set('auth', {
@@ -271,8 +275,10 @@ test('requireBearerPrincipal does not read signing keys for a non-JWT bearer', a
 			} as unknown as CloudEnv['Variables']['auth']);
 			await next();
 		})
-		.get('/protected', requireBearerPrincipal(resolveRequestOAuthPrincipal), (c) =>
-			c.json(c.var.principal),
+		.get(
+			'/protected',
+			requireBearerPrincipal(resolveRequestOAuthPrincipal),
+			(c) => c.json(c.var.principal),
 		);
 
 	const response = await app.request('/protected', {
@@ -323,8 +329,10 @@ function createMiddlewareTestServer() {
 					c.set('authBaseURL', baseURL);
 					await next();
 				})
-				.get('/protected', requireBearerPrincipal(resolveRequestOAuthPrincipal), (c) =>
-					c.json(c.var.principal),
+				.get(
+					'/protected',
+					requireBearerPrincipal(resolveRequestOAuthPrincipal),
+					(c) => c.json(c.var.principal),
 				);
 
 			return { auth, baseURL, db, server, wrongAudience, app };
