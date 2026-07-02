@@ -1,6 +1,6 @@
 # 0088. Sign-in is an enhancement, never a door
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-01
 
 ## Context
