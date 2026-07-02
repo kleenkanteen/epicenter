@@ -87,15 +87,12 @@ export type AddBlobResult = {
  * headers the client must echo verbatim (`upload`). Internal to `blobs.add`.
  */
 type BlobTicket =
-	| { status: 'duplicate'; sha256: string; key: string; url: string }
+	| { status: 'duplicate'; url: string }
 	| {
 			status: 'upload';
-			sha256: string;
-			key: string;
 			url: string;
 			uploadUrl: string;
 			requiredHeaders: Record<string, string>;
-			expiresInSeconds: number;
 	  };
 
 /** Failure modes of the Result-returning client surfaces (`blobs.*`). */
