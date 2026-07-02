@@ -1,4 +1,4 @@
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 
 /**
  * Wire URL paths and Hono route patterns for the Epicenter API.
@@ -56,12 +56,12 @@ export const API_ROUTES = {
 	blobs: {
 		list: {
 			pattern: '/api/owners/:ownerId/blobs',
-			url: (baseURL: string, ownerId: OwnerId) =>
+			url: (baseURL: string, ownerId: PrincipalId) =>
 				`${stripTrailing(baseURL)}/api/owners/${encodeURIComponent(ownerId)}/blobs`,
 		},
 		byHash: {
 			pattern: `/api/owners/:ownerId/blobs/:sha256{${SHA256_HEX_REGEX}}`,
-			url: (baseURL: string, ownerId: OwnerId, sha256: string) =>
+			url: (baseURL: string, ownerId: PrincipalId, sha256: string) =>
 				`${stripTrailing(baseURL)}/api/owners/${encodeURIComponent(ownerId)}/blobs/${encodeURIComponent(sha256)}`,
 		},
 	},

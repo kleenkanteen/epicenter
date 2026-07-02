@@ -17,7 +17,7 @@
 
 import { expect, test } from 'bun:test';
 import { oauthProvider } from '@better-auth/oauth-provider';
-import { AuthUser } from '@epicenter/auth';
+import { Principal } from '@epicenter/auth';
 import { JWT_SIGNING_ALG } from '@epicenter/constants/auth';
 import { EPICENTER_OAUTH_SCOPES } from '@epicenter/constants/oauth-clients';
 import { OAuthError } from '@epicenter/constants/oauth-errors';
@@ -230,7 +230,7 @@ test('requireCookieOrBearerUser resolves the user from a session cookie and skip
 test('requireCookieOrBearerUser falls back to the bearer resolver when there is no session', async () => {
 	// No cookie session -> the resolver the wrapper closed over decides, exactly
 	// the bearer path the cloud and an instance share.
-	const bearerUser = AuthUser.assert({
+	const bearerUser = Principal.assert({
 		id: 'bearer-user-id',
 		email: 'bearer@example.com',
 	});

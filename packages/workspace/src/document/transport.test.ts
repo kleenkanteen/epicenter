@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId, INSTANCE_OWNER_ID } from '@epicenter/identity';
+import { asPrincipalId, INSTANCE_PRINCIPAL_ID } from '@epicenter/identity';
 import { asNodeId } from './node-id.js';
 import { roomWsUrl } from './transport.js';
 
@@ -21,7 +21,7 @@ describe('roomWsUrl', () => {
 		expect(
 			roomWsUrl({
 				baseURL: 'https://api.example.com',
-				ownerId: asOwnerId('alice'),
+				ownerId: asPrincipalId('alice'),
 				guid: 'epicenter-fuji',
 				nodeId: asNodeId('client-1'),
 			}),
@@ -34,7 +34,7 @@ describe('roomWsUrl', () => {
 		expect(
 			roomWsUrl({
 				baseURL: 'https://instance.example.com',
-				ownerId: INSTANCE_OWNER_ID,
+				ownerId: INSTANCE_PRINCIPAL_ID,
 				guid: 'epicenter-fuji',
 				nodeId: asNodeId('client-1'),
 			}),
@@ -47,7 +47,7 @@ describe('roomWsUrl', () => {
 		expect(
 			roomWsUrl({
 				baseURL: 'https://api.example.com/',
-				ownerId: INSTANCE_OWNER_ID,
+				ownerId: INSTANCE_PRINCIPAL_ID,
 				guid: 'a/b?c#d',
 				nodeId: asNodeId('client-1'),
 			}),
@@ -60,7 +60,7 @@ describe('roomWsUrl', () => {
 		expect(
 			roomWsUrl({
 				baseURL: 'http://localhost:8787',
-				ownerId: INSTANCE_OWNER_ID,
+				ownerId: INSTANCE_PRINCIPAL_ID,
 				guid: 'epicenter-fuji',
 				nodeId: asNodeId('client-1'),
 			}),

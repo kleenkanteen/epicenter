@@ -8,7 +8,7 @@
  * {@link mountSessionApp} wires cookie-or-bearer auth and the ownership
  * boundary so `c.var.user` and `c.var.ownerId` are populated before the
  * handler runs. The handler stays mode-blind. Deployment shape is not on
- * the wire; it is a property of the server (see `OwnerId` in
+ * the wire; it is a property of the server (see `PrincipalId` in
  * `@epicenter/identity`).
  */
 

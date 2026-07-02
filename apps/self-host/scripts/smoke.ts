@@ -18,7 +18,7 @@
  */
 
 import { API_ROUTES } from '@epicenter/constants/api-routes';
-import { INSTANCE_OWNER_ID } from '@epicenter/identity';
+import { INSTANCE_PRINCIPAL_ID } from '@epicenter/identity';
 
 const BASE_URL = (
 	process.argv[2] ??
@@ -88,9 +88,9 @@ async function main() {
 		if (res.ok) {
 			ownerId = ((await res.json()) as { ownerId: string }).ownerId;
 			record(
-				ownerId === INSTANCE_OWNER_ID ? 'PASS' : 'FAIL',
+				ownerId === INSTANCE_PRINCIPAL_ID ? 'PASS' : 'FAIL',
 				'session',
-				`${res.status} ownerId=${ownerId} (expected ${INSTANCE_OWNER_ID})`,
+				`${res.status} ownerId=${ownerId} (expected ${INSTANCE_PRINCIPAL_ID})`,
 			);
 		} else {
 			record('FAIL', 'session', `${res.status} ${await res.text()}`);

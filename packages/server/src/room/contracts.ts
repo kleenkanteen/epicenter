@@ -23,7 +23,7 @@
  * @see `room/backends/cloudflare/` for the Cloudflare backend.
  */
 
-import type { UserId } from '@epicenter/auth';
+import type { PrincipalId } from '@epicenter/identity';
 import {
 	defineErrors,
 	extractErrorMessage,
@@ -138,7 +138,7 @@ export type ResolvedRoom = {
  */
 export type RoomUpgrade = {
 	request: Request;
-	userId: UserId;
+	userId: PrincipalId;
 	nodeId: string;
 };
 
@@ -161,7 +161,7 @@ export type RoomUpgradeRejection = {
  * The host-owned room name is built upstream by `doName(ownerId, roomId)`
  * in `owner.ts`, producing `principals/<ownerId>/rooms/<roomId>` for either
  * deployment (in the per-user topology `ownerId === user.id`, on an instance
- * `ownerId` is the pinned `INSTANCE_OWNER_ID`).
+ * `ownerId` is the pinned `INSTANCE_PRINCIPAL_ID`).
  * This contract treats the name as opaque.
  */
 export type Rooms = {

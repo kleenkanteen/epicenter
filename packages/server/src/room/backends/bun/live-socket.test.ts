@@ -15,7 +15,7 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { asUserId } from '@epicenter/auth';
+import { asPrincipalId } from '@epicenter/identity';
 import { encodeSyncUpdate, MAIN_SUBPROTOCOL } from '@epicenter/sync';
 import type { Server } from 'bun';
 import * as Y from 'yjs';
@@ -37,7 +37,7 @@ beforeAll(() => {
 				const nodeId = url.searchParams.get('nodeId') ?? '';
 				return bunRooms.rooms.get(ROOM).handleUpgrade({
 					request: req,
-					userId: asUserId('u1'),
+					userId: asPrincipalId('u1'),
 					nodeId,
 				});
 			}

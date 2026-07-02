@@ -10,7 +10,7 @@
 
 import { EPICENTER_API_URL } from '@epicenter/constants/apps';
 import { field } from '@epicenter/field';
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 import {
 	createWorkspace,
 	defineMutation,
@@ -38,7 +38,7 @@ export function openNotes({
 	onReconnectSignal,
 }: {
 	nodeId: NodeId;
-	ownerId: OwnerId;
+	ownerId: PrincipalId;
 	openWebSocket: OpenWebSocketFn;
 	onReconnectSignal: OnReconnectSignal;
 }) {

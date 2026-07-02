@@ -30,7 +30,7 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
-import { asUserId } from '@epicenter/auth';
+import { asPrincipalId } from '@epicenter/identity';
 import { MAIN_SUBPROTOCOL, parseSubprotocols } from '@epicenter/sync';
 import type { Connection } from '../../../types.js';
 import { createRoomCore, type RoomCore } from '../../core.js';
@@ -74,7 +74,7 @@ const CONNECTION_SWEEP_INTERVAL_MS = 5 * 60_000;
  * built by `doName(ownerId, roomId)`, producing
  * `principals/<ownerId>/rooms/<roomId>` for either deployment (in the per-user
  * topology `ownerId === user.id`, on an instance `ownerId` is the pinned
- * `INSTANCE_OWNER_ID`).
+ * `INSTANCE_PRINCIPAL_ID`).
  */
 export class Room extends DurableObject {
 	/**
@@ -158,7 +158,7 @@ export class Room extends DurableObject {
 			return new Response(null, { status: 500 });
 		}
 		// The URL stamp is the binding; brand userId once at the boundary.
-		const userId = asUserId(rawUserId);
+		const userId = asPrincipalId(rawUserId);
 
 		// Ensure the lifetime sweep is running. This also supersedes any pending
 		// compaction alarm: if one fires while a client is connected, `alarm()`

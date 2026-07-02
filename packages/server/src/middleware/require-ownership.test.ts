@@ -6,7 +6,7 @@
  * variants of `OwnershipRule`:
  *
  *   - perUser: URL `:ownerId` MUST equal `c.var.user.id`.
- *   - instance: URL `:ownerId` MUST equal `INSTANCE_OWNER_ID`, regardless of
+ *   - instance: URL `:ownerId` MUST equal `INSTANCE_PRINCIPAL_ID`, regardless of
  *               caller identity (the partition is pinned to a constant).
  *
  * Mount the middleware on patterns that include `:ownerId` (mirroring
@@ -16,8 +16,8 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { type AuthUser, asUserId } from '@epicenter/auth';
-import { INSTANCE_OWNER_ID } from '@epicenter/identity';
+import type { Principal } from '@epicenter/auth';
+import { asPrincipalId, INSTANCE_PRINCIPAL_ID } from '@epicenter/identity';
 import { Hono } from 'hono';
 import { instance, type OwnershipRule, perUser } from '../ownership.js';
 import type { Env } from '../types.js';
@@ -26,9 +26,9 @@ import { createRequireOwnership } from './require-ownership.js';
 function createTestApp(rule: OwnershipRule, userId: string) {
 	const app = new Hono<Env>();
 	const user = {
-		id: asUserId(userId),
+		id: asPrincipalId(userId),
 		email: `${userId}@x`,
-	} satisfies AuthUser;
+	} satisfies Principal;
 	app.use('*', async (c, next) => {
 		c.set('user', user);
 		await next();
@@ -74,12 +74,12 @@ describe('perUser', () => {
 });
 
 describe('instance', () => {
-	test('attaches INSTANCE_OWNER_ID under owners/instance', async () => {
+	test('attaches INSTANCE_PRINCIPAL_ID under owners/instance', async () => {
 		const res = await createTestApp(instance, 'owner').request(
 			'/api/owners/instance/rooms/r1',
 		);
 		expect(res.status).toBe(200);
-		expect(await res.text()).toBe(INSTANCE_OWNER_ID);
+		expect(await res.text()).toBe(INSTANCE_PRINCIPAL_ID);
 	});
 
 	test('pins the SAME partition regardless of caller identity', async () => {
@@ -92,7 +92,7 @@ describe('instance', () => {
 				'/api/owners/instance/rooms/r1',
 			);
 			expect(res.status).toBe(200);
-			expect(await res.text()).toBe(INSTANCE_OWNER_ID);
+			expect(await res.text()).toBe(INSTANCE_PRINCIPAL_ID);
 		}
 	});
 
@@ -105,9 +105,9 @@ describe('instance', () => {
 		expect(body.error.name).toBe('OwnerMismatch');
 	});
 
-	test('routes without :ownerId attach INSTANCE_OWNER_ID', async () => {
+	test('routes without :ownerId attach INSTANCE_PRINCIPAL_ID', async () => {
 		const res = await createTestApp(instance, 'owner').request('/api/session');
 		expect(res.status).toBe(200);
-		expect(await res.text()).toBe(INSTANCE_OWNER_ID);
+		expect(await res.text()).toBe(INSTANCE_PRINCIPAL_ID);
 	});
 });

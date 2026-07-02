@@ -20,8 +20,9 @@
  * of its own.
  */
 
-import { AuthUser, asUserId } from '@epicenter/auth';
+import { Principal } from '@epicenter/auth';
 import { OAuthError } from '@epicenter/constants/oauth-errors';
+import { asPrincipalId } from '@epicenter/identity';
 import type { CloudEnv, ResolveUser } from '@epicenter/server/bun';
 import { Ok } from 'wellcrafted/result';
 
@@ -49,6 +50,9 @@ export const resolveDevUser: ResolveUser<CloudEnv> = async (c) => {
 	if (!userId) return OAuthError.InvalidToken();
 
 	return Ok(
-		AuthUser.assert({ id: asUserId(userId), email: `${userId}@dev.invalid` }),
+		Principal.assert({
+			id: asPrincipalId(userId),
+			email: `${userId}@dev.invalid`,
+		}),
 	);
 };

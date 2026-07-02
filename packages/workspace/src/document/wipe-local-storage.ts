@@ -20,7 +20,7 @@
  * @module
  */
 
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 import { clearDocument } from 'y-indexeddb';
 import { getOwnedYjsPrefix } from './local-yjs-key.js';
 
@@ -41,7 +41,7 @@ export async function wipeLocalStorage({
 	ownerId,
 }: {
 	server: string;
-	ownerId: OwnerId;
+	ownerId: PrincipalId;
 }): Promise<void> {
 	const prefix = getOwnedYjsPrefix(server, ownerId);
 	if (!('databases' in indexedDB)) return;

@@ -20,7 +20,7 @@
  * JWKS; an instance closes over its env-token resolver instead).
  */
 
-import { AuthUser } from '@epicenter/auth';
+import { Principal } from '@epicenter/auth';
 import { OAuthError } from '@epicenter/constants/oauth-errors';
 import { verifyJwsAccessToken } from 'better-auth/oauth2';
 import { eq } from 'drizzle-orm';
@@ -68,7 +68,7 @@ import type { CloudEnv, Env, ResolveUser } from '../types.js';
  */
 export async function resolveRequestOAuthUser(
 	c: Context<CloudEnv>,
-): Promise<Result<AuthUser, OAuthError>> {
+): Promise<Result<Principal, OAuthError>> {
 	const accessToken = parseBearer(c.req.header('authorization') ?? null);
 	if (!accessToken) return OAuthError.InvalidToken();
 
@@ -106,7 +106,7 @@ export async function resolveRequestOAuthUser(
 	}
 	if (!user) return OAuthError.InvalidToken();
 
-	return Ok(AuthUser.assert(user));
+	return Ok(Principal.assert(user));
 }
 
 export function requireCookieOrBearerUser(
@@ -117,7 +117,7 @@ export function requireCookieOrBearerUser(
 			headers: c.req.raw.headers,
 		});
 		if (session) {
-			c.set('user', AuthUser.assert(session.user));
+			c.set('user', Principal.assert(session.user));
 			return next();
 		}
 		const { data: user, error } = await resolveUser(c);

@@ -10,7 +10,7 @@
  *             partition IS the user's id). No extra check beyond auth. The
  *             multi-tenant shape, Epicenter Cloud only (`apps/api`).
  *   instance: every request resolves to ONE partition pinned to a byte-
- *             constant (INSTANCE_OWNER_ID), independent of caller identity.
+ *             constant (INSTANCE_PRINCIPAL_ID), independent of caller identity.
  *             The self-hosted single-partition instance (`apps/self-host`,
  *             ADR-0075); the operator bearer is the gate, so there is nobody
  *             to admit or reject at the partition boundary.
@@ -23,9 +23,9 @@
  */
 
 import {
-	asOwnerId,
-	INSTANCE_OWNER_ID,
-	type OwnerId,
+	asPrincipalId,
+	INSTANCE_PRINCIPAL_ID,
+	type PrincipalId,
 } from '@epicenter/identity';
 import type { Context } from 'hono';
 import type { Env } from './types.js';
@@ -35,7 +35,7 @@ import type { Env } from './types.js';
  * compose. Selected via {@link perUser} or {@link instance}; consumed by
  * {@link resolveOwnerId} and any sub-app that mounts ownership-scoped
  * routes. The instance arm is bare by design: the pin to
- * {@link INSTANCE_OWNER_ID} lives in the switch arm, so the partition decision
+ * {@link INSTANCE_PRINCIPAL_ID} lives in the switch arm, so the partition decision
  * stays decoupled from caller identity (ADR-0075).
  */
 export type OwnershipRule = { kind: 'perUser' } | { kind: 'instance' };
@@ -46,7 +46,7 @@ export const perUser: OwnershipRule = { kind: 'perUser' };
 /**
  * Single-partition instance ownership rule (self-host; ADR-0075).
  *
- * The partition is pinned to the byte-constant {@link INSTANCE_OWNER_ID},
+ * The partition is pinned to the byte-constant {@link INSTANCE_PRINCIPAL_ID},
  * independent of caller identity: every valid operator bearer maps to the SAME
  * `owners/instance` in {@link resolveOwnerId}, so adding per-person named
  * tokens later adds identity without re-partitioning the box's data. This is NOT
@@ -66,17 +66,17 @@ export const instance: OwnershipRule = { kind: 'instance' };
  * `:ownerId` segment (the `requireOwnership` middleware does, rejecting a
  * mismatch with `OwnerMismatch`).
  *
- * Per-user:  the user's id branded as `OwnerId`.
- * Instance:  `INSTANCE_OWNER_ID`.
+ * Per-user:  the user's id branded as `PrincipalId`.
+ * Instance:  `INSTANCE_PRINCIPAL_ID`.
  */
 export function resolveOwnerId<E extends Env = Env>(
 	rule: OwnershipRule,
 	c: Context<E>,
-): OwnerId {
+): PrincipalId {
 	switch (rule.kind) {
 		case 'perUser':
-			return asOwnerId(c.var.user.id);
+			return asPrincipalId(c.var.user.id);
 		case 'instance':
-			return INSTANCE_OWNER_ID;
+			return INSTANCE_PRINCIPAL_ID;
 	}
 }

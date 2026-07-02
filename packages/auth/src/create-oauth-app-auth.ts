@@ -108,10 +108,10 @@ type ApiSessionReadResult = Result<ApiSessionResponse, ApiSessionReadError>;
  * Use this once per runtime around one persisted auth record. The returned
  * client exposes capabilities (`fetch`, `openWebSocket`) instead of raw tokens:
  * it refreshes grants, verifies `/api/session` before attaching a bearer, and
- * keeps the cached `ownerId` available when network auth pauses. That preserves
- * the local-first invariant: offline workspace boot can continue, but server
- * access fails closed until the current persisted auth has been verified by the
- * API.
+ * keeps the cached principal id available when network auth pauses. That
+ * preserves the local-first invariant: offline workspace boot can continue,
+ * but server access fails closed until the current persisted auth has been
+ * verified by the API.
  */
 export function createOAuthAppAuth({
 	baseURL = EPICENTER_API_URL,
@@ -273,7 +273,7 @@ export function createOAuthAppAuth({
 	 * Refuses to attach unless `/api/session` has confirmed the current persisted
 	 * auth in this runtime. Cold boot online: refresh grant if
 	 * stale, call `/api/session`, then attach. Offline: fails closed; local
-	 * workspace boot continues via the cached owner id.
+	 * workspace boot continues via the cached principal id.
 	 */
 	async function bearerForNetwork(force: boolean): Promise<string | null> {
 		if (authSession.persistedAuth === null || authSession.networkAuthPaused) {
@@ -605,12 +605,12 @@ function publicStateFromRuntime(runtimeState: RuntimeAuthState): AuthState {
 	if (runtimeState.networkAccess === 'paused') {
 		return {
 			status: 'reauth-required',
-			ownerId: runtimeState.persistedAuth.ownerId,
+			principalId: runtimeState.persistedAuth.ownerId,
 		};
 	}
 	return {
 		status: 'signed-in',
-		ownerId: runtimeState.persistedAuth.ownerId,
+		principalId: runtimeState.persistedAuth.ownerId,
 	};
 }
 
@@ -618,7 +618,7 @@ function authStatesEqual(left: AuthState, right: AuthState) {
 	if (left.status !== right.status) return false;
 	if (left.status === 'signed-out') return true;
 	if (right.status === 'signed-out') return false;
-	return left.ownerId === right.ownerId;
+	return left.principalId === right.principalId;
 }
 
 /**

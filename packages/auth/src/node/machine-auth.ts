@@ -21,6 +21,7 @@ import * as path from 'node:path';
 import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { EPICENTER_API_URL } from '@epicenter/constants/apps';
 import { EPICENTER_CLI_OAUTH_CLIENT_ID } from '@epicenter/constants/oauth-clients';
+import type { PrincipalId } from '@epicenter/identity';
 import envPaths from 'env-paths';
 import {
 	defineErrors,
@@ -30,11 +31,7 @@ import {
 import { createLogger, type Logger } from 'wellcrafted/logger';
 import { Err, Ok, type Result, tryAsync } from 'wellcrafted/result';
 import type { AuthFetch, SyncAuthClient } from '../auth-contract.js';
-import {
-	ApiSessionResponse,
-	PersistedAuth,
-	type UserId,
-} from '../auth-types.js';
+import { ApiSessionResponse, PersistedAuth } from '../auth-types.js';
 import { createOAuthAppAuth } from '../create-oauth-app-auth.js';
 import { serializePersistedAuth } from '../persisted-auth-storage.js';
 import { createOobOAuthLauncher } from './oob-launcher.js';
@@ -207,11 +204,11 @@ async function saveMachineTokens(
 /**
  * Identity returned to the CLI for display. `user.email` is fetched from
  * `/api/session` and returned by value here so the CLI can print "Signed in as
- * <email>" without a second round-trip. `email` may be empty when the
- * machine is offline during `status`.
+ * <email>" without a second round-trip. `email` is absent when the machine is
+ * offline during `status`.
  */
 type MachineIdentity = {
-	user: { id: UserId; email: string };
+	user: { id: PrincipalId; email?: string };
 };
 
 type CommonConfig = {
@@ -356,7 +353,7 @@ export async function status({
 	const unverifiedFromCache = {
 		status: 'unverified' as const,
 		identity: {
-			user: { id: cachedCell.userId, email: '' },
+			user: { id: cachedCell.userId },
 		},
 	};
 

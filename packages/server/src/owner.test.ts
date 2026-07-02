@@ -11,11 +11,11 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId, INSTANCE_OWNER_ID } from '@epicenter/identity';
+import { asPrincipalId, INSTANCE_PRINCIPAL_ID } from '@epicenter/identity';
 import { blobKey, blobOwnerPrefix, doName } from './owner.js';
 
-const userOwner = asOwnerId('abc');
-const instance = INSTANCE_OWNER_ID;
+const userOwner = asPrincipalId('abc');
+const instance = INSTANCE_PRINCIPAL_ID;
 
 describe('doName', () => {
 	test('per-user partitions DO names under the user', () => {

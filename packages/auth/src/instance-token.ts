@@ -11,7 +11,7 @@
  * `@epicenter/auth`, not `@epicenter/server`.
  *
  * The matching RESOLVER side (turn a presented bearer into a principal, the
- * `ResolveUser` a deployment injects) needs the server's `AuthUser`/`ResolveUser`
+ * `ResolveUser` a deployment injects) needs the server's `Principal`/`ResolveUser`
  * types, so it stays in `@epicenter/server` (`createEnvTokenResolver`,
  * `INSTANCE_PRINCIPAL`).
  *

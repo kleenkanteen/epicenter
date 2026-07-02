@@ -114,7 +114,7 @@
 	// (it never reloads), so it stays enabled.
 	const accountLocked = $derived(!!disabledReason);
 	const accountCacheKey = $derived(
-		auth.state.status === 'signed-out' ? null : auth.state.ownerId,
+		auth.state.status === 'signed-out' ? null : auth.state.principalId,
 	);
 	// Which star this account lives on: a configured self-host override names the
 	// box, and the host IS the identity there (the instance session's email is a

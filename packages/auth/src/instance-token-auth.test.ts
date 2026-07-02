@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { BEARER_SUBPROTOCOL_PREFIX } from '@epicenter/sync';
 import type { AuthConnectionState, AuthFetch } from './auth-contract.js';
-import { asUserId } from './index.js';
 import { createInstanceTokenAuth } from './instance-token-auth.js';
 
 const baseURL = 'http://localhost:8788';
@@ -39,7 +38,7 @@ describe('createInstanceTokenAuth', () => {
 
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('owner-1'),
 		});
 		expect(calls[0]?.url).toBe(`${baseURL}/api/session`);
 		expect(calls[0]?.init?.credentials).toBe('omit');
@@ -159,7 +158,7 @@ describe('createInstanceTokenAuth', () => {
 		expect(error).toBeNull();
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('owner-1'),
 		});
 	});
 
@@ -171,7 +170,7 @@ describe('createInstanceTokenAuth', () => {
 		const { data, error } = await auth.getProfile();
 		expect(error).toBeNull();
 		expect(data).toEqual({
-			id: asUserId('owner-1'),
+			id: asPrincipalId('owner-1'),
 			email: 'owner-1@example.com',
 		});
 	});

@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { Ok } from 'wellcrafted/result';
 import type { AuthFetch } from './auth-contract.js';
 import type { OAuthTokenGrant, PersistedAuth } from './auth-types.js';
 import { createOAuthAppAuth } from './create-oauth-app-auth.js';
-import { asUserId } from './index.js';
 import type {
 	OAuthLauncher,
 	OAuthLaunchResult,
@@ -40,8 +39,8 @@ function grant(overrides: Partial<OAuthTokenGrant> = {}): OAuthTokenGrant {
 function persistedAuth(): PersistedAuth {
 	return {
 		grant: grant(),
-		userId: asUserId('owner-1'),
-		ownerId: asOwnerId('owner-1'),
+		userId: asPrincipalId('owner-1'),
+		ownerId: asPrincipalId('owner-1'),
 	};
 }
 
@@ -93,7 +92,7 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		expect(error).toBeNull();
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('owner-1'),
 		});
 		// The verified grant and the ids the session reported are persisted.
 		expect(storage.current).toEqual(persistedAuth());
@@ -156,7 +155,7 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		// Boots signed-in (unverified) from the persisted cell.
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('owner-1'),
 		});
 
 		await auth.fetch('/api/owners/owner-1/blobs');
@@ -213,7 +212,7 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		await auth.fetch('/api/owners/owner-1/blobs');
 		expect(auth.state).toEqual({
 			status: 'reauth-required',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('owner-1'),
 		});
 	});
 
@@ -230,7 +229,7 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		const { data, error } = await auth.getProfile();
 		expect(error).toBeNull();
 		expect(data).toEqual({
-			id: asUserId('owner-1'),
+			id: asPrincipalId('owner-1'),
 			email: 'owner-1@example.com',
 		});
 	});

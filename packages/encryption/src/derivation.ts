@@ -65,7 +65,7 @@ async function deriveLabelKey(
  * keyring order supplied by `parseRootKeyring()`.
  *
  * The `label` argument is the caller's partition string (typically an
- * `OwnerId`). The HKDF info bytes are `principal:${label}`, matching the
+ * `PrincipalId`). The HKDF info bytes are `principal:${label}`, matching the
  * clean-break vocabulary; there is no separate legacy prefix to support.
  *
  * @example

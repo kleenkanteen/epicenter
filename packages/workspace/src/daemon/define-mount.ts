@@ -22,7 +22,7 @@
  * a guaranteed-non-null `session` plus an automatic `inactive` when signed out.
  */
 
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 import type { NodeId } from '../document/node-id.js';
 import type {
 	OnReconnectSignal,
@@ -46,7 +46,7 @@ import type { DaemonRuntime } from './types.js';
  *   channel, and into one-shot HTTP reads.
  */
 export type MountSession = {
-	readonly ownerId: OwnerId;
+	readonly ownerId: PrincipalId;
 	readonly openWebSocket: OpenWebSocketFn;
 	readonly onReconnectSignal: OnReconnectSignal;
 	readonly fetch: AuthedFetch;

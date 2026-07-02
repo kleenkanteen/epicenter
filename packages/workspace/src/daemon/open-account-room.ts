@@ -65,7 +65,7 @@ export async function openAccountRoom(
 ): Promise<AccountRoomHandle | null> {
 	const { auth } = options;
 	if (auth === null || auth.state.status === 'signed-out') return null;
-	const { ownerId } = auth.state;
+	const ownerId = auth.state.principalId;
 
 	// The nodeId the relay routes by is the daemon's durable node id, shared with
 	// its mount room so the device presents one identity across both rooms.

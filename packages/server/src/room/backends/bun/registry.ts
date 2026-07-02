@@ -43,7 +43,7 @@
 import { Database } from 'bun:sqlite';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import type { UserId } from '@epicenter/auth';
+import type { PrincipalId } from '@epicenter/identity';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import type { Connection } from '../../../types.js';
 import type { ResolvedRoom, Rooms, RoomUpgrade } from '../../contracts.js';
@@ -88,7 +88,7 @@ function serverNotBound(): Promise<Response> {
  * WebSocket upgrade through {@link Rooms.rejectUpgrade}).
  */
 export type BunRoomSocketData =
-	| { kind: 'room'; roomName: string; userId: UserId; nodeId: string }
+	| { kind: 'room'; roomName: string; userId: PrincipalId; nodeId: string }
 	| { kind: 'reject'; code: number; reason: string };
 
 /** A live room: its core, its open sqlite handle, and any pending eviction. */

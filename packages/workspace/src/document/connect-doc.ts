@@ -14,7 +14,7 @@
  * @module
  */
 
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 import type * as Y from 'yjs';
 import type { ActionRegistry } from '../shared/actions.js';
 import { attachLocalStorage } from './attach-local-storage.js';
@@ -42,7 +42,7 @@ export type ConnectionConfig = {
 	 * never disagree.
 	 */
 	baseURL: string;
-	ownerId: OwnerId;
+	ownerId: PrincipalId;
 	/** Bearer-attached WebSocket opener (`auth.openWebSocket`). */
 	openWebSocket: OpenWebSocketFn;
 	/** Auth state-change publication; sync reconnects after token refreshes. */

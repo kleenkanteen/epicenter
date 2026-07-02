@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { createEpicenterClient } from './index.js';
 
 const baseURL = 'https://api.epicenter.so';
@@ -26,7 +26,7 @@ describe('blobs.add fails closed', () => {
 		const ticketCalls: string[] = [];
 		const client = createEpicenterClient({
 			baseURL,
-			ownerId: asOwnerId('owner-1'),
+			ownerId: asPrincipalId('owner-1'),
 			fetch: async (input) => {
 				ticketCalls.push(String(input));
 				return new Response('unauthorized', { status: 401 });
@@ -69,7 +69,7 @@ describe('blobs.get follows the 302 by hand', () => {
 
 		const client = createEpicenterClient({
 			baseURL,
-			ownerId: asOwnerId('owner-1'),
+			ownerId: asPrincipalId('owner-1'),
 			fetch: async () =>
 				new Response(null, {
 					status: 302,
@@ -93,7 +93,7 @@ describe('blobs.get follows the 302 by hand', () => {
 
 		const client = createEpicenterClient({
 			baseURL,
-			ownerId: asOwnerId('owner-1'),
+			ownerId: asPrincipalId('owner-1'),
 			fetch: async () => new Response(null, { status: 302 }),
 		});
 
@@ -118,7 +118,7 @@ describe('blobs.get follows the 302 by hand', () => {
 
 		const client = createEpicenterClient({
 			baseURL,
-			ownerId: asOwnerId('owner-1'),
+			ownerId: asPrincipalId('owner-1'),
 			fetch: async () => new Response('blob bytes', { status: 200 }),
 		});
 

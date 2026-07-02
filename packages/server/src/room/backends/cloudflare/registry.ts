@@ -30,7 +30,7 @@ export function createDurableObjectRooms(
 		 * `doName(ownerId, roomId)`, producing
 		 * `principals/<ownerId>/rooms/<roomId>` for either deployment: in the
 		 * per-user topology `ownerId === user.id`, on an instance `ownerId` is
-		 * the pinned `INSTANCE_OWNER_ID`).
+		 * the pinned `INSTANCE_PRINCIPAL_ID`).
 		 *
 		 * Returns a {@link ResolvedRoom} whose `handleUpgrade` forwards to the
 		 * DO stub's `fetch` (a 101-returning upgrade).

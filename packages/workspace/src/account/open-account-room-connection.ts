@@ -26,7 +26,7 @@
  * as an optional number rather than computed here.
  */
 
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 import * as Y from 'yjs';
 import type { NodeId } from '../document/node-id.js';
 import {
@@ -49,7 +49,7 @@ export type AccountRoomConnectionConfig = {
 	/** This device's durable relay routing id and dial target. */
 	nodeId: NodeId;
 	/** The signed-in account owner; selects the partitioned room URL path. */
-	ownerId: OwnerId;
+	ownerId: PrincipalId;
 	/** Full API origin URL (e.g. `https://api.epicenter.so`); upgrades to `wss://`. */
 	baseURL: string;
 	/** Bearer-attached WebSocket opener (`auth.openWebSocket`). */

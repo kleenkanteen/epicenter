@@ -136,7 +136,7 @@ export function createInstanceTokenAuth({
 
 	/**
 	 * Verify the configured token against `/api/session` and reflect the result
-	 * into state. A 200 installs `signed-in` with the response's `ownerId`; a
+	 * into state. A 200 installs `signed-in` with the response's principal id; a
 	 * rejected token (`Rejected`) drops to `signed-out`. A network or parse
 	 * failure returns the error and leaves the current state, so a transient
 	 * outage does not look like a bad token.
@@ -163,7 +163,7 @@ export function createInstanceTokenAuth({
 			});
 			return AuthError.StartSignInFailed({ cause: error });
 		}
-		setState({ status: 'signed-in', ownerId: session.ownerId });
+		setState({ status: 'signed-in', principalId: session.ownerId });
 		setConnection({ status: 'connected' });
 		return Ok(undefined);
 	}

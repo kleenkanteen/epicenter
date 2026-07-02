@@ -18,7 +18,7 @@ import type { Brand } from 'wellcrafted/brand';
 
 /**
  * Branded string naming one answering agent. The brand prevents accidental
- * mixing with a {@link NodeId}, an `OwnerId`, or a room guid: an agent address is
+ * mixing with a {@link NodeId}, an `PrincipalId`, or a room guid: an agent address is
  * not a transport id.
  *
  * At trusted call sites that receive a known authored `string`, brand it with

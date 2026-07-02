@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import type { AuthFetch } from './auth-contract.js';
 import { readApiSession } from './read-api-session.js';
 
@@ -28,7 +28,7 @@ describe('readApiSession', () => {
 			fetch,
 		});
 		expect(error).toBeNull();
-		expect(data?.ownerId).toBe(asOwnerId('owner-1'));
+		expect(data?.ownerId).toBe(asPrincipalId('owner-1'));
 		expect(data?.user.email).toBe('owner-1@example.com');
 		expect(calls[0]?.url).toBe(`${baseURL}/api/session`);
 		expect(calls[0]?.init?.credentials).toBe('omit');

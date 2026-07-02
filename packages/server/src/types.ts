@@ -7,9 +7,10 @@
  * the boundary, and stashes the result on `c.var.ownerId`.
  */
 
-import type { AuthUser, UserId } from '@epicenter/auth';
+import type { Principal } from '@epicenter/auth';
 import type { OAuthError } from '@epicenter/constants/oauth-errors';
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
+import type { ActionManifest } from '@epicenter/workspace';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Context } from 'hono';
 import type { Result } from 'wellcrafted/result';
@@ -35,7 +36,7 @@ import type { ServerBindings } from './server-bindings.js';
  * login; that bypass lives in a dev entry production never imports, never an
  * env-gated branch in this library.
  *
- * Returns the same `Result<AuthUser, OAuthError>` every resolver returns, so a
+ * Returns the same `Result<Principal, OAuthError>` every resolver returns, so a
  * different resolver slots in without touching the wrappers' error handling
  * (HTTP 401, the OAuth `WWW-Authenticate` challenge, or the rooms 4401 close).
  *
@@ -46,7 +47,7 @@ import type { ServerBindings } from './server-bindings.js';
  */
 export type ResolveUser<E extends Env = Env> = (
 	c: Context<E>,
-) => Promise<Result<AuthUser, OAuthError>>;
+) => Promise<Result<Principal, OAuthError>>;
 
 /**
  * Per-connection identity and runtime state, stamped onto the Cloudflare
@@ -61,15 +62,20 @@ export type ResolveUser<E extends Env = Env> = (
  * receivers can render an "online since" affordance and tie-break multi-tab
  * same-node (newest wins).
  *
+ * `actions` is the published action manifest for this socket. Starts as `{}`
+ * at upgrade; updated to the node's manifest when `presence_publish` arrives.
+ * Relay treats the value as opaque (it forwards JSON to peers, never inspects).
+ *
  * In the per-user topology every connection to a given DO shares the same
  * `userId` (the DO name partitions by user). On an instance every connection
  * resolves to the one pinned partition; the DO is owner-blind and never branches
  * on which deployment it is.
  */
 export type Connection = {
-	userId: UserId;
+	userId: PrincipalId;
 	nodeId: string;
 	connectedAt: number;
+	actions: ActionManifest;
 	/**
 	 * The catalog agent this connection answers as (ADR-0025), set from the
 	 * node's `presence_publish` and mirrored on the wire so a picker can decorate
@@ -117,15 +123,15 @@ export type Env = {
 		 * library: a self-host trusts its own origins, not Epicenter cloud's.
 		 */
 		trustedOrigins: string[];
-		user: AuthUser;
+		user: Principal;
 		/**
 		 * Resolved owner partition for this request. Populated by the
 		 * `requireOwnership` middleware after auth runs. In the per-user topology
 		 * equals the authenticated user's id; on an instance equals
-		 * `INSTANCE_OWNER_ID`. Handlers read this instead of branching on
+		 * `INSTANCE_PRINCIPAL_ID`. Handlers read this instead of branching on
 		 * topology or re-deriving from the URL `:ownerId` param.
 		 */
-		ownerId: OwnerId;
+		ownerId: PrincipalId;
 		rooms: Rooms;
 	};
 };

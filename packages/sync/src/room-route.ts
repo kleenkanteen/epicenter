@@ -1,4 +1,4 @@
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 
 const stripTrailing = (s: string) => s.replace(/\/+$/, '');
 
@@ -14,6 +14,6 @@ const stripTrailing = (s: string) => s.replace(/\/+$/, '');
 export const ROOM_ROUTE = {
 	pattern: '/api/owners/:ownerId/rooms/:roomId',
 	prefixPattern: '/api/owners/:ownerId/rooms/*',
-	url: (baseURL: string, ownerId: OwnerId, roomId: string) =>
+	url: (baseURL: string, ownerId: PrincipalId, roomId: string) =>
 		`${stripTrailing(baseURL)}/api/owners/${encodeURIComponent(ownerId)}/rooms/${encodeURIComponent(roomId)}`,
 } as const;

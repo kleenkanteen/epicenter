@@ -232,7 +232,7 @@ export function createSignInMigration<
 		if (state.status === 'signed-out') {
 			throw new Error('[sign-in-migration] owner scope read while signed out.');
 		}
-		return { server: new URL(auth.baseURL).host, ownerId: state.ownerId };
+		return { server: new URL(auth.baseURL).host, ownerId: state.principalId };
 	}
 
 	/** Child-doc guids for every staged row, via a throwaway local source. */

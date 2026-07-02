@@ -10,7 +10,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 import * as Y from 'yjs';
 import { attachLocalStorage } from './attach-local-storage.js';
@@ -79,7 +79,7 @@ describe('attachLocalStorage', () => {
 		});
 		const firstIdb = attachLocalStorage(firstDoc, {
 			server: SERVER,
-			ownerId: asOwnerId(userId),
+			ownerId: asPrincipalId(userId),
 		});
 		await firstIdb.whenLoaded;
 		firstDoc.getText('body').insert(0, 'stored text');
@@ -99,7 +99,7 @@ describe('attachLocalStorage', () => {
 		});
 		const secondIdb = attachLocalStorage(secondDoc, {
 			server: SERVER,
-			ownerId: asOwnerId(userId),
+			ownerId: asPrincipalId(userId),
 		});
 		await secondIdb.whenLoaded;
 
@@ -115,7 +115,7 @@ describe('attachLocalStorage', () => {
 		const firstDoc = new Y.Doc({ guid: 'plaintext-idb-clear', gc: true });
 		const firstIdb = attachLocalStorage(firstDoc, {
 			server: SERVER,
-			ownerId: asOwnerId(userId),
+			ownerId: asPrincipalId(userId),
 		});
 		await firstIdb.whenLoaded;
 		firstDoc.getText('body').insert(0, 'clear me');
@@ -127,7 +127,7 @@ describe('attachLocalStorage', () => {
 		const secondDoc = new Y.Doc({ guid: 'plaintext-idb-clear', gc: true });
 		const secondIdb = attachLocalStorage(secondDoc, {
 			server: SERVER,
-			ownerId: asOwnerId(userId),
+			ownerId: asPrincipalId(userId),
 		});
 		await secondIdb.whenLoaded;
 
@@ -170,7 +170,7 @@ describe('attachLocalStorage BroadcastChannel naming', () => {
 
 		attachLocalStorage(ydoc, {
 			server: SERVER,
-			ownerId: asOwnerId('user-123'),
+			ownerId: asPrincipalId('user-123'),
 		});
 
 		// y-indexeddb compatibility: attachBroadcastChannel prepends `yjs.` so
@@ -197,7 +197,7 @@ describe('wipeLocalStorage', () => {
 
 		await wipeLocalStorage({
 			server: SERVER,
-			ownerId: asOwnerId('user-1'),
+			ownerId: asPrincipalId('user-1'),
 		});
 
 		const remaining = await databaseNames();
@@ -212,7 +212,7 @@ describe('wipeLocalStorage', () => {
 
 		await wipeLocalStorage({
 			server: SERVER,
-			ownerId: asOwnerId('user-1'),
+			ownerId: asPrincipalId('user-1'),
 		});
 
 		const remaining = await databaseNames();

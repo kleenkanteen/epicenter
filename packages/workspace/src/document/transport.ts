@@ -1,4 +1,4 @@
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 import { ROOM_ROUTE } from '@epicenter/sync';
 import type { NodeId } from './node-id.js';
 
@@ -9,7 +9,7 @@ import type { NodeId } from './node-id.js';
  */
 export type RoomWsUrlOptions = {
 	baseURL: string;
-	ownerId: OwnerId;
+	ownerId: PrincipalId;
 	guid: string;
 	nodeId: NodeId;
 };

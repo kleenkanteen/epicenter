@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { ROOM_ROUTE } from '@epicenter/sync';
 import { Hono } from 'hono';
 
@@ -22,7 +22,7 @@ describe('rooms route pattern', () => {
 			}),
 		);
 
-		const ownerId = asOwnerId('user-1');
+		const ownerId = asPrincipalId('user-1');
 		const guids = [
 			// Hyphenated workspace root id.
 			'epicenter-fuji',

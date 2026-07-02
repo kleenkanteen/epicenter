@@ -289,14 +289,14 @@ specs/20260524T021140-asset-visibility-and-client-sdk.md
 - [x] Write this execution spec and mark it In Progress.
 - [x] Draft ADR-0092 and add it to the ADR index.
 - [x] Add or confirm target pins for server durable names, IndexedDB keys, and HKDF info bytes.
-- [ ] Stop for Braden review.
+- [x] Stop for Braden review.
 
 ### Wave 1: brand merge
 
-- [ ] Rename `OwnerId` to `PrincipalId`, `asOwnerId` to `asPrincipalId`, and `INSTANCE_OWNER_ID` to `INSTANCE_PRINCIPAL_ID` in `packages/identity`.
-- [ ] Delete `UserId` and `asUserId` from `packages/auth`.
-- [ ] Rename `AuthUser` to `Principal`; keep existing JSON shapes until Wave 3.
-- [ ] Keep behavior unchanged.
+- [x] Rename `OwnerId` to `PrincipalId`, `asOwnerId` to `asPrincipalId`, and `INSTANCE_OWNER_ID` to `INSTANCE_PRINCIPAL_ID` in `packages/identity`.
+- [x] Delete `UserId` and `asUserId` from `packages/auth`.
+- [x] Rename `AuthUser` to `Principal`; keep existing JSON shapes until Wave 3.
+- [x] Keep behavior unchanged.
 
 ### Wave 2: server seam collapse
 

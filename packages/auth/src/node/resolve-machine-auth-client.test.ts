@@ -13,11 +13,11 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { createLogger, memorySink } from 'wellcrafted/logger';
 import { expectErr, expectOk } from 'wellcrafted/testing';
 import type { AuthFetch } from '../auth-contract.js';
-import { asUserId, type PersistedAuth } from '../auth-types.js';
+import type { PersistedAuth } from '../auth-types.js';
 import {
 	readConfiguredToken,
 	resolveMachineAuthClient,
@@ -157,7 +157,7 @@ describe('resolveMachineAuthClient', () => {
 		// The /api/session confirmation is awaited, so state is already settled.
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('owner-1'),
 		});
 		expect(calls[0]?.url).toBe(`${BASE_URL}/api/session`);
 		expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
@@ -214,8 +214,8 @@ describe('resolveMachineAuthClient', () => {
 				refreshToken: 'r',
 				accessTokenExpiresAt: 1_700_000_600_000,
 			},
-			userId: asUserId('owner-1'),
-			ownerId: asOwnerId('owner-1'),
+			userId: asPrincipalId('owner-1'),
+			ownerId: asPrincipalId('owner-1'),
 		});
 		const fetch: AuthFetch = async () => json(sessionBody());
 
@@ -226,7 +226,7 @@ describe('resolveMachineAuthClient', () => {
 		// The OAuth client seeds state synchronously from the cached cell.
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('owner-1'),
 		});
 	});
 });

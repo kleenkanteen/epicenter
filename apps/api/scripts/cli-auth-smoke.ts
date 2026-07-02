@@ -70,8 +70,10 @@ async function main() {
 		);
 		check(
 			'token arg: ownerId is the dev user',
-			auth.state.status === 'signed-in' && auth.state.ownerId === userId,
-			auth.state.status === 'signed-in' ? auth.state.ownerId : '(signed-out)',
+			auth.state.status === 'signed-in' && auth.state.principalId === userId,
+			auth.state.status === 'signed-in'
+				? auth.state.principalId
+				: '(signed-out)',
 		);
 		const sessionRes = await auth.fetch(API_ROUTES.session.url(baseURL));
 		check('token arg: auth.fetch /api/session 200', sessionRes.status === 200);
@@ -87,9 +89,9 @@ async function main() {
 			'EPICENTER_TOKEN: signed-in as the env user',
 			!error &&
 				auth?.state.status === 'signed-in' &&
-				auth.state.ownerId === envUserId,
+				auth.state.principalId === envUserId,
 			error?.message ??
-				(auth?.state.status === 'signed-in' ? auth.state.ownerId : ''),
+				(auth?.state.status === 'signed-in' ? auth.state.principalId : ''),
 		);
 	}
 

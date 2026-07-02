@@ -247,7 +247,7 @@ async function connectCloud(): Promise<EpicenterClient | null> {
 	return createEpicenterClient({
 		baseURL: auth.baseURL,
 		fetch: (input, init) => auth.fetch(input, init),
-		ownerId: auth.state.ownerId,
+		ownerId: auth.state.principalId,
 	});
 }
 

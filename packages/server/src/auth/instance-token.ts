@@ -10,7 +10,7 @@
  * `ResolveUser` the deployment injects on `createServerApp` to turn that bearer
  * into the instance's principal.
  *
- * This is the VERIFIER side of that credential: it needs `AuthUser`/`ResolveUser`,
+ * This is the VERIFIER side of that credential: it needs `Principal`/`ResolveUser`,
  * so it lives in `@epicenter/server`. The pure pieces that need neither (the token
  * generator and the boot entropy gate, `generateInstanceToken` /
  * `assertStrongToken`) live in `@epicenter/auth` so a token can be minted and
@@ -37,14 +37,15 @@
  * either runtime with the operator supplying the secret.
  */
 
-import { AuthUser, asUserId } from '@epicenter/auth';
+import { Principal } from '@epicenter/auth';
 import { OAuthError } from '@epicenter/constants/oauth-errors';
+import { asPrincipalId } from '@epicenter/identity';
 import { Ok } from 'wellcrafted/result';
 import type { ResolveUser } from '../types.js';
 import { parseBearer } from './parse-bearer.js';
 
 /**
- * The instance's single principal: a NAMED `AuthUser`, not a boolean. Returned by
+ * The instance's single principal: a NAMED `Principal`, not a boolean. Returned by
  * the v1 verifier for any valid bearer. Its `id` is decoupled from the partition
  * (`owners/instance` is pinned by `instance` regardless of caller identity), so
  * this value is purely the authenticated identity stamped onto `c.var.user` and
@@ -52,8 +53,8 @@ import { parseBearer } from './parse-bearer.js';
  * built, the verifier returns per-token principals here instead; the partition
  * stays constant.
  */
-export const INSTANCE_PRINCIPAL: AuthUser = AuthUser.assert({
-	id: asUserId('instance-owner'),
+export const INSTANCE_PRINCIPAL: Principal = Principal.assert({
+	id: asPrincipalId('instance-owner'),
 	email: 'owner@instance.local',
 });
 

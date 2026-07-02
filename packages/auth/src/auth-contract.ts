@@ -1,7 +1,7 @@
 import type { AuthState } from '@epicenter/identity';
 import type { Result } from 'wellcrafted/result';
 import type { AuthError } from './auth-errors.js';
-import type { AuthUser } from './auth-types.js';
+import type { Principal } from './auth-types.js';
 
 export type { AuthState };
 
@@ -98,11 +98,12 @@ export type AuthClient = {
 	 *
 	 * Presentational identity (the email) is fetched on demand by the surface
 	 * that displays it, never persisted or carried on `state`: `state` holds only
-	 * the capability id (`ownerId`), which is offline-useful and license-clean
-	 * (see `@epicenter/identity` `AuthState` and `PersistedAuth`). Account UI calls
-	 * this when it renders the user; everything else reads `ownerId` off `state`.
+	 * the principal id, which is offline-useful and license-clean (see
+	 * `@epicenter/identity` `AuthState` and `PersistedAuth`). Account UI calls
+	 * this when it renders the user; local workspace code reads `principalId`
+	 * off `state`.
 	 */
-	getProfile(): Promise<Result<AuthUser, AuthError>>;
+	getProfile(): Promise<Result<Principal, AuthError>>;
 	/**
 	 * Connection-verification channel, present only on clients that verify a
 	 * remote bearer at boot (the self-host token client). Absent on hosted OAuth

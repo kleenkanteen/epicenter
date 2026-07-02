@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId, INSTANCE_OWNER_ID } from '@epicenter/identity';
+import { asPrincipalId, INSTANCE_PRINCIPAL_ID } from '@epicenter/identity';
 import { createOwnedYjsKey, getOwnedYjsPrefix } from './local-yjs-key.js';
 
 const SERVER = 'api.epicenter.so';
-const ALICE = asOwnerId('user-a');
-const INSTANCE = INSTANCE_OWNER_ID;
+const ALICE = asPrincipalId('user-a');
+const INSTANCE = INSTANCE_PRINCIPAL_ID;
 
 describe('getOwnedYjsPrefix', () => {
 	test('per-user owner id partitions the prefix under principals/', () => {

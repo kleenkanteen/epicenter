@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import type { AuthFetch } from './auth-contract.js';
-import { asUserId } from './index.js';
 import { createSameOriginCookieAuth } from './same-origin-cookie-auth.js';
 
 const baseURL = 'https://api.epicenter.so';
@@ -37,7 +36,7 @@ describe('createSameOriginCookieAuth', () => {
 
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('owner-1'),
 		});
 		expect(calls[0]?.url).toBe(`${baseURL}/api/session`);
 		expect(calls[0]?.init?.credentials).toBe('include');
@@ -132,7 +131,7 @@ describe('createSameOriginCookieAuth', () => {
 		const { data, error } = await auth.getProfile();
 		expect(error).toBeNull();
 		expect(data).toEqual({
-			id: asUserId('owner-1'),
+			id: asPrincipalId('owner-1'),
 			email: 'owner-1@example.com',
 		});
 		const profileRead = calls.at(-1);

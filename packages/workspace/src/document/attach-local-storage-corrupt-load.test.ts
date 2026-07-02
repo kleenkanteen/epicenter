@@ -24,7 +24,7 @@
  */
 
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 import * as Y from 'yjs';
 import { attachLocalStorage } from './attach-local-storage.js';
@@ -117,7 +117,7 @@ test('a corrupt persisted update is skipped: whenLoaded resolves and no decode e
 	const firstDoc = new Y.Doc({ guid, gc: true });
 	const firstIdb = attachLocalStorage(firstDoc, {
 		server: SERVER,
-		ownerId: asOwnerId(userId),
+		ownerId: asPrincipalId(userId),
 	});
 	await firstIdb.whenLoaded;
 	firstDoc.getText('body').insert(0, 'real content');
@@ -132,7 +132,7 @@ test('a corrupt persisted update is skipped: whenLoaded resolves and no decode e
 	const secondDoc = new Y.Doc({ guid, gc: true });
 	const secondIdb = attachLocalStorage(secondDoc, {
 		server: SERVER,
-		ownerId: asOwnerId(userId),
+		ownerId: asPrincipalId(userId),
 	});
 
 	// Healed behavior (the patch skips the bad update and still emits 'synced'):
@@ -170,5 +170,5 @@ test('a corrupt persisted update is skipped: whenLoaded resolves and no decode e
 
 	// Best-effort cleanup; the assertions above are what matter.
 	secondDoc.destroy();
-	await wipeLocalStorage({ server: SERVER, ownerId: asOwnerId(userId) });
+	await wipeLocalStorage({ server: SERVER, ownerId: asPrincipalId(userId) });
 });

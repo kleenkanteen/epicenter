@@ -20,7 +20,7 @@ import type { AuthState, SyncAuthClient } from '@epicenter/auth';
  * is unchanged and no reload fires; `openCollaboration` reconnects internally.
  */
 function ownerKey(state: AuthState) {
-	return state.status === 'signed-out' ? null : state.ownerId;
+	return state.status === 'signed-out' ? null : state.principalId;
 }
 
 /**

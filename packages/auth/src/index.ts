@@ -13,9 +13,7 @@ export type {
 export * from './auth-errors.js';
 export {
 	ApiSessionResponse,
-	AuthUser,
-	asUserId,
-	UserId,
+	Principal,
 } from './auth-types.js';
 export {
 	type CreateOAuthAppAuthConfig,

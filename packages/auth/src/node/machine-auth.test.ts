@@ -13,11 +13,10 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { expectErr, expectOk } from 'wellcrafted/testing';
 import type { AuthFetch } from '../auth-contract.js';
 import type { PersistedAuth } from '../auth-types.js';
-import { asUserId } from '../auth-types.js';
 import {
 	createMachineAuthClient,
 	loginWithOob,
@@ -200,7 +199,7 @@ test('loginWithOob writes PersistedAuth and returns identity', async () => {
 	});
 	const data = expectOk(result);
 	expect(data.identity.user).toEqual({
-		id: asUserId('user-1'),
+		id: asPrincipalId('user-1'),
 		email: 'user-1@example.com',
 	});
 
@@ -211,8 +210,8 @@ test('loginWithOob writes PersistedAuth and returns identity', async () => {
 			refreshToken: 'refresh-1',
 			accessTokenExpiresAt: NOW + 3_600_000,
 		},
-		userId: asUserId('user-1'),
-		ownerId: asOwnerId('user-1'),
+		userId: asPrincipalId('user-1'),
+		ownerId: asPrincipalId('user-1'),
 	});
 
 	if (process.platform !== 'win32') {
@@ -280,8 +279,8 @@ async function preWriteCell(filePath: string, userId = 'user-1') {
 			refreshToken: 'refresh-stored',
 			accessTokenExpiresAt: NOW + 3_600_000,
 		},
-		userId: asUserId(userId),
-		ownerId: asOwnerId(userId),
+		userId: asPrincipalId(userId),
+		ownerId: asPrincipalId(userId),
 	};
 	await writeCell(filePath, cell);
 	return cell;

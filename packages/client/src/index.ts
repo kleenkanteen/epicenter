@@ -14,7 +14,7 @@
 
 import type { AuthFetch } from '@epicenter/auth';
 import { API_ROUTES } from '@epicenter/constants/api-routes';
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 import {
 	defineErrors,
 	extractErrorMessage,
@@ -61,7 +61,7 @@ export type EpicenterClientOptions = {
 	 * is owner-scoped and addresses every route under it, `blobs.url` included; it
 	 * never resolves identity itself.
 	 */
-	ownerId: OwnerId;
+	ownerId: PrincipalId;
 };
 
 // ---------------------------------------------------------------------------

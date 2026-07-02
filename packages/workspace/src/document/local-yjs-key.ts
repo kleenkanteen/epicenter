@@ -17,7 +17,7 @@
  * two instances on one machine from colliding.
  */
 
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 
 const APP = 'epicenter';
 
@@ -26,7 +26,10 @@ const APP = 'epicenter';
  *
  * Wipe paths use this to enumerate every database owned by the pair.
  */
-export function getOwnedYjsPrefix(server: string, ownerId: OwnerId): string {
+export function getOwnedYjsPrefix(
+	server: string,
+	ownerId: PrincipalId,
+): string {
 	return `${APP}/${server}/principals/${ownerId}/`;
 }
 
@@ -40,7 +43,7 @@ export function getOwnedYjsPrefix(server: string, ownerId: OwnerId): string {
  */
 export function createOwnedYjsKey(
 	server: string,
-	ownerId: OwnerId,
+	ownerId: PrincipalId,
 	ydocGuid: string,
 ): string {
 	return `${getOwnedYjsPrefix(server, ownerId)}${ydocGuid}`;

@@ -22,7 +22,7 @@
  * @module
  */
 
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 import type * as Y from 'yjs';
 import { attachBroadcastChannel } from './attach-broadcast-channel.js';
 import {
@@ -55,7 +55,7 @@ export function attachLocalStorage(
 	ydoc: Y.Doc,
 	options: {
 		server: string;
-		ownerId: OwnerId;
+		ownerId: PrincipalId;
 	},
 ): IndexedDbAttachment {
 	const databaseName = createOwnedYjsKey(

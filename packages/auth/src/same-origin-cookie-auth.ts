@@ -127,7 +127,7 @@ export function createSameOriginCookieAuth({
 			const session = ApiSessionResponse.assert(await response.json());
 			setState({
 				status: 'signed-in',
-				ownerId: session.ownerId,
+				principalId: session.ownerId,
 			});
 		} catch {
 			// Malformed body: leave the current state rather than guessing.
