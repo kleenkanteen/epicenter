@@ -31,10 +31,12 @@ type WorkspaceDoc = Parameters<typeof connectDoc>[0];
  * re-runs this selection. Construction is synchronous; data still loads
  * async behind `whenReady`.
  *
- * The cross-tab BroadcastChannel is attached unconditionally under the doc
- * guid, mirroring the shipped Whispering wiring this was extracted from
- * (signed-in docs additionally get the owner-keyed channel inside
- * `connectDoc`).
+ * The cross-tab BroadcastChannel is scoped to the branch: signed-out docs get
+ * the bare guid channel, signed-in docs get only the owner-keyed channel that
+ * `connectDoc` attaches internally. A signed-in doc on the bare channel would
+ * let a signed-out tab (a DIFFERENT doc with the same guid) cross-pollinate
+ * updates into the owner doc, bypassing the sign-in migration, and would let
+ * two signed-in owners on one profile exchange plaintext.
  */
 export function connectLocalFirst({
 	auth,
@@ -57,9 +59,9 @@ export function connectLocalFirst({
 	collaboration: Collaboration | undefined;
 } {
 	const state = auth.state;
-	attachBroadcastChannel(ydoc);
 
 	if (state.status === 'signed-out') {
+		attachBroadcastChannel(ydoc);
 		const idb = attachIndexedDb(ydoc);
 		return { whenReady: idb.whenLoaded, collaboration: undefined };
 	}
