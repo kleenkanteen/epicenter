@@ -40,8 +40,9 @@ export function createTokenManager({
 	now: () => number;
 }): TokenManager {
 	let current = token;
+	let refreshInFlight: Promise<Result<string, TokenError>> | null = null;
 
-	async function refresh(): Promise<Result<string, TokenError>> {
+	async function refreshOnce(): Promise<Result<string, TokenError>> {
 		const { data: refreshed, error } = await refreshAccessToken(
 			config,
 			current,
@@ -51,6 +52,13 @@ export function createTokenManager({
 		current = refreshed;
 		await store.set(refreshed);
 		return Ok(refreshed.accessToken);
+	}
+
+	function refresh(): Promise<Result<string, TokenError>> {
+		refreshInFlight ??= refreshOnce().finally(() => {
+			refreshInFlight = null;
+		});
+		return refreshInFlight;
 	}
 
 	return {
