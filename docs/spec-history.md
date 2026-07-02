@@ -16,15 +16,16 @@
 >
 > **Regenerate (deterministic per ref set, lossless):** `bun scripts/generate-spec-history.ts`. The totals track the refs this clone can see; `--all` is deliberate so the timeline recovers specs that only lived on unmerged or deleted branches.
 
-**1321 specs ever** (569 still in tree, 752 removed).
+**1322 specs ever** (570 still in tree, 752 removed).
 
 
 ## 2026
 
 | Date | Spec | State | Path |
 |------|------|-------|------|
-| 2026-07-02 | ungated-durable-local-open | in tree | specs/20260702T014940-ungated-durable-local-open.md |
+| 2026-07-02 | relay-channel-layer-deletion | in tree | specs/20260702T210000-relay-channel-layer-deletion.md |
 | 2026-07-02 | identity-is-the-partition | removed | specs/20260702T000000-identity-is-the-partition.md |
+| 2026-07-02 | ungated-durable-local-open | in tree | specs/20260702T014940-ungated-durable-local-open.md |
 | 2026-07-02 | one-preset-shape-and-derived-migration-guids | removed | specs/20260702T001604-one-preset-shape-and-derived-migration-guids.md |
 | 2026-07-01 | super-chat-canonicalization-handoff | in tree | specs/20260701T235243-super-chat-canonicalization-handoff.md |
 | 2026-07-01 | api-keyring-and-vault-wiring | in tree | specs/20260701T150000-api-keyring-and-vault-wiring.md |
