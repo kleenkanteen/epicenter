@@ -1,6 +1,7 @@
 import { BEARER_SUBPROTOCOL_PREFIX, parseSubprotocols } from '@epicenter/sync';
 import { createMiddleware } from 'hono/factory';
 import { parseBearer } from '../auth/parse-bearer.js';
+import type { Env } from '../types.js';
 
 /**
  * Normalize the auth transport on a WebSocket upgrade.
@@ -46,15 +47,23 @@ import { parseBearer } from '../auth/parse-bearer.js';
  *
  * The in-place `c.req.raw` rewrite is Hono's supported header-mutation
  * pattern (used by `methodOverride` and `bodyLimit`): build a fresh
- * `Headers`, construct a new `Request`, reassign.
+ * `Headers`, construct a new `Request`, reassign. The one thing a rebuilt
+ * request cannot do is complete the upgrade itself: Bun's `server.upgrade`
+ * accepts only the request object the runtime minted, so the pristine
+ * original is stashed on `c.var.wsUpgradeRequest` for the rooms surface to
+ * hand to the backend.
  *
  * Mount in front of the WebSocket route. Non-upgrade requests pass through
  * untouched.
  */
-export const normalizeWebSocketAuth = createMiddleware(async (c, next) => {
+export const normalizeWebSocketAuth = createMiddleware<Env>(async (c, next) => {
 	const headers = c.req.raw.headers;
 	const isUpgrade = headers.get('upgrade')?.toLowerCase() === 'websocket';
 	if (!isUpgrade) return next();
+
+	// Keep the runtime-minted request reachable: only it can complete the
+	// upgrade on Bun (see the module header).
+	c.set('wsUpgradeRequest', c.req.raw);
 
 	const normalized = new Headers(headers);
 	normalized.delete('cookie');

@@ -116,6 +116,16 @@ export type Env = {
 		trustedOrigins: string[];
 		principal: Principal;
 		rooms: Rooms;
+		/**
+		 * The upgrade Request exactly as the runtime minted it, stashed by
+		 * `normalizeWebSocketAuth` before it rewrites `c.req.raw` for auth.
+		 * The rooms surface hands this object to the backend: Bun's
+		 * `server.upgrade` accepts only the original request object (a rebuilt
+		 * clone fails the upgrade, so the client sees "Expected 101"), and the
+		 * Durable Object rebuilds its own response headers, so the original is
+		 * safe on both runtimes. Absent on non-upgrade requests.
+		 */
+		wsUpgradeRequest?: Request;
 	};
 };
 

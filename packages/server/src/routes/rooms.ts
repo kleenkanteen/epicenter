@@ -64,7 +64,7 @@ function createRoomsApp(): Hono<Env> {
 			// never the client's), nodeId the client's own. The backend
 			// performs its runtime-specific accept (see ResolvedRoom).
 			return room.handleUpgrade({
-				request: c.req.raw,
+				request: c.var.wsUpgradeRequest ?? c.req.raw,
 				principalId,
 				nodeId,
 			});
@@ -92,7 +92,7 @@ function requireRoomBearer<E extends Env>(
 		if (error) {
 			if (isWebSocketUpgrade(c)) {
 				return c.var.rooms.rejectUpgrade({
-					request: c.req.raw,
+					request: c.var.wsUpgradeRequest ?? c.req.raw,
 					code: 4000 + error.status,
 					reason: JSON.stringify(error),
 				});

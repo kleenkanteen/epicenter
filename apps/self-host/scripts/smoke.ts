@@ -3,10 +3,10 @@
  * either runtime (the Bun entry or the wrangler Worker).
  *
  * This needs no dev credential bypass: an instance's credential is trivially
- * supplied, so the smoke drives the REAL bearer path end to end. It proves both
- * outcomes:
+ * supplied, so the smoke drives the REAL bearer path end to end. It proves:
  *   - the operator-supplied bearer resolves the `instance` principal and opens a
- *     room (200)
+ *     room over the WebSocket upgrade (rooms are WebSocket-only; a plain GET
+ *     answers 426)
  *   - a wrong bearer is rejected (401), before any principal is resolved
  *
  * Boot the instance with a known token, then point this at it (pass the SAME token
@@ -98,17 +98,56 @@ async function main() {
 		}
 	}
 
-	// 3. Open a room under the instance principal (create-on-first-touch).
+	// 3. Rooms are WebSocket-only: a plain GET is refused with 426, and the
+	// authenticated upgrade opens the room (create-on-first-touch) under the
+	// instance principal, proven by the relay's first frame arriving.
 	{
 		const roomId = `smoke-${randHex(4)}`;
 		const url = `${BASE_URL}/api/rooms/${encodeURIComponent(roomId)}?nodeId=smoke`;
+
 		const res = await fetch(url, { headers: bearer(TOKEN) });
-		const buf = await res.arrayBuffer();
 		record(
-			res.ok ? 'PASS' : 'FAIL',
-			'room open+read',
-			`${res.status} doc=${buf.byteLength}B`,
+			res.status === 426 ? 'PASS' : 'FAIL',
+			'room http refused',
+			`${res.status} (expected 426)`,
 		);
+
+		// The bearer travels as a `bearer.<token>` subprotocol beside the main
+		// `epicenter` one (source of truth: packages/sync/src/auth-subprotocol.ts;
+		// literals here keep the smoke dependency-free).
+		const detail = await new Promise<{ status: Status; detail: string }>(
+			(resolve) => {
+				const ws = new WebSocket(url.replace(/^http/, 'ws'), [
+					'epicenter',
+					`bearer.${TOKEN}`,
+				]);
+				ws.binaryType = 'arraybuffer';
+				const timer = setTimeout(() => {
+					ws.close();
+					resolve({ status: 'FAIL', detail: 'no frame within 5s' });
+				}, 5000);
+				ws.onmessage = (event) => {
+					clearTimeout(timer);
+					const size =
+						event.data instanceof ArrayBuffer
+							? `${event.data.byteLength}B binary`
+							: `${String(event.data).length}ch text`;
+					// Resolve BEFORE close: Bun dispatches the close event
+					// synchronously from inside ws.close(), so the onclose FAIL
+					// below would otherwise win the race against this PASS.
+					resolve({ status: 'PASS', detail: `first frame ${size}` });
+					ws.close();
+				};
+				ws.onclose = (event) => {
+					clearTimeout(timer);
+					resolve({
+						status: 'FAIL',
+						detail: `closed before first frame (code ${event.code})`,
+					});
+				};
+			},
+		);
+		record(detail.status, 'room ws open', detail.detail);
 	}
 
 	// 4. A wrong bearer is rejected with 401, before any principal is resolved.
