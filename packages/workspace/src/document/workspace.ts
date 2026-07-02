@@ -60,6 +60,8 @@ import type { Guid } from '../shared/id.js';
 import { assertSafeSegment } from '../shared/safe-segment.js';
 import type { Drainable } from '../shared/types.js';
 import type { AgentId } from './agent-id.js';
+import { attachBroadcastChannel } from './attach-broadcast-channel.js';
+import { attachIndexedDb } from './attach-indexed-db.js';
 import {
 	attachChildDocWorker,
 	type ChildDocWorker,
@@ -88,7 +90,7 @@ import {
 	type TableDefinitions,
 	type Tables,
 } from './table.js';
-import { wipeLocalStorage } from './wipe-local-storage.js';
+import { wipeBareStorage, wipeLocalStorage } from './wipe-local-storage.js';
 import {
 	type ObservableKvStore,
 	YKeyValueLww,
@@ -320,6 +322,31 @@ type ConnectedWorkspaceWithRuntime<
 	Omit<TRuntime, 'actions' | typeof Symbol.dispose>;
 
 /**
+ * The local-first workspace `connectLocal()` returns: the connected context
+ * (child-doc openers included) plus bare local infrastructure, guid-named
+ * IndexedDB persistence, the cross-tab BroadcastChannel, and `wipe()`, with
+ * no relay. `collaboration` is a literal `undefined` field so a
+ * `LocalWorkspace | ConnectedWorkspace` union narrows on it and shared UI
+ * (the account popover's sync surface) can take `collaboration` optionally.
+ */
+export type LocalWorkspace<
+	TTables extends TableDefinitions,
+	TKv extends KvDefinitions,
+	TActions extends ActionRegistry = ActionRegistry,
+> = ConnectedWorkspaceContext<TTables, TKv, TActions> & {
+	readonly idb: ReturnType<typeof attachIndexedDb>;
+	readonly collaboration: undefined;
+	wipe(): Promise<void>;
+};
+
+type LocalWorkspaceWithRuntime<
+	TTables extends TableDefinitions,
+	TKv extends KvDefinitions,
+	TRuntime extends ConnectComposition,
+> = LocalWorkspace<TTables, TKv, TRuntime['actions']> &
+	Omit<TRuntime, 'actions' | typeof Symbol.dispose>;
+
+/**
  * The ambient capabilities a mount's `open()` hands its `compose` body: the
  * signed-in session `ctx` (durable node id, resolved Epicenter root, transport
  * refs), the resolved sync `baseURL`, and `registerDrain`, the lifecycle sink
@@ -527,6 +554,12 @@ export type WorkspaceDefinition<
 			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
 		) => TRuntime,
 	): ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
+	connectLocal(): LocalWorkspace<TTables, TKv, TActions>;
+	connectLocal<TRuntime extends ConnectComposition>(
+		compose: (
+			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
+		) => TRuntime,
+	): LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>;
 	mount(options: MountOptions<TTables, TKv, TActions>): Mount;
 };
 
@@ -638,6 +671,12 @@ export function createWorkspace<
  *                                it returns is the one the bundle exposes as its
  *                                actions. That ordering is why `compose` is a
  *                                callback here, not a step you run after `connect()`.
+ *   connectLocal(compose?)       The bare local-first preset (ADR-0088): the same
+ *                                bundle shape as `connect()` including per-row
+ *                                child-doc openers, wired to guid-named IndexedDB
+ *                                and the cross-tab channel with no relay
+ *                                (`collaboration: undefined`). A signed-out boot
+ *                                picks this; a signed-in boot picks `connect()`.
  *   mount(options)               The daemon preset: `create()` plus Yjs-log
  *                                persistence, cloud sync, and materializers, with
  *                                node dependencies injected through
@@ -746,6 +785,56 @@ export function defineWorkspace<
 		});
 	}
 
+	function connectLocal(): LocalWorkspace<TTables, TKv, TActions>;
+	function connectLocal<TRuntime extends ConnectComposition>(
+		compose: (
+			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
+		) => TRuntime,
+	): LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>;
+	function connectLocal(
+		compose: (
+			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
+		) => ConnectComposition = (workspace) => ({
+			actions: workspace.actions,
+		}),
+	) {
+		const workspace = create();
+
+		// Same composition order as connect(): child-doc openers, then the
+		// caller's composer, then infrastructure. The wiring is bare (guid-named
+		// IndexedDB + cross-tab channel, `connection: null` for the children);
+		// there is no relay, so unlike connect() nothing serves actions to peers.
+		const tables = connectTableChildDocs({
+			ydoc: workspace.ydoc,
+			tables: workspace.tables,
+			definitions: options.tables,
+			connection: null,
+		});
+		const runtime = compose({ ...workspace, tables });
+		attachBroadcastChannel(workspace.ydoc);
+		const idb = attachIndexedDb(workspace.ydoc);
+
+		const dispose = once(() => {
+			runtime[Symbol.dispose]?.();
+			workspace[Symbol.dispose]();
+		});
+
+		return satisfiesWorkspace({
+			...workspace,
+			...runtime,
+			tables,
+			actions: runtime.actions,
+			idb,
+			collaboration: undefined,
+			async wipe() {
+				dispose();
+				await idb.whenDisposed;
+				await wipeBareStorage(options.id);
+			},
+			[Symbol.dispose]: dispose,
+		});
+	}
+
 	/**
 	 * Daemon runtime: the bare root plus disk persistence, cloud sync, and
 	 * materializers. A pure coordinator over the injected `options.runtime`, so
@@ -842,6 +931,7 @@ export function defineWorkspace<
 		kv: options.kv,
 		create,
 		connect,
+		connectLocal,
 		mount,
 	};
 }
@@ -884,7 +974,12 @@ function connectTableChildDocs<TTableDefinitions extends TableDefinitions>({
 	ydoc: Y.Doc;
 	tables: WorkspaceTables<TTableDefinitions>;
 	definitions: TTableDefinitions;
-	connection: ConnectionConfig;
+	/**
+	 * Connection coordinates, or `null` for the bare local-first wiring
+	 * (`connectLocal()`): guid-named IndexedDB plus the cross-tab channel,
+	 * no relay.
+	 */
+	connection: ConnectionConfig | null;
 }): ConnectedTables<TTableDefinitions> {
 	const connectedTables: Record<string, unknown> = {};
 
@@ -919,10 +1014,18 @@ function connectTableChildDocs<TTableDefinitions extends TableDefinitions>({
 			const cache = createDisposableCache((rowId: string) => {
 				const guid = guidEntry.guid(rowId);
 				const bodyDoc = new Y.Doc({ guid, gc: true });
-				// A body is a doc like any other; `connectDoc` is the same wiring the
-				// root uses. No action registry: the body's only writers are the
-				// `attach*` layout and the server generation worker streaming in.
-				const { idb } = connectDoc(bodyDoc, connection);
+				// A body is a doc like any other: connected, `connectDoc` is the same
+				// wiring the root uses (no action registry: the body's only writers
+				// are the `attach*` layout and the server generation worker streaming
+				// in); bare, it gets the same guid-named IDB + cross-tab channel the
+				// bare root gets.
+				let idb: ReturnType<typeof attachIndexedDb>;
+				if (connection) {
+					({ idb } = connectDoc(bodyDoc, connection));
+				} else {
+					attachBroadcastChannel(bodyDoc);
+					idb = attachIndexedDb(bodyDoc);
+				}
 				// Recency: a local edit bumps a column on the row. One observer per
 				// shared body Y.Doc (built here, not per `open`), torn down on
 				// eviction. `tx.local` scopes it to local edits, so remote/hydrated

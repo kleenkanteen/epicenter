@@ -29,4 +29,6 @@ const state = createHoneycrispState(browser);
 export const honeycrisp = {
 	...browser,
 	state,
+	/** Resolves when local persistence has hydrated the root doc. */
+	whenReady: browser.idb.whenLoaded,
 };

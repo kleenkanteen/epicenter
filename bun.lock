@@ -601,6 +601,7 @@
         "@tanstack/svelte-query": "catalog:",
         "arktype": "catalog:",
         "wellcrafted": "catalog:",
+        "yjs": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
