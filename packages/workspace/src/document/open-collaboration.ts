@@ -165,9 +165,9 @@ export function openCollaboration<TActions extends ActionRegistry>(
 		for (const listener of presenceListeners) listener(remotePeers);
 	}
 
-	// This node publishes only its identity in presence.
-	// Actions stay local (`collaboration.actions`); the wire carries no action
-	// manifest (ADR-0073 deleted the in-room dispatch subsystem).
+	// This node publishes only its identity in presence. Actions stay local; the
+	// wire carries no action manifest (ADR-0073 deleted the in-room dispatch
+	// subsystem).
 	const presencePublishFrame = JSON.stringify({
 		type: 'presence_publish',
 		agentId: config.agentId,

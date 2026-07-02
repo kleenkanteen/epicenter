@@ -132,8 +132,8 @@ export class Room extends DurableObject {
 	 * (from auth) and `nodeId` (from the client query, presence-checked
 	 * at the route boundary) onto the URL before forwarding. Together they
 	 * form the {@link Connection} stamped on the socket attachment for the
-	 * lifetime of the connection. `userId` is what presence carries to
-	 * peers; `nodeId` is the address the relay channel routes frames to.
+	 * lifetime of the connection. `nodeId` is the participant identity presence
+	 * carries to peers.
 	 *
 	 * Cancels any pending compaction alarm: a new client just connected,
 	 * so compacting now would be wasteful.
