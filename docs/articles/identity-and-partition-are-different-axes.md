@@ -103,7 +103,9 @@ instance is the repository name.
 
 `perUser` / `instance` is not perfectly symmetric. One name describes derivation; the other names the deployment topology.
 
-That asymmetry is acceptable because the two sides are not equal product knobs. `perUser` is a reusable partition rule for hosted multi-tenancy. `instance` is the self-hosted composition ADR-0075 settles on. The pair reads well at the only call sites that matter:
+Read a level deeper and the pair is more symmetric than it looks. Both arms answer the same question: who owns the partition? Under `perUser` the owner is each authenticated user. Under `instance` the owner is the instance itself: no single human owns a self-hosted box's data, and the durable record agrees, because the partition's owner id is literally the string `instance` (`INSTANCE_OWNER_ID`, `/api/owners/instance/...`). The rule name, the `kind` discriminator, the owner id, and the URL segment are the same word on purpose. Renaming the rule to `pinned`, `fixed`, or `singlePartition` would reintroduce a translation step between the name a maintainer reads and the string the storage layer writes.
+
+The surface asymmetry that remains is acceptable because the two sides are not equal product knobs. `perUser` is a reusable partition rule for hosted multi-tenancy. `instance` is the self-hosted composition ADR-0075 settles on. The pair reads well at the only call sites that matter:
 
 ```ts
 // Epicenter Cloud
