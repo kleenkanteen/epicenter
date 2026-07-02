@@ -16,7 +16,7 @@
 >
 > **Regenerate (deterministic per ref set, lossless):** `bun scripts/generate-spec-history.ts`. The totals track the refs this clone can see; `--all` is deliberate so the timeline recovers specs that only lived on unmerged or deleted branches.
 
-**1324 specs ever** (566 still in tree, 758 removed).
+**1324 specs ever** (563 still in tree, 761 removed).
 
 
 ## 2026
@@ -254,7 +254,7 @@
 | 2026-05-19 | shared-result-test-helpers | in tree | specs/20260519T080853-shared-result-test-helpers.md |
 | 2026-05-18 | skill-discovery-reference-decomposition | removed | specs/20260518T233702-skill-discovery-reference-decomposition.md |
 | 2026-05-18 | theark-marp-shortform-content-engine | in tree | specs/20260518T160639-theark-marp-shortform-content-engine.md |
-| 2026-05-18 | live-device-dispatch | in tree | specs/20260518T000000-live-device-dispatch.md |
+| 2026-05-18 | live-device-dispatch | removed | specs/20260518T000000-live-device-dispatch.md |
 | 2026-05-17 | portal-and-auth-collapse | in tree | specs/20260517T230000-portal-and-auth-collapse.md |
 | 2026-05-17 | cli-api-base-url-configuration | removed | specs/20260517T212330-cli-api-base-url-configuration.md |
 | 2026-05-16 | hosted-apps-with-optional-daemon-extensions | in tree | specs/20260516T130000-hosted-apps-with-optional-daemon-extensions.md |
@@ -264,7 +264,7 @@
 | 2026-05-15 | auth-post-oob-collapse-audit | in tree | specs/20260515T010000-auth-post-oob-collapse-audit.md |
 | 2026-05-15 | subject-owner-boundary | removed | specs/20260515T172411-subject-owner-boundary.md |
 | 2026-05-15 | logger-vision | removed | specs/20260515T081145-logger-vision.md |
-| 2026-05-15 | daemon-run-ownership-map | in tree | specs/20260515T120000-daemon-run-ownership-map.md |
+| 2026-05-15 | daemon-run-ownership-map | removed | specs/20260515T120000-daemon-run-ownership-map.md |
 | 2026-05-15 | daemon-run-clean-break | removed | specs/20260515T140000-daemon-run-clean-break.md |
 | 2026-05-15 | auth-canonical-path-audit | in tree | specs/20260515T010000-auth-canonical-path-audit.md |
 | 2026-05-15 | latest-spec-orchestration-guide | in tree | specs/20260515T000000-latest-spec-orchestration-guide.md |
@@ -294,7 +294,7 @@
 | 2026-05-13 | schema-on-npm-runtime-on-jsrepo | in tree | specs/20260513T190000-schema-on-npm-runtime-on-jsrepo.md |
 | 2026-05-13 | explicit-app-constructor-layers | in tree | specs/20260513T180000-explicit-app-constructor-layers.md |
 | 2026-05-13 | collaboration-runtime-protocol-plane | removed | specs/20260513T113208-collaboration-runtime-protocol-plane.md |
-| 2026-05-13 | open-workspace-clean-break | in tree | specs/20260513T083755-open-workspace-clean-break.md |
+| 2026-05-13 | open-workspace-clean-break | removed | specs/20260513T083755-open-workspace-clean-break.md |
 | 2026-05-12 | source-installed-app-runtime-vision | in tree | specs/20260512T234944-source-installed-app-runtime-vision.md |
 | 2026-05-12 | cli-daemon-command-clean-break | removed | specs/20260512T222257-cli-daemon-command-clean-break.md |
 | 2026-05-12 | generic-yjs-sync-rooms-and-checkpoints | removed | specs/20260512T230000-generic-yjs-sync-rooms-and-checkpoints.md |
