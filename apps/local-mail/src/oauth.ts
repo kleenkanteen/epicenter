@@ -83,7 +83,11 @@ const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 /** Hand-built server metadata; Google's OAuth endpoints are known constants. */
 function authServer(config: AppConfig): oauth.AuthorizationServer {
 	return {
-		issuer: new URL(config.tokenUrl).origin,
+		// Google hosts the authorization issuer at accounts.google.com while the
+		// token endpoint lives at oauth2.googleapis.com. The callback may include
+		// `iss=https://accounts.google.com`; oauth4webapi validates it against
+		// this field before the token exchange.
+		issuer: new URL(config.authorizeUrl).origin,
 		authorization_endpoint: config.authorizeUrl,
 		token_endpoint: config.tokenUrl,
 	};

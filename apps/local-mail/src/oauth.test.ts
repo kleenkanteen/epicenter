@@ -86,7 +86,7 @@ test('runAuthorizationFlow exchanges a PKCE callback and stores the connected Gm
 	const flow = runAuthorizationFlow(
 		config({
 			apiBase: `http://127.0.0.1:${apiServer.port}`,
-			authorizeUrl: `http://127.0.0.1:${tokenServer.port}/auth`,
+			authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
 			tokenUrl: `http://127.0.0.1:${tokenServer.port}/token`,
 		}),
 		{
@@ -109,7 +109,9 @@ test('runAuthorizationFlow exchanges a PKCE callback and stores the connected Gm
 	const state = url.searchParams.get('state');
 	expect(redirectUri).not.toBeNull();
 	expect(state).not.toBeNull();
-	await fetch(`${redirectUri}?code=auth-code-123&state=${state}`);
+	await fetch(
+		`${redirectUri}?code=auth-code-123&state=${state}&iss=https%3A%2F%2Faccounts.google.com`,
+	);
 
 	const { data: token, error } = await flow;
 	expect(error).toBeNull();
