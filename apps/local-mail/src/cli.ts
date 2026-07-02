@@ -30,7 +30,7 @@ const HELP = `local-mail: keep a private local copy of Gmail for local tools and
 Usage:
   local-mail connect [--client-id <id>]
   local-mail seed-token <accountEmail> <refreshToken>
-  local-mail sync [--full] [--watch[=intervalMs]]
+  local-mail sync [--full] [--watch [intervalMs]]
   local-mail status
   local-mail query "<sql>"
   local-mail mcp
@@ -46,7 +46,7 @@ Commands:
 Options:
   --client-id <id>      Override GMAIL_CLIENT_ID for connect.
   --full                Force a full pull on the first sync pass.
-  --watch[=intervalMs]  Keep syncing on a loop. Default: 30000.
+  --watch [intervalMs]  Keep syncing on a loop. Default: 30000.
   -h, --help            Show this help.
   -v, --version         Show version.
 
@@ -103,11 +103,19 @@ export function parseArgs(argv: string[]): ParsedArgs {
 			case '--full':
 				args.full = true;
 				break;
-			case '--watch':
+			case '--watch': {
 				args.watch = true;
-				if (inlineValue !== undefined)
+				// Accept both --watch=5000 and --watch 5000; the space form was
+				// previously swallowed into positionals and silently ignored.
+				const next = argv[i + 1];
+				if (inlineValue !== undefined) {
 					args.watchIntervalMs = parseWatchInterval(inlineValue);
+				} else if (next !== undefined && !next.startsWith('-')) {
+					i += 1;
+					args.watchIntervalMs = parseWatchInterval(next);
+				}
 				break;
+			}
 			case '-h':
 			case '--help':
 				args.help = true;
@@ -194,6 +202,12 @@ function printOutcome(db: MailDb, outcome: SyncOutcome): void {
 }
 
 async function runSync(args: ParsedArgs): Promise<number> {
+	if (args.positionals.length > 0) {
+		console.error(
+			`sync takes no positional arguments (got: ${args.positionals.join(' ')}).`,
+		);
+		return 1;
+	}
 	const config = loadConfig();
 	const store = createFileTokenStore(config.credentialsPath);
 	const { data: accountEmail, error: accountError } = await resolveAccount(
@@ -237,17 +251,21 @@ async function runSync(args: ParsedArgs): Promise<number> {
 	console.log(`Watching every ${intervalMs}ms. Ctrl-C to stop.`);
 	const controller = new AbortController();
 	process.on('SIGINT', () => controller.abort());
+	// The exit code reflects the LAST pass, so a supervisor restarting on
+	// nonzero sees current health, not a transient failure hours ago.
+	let lastPassFailed = false;
 	await runSyncLoop(deps, {
 		forceFull: args.full,
 		intervalMs,
 		signal: controller.signal,
 		onPass: (outcome, pass) => {
+			lastPassFailed = outcome.failure !== null;
 			console.log(`\n=== pass ${pass} ===`);
 			printOutcome(db, outcome);
 		},
 	});
 	db.close();
-	return 0;
+	return lastPassFailed ? 1 : 0;
 }
 
 async function runQuery(args: ParsedArgs): Promise<number> {

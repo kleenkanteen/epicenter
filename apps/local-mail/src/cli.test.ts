@@ -29,6 +29,26 @@ test('--watch rejects zero milliseconds', () => {
 	);
 });
 
+test('--watch accepts a space-separated interval', () => {
+	const args = parseArgs(['sync', '--watch', '5000']);
+	expect(args.watch).toBe(true);
+	expect(args.watchIntervalMs).toBe(5000);
+	expect(args.positionals).toEqual([]);
+});
+
+test('--watch space form validates the value instead of swallowing it', () => {
+	expect(() => parseArgs(['sync', '--watch', '30s'])).toThrow(
+		'Invalid --watch interval "30s"',
+	);
+});
+
+test('--watch followed by another flag stays flag-only', () => {
+	const args = parseArgs(['sync', '--watch', '--full']);
+	expect(args.watch).toBe(true);
+	expect(args.full).toBe(true);
+	expect(args.watchIntervalMs).toBeUndefined();
+});
+
 test('status resolves the sole stored account and prints JSON', async () => {
 	const dir = mkdtempSync(join(tmpdir(), 'local-mail-cli-test-'));
 	const token: TokenSet = {
