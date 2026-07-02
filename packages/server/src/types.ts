@@ -10,7 +10,6 @@
 import type { AuthUser, UserId } from '@epicenter/auth';
 import type { OAuthError } from '@epicenter/constants/oauth-errors';
 import type { OwnerId } from '@epicenter/identity';
-import type { ActionManifest } from '@epicenter/workspace';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Context } from 'hono';
 import type { Result } from 'wellcrafted/result';
@@ -62,10 +61,6 @@ export type ResolveUser<E extends Env = Env> = (
  * receivers can render an "online since" affordance and tie-break multi-tab
  * same-node (newest wins).
  *
- * `actions` is the decommissioned action manifest (removal wave 1: optional
- * everywhere, senders still emit `{}` so deployed readers whose validators
- * require the field keep validating; delete after the next relay deploy).
- *
  * In the per-user topology every connection to a given DO shares the same
  * `userId` (the DO name partitions by user). On an instance every connection
  * resolves to the one pinned partition; the DO is owner-blind and never branches
@@ -75,7 +70,6 @@ export type Connection = {
 	userId: UserId;
 	nodeId: string;
 	connectedAt: number;
-	actions?: ActionManifest;
 	/**
 	 * The catalog agent this connection answers as (ADR-0025), set from the
 	 * node's `presence_publish` and mirrored on the wire so a picker can decorate

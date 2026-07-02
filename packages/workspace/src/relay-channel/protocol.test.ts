@@ -25,7 +25,7 @@ describe('checkChannelFrame', () => {
 	const invalid: unknown[] = [
 		// not a channel frame at all (presence text)
 		{ type: 'presence', peers: [] },
-		{ type: 'presence_publish', actions: {} },
+		{ type: 'presence_publish' },
 		// channel_end was removed: the floor is reset-only
 		{ type: 'channel_end', id: 'c1' },
 		// missing required fields

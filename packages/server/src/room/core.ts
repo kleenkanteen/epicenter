@@ -233,9 +233,6 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 			seen.set(attachment.nodeId, {
 				nodeId: attachment.nodeId,
 				connectedAt: attachment.connectedAt,
-				// Decommissioned; `?? {}` keeps the wire field present for deployed
-				// readers whose validators still require it (removal wave 1).
-				actions: attachment.actions ?? {},
 				agentId: attachment.agentId,
 				exposedRoutes: attachment.exposedRoutes,
 			});
@@ -339,12 +336,12 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 	});
 
 	/**
-	 * Node -> relay: publish this socket's action manifest and optional agent
-	 * designation. The relay stores both against the connection attachment,
-	 * persists them via `serializeAttachment` when the runtime supports
-	 * hibernation, and rebroadcasts presence so peers see the update. A malformed
-	 * payload is dropped silently: the relay never trusts client input but never
-	 * tears down a sync socket for one bad manifest publish either.
+	 * Node -> relay: publish this socket's presence identity (optional agent
+	 * designation and exposed route names). The relay stores both against the
+	 * connection attachment, persists them via `serializeAttachment` when the
+	 * runtime supports hibernation, and rebroadcasts presence so peers see the
+	 * update. A malformed payload is dropped silently: the relay never trusts
+	 * client input but never tears down a sync socket for one bad publish either.
 	 */
 	function handlePresencePublish(socket: RoomSocket, frame: unknown): void {
 		if (!checkPresencePublishFrame.Check(frame)) return;
@@ -352,7 +349,6 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 		if (!existing) return;
 		const updated: Connection = {
 			...existing,
-			actions: frame.actions,
 			agentId: frame.agentId,
 			exposedRoutes: frame.exposedRoutes,
 		};
@@ -438,8 +434,8 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 		 *   or `Bun.serve` upgrade) before calling this.
 		 * @param connection - The connection attachment URL-stamped at
 		 *   upgrade. `nodeId` is the relay routing address; `userId`
-		 *   is the auth principal; `connectedAt` and `actions` are mirrored
-		 *   on the wire so receivers can render node affordances.
+		 *   is the auth principal; `connectedAt` is mirrored on the
+		 *   wire so receivers can render node affordances.
 		 */
 		addConnection(socket: RoomSocket, connection: Connection): void {
 			connections.set(socket, connection);

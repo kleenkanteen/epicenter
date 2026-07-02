@@ -89,9 +89,9 @@ export type OpenCollaborationConfig<TActions extends ActionRegistry> = {
 	/**
 	 * Injected local action registry. The caller remains the registry owner;
 	 * Collaboration validates the action keys and exposes it as
-	 * `collaboration.actions`, the local callable surface. It is no longer
-	 * published in presence (the action manifest is decommissioned). Pass `{}`
-	 * for content docs and consume-only participants.
+	 * `collaboration.actions`, the local callable surface. It is never
+	 * published in presence. Pass `{}` for content docs and consume-only
+	 * participants.
 	 */
 	actions: TActions;
 	/**
@@ -181,13 +181,10 @@ export function openCollaboration<TActions extends ActionRegistry>(
 	}
 
 	// This node publishes only its identity and exposed-route names in presence.
-	// The legacy action manifest is decommissioned: nothing reads `Peer.actions`
-	// once the in-room dispatch subsystem was deleted (ADR-0073). The `actions`
-	// wire field is optional now, but still sent empty during the compatibility
-	// wave so older readers that require it keep validating.
+	// Actions stay local (`collaboration.actions`); the wire carries no action
+	// manifest (ADR-0073 deleted the in-room dispatch subsystem).
 	const presencePublishFrame = JSON.stringify({
 		type: 'presence_publish',
-		actions: {},
 		agentId: config.agentId,
 		...(config.exposedRoutes !== undefined && {
 			exposedRoutes: config.exposedRoutes,

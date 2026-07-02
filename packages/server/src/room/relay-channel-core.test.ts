@@ -60,7 +60,6 @@ function conn(nodeId: string, userId = 'u1'): Connection {
 		userId: userId as Connection['userId'],
 		nodeId,
 		connectedAt: Date.now(),
-		actions: {},
 	};
 }
 

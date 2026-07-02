@@ -7,10 +7,11 @@
  * the latest list verbatim: there is no delta protocol and no client-side
  * reassembly, the frame IS the state.
  *
- * The `actions` manifest field is decommissioned: it is retained on the wire
- * (always `{}`) for version-skew safety now that the in-room dispatch subsystem
- * is deleted (ADR-0073), but nothing reads it. The live presence payload is each
- * peer's `nodeId`, `connectedAt`, `agentId`, and `exposedRoutes`.
+ * Presence is liveness and routing identity, not capability advertisement: the
+ * payload is each peer's `nodeId`, `connectedAt`, `agentId`, and
+ * `exposedRoutes`. The legacy action-manifest field was deleted with the
+ * in-room dispatch subsystem (ADR-0073); actions live in the local registry
+ * (`collaboration.actions`), never on the wire.
  *
  * Shared by the relay (`packages/server/src/room/core.ts`, the sender) and
  * the client (`open-collaboration.ts`, the reader).
@@ -23,26 +24,12 @@
 
 import Type, { type Static } from 'typebox';
 import { Compile } from 'typebox/compile';
-import { ActionMetaSchema } from '../shared/actions.js';
-
-/**
- * Wire schema for an action manifest. `Record<string, ActionMeta>` where each
- * value is the metadata-only projection of a callable `Action`. Retained for
- * wire compatibility but no longer populated: producers send `{}` (see the
- * module header). Reuses `ActionMetaSchema` so the type stays valid.
- */
-export const ActionManifestSchema = Type.Record(
-	Type.String(),
-	ActionMetaSchema,
-);
 
 /**
  * One peer's entry on the wire.
  *
  * `nodeId` is the peer's relay routing address; `connectedAt` lets receivers
- * render an "online since" affordance. `actions` is decommissioned (always
- * `{}`, retained for wire compatibility; see the module header). `agentId` is
- * the catalog agent
+ * render an "online since" affordance. `agentId` is the catalog agent
  * this peer answers as (ADR-0025), present only on a peer that mounted with one
  * (a resident daemon) and absent for ordinary participants. It is the join key
  * a picker uses to decorate a durable agent as live: the catalog owns the
@@ -51,13 +38,6 @@ export const ActionManifestSchema = Type.Record(
 export const PeerSchema = Type.Object({
 	nodeId: Type.String(),
 	connectedAt: Type.Number(),
-	/**
-	 * Decommissioned (see the module header). Optional as the first wave of
-	 * removal: readers no longer require it, but senders keep emitting `{}`
-	 * until every deployed reader accepts its absence. Delete outright once the
-	 * relay deploy after this change has shipped.
-	 */
-	actions: Type.Optional(ActionManifestSchema),
 	agentId: Type.Optional(Type.String()),
 	/**
 	 * The relay-floor route names this peer serves with `relay: 'exposed'` (a
@@ -89,14 +69,11 @@ export type PresenceFrame = Static<typeof PresenceFrameSchema>;
  * Client -> server: publish this node's presence identity (its agent
  * designation and exposed route names). The relay stores it against the sending
  * socket's nodeId and rebroadcasts presence so peers see the update. Sent once
- * on connect. `actions` is decommissioned and sent as `{}` (see the module
- * header). `agentId` is set only by a peer that mounted as a resident agent
+ * on connect. `agentId` is set only by a peer that mounted as a resident agent
  * (ADR-0025); ordinary participants omit it.
  */
 export const PresencePublishFrameSchema = Type.Object({
 	type: Type.Literal('presence_publish'),
-	/** Decommissioned; optional as removal wave 1 (see {@link PeerSchema.actions}). */
-	actions: Type.Optional(ActionManifestSchema),
 	agentId: Type.Optional(Type.String()),
 	/** This node's relay-exposed route names; see {@link PeerSchema.exposedRoutes}. */
 	exposedRoutes: Type.Optional(Type.Array(Type.String())),
@@ -111,6 +88,6 @@ export const checkPresenceFrame = Compile(PresenceFrameSchema);
 
 /**
  * Pre-compiled validator for inbound `presence_publish` frames. Used by the
- * relay to validate peer-supplied manifests before storing.
+ * relay to validate a peer's published identity before storing.
  */
 export const checkPresencePublishFrame = Compile(PresencePublishFrameSchema);

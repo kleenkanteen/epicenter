@@ -170,13 +170,12 @@ export class Room extends DurableObject {
 		this.ctx.acceptWebSocket(server);
 
 		// Stash the connection attachment so presence survives hibernation. The
-		// node's published action manifest arrives later via `presence_publish`
-		// and the core re-serializes the attachment when it does.
+		// node's published identity arrives later via `presence_publish` and the
+		// core re-serializes the attachment when it does.
 		const attachment: Connection = {
 			userId,
 			nodeId,
 			connectedAt: Date.now(),
-			actions: {},
 		};
 		server.serializeAttachment(attachment);
 
