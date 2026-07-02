@@ -173,7 +173,7 @@ export function mailDbPath(dataDir: string, accountEmail: string): string {
 	return join(dataDir, accountEmail, 'mail.db');
 }
 
-export type MailDbLocation = { dataDir: string; accountEmail: string };
+type MailDbLocation = { dataDir: string; accountEmail: string };
 
 export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 	const path = mailDbPath(dataDir, accountEmail);
@@ -401,8 +401,6 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 		},
 	};
 }
-
-export type MailDbReader = ReturnType<typeof openMailDbReadonly>;
 
 /**
  * The read-only view of a mirror file, for surfaces that must never write and

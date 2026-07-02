@@ -1,6 +1,6 @@
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import { type AppConfig, loadConfig } from './config.ts';
-import { type MailDb, openMailDb } from './db.ts';
+import { openMailDb } from './db.ts';
 import { createGmailClient } from './gmail-client.ts';
 import type { SyncDeps } from './sync.ts';
 import { createTokenManager } from './token-manager.ts';
@@ -27,7 +27,6 @@ export type LocalMailRuntime = {
 	config: AppConfig;
 	store: TokenStore;
 	accountEmail: string;
-	now: () => number;
 };
 
 export async function openLocalMailRuntime(): Promise<
@@ -37,12 +36,10 @@ export async function openLocalMailRuntime(): Promise<
 	const store = createFileTokenStore(config.credentialsPath);
 	const { data: accountEmail, error } = await resolveAccount(config, store);
 	if (error) return Err(error);
-	return Ok({ config, store, accountEmail, now: () => Date.now() });
+	return Ok({ config, store, accountEmail });
 }
 
-export type SyncSession = {
-	/** The writer handle, exposed for post-pass reporting (row counts). */
-	db: MailDb;
+type SyncSession = {
 	deps: SyncDeps;
 	close(): void;
 };
@@ -63,7 +60,8 @@ export async function openSyncSession(
 		syncLog?: (message: string) => void;
 	} = {},
 ): Promise<Result<SyncSession, { message: string }>> {
-	const { config, store, accountEmail, now } = runtime;
+	const { config, store, accountEmail } = runtime;
+	const now = () => Date.now();
 	const token = await store.get(accountEmail);
 	if (!token) {
 		return Err({
@@ -74,7 +72,6 @@ export async function openSyncSession(
 	const client = createGmailClient({ tokens, config, log: gmailLog });
 	const db = openMailDb({ dataDir: config.dataDir, accountEmail });
 	return Ok({
-		db,
 		deps: { db, client, config, now, log: syncLog },
 		close: () => db.close(),
 	});

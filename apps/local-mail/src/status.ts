@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs';
-import type { AppConfig } from './config.ts';
 import { mailDbPath, openMailDbReadonly } from './db.ts';
-import type { TokenStore } from './token-store.ts';
+import type { LocalMailRuntime } from './runtime.ts';
 import { isAccessTokenExpired } from './tokens.ts';
 
 export type MailStatus = {
@@ -22,11 +21,7 @@ export async function readMailStatus({
 	config,
 	accountEmail,
 	store,
-}: {
-	config: AppConfig;
-	accountEmail: string;
-	store: TokenStore;
-}): Promise<MailStatus> {
+}: LocalMailRuntime): Promise<MailStatus> {
 	const token = await store.get(accountEmail);
 	const base = {
 		accountEmail,

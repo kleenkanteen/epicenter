@@ -78,7 +78,7 @@ export type GmailClient = {
 	>;
 };
 
-export type GmailClientDeps = {
+type GmailClientDeps = {
 	config: AppConfig;
 	tokens: TokenManager;
 	log?: (message: string) => void;

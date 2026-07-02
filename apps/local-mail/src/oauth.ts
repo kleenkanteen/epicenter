@@ -81,7 +81,7 @@ export type OAuthError = InferErrors<typeof OAuthError>;
 
 type GrantResult = Promise<Result<TokenSet, OAuthError | TokenGrantError>>;
 
-export type AuthorizationFlowOptions = {
+type AuthorizationFlowOptions = {
 	now: () => number;
 	openBrowser?: (url: string) => void;
 	log?: (message: string) => void;

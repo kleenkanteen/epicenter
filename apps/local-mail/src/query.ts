@@ -37,23 +37,22 @@ export function queryMail({
 }): Result<MailQueryResult, MailQueryError> {
 	const path = mailDbPath(dataDir, accountEmail);
 	if (!existsSync(path)) return MailQueryError.NoMirror({ path });
+	let db: ReturnType<typeof openMailDbReadonly> | undefined;
 	try {
-		const db = openMailDbReadonly({ dataDir, accountEmail });
-		try {
-			const rows: Record<string, unknown>[] = [];
-			let truncated = false;
-			for (const row of db.raw.query(sql).iterate()) {
-				if (rows.length === MAX_ROWS) {
-					truncated = true;
-					break;
-				}
-				rows.push(row as Record<string, unknown>);
+		db = openMailDbReadonly({ dataDir, accountEmail });
+		const rows: Record<string, unknown>[] = [];
+		let truncated = false;
+		for (const row of db.raw.query(sql).iterate()) {
+			if (rows.length === MAX_ROWS) {
+				truncated = true;
+				break;
 			}
-			return Ok({ rows, rowCount: rows.length, truncated });
-		} finally {
-			db.close();
+			rows.push(row as Record<string, unknown>);
 		}
+		return Ok({ rows, rowCount: rows.length, truncated });
 	} catch (cause) {
 		return MailQueryError.QueryFailed({ cause });
+	} finally {
+		db?.close();
 	}
 }

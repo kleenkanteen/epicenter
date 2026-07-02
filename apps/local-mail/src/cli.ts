@@ -218,7 +218,7 @@ async function runSync(args: ParsedArgs): Promise<number> {
 
 	if (!args.watch) {
 		const outcome = await syncMailbox(session.deps, { forceFull: args.full });
-		printOutcome(session.db, outcome);
+		printOutcome(session.deps.db, outcome);
 		const failed = outcome.failure !== null;
 		session.close();
 		return failed ? 1 : 0;
@@ -238,7 +238,7 @@ async function runSync(args: ParsedArgs): Promise<number> {
 		onPass: (outcome, pass) => {
 			lastPassFailed = outcome.failure !== null;
 			console.log(`\n=== pass ${pass} ===`);
-			printOutcome(session.db, outcome);
+			printOutcome(session.deps.db, outcome);
 		},
 	});
 	session.close();

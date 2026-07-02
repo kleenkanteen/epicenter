@@ -12,9 +12,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const FULL_PULL_GET_CHUNK_SIZE = 8;
 
 export type SyncMode = 'FULL' | 'INCREMENTAL';
-export type ModeDecision = { mode: SyncMode; reason: string };
+type ModeDecision = { mode: SyncMode; reason: string };
 
-export type ModeInputs = {
+type ModeInputs = {
 	forceFull: boolean;
 	realmState: RealmState;
 	now: number;
@@ -416,7 +416,7 @@ export async function syncMailbox(
 	}
 }
 
-export type SyncLoopOptions = {
+type SyncLoopOptions = {
 	forceFull: boolean;
 	intervalMs: number;
 	/** Aborting the signal stops the loop after the current pass or sleep. */
