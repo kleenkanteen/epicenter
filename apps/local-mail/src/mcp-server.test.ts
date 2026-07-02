@@ -291,3 +291,27 @@ test('mcp: failed sync pass returns isError instead of a successful outcome payl
 	apiServer.stop(true);
 	tmp.cleanup();
 });
+
+test('mcp: exits at startup when no account is connected', async () => {
+	const tmp = tempDir();
+	const proc = Bun.spawn([process.execPath, BIN, 'mcp'], {
+		env: {
+			...process.env,
+			LOCAL_MAIL_DIR: tmp.dir,
+			LOCAL_MAIL_ACCOUNT: '',
+			LOCAL_MAIL_TOKEN_FILE: '',
+		},
+		stdin: 'pipe',
+		stdout: 'pipe',
+		stderr: 'pipe',
+	});
+	const exitCode = await proc.exited;
+	const stderr = await new Response(proc.stderr).text();
+	const stdout = await new Response(proc.stdout).text();
+
+	expect(exitCode).toBe(1);
+	expect(stderr).toContain('No Gmail account connected');
+	// stdout is the JSON-RPC channel; a startup failure must not touch it.
+	expect(stdout).toBe('');
+	tmp.cleanup();
+});

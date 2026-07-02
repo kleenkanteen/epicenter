@@ -23,9 +23,12 @@
  * Error model (MCP's two channels):
  *  - unknown tool / invalid arguments -> `throw new McpError(...)`, a JSON-RPC
  *    protocol error (the call itself was malformed).
- *  - a tool that ran and failed (bad SQL, no account, a Gmail sync failure) ->
- *    a normal result with `isError: true` and a text message, so the model can
- *    read it and self-correct.
+ *  - a tool that ran and failed (bad SQL, a missing token, a Gmail sync
+ *    failure) -> a normal result with `isError: true` and a text message, so
+ *    the model can read it and self-correct.
+ *
+ * No connected account is a startup failure (stderr, exit 1), not a per-call
+ * error: the runtime freezes one account identity for the whole session.
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -40,27 +43,15 @@ import {
 import { type Static, type TObject, Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { Err, Ok, type Result } from 'wellcrafted/result';
-import type { AppConfig } from './config.ts';
-import { openMailDb } from './db.ts';
-import { createGmailClient } from './gmail-client.ts';
 import { queryMail } from './query.ts';
+import {
+	type LocalMailRuntime,
+	openLocalMailRuntime,
+	openSyncSession,
+} from './runtime.ts';
 import { readMailStatus } from './status.ts';
 import { syncMailbox } from './sync.ts';
-import { createTokenManager } from './token-manager.ts';
-import {
-	createFileTokenStore,
-	resolveAccount,
-	type TokenStore,
-} from './token-store.ts';
 import { VERSION } from './cli.ts';
-import { loadConfig } from './config.ts';
-
-type ToolContext = {
-	config: AppConfig;
-	accountEmail: string;
-	store: TokenStore;
-	now: () => number;
-};
 
 type ToolOutcome = Result<unknown, { message: string }>;
 
@@ -71,7 +62,7 @@ type ToolDescriptor = {
 	input: TObject;
 	tier: 'read' | 'write';
 	run: (
-		ctx: ToolContext,
+		ctx: LocalMailRuntime,
 		args: Record<string, unknown>,
 	) => Promise<ToolOutcome>;
 };
@@ -82,7 +73,7 @@ function defineMcpTool<S extends TObject>(tool: {
 	description: string;
 	input: S;
 	tier: 'read' | 'write';
-	run: (ctx: ToolContext, args: Static<S>) => Promise<ToolOutcome>;
+	run: (ctx: LocalMailRuntime, args: Static<S>) => Promise<ToolOutcome>;
 }): ToolDescriptor {
 	return { ...tool, run: (ctx, args) => tool.run(ctx, args as Static<S>) };
 }
@@ -115,13 +106,7 @@ const TOOLS: ToolDescriptor[] = [
 		input: Type.Object({}),
 		tier: 'read',
 		async run(ctx) {
-			return Ok(
-				await readMailStatus({
-					config: ctx.config,
-					accountEmail: ctx.accountEmail,
-					store: ctx.store,
-				}),
-			);
+			return Ok(await readMailStatus(ctx));
 		},
 	}),
 	defineMcpTool({
@@ -138,28 +123,12 @@ const TOOLS: ToolDescriptor[] = [
 		}),
 		tier: 'write',
 		async run(ctx, args) {
-			const token = await ctx.store.get(ctx.accountEmail);
-			if (!token) {
-				return Err({
-					message: `No token stored for ${ctx.accountEmail}. Run "local-mail connect" first.`,
-				});
-			}
-			const tokens = createTokenManager({
-				config: ctx.config,
-				store: ctx.store,
-				token,
-				now: ctx.now,
-			});
-			const client = createGmailClient({ config: ctx.config, tokens });
-			const db = openMailDb({
-				dataDir: ctx.config.dataDir,
-				accountEmail: ctx.accountEmail,
-			});
+			const { data: session, error } = await openSyncSession(ctx);
+			if (error) return Err(error);
 			try {
-				const outcome = await syncMailbox(
-					{ db, client, config: ctx.config, now: ctx.now },
-					{ forceFull: args.full ?? false },
-				);
+				const outcome = await syncMailbox(session.deps, {
+					forceFull: args.full ?? false,
+				});
 				if (outcome.failure) {
 					return Err({
 						message: `Sync failed (${outcome.failure.name}: ${outcome.failure.message}). The cursor did not advance.`,
@@ -167,7 +136,7 @@ const TOOLS: ToolDescriptor[] = [
 				}
 				return Ok(outcome);
 			} finally {
-				db.close();
+				session.close();
 			}
 		},
 	}),
@@ -184,9 +153,16 @@ function toCallResult({ data, error }: ToolOutcome): CallToolResult {
 }
 
 export async function runMcpServer(): Promise<number> {
-	const config = loadConfig();
-	const store = createFileTokenStore(config.credentialsPath);
-	const now = () => Date.now();
+	// The account identity is frozen at server start (one runtime for the
+	// whole session): connecting another account mid-session must not flip
+	// which mailbox existing tools talk to. A host that wants a newly
+	// connected account restarts the server. No account at all fails fast on
+	// stderr rather than serving tools that can only error.
+	const { data: runtime, error: runtimeError } = await openLocalMailRuntime();
+	if (runtimeError) {
+		console.error(runtimeError.message);
+		return 1;
+	}
 
 	const server = new Server(
 		{ name: 'local-mail', version: VERSION },
@@ -224,23 +200,7 @@ export async function runMcpServer(): Promise<number> {
 				`Invalid arguments for "${tool.name}": ${detail}`,
 			);
 		}
-		const { data: accountEmail, error: accountError } = await resolveAccount(
-			config,
-			store,
-		);
-		if (accountError) {
-			return {
-				content: [{ type: 'text', text: accountError.message }],
-				isError: true,
-			};
-		}
-		const ctx: ToolContext = {
-			config,
-			accountEmail,
-			store,
-			now,
-		};
-		return toCallResult(await tool.run(ctx, callArgs));
+		return toCallResult(await tool.run(runtime, callArgs));
 	});
 
 	const transport = new StdioServerTransport();

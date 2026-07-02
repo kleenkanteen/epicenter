@@ -1,14 +1,12 @@
 import { loadConfig } from './config.ts';
 import type { MailDb } from './db.ts';
-import { openMailDb } from './db.ts';
-import { createGmailClient } from './gmail-client.ts';
 import { runMcpServer } from './mcp.ts';
 import { redeemRefreshToken, runAuthorizationFlow } from './oauth.ts';
 import { queryMail } from './query.ts';
+import { openLocalMailRuntime, openSyncSession } from './runtime.ts';
 import { readMailStatus } from './status.ts';
 import { runSyncLoop, type SyncOutcome, syncMailbox } from './sync.ts';
-import { createTokenManager } from './token-manager.ts';
-import { createFileTokenStore, resolveAccount } from './token-store.ts';
+import { createFileTokenStore } from './token-store.ts';
 
 export type ParsedArgs = {
 	command: string;
@@ -209,42 +207,28 @@ async function runSync(args: ParsedArgs): Promise<number> {
 		);
 		return 1;
 	}
-	const config = loadConfig();
-	const store = createFileTokenStore(config.credentialsPath);
-	const { data: accountEmail, error: accountError } = await resolveAccount(
-		config,
-		store,
+	const { data: runtime, error: runtimeError } = await openLocalMailRuntime();
+	if (runtimeError) {
+		console.error(runtimeError.message);
+		return 1;
+	}
+	const { data: session, error: sessionError } = await openSyncSession(
+		runtime,
+		{
+			gmailLog: (m) => console.log(`[gmail] ${m}`),
+			syncLog: (m) => console.log(`[sync] ${m}`),
+		},
 	);
-	if (accountError) {
-		console.error(accountError.message);
+	if (sessionError) {
+		console.error(sessionError.message);
 		return 1;
 	}
-	const token = await store.get(accountEmail);
-	if (!token) {
-		console.error(`No token stored for ${accountEmail}. Run "local-mail connect" first.`);
-		return 1;
-	}
-
-	const tokens = createTokenManager({ config, store, token, now: Date.now });
-	const client = createGmailClient({
-		tokens,
-		config,
-		log: (m) => console.log(`[gmail] ${m}`),
-	});
-	const db = openMailDb({ dataDir: config.dataDir, accountEmail });
-	const deps = {
-		db,
-		client,
-		config,
-		now: Date.now,
-		log: (m: string) => console.log(`[sync] ${m}`),
-	};
 
 	if (!args.watch) {
-		const outcome = await syncMailbox(deps, { forceFull: args.full });
-		printOutcome(db, outcome);
+		const outcome = await syncMailbox(session.deps, { forceFull: args.full });
+		printOutcome(session.db, outcome);
 		const failed = outcome.failure !== null;
-		db.close();
+		session.close();
 		return failed ? 1 : 0;
 	}
 
@@ -255,17 +239,17 @@ async function runSync(args: ParsedArgs): Promise<number> {
 	// The exit code reflects the LAST pass, so a supervisor restarting on
 	// nonzero sees current health, not a transient failure hours ago.
 	let lastPassFailed = false;
-	await runSyncLoop(deps, {
+	await runSyncLoop(session.deps, {
 		forceFull: args.full,
 		intervalMs,
 		signal: controller.signal,
 		onPass: (outcome, pass) => {
 			lastPassFailed = outcome.failure !== null;
 			console.log(`\n=== pass ${pass} ===`);
-			printOutcome(db, outcome);
+			printOutcome(session.db, outcome);
 		},
 	});
-	db.close();
+	session.close();
 	return lastPassFailed ? 1 : 0;
 }
 
@@ -275,19 +259,14 @@ async function runQuery(args: ParsedArgs): Promise<number> {
 		console.error('Usage: local-mail query "<sql>"');
 		return 1;
 	}
-	const config = loadConfig();
-	const store = createFileTokenStore(config.credentialsPath);
-	const { data: accountEmail, error: accountError } = await resolveAccount(
-		config,
-		store,
-	);
-	if (accountError) {
-		console.error(accountError.message);
+	const { data: runtime, error: runtimeError } = await openLocalMailRuntime();
+	if (runtimeError) {
+		console.error(runtimeError.message);
 		return 1;
 	}
 	const { data, error } = queryMail({
-		dataDir: config.dataDir,
-		accountEmail,
+		dataDir: runtime.config.dataDir,
+		accountEmail: runtime.accountEmail,
 		sql,
 	});
 	if (error) {
@@ -301,16 +280,12 @@ async function runQuery(args: ParsedArgs): Promise<number> {
 }
 
 async function runStatus(): Promise<number> {
-	const config = loadConfig();
-	const store = createFileTokenStore(config.credentialsPath);
-	const { data: accountEmail, error } = await resolveAccount(config, store);
+	const { data: runtime, error } = await openLocalMailRuntime();
 	if (error) {
 		console.error(error.message);
 		return 1;
 	}
-	console.log(
-		JSON.stringify(await readMailStatus({ config, accountEmail, store }), null, 2),
-	);
+	console.log(JSON.stringify(await readMailStatus(runtime), null, 2));
 	return 0;
 }
 
