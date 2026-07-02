@@ -81,11 +81,12 @@ The public surface lives in one package plus a Svelte subpath:
   gate, authenticated fetch, and WebSocket opening. Also exports the Node
   machine-auth surface for CLI and daemons.
 - `@epicenter/svelte/auth`: Svelte 5 wrapper (in the `@epicenter/svelte`
-  package, which also exports `projectSignedIn`, `reloadOnOwnerChange`,
+  package, which also exports `toConnection`, `reloadOnOwnerChange`,
   `createSession`, and `SignedIn`). Mirrors `auth.state` through
   `createSubscriber` so templates and `$derived` reads are reactive.
-- `projectSignedIn` / `SignedIn` from `@epicenter/svelte/auth`: the signed-in
-  projection a workspace `connect()` call consumes.
+- `toConnection` from `@epicenter/svelte/auth`: the boot-time projection a
+  workspace `connect()` call consumes (`ConnectionConfig` signed in, `null`
+  signed out).
 
 The API server composes Better Auth like this:
 
@@ -398,31 +399,19 @@ stateless JWT access token  ->  cannot revoke before exp
 
 ## Workspace Boot Selection
 
-Workspace apps read identity once at boot. Signed out calls `connectLocal()` for
-bare local IndexedDB storage. Signed in calls `connect({ ...projectSignedIn(auth),
-nodeId })` for owner-scoped storage plus relay sync. `reloadOnOwnerChange(auth)`
-reloads the page when the owner changes, so the next boot chooses the right
-branch. `AccountPopover` is the account surface; do not gate the app shell on
-sign-in.
-
-`projectSignedIn(auth)` returns the `SignedIn` shape a connected workspace
-consumes (copied verbatim from `packages/svelte-utils/src/session.svelte.ts`):
-
-```ts
-export type SignedIn = {
-	server: string;
-	baseURL: string;
-	ownerId: OwnerId;
-	openWebSocket: AuthClient['openWebSocket'];
-	onReconnectSignal: AuthClient['onStateChange'];
-};
-```
+Workspace apps read identity once at boot with one call.
+`toConnection(auth, nodeId)` projects the auth snapshot: signed out returns
+`null` (bare local IndexedDB storage), signed in returns the owner's
+`ConnectionConfig` (owner-scoped storage plus relay sync).
+`reloadOnOwnerChange(auth)` reloads the page when the owner changes, so the
+next boot re-projects. `AccountPopover` is the account surface; do not gate
+the app shell on sign-in.
 
 Use it in the browser opener:
 
 ```ts
 import type { SyncAuthClient } from '@epicenter/auth';
-import { projectSignedIn } from '@epicenter/svelte/auth';
+import { toConnection } from '@epicenter/svelte/auth';
 import type { NodeId } from '@epicenter/workspace';
 
 export function openMyAppBrowser({
@@ -432,14 +421,13 @@ export function openMyAppBrowser({
 	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	return auth.state.status === 'signed-out'
-		? myAppWorkspace.connectLocal()
-		: myAppWorkspace.connect({ ...projectSignedIn(auth), nodeId });
+	return myAppWorkspace.connect(toConnection(auth, nodeId));
 }
 ```
 
-`server` is the API host alone (local-storage partition names); `baseURL` is
-the full origin (`roomWsUrl` wants the scheme for the `wss://` upgrade).
+Inside the connection, `server` is the API host alone (local-storage
+partition names); `baseURL` is the full origin (`roomWsUrl` wants the scheme
+for the `wss://` upgrade).
 
 `createSession` no longer owns workspace lifecycle in workspace apps. It
 survives only for auxiliary signed-in-only resources whose whole existence is
@@ -520,5 +508,4 @@ mode flag on it.
 - Do not import `requireSignedIn`, `InferSignedIn`, `openFuji`,
   `encryptionKeys`, `EncryptionKeys`, `keyring`, or `Keyring`. They do not
   exist in Epicenter workspace auth. Workspace boot selection goes through
-  `connectLocal()` signed out and `connect({ ...projectSignedIn(auth), nodeId })`
-  signed in.
+  one call: `connect(toConnection(auth, nodeId))`.

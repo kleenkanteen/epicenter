@@ -322,7 +322,7 @@ type ConnectedWorkspaceWithRuntime<
 	Omit<TRuntime, 'actions' | typeof Symbol.dispose>;
 
 /**
- * The local-first workspace `connectLocal()` returns: the connected context
+ * The local-first workspace `connect(null)` returns: the connected context
  * (child-doc openers included) plus bare local infrastructure, guid-named
  * IndexedDB persistence, the cross-tab BroadcastChannel, and `wipe()`, with
  * no relay. `collaboration` is a literal `undefined` field so a
@@ -546,20 +546,18 @@ export type WorkspaceDefinition<
 	readonly kv: TKv;
 	create(): Workspace<TTables, TKv, TActions>;
 	connect(
-		connection: ConnectionConfig,
-	): ConnectedWorkspace<TTables, TKv, TActions>;
+		connection: ConnectionConfig | null,
+	):
+		| LocalWorkspace<TTables, TKv, TActions>
+		| ConnectedWorkspace<TTables, TKv, TActions>;
 	connect<TRuntime extends ConnectComposition>(
-		connection: ConnectionConfig,
+		connection: ConnectionConfig | null,
 		compose: (
 			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
 		) => TRuntime,
-	): ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
-	connectLocal(): LocalWorkspace<TTables, TKv, TActions>;
-	connectLocal<TRuntime extends ConnectComposition>(
-		compose: (
-			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
-		) => TRuntime,
-	): LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>;
+	):
+		| LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>
+		| ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
 	mount(options: MountOptions<TTables, TKv, TActions>): Mount;
 };
 
@@ -571,6 +569,25 @@ export type WorkspaceFromDefinition<TDefinition> =
 		infer TActions
 	>
 		? Workspace<TTables, TKv, TActions>
+		: never;
+
+/**
+ * The context a definition's `connect` compose callback receives. The one
+ * honest spelling for a named compose function:
+ *
+ * ```ts
+ * function compose(workspace: ComposeContext<typeof myAppWorkspace>) { ... }
+ * ```
+ *
+ * An inline compose arrow infers this contextually and never needs it.
+ */
+export type ComposeContext<TDefinition> =
+	TDefinition extends WorkspaceDefinition<
+		infer TTables,
+		infer TKv,
+		infer TActions
+	>
+		? ConnectedWorkspaceContext<TTables, TKv, TActions>
 		: never;
 
 /**
@@ -661,22 +678,25 @@ export function createWorkspace<
  *                                persistence, no sync, no child-doc openers. Daemon
  *                                and test runtimes attach their own storage and
  *                                transport around it.
- *   connect(connection)          The browser preset: the bare root plus IndexedDB
- *                                persistence, the WebSocket relay (see `connectDoc`),
- *                                per-row child-doc openers
- *                                (`tables.notes.docs.body.open(rowId)`), and `wipe()`.
- *   connect(connection, compose) The browser preset plus a runtime layer. `compose`
- *                                runs after the doc and child docs are built but
- *                                before collaboration wires, so the action registry
- *                                it returns is the one the bundle exposes as its
- *                                actions. That ordering is why `compose` is a
- *                                callback here, not a step you run after `connect()`.
- *   connectLocal(compose?)       The bare local-first preset (ADR-0088): the same
- *                                bundle shape as `connect()` including per-row
- *                                child-doc openers, wired to guid-named IndexedDB
- *                                and the cross-tab channel with no relay
- *                                (`collaboration: undefined`). A signed-out boot
- *                                picks this; a signed-in boot picks `connect()`.
+ *   connect(connection | null)   The browser preset. The connection IS the boot
+ *                                decision (ADR-0088/ADR-0094): credentials wire
+ *                                owner-scoped IndexedDB plus the WebSocket relay
+ *                                (see `connectDoc`); `null` wires guid-named
+ *                                IndexedDB plus the cross-tab channel with no
+ *                                relay (`collaboration: undefined`, the union's
+ *                                discriminant). Both wirings return the same
+ *                                bundle shape: per-row child-doc openers
+ *                                (`tables.notes.docs.body.open(rowId)`) and
+ *                                `wipe()` included, so nothing downstream
+ *                                branches on auth again.
+ *   connect(connection, compose) The preset plus a runtime layer. `compose` runs
+ *                                after the doc and child docs are built but
+ *                                before infrastructure wires, so the action
+ *                                registry it returns is the one the bundle
+ *                                exposes (and, signed in, the one the relay
+ *                                serves). That ordering is why `compose` is a
+ *                                callback here, not a step you run after
+ *                                `connect()`.
  *   mount(options)               The daemon preset: `create()` plus Yjs-log
  *                                persistence, cloud sync, and materializers, with
  *                                node dependencies injected through
@@ -684,10 +704,11 @@ export function createWorkspace<
  *                                browser one (select daemon actions, attach
  *                                materializers); see `mount` below.
  *
- * `connect(connection)` is `create()` plus the browser storage/transport bundle
- * (`connectTableChildDocs` + `connectDoc`). `mount(options)` is `create()` plus
- * the daemon storage/transport bundle, coordinated over injected node functions
- * so the browser barrel that ships this definition never imports a node module.
+ * `connect()` is `create()` plus the browser storage/transport bundle
+ * (`connectTableChildDocs` + relay or bare wiring). `mount(options)` is
+ * `create()` plus the daemon storage/transport bundle, coordinated over
+ * injected node functions so the browser barrel that ships this definition
+ * never imports a node module.
  */
 export function defineWorkspace<
 	TTables extends TableDefinitions,
@@ -719,16 +740,20 @@ export function defineWorkspace<
 	}
 
 	function connect(
-		connection: ConnectionConfig,
-	): ConnectedWorkspace<TTables, TKv, TActions>;
+		connection: ConnectionConfig | null,
+	):
+		| LocalWorkspace<TTables, TKv, TActions>
+		| ConnectedWorkspace<TTables, TKv, TActions>;
 	function connect<TRuntime extends ConnectComposition>(
-		connection: ConnectionConfig,
+		connection: ConnectionConfig | null,
 		compose: (
 			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
 		) => TRuntime,
-	): ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
+	):
+		| LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>
+		| ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
 	function connect(
-		connection: ConnectionConfig,
+		connection: ConnectionConfig | null,
 		compose: (
 			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
 		) => ConnectComposition = (workspace) => ({
@@ -737,12 +762,14 @@ export function defineWorkspace<
 	) {
 		const workspace = create();
 
-		// Connect the per-row child-doc openers, then run the caller's composer.
-		// compose sees live tables/ydoc and the base actions (carried on
-		// `workspace.actions`); the `actions` it returns is final. Omitting it runs
-		// the default, which serves the base actions unchanged. The child-doc caches
-		// cascade off the root `ydoc.destroy()`, so there is no teardown handle to
-		// thread back here.
+		// Connect the per-row child-doc openers, then run the caller's composer,
+		// then solder infrastructure on. compose sees live tables/ydoc and the
+		// base actions (carried on `workspace.actions`); the `actions` it returns
+		// is final, and signed in it is the registry `connectDoc` serves to
+		// peers, which is why infrastructure must wire after compose. Omitting
+		// compose serves the base actions unchanged. The child-doc caches cascade
+		// off the root `ydoc.destroy()`, so there is no teardown handle to thread
+		// back here.
 		const tables = connectTableChildDocs({
 			ydoc: workspace.ydoc,
 			tables: workspace.tables,
@@ -750,11 +777,6 @@ export function defineWorkspace<
 			connection,
 		});
 		const runtime = compose({ ...workspace, tables });
-		// Solder infrastructure on top of what compose returned. connectDoc serves
-		// `runtime.actions` to peers, so it must run after compose.
-		const { idb, collaboration } = connectDoc(workspace.ydoc, connection, {
-			actions: runtime.actions,
-		});
 
 		// `dispose` is reachable twice: `wipe()` calls it explicitly, then a `using`
 		// binding calls it again at scope exit. Neither callee is safe to run twice
@@ -766,6 +788,32 @@ export function defineWorkspace<
 			workspace[Symbol.dispose]();
 		});
 
+		// The connection is the boot decision (ADR-0094): `null` wires the bare
+		// local infrastructure (guid-named IndexedDB, cross-tab channel, no
+		// relay); credentials wire owner-scoped storage plus the relay. Both
+		// arms return the same bundle shape, discriminated by `collaboration`.
+		if (connection === null) {
+			attachBroadcastChannel(workspace.ydoc);
+			const idb = attachIndexedDb(workspace.ydoc);
+			return satisfiesWorkspace({
+				...workspace,
+				...runtime,
+				tables,
+				actions: runtime.actions,
+				idb,
+				collaboration: undefined,
+				async wipe() {
+					dispose();
+					await idb.whenDisposed;
+					await wipeBareStorage(options.id);
+				},
+				[Symbol.dispose]: dispose,
+			});
+		}
+
+		const { idb, collaboration } = connectDoc(workspace.ydoc, connection, {
+			actions: runtime.actions,
+		});
 		return satisfiesWorkspace({
 			...workspace,
 			...runtime,
@@ -780,56 +828,6 @@ export function defineWorkspace<
 					server: connection.server,
 					ownerId: connection.ownerId,
 				});
-			},
-			[Symbol.dispose]: dispose,
-		});
-	}
-
-	function connectLocal(): LocalWorkspace<TTables, TKv, TActions>;
-	function connectLocal<TRuntime extends ConnectComposition>(
-		compose: (
-			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
-		) => TRuntime,
-	): LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>;
-	function connectLocal(
-		compose: (
-			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
-		) => ConnectComposition = (workspace) => ({
-			actions: workspace.actions,
-		}),
-	) {
-		const workspace = create();
-
-		// Same composition order as connect(): child-doc openers, then the
-		// caller's composer, then infrastructure. The wiring is bare (guid-named
-		// IndexedDB + cross-tab channel, `connection: null` for the children);
-		// there is no relay, so unlike connect() nothing serves actions to peers.
-		const tables = connectTableChildDocs({
-			ydoc: workspace.ydoc,
-			tables: workspace.tables,
-			definitions: options.tables,
-			connection: null,
-		});
-		const runtime = compose({ ...workspace, tables });
-		attachBroadcastChannel(workspace.ydoc);
-		const idb = attachIndexedDb(workspace.ydoc);
-
-		const dispose = once(() => {
-			runtime[Symbol.dispose]?.();
-			workspace[Symbol.dispose]();
-		});
-
-		return satisfiesWorkspace({
-			...workspace,
-			...runtime,
-			tables,
-			actions: runtime.actions,
-			idb,
-			collaboration: undefined,
-			async wipe() {
-				dispose();
-				await idb.whenDisposed;
-				await wipeBareStorage(options.id);
 			},
 			[Symbol.dispose]: dispose,
 		});
@@ -931,7 +929,6 @@ export function defineWorkspace<
 		kv: options.kv,
 		create,
 		connect,
-		connectLocal,
 		mount,
 	};
 }
@@ -976,7 +973,7 @@ function connectTableChildDocs<TTableDefinitions extends TableDefinitions>({
 	definitions: TTableDefinitions;
 	/**
 	 * Connection coordinates, or `null` for the bare local-first wiring
-	 * (`connectLocal()`): guid-named IndexedDB plus the cross-tab channel,
+	 * (`connect(null)`): guid-named IndexedDB plus the cross-tab channel,
 	 * no relay.
 	 */
 	connection: ConnectionConfig | null;

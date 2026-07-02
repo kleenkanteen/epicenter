@@ -41,13 +41,13 @@ satisfiesWorkspace()
   lower-level primitives for package internals, tests, and older ports
 ```
 
-The app-facing path is `defineWorkspace({ id, tables, kv, actions }).connectLocal()`
-or `.connect(...)`. `open()` returns only the root document for daemon
-composition. `connectLocal()` adds bare browser storage, wipe, and table
-child-doc openers. `connect(connection)` adds owner-scoped browser storage, root
-sync, wipe, and table child-doc openers. `connect(connection, compose)` lets a
-runtime add extras and publish its final action registry before collaboration
-starts.
+The app-facing path is `defineWorkspace({ id, tables, kv, actions }).connect(...)`.
+`open()` returns only the root document for daemon composition. The connection
+is the boot decision: `connect(null)` adds bare browser storage, wipe, and
+table child-doc openers with no relay; `connect(connection)` adds owner-scoped
+browser storage, root sync, wipe, and table child-doc openers.
+`connect(connection, compose)` lets a runtime add extras and publish its final
+action registry before collaboration starts.
 
 ## Quick Start: local-only workspace
 
@@ -203,7 +203,7 @@ import {
 	type NodeId,
 } from '@epicenter/workspace';
 import type { SyncAuthClient } from '@epicenter/auth';
-import { projectSignedIn } from '@epicenter/svelte/auth';
+import { toConnection } from '@epicenter/svelte/auth';
 import { auth } from '$lib/auth';
 import { myAppWorkspace } from '$lib/workspace';
 
@@ -214,9 +214,7 @@ export function openMyAppBrowser({
 	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	return auth.state.status === 'signed-out'
-		? myAppWorkspace.connectLocal()
-		: myAppWorkspace.connect({ ...projectSignedIn(auth), nodeId });
+	return myAppWorkspace.connect(toConnection(auth, nodeId));
 }
 
 export const myApp = openMyAppBrowser({
@@ -225,7 +223,7 @@ export const myApp = openMyAppBrowser({
 });
 ```
 
-`connectLocal()` uses bare IndexedDB storage under the doc guid and does not
+`connect(null)` uses bare IndexedDB storage under the doc guid and does not
 open relay sync. `connect(connection)` pairs owner-scoped IndexedDB with a
 BroadcastChannel, opens root collaboration, wires `wipe()`, and gives each
 table handle a `.docs` namespace of row child-doc openers such as
@@ -1353,10 +1351,7 @@ const filesWorkspace = defineWorkspace({
 });
 
 declare const connection: ConnectionConfig | null;
-const workspace =
-	connection === null
-		? filesWorkspace.connectLocal()
-		: filesWorkspace.connect(connection);
+const workspace = filesWorkspace.connect(connection);
 
 using handle = workspace.tables.files.docs.content.open('file-1');
 await handle.whenLoaded;

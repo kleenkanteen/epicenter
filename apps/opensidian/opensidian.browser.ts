@@ -1,11 +1,11 @@
 /**
- * Opensidian browser composition: the one boot branch (ADR-0088).
+ * Opensidian browser composition: the one boot call (ADR-0088/ADR-0094).
  *
- * Reads `auth.state` once and picks a preset: `connectLocal()` signed out
- * (bare guid-named IndexedDB, cross-tab channel, no relay) or `connect()`
- * signed in (owner-scoped storage plus relay). Both presets take the same
- * `compose`, which adds browser-only filesystem, search, shell, and action
- * surfaces on top of whichever root wiring the preset chose:
+ * `toConnection` reads `auth.state` once: signed out projects to `null` (bare
+ * guid-named IndexedDB, cross-tab channel, no relay), signed in projects to
+ * the owner's connection (owner-scoped storage plus relay). `compose` adds
+ * browser-only filesystem, search, shell, and action surfaces on top of
+ * whichever root wiring the connection chose:
  *
  *  1. workspace root doc (tables + KV)
  *  2. local storage (+ cloud sync when signed in) for root
@@ -23,8 +23,9 @@ import {
 	createSqliteIndex,
 	type FileId,
 } from '@epicenter/filesystem';
-import { projectSignedIn } from '@epicenter/svelte/auth';
+import { toConnection } from '@epicenter/svelte/auth';
 import {
+	type ComposeContext,
 	defineActions,
 	defineMutation,
 	defineQuery,
@@ -35,11 +36,6 @@ import Type from 'typebox';
 import { Ok } from 'wellcrafted/result';
 import { opensidianWorkspace } from './opensidian.js';
 
-/** What `compose` receives from either preset: the connected workspace context. */
-type OpensidianConnectedContext = Parameters<
-	Parameters<typeof opensidianWorkspace.connect>[1]
->[0];
-
 export function openOpensidianBrowser({
 	auth,
 	nodeId,
@@ -47,7 +43,7 @@ export function openOpensidianBrowser({
 	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	function compose(workspace: OpensidianConnectedContext) {
+	function compose(workspace: ComposeContext<typeof opensidianWorkspace>) {
 		const { ydoc, tables } = workspace;
 		// The runtime bumps `files.updatedAt` on local body edits (declared via
 		// `touch` on the files table), so these openers read/write the content
@@ -219,12 +215,7 @@ export function openOpensidianBrowser({
 		};
 	}
 
-	return auth.state.status === 'signed-out'
-		? opensidianWorkspace.connectLocal(compose)
-		: opensidianWorkspace.connect(
-				{ ...projectSignedIn(auth), nodeId },
-				compose,
-			);
+	return opensidianWorkspace.connect(toConnection(auth, nodeId), compose);
 }
 
 export type OpensidianBrowser = ReturnType<typeof openOpensidianBrowser>;

@@ -12,16 +12,15 @@ import {
 import { createBrowserOAuthLauncher } from '@epicenter/auth/oauth-launchers';
 import { createSubscriber } from 'svelte/reactivity';
 
-// The one composition shape (ADR-0088): boot-time doc selection plus
-// reload-on-owner-change.
-// Bundle-level apps branch presets themselves:
-// `signed-out ? model.connectLocal(...) : model.connect({ ...projectSignedIn(auth), nodeId }, ...)`.
-export { projectSignedIn } from './project-signed-in.js';
 export { reloadOnOwnerChange } from './reload-on-owner-change.js';
 // `createSession`/`SignedIn` still support auxiliary signed-in-only resources.
 // Keep them on the auth subpath with the reactive auth client rather than the
 // package root, which stays pure workspace-data reactivity (`fromTable`, etc.).
 export { createSession, type SignedIn } from './session.svelte.js';
+// The one composition shape (ADR-0088/ADR-0094): boot-time doc selection plus
+// reload-on-owner-change. Apps boot with one call:
+// `model.connect(toConnection(auth, nodeId), compose?)`.
+export { toConnection } from './to-connection.js';
 
 /**
  * Make an auth client's `state` Svelte-reactive: spread the closure-bound
@@ -67,7 +66,7 @@ function reactiveAuthClient<T extends AuthClient>(auth: T): T {
  * Svelte 5 wrapper around `createAppAuthClient`: the one client-side choke point
  * that turns a persisted `Instance` into a hosted-OAuth or self-host-token
  * client (the branch is internal). Returns a Svelte-reactive `SyncAuthClient`,
- * so signed-in workspace boots can project it with `projectSignedIn(auth)`.
+ * so workspace boots can project it with `toConnection(auth, nodeId)`.
  */
 export function createAppAuthClient(
 	instance: Instance,

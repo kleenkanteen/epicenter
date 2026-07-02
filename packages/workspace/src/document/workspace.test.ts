@@ -313,6 +313,7 @@ describe('defineWorkspace', () => {
 
 		workspace.tables.notes.set({ id: '1', title: 'hello' });
 		expect(workspace.runtimeLabel).toBe('browser-only');
+		if (!workspace.collaboration) throw new Error('expected relay wiring');
 		expect(workspace.collaboration.actions.notes_count()).toBe(1);
 		workspace[Symbol.dispose]();
 		expect(runtimeDisposed).toBe(true);

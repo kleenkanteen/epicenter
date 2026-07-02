@@ -14,7 +14,7 @@
  */
 
 import { expect, mock, test } from 'bun:test';
-import { asUserId, type AuthClient, type AuthState } from '@epicenter/auth';
+import { type AuthClient, type AuthState, asUserId } from '@epicenter/auth';
 import { field } from '@epicenter/field';
 import { asOwnerId } from '@epicenter/identity';
 import {
@@ -85,10 +85,7 @@ function tick(): Promise<void> {
 }
 
 function createAuth(
-	overrides: {
-		state?: AuthState;
-		baseURL?: string;
-	} = {},
+	overrides: { state?: AuthState; baseURL?: string } = {},
 ): AuthClient {
 	return {
 		state: overrides.state ?? { status: 'signed-in', ownerId: OWNER_ID },
@@ -150,11 +147,11 @@ async function seedBareLocal(options: {
 	folder?: { id: string; title: string };
 	conversation?: { id: string; title: string; messages?: string };
 }) {
-	const oldBundle = model.connectLocal();
+	const oldBundle = model.connect(null);
 	await oldBundle.idb.whenLoaded;
 	await oldBundle.wipe();
 
-	const bundle = model.connectLocal();
+	const bundle = model.connect(null);
 	await bundle.idb.whenLoaded;
 
 	if (options.note) {
@@ -196,11 +193,11 @@ async function seedBareLocal(options: {
 }
 
 async function seedRowsOnlyLocal(row: { id: string; title: string }) {
-	const oldBundle = rowsOnlyModel.connectLocal();
+	const oldBundle = rowsOnlyModel.connect(null);
 	await oldBundle.idb.whenLoaded;
 	await oldBundle.wipe();
 
-	const bundle = rowsOnlyModel.connectLocal();
+	const bundle = rowsOnlyModel.connect(null);
 	await bundle.idb.whenLoaded;
 	bundle.tables.folders.set(row);
 	await tick();
@@ -390,7 +387,8 @@ test('a local-source table subset excludes rows and child docs together', async 
 	const target = model.create();
 	const migration = createSignInMigration({
 		auth: createAuth(),
-		openLocalSource: () => openLocalSource((tables) => ({ notes: tables.notes })),
+		openLocalSource: () =>
+			openLocalSource((tables) => ({ notes: tables.notes })),
 		target: {
 			whenReady: Promise.resolve(),
 			ydoc: target.ydoc,

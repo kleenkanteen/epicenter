@@ -180,6 +180,7 @@ export {
 	wipeLocalStorage,
 } from './document/wipe-local-storage.js';
 export {
+	type ComposeContext,
 	type ConnectComposition,
 	type ConnectedTables,
 	type ConnectedWorkspace,
