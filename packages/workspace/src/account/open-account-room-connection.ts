@@ -5,10 +5,13 @@
  * reserved guid {@link RESERVED_ACCOUNT_ROOM_GUID}, so every device a person
  * runs (the daemon, a browser tab) joins the SAME room and can route typed
  * channels to one another over the one socket each already holds. This is the
- * relay floor's home, and it is what makes a cross-device tool call reachable:
- * the channel router (`packages/server/src/room/channel-router.ts`) forwards a
- * channel only among sockets in one room, so the caller and the target must both
- * be in this account room, not in some workspace's vault-doc room.
+ * relay floor's home. The channel router
+ * (`packages/server/src/room/channel-router.ts`) runs in every room and
+ * forwards a channel only among same-owner sockets sharing that room; what
+ * makes the account room the floor is not extra capability but the guarantee
+ * of rendezvous: it is the one room every signed-in device is always in, so a
+ * caller can reach any online device here without knowing which workspace
+ * rooms it happens to hold open.
  *
  * This module is the browser-safe core that both ends share: the daemon's
  * {@link ../daemon/open-account-room.openAccountRoom} resolves node-only config
