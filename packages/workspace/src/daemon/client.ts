@@ -25,16 +25,11 @@ import {
 	type InferErrors,
 } from 'wellcrafted/error';
 import { Ok, type Result, tryAsync } from 'wellcrafted/result';
-import type { AgentToolDefinition, AgentToolOutcome } from '../agent/tools.js';
 import type { RunError } from './action-errors.js';
 import type {
-	CallRequest,
 	DaemonListSnapshot,
-	DeviceGatewayError,
 	PeerSnapshot,
-	RelayPeerSnapshot,
 	RunRequest,
-	ToolsRequest,
 } from './app.js';
 import { socketPathFor } from './paths.js';
 
@@ -171,22 +166,6 @@ export function daemonClient(
 ) {
 	return {
 		peers: () => call<PeerSnapshot[], never>(socketPath, timeoutMs, '/peers'),
-		relayPeers: () =>
-			call<RelayPeerSnapshot[], never>(socketPath, timeoutMs, '/relay-peers'),
-		tools: (request: ToolsRequest) =>
-			call<AgentToolDefinition[], DeviceGatewayError>(
-				socketPath,
-				timeoutMs,
-				'/tools',
-				request,
-			),
-		call: (request: CallRequest) =>
-			call<AgentToolOutcome, DeviceGatewayError>(
-				socketPath,
-				timeoutMs,
-				'/call',
-				request,
-			),
 		list: () => call<DaemonListSnapshot, never>(socketPath, timeoutMs, '/list'),
 		run: (request: RunRequest) =>
 			call<unknown, RunError>(socketPath, timeoutMs, '/run', request),

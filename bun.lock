@@ -975,7 +975,6 @@
         "@epicenter/identity": "workspace:*",
         "@epicenter/sync": "workspace:*",
         "@hono/standard-validator": "catalog:",
-        "@modelcontextprotocol/sdk": "catalog:",
         "@sindresorhus/slugify": "catalog:",
         "@types/bun": "catalog:",
         "arkregex": "catalog:",

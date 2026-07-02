@@ -6,9 +6,7 @@
  * `input` is JSON: inline positional, `@file.json` (curl convention), or stdin.
  * The daemon serves one mount, so the action key alone addresses the action;
  * the CLI forwards it to the daemon verbatim, which runs it against its own
- * action registry. Reaching another device's actions is a separate surface
- * (`epicenter tools` / `epicenter call`, the relay-floor MCP routes), not a
- * flag on `run`.
+ * action registry.
  *
  * `epicenter run` requires a running daemon for the discovered Epicenter root.
  * Without `daemon up`, the handler errors with a hint pointing at

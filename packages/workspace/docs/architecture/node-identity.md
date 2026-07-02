@@ -47,11 +47,11 @@ The daemon uses `resolveDaemonNodeId(epicenterRoot)`, which persists the id to `
 
 ### 1. Relay Routing
 
-The `nodeId` is stamped on the WebSocket upgrade URL as `?nodeId=` (built into the URL passed to `openCollaboration`, typically via `roomWsUrl(...)`). The relay binds the id to the socket at upgrade and stores it on the socket attachment for the lifetime of the connection; there is no round-trip validation. This bound id is the address the relay routes by: it picks the target socket by `nodeId` when it forwards a frame (presence or a relay-channel byte chunk) to this node. A WebSocket upgrade without a `nodeId` is rejected at the route boundary, so a connection can never become a presence-ghost (visible in presence but unreachable by relay routing).
+The `nodeId` is stamped on the WebSocket upgrade URL as `?nodeId=` (built into the URL passed to `openCollaboration`, typically via `roomWsUrl(...)`). The relay binds the id to the socket at upgrade and stores it on the socket attachment for the lifetime of the connection; there is no round-trip validation. This bound id is the address peers see in presence. A WebSocket upgrade without a `nodeId` is rejected at the route boundary, so a connection can never become a presence ghost.
 
 ### 2. Presence
 
-The relay owns presence and pushes each client its peer list: the *other* nodes, excluding self. Each entry is shaped as `Peer { nodeId, connectedAt, agentId?, exposedRoutes? }`. The relay computes the list per recipient, so a client never has to filter itself out, and it dedupes multi-tab same-node entries (newest wins by `connectedAt`).
+The relay owns presence and pushes each client its peer list: the *other* nodes, excluding self. Each entry is shaped as `Peer { nodeId, connectedAt, agentId? }`. The relay computes the list per recipient, so a client never has to filter itself out, and it dedupes multi-tab same-node entries (newest wins by `connectedAt`).
 
 Read presence through the collaboration handle:
 

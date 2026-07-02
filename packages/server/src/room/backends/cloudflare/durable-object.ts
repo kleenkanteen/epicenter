@@ -54,7 +54,7 @@ const COMPACTION_DELAY_MS = 30_000;
 const CONNECTION_SWEEP_INTERVAL_MS = 5 * 60_000;
 
 /**
- * Yjs sync and relay-channel room backed by a Cloudflare Durable Object.
+ * Yjs sync room backed by a Cloudflare Durable Object.
  *
  * Owns the Hibernation API integration (`acceptWebSocket`,
  * `serializeAttachment`, `setAlarm`) and forwards every meaningful event

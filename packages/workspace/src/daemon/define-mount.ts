@@ -62,9 +62,9 @@ export type MountSession = {
  *   share one identifier with logs and local cache keys. It is a label, not an
  *   identity seed: it never feeds the node id or the Y.Doc `clientID`.
  * - `nodeId` is the durable per-install identity (generated once and persisted
- *   under `.epicenter/`). It is the relay's routing id for presence and
- *   relay-channel frames, and the seed for the Y.Doc `clientID`. Auth-independent: present
- *   even when signed out.
+ *   under `.epicenter/`). It is the relay's routing id for presence and the
+ *   seed for the Y.Doc `clientID`. Auth-independent: present even when signed
+ *   out.
  * - `session` is the signed-in capability kit, or `null` when signed out.
  */
 export type MountContext = {

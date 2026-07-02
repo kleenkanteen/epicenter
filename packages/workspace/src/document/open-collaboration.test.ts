@@ -5,9 +5,8 @@
  * `CONNECTING` (we never call `onopen`), so the supervisor parks in
  * `attemptConnection`. That means these tests only cover the synchronous
  * setup of `openCollaboration`: the action-key guard and the `Symbol.dispose`
- * sugar. Socket-coupled behavior (presence routing, relay-channel routing,
- * disconnect settling) is intentionally out of scope here and needs a
- * different fake.
+ * sugar. Socket-coupled behavior (presence routing, binary sync, disconnect
+ * settling) is intentionally out of scope here and needs a different fake.
  *
  * The fake's `close() -> onclose` is what lets `ydoc.destroy()` unpark the
  * supervisor so the test process exits cleanly.

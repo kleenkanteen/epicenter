@@ -82,3 +82,7 @@ The general "project any `defineActions` to an in-process MCP server" mechanism 
 
 <!-- doc-path-check: ignore-next-line (the design spec is deleted by this graduation; git keeps the body recoverable) -->
 Invariant 5 is reframed above (uniform transport, deployment-driven privacy). Invariants 2 and 4 (read-only to foreign hosts, OpenAI-compatible model boundary) are untouched. The spec that carried this design (`specs/20260627T200000-super-chat-device-gateway-collapse.md`) is deleted with this graduation, per the two-state spec lifecycle.
+
+### Update (2026-07-02): the relay-floor capability layer is deleted
+
+ADR-0079 split cross-device into two planes, and ADR-0086 resolved the trigger: there is no live consumer for network-reachable capability reach. The relay-floor channel layer described above is now historical, not live. Deleted: the 4-frame channel protocol, channel router, account room, relay acceptor, route table, MCP gateway catalog, presence `exposedRoutes`, and the CLI `tools`/`call`/`--relay-expose` surface. The surviving MCP story is local stdio or a future direct URL-addressed box surface, not Epicenter routing MCP over the sync relay.

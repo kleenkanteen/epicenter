@@ -5,10 +5,9 @@
  * and map each `tools/call` onto {@link ToolCatalog.resolve}. The subprocess
  * keeps its data private; the host sees verbs only.
  *
- * This is deliberately app-local, not a `@epicenter/workspace` primitive: the
- * shipped `createMcpGatewayCatalog` binds the relay-floor `PeerTransport`, and
- * Super Chat is that adapter's first (and so far only) local-stdio consumer.
- * Promote it to the shared package when a second consumer appears, not before.
+ * This is deliberately app-local, not a `@epicenter/workspace` primitive. Super
+ * Chat is the first local-stdio consumer; promote it to the shared package when
+ * a second consumer appears, not before.
  *
  * The projection rules mirror the gateway catalog's: a tool counts as a
  * `query` only when it publishes `readOnlyHint: true`, so an absent or false

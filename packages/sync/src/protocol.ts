@@ -10,8 +10,7 @@
  * framing. Wire-format versioning, if ever needed, rides the WebSocket
  * subprotocol (`MAIN_SUBPROTOCOL`), not an in-band discriminator.
  *
- * Presence and relay-channel frames ride WebSocket *text* frames, not this
- * channel.
+ * Presence frames ride WebSocket *text* frames, not this channel.
  *
  * All sync payloads use Yjs V2 encoding for ~40% smaller wire size.
  * State vectors are version-independent (same format for V1 and V2).

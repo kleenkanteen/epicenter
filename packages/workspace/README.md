@@ -233,9 +233,8 @@ browser profile never see each other's data.
 
 `openCollaboration` remains the lower-level sync primitive behind this opener.
 It wraps the sync supervisor, mirrors the relay's server-owned presence channel
-as `collaboration.peers`, and exposes a raw `textPort` that the relay-channel
-floor rides to carry cross-device MCP tool calls over the same socket. See
-[SYNC_ARCHITECTURE.md](./SYNC_ARCHITECTURE.md) for the full model.
+as `collaboration.peers`. See [SYNC_ARCHITECTURE.md](./SYNC_ARCHITECTURE.md)
+for the full model.
 
 The `id` you pass to `defineWorkspace(...)` becomes `workspace.ydoc.guid` when
 you call `.connect(...)`. Namespace it to your app (e.g. `epicenter.my-app`) to
@@ -637,7 +636,7 @@ const unsubscribe = workspace.collaboration.peers.subscribe((peers) => {
 });
 ```
 
-Each entry is a `Peer` (`{ nodeId, connectedAt, agentId?, exposedRoutes? }`);
+Each entry is a `Peer` (`{ nodeId, connectedAt, agentId? }`);
 the local install is excluded. Product-level data (display name, cursor, capability list)
 lives in app-owned tables, not on the presence wire. See
 [SYNC_ARCHITECTURE.md](./SYNC_ARCHITECTURE.md) for the full model.
@@ -1571,12 +1570,10 @@ import {
 } from '@epicenter/workspace';
 ```
 
-`openCollaboration` returns a `Collaboration`. Online peers are relay-owned presence rows with each peer's `nodeId`, `connectedAt`, optional `agentId`, and optional `exposedRoutes`. The local `actions` registry remains on the `Collaboration` handle; it is no longer published as a peer manifest:
+`openCollaboration` returns a `Collaboration`. Online peers are relay-owned presence rows with each peer's `nodeId`, `connectedAt`, and optional `agentId`. The local `actions` registry remains on the `Collaboration` handle; it is no longer published as a peer manifest:
 
 - `collaboration.peers.list()`: `Peer[]`, the local install excluded
 - `collaboration.peers.subscribe(fn)`: returns an unsubscribe function
-
-Cross-device tool calls do not ride this handle; they travel as MCP over the relay-channel floor (ADR-0073), which builds on the collaboration's raw `textPort` to multiplex blind byte channels over the same socket.
 
 ### Introspection
 

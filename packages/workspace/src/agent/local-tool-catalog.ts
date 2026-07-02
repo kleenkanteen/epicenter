@@ -2,10 +2,9 @@
  * The {@link ToolCatalog} of this client's own in-process actions (ADR-0047).
  *
  * Every tool is a local `defineActions` entry, resolved in-process through
- * `invokeAction` with no relay. Cross-device tools are a separate catalog: a
- * peer's explicitly-exposed MCP routes are auto-mounted over the relay floor
- * (`createMcpGatewayCatalog`) and composed beside this one (`composeToolCatalogs`).
- * Keeping the two apart means the local surface never depends on a socket.
+ * `invokeAction`. Other tool sources compose beside this one through
+ * `composeToolCatalogs`; keeping the two apart means the local surface never
+ * depends on a socket.
  */
 import { extractErrorMessage } from 'wellcrafted/error';
 import type { JsonValue } from 'wellcrafted/json';

@@ -5,8 +5,7 @@
  *
  * The binary WebSocket channel carries a single message family: Yjs
  * document sync. A binary frame is a sync frame, with no top-level
- * message-type discriminator. Presence and relay-channel frames ride text
- * frames.
+ * message-type discriminator. Presence frames ride text frames.
  */
 
 // WebSocket subprotocol auth (shared client/server constants + helpers)

@@ -4,8 +4,7 @@
  * Reads the workspace room's server-owned presence (the same list the app sees
  * as live collaborators). The relay carries only `nodeId` on the wire;
  * product-level display names live in app-owned state and are out of scope
- * here. Distinct from `tools`/`call`, which target a device on the relay floor
- * via account-room presence (`relay-peers`).
+ * here.
  *
  * `epicenter peers` requires a running daemon for the discovered Epicenter root.
  * Without `daemon up`, the handler errors with a hint pointing at
