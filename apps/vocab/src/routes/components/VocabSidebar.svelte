@@ -8,6 +8,7 @@
 	import TrashIcon from '@lucide/svelte/icons/trash';
 	import { instanceSetting } from '$lib/instance';
 	import { auth } from '$platform/auth';
+	import { dictation } from '$lib/state/dictation.svelte';
 	import { vocab } from '$lib/vocab';
 
 	let {
@@ -33,6 +34,9 @@
 				{auth}
 				collaboration={vocab.collaboration}
 				syncNoun="conversations"
+				disabledReason={dictation.status !== 'idle'
+					? 'Finish dictating to change your account'
+					: undefined}
 				onForgetDevice={() => vocab.wipe()}
 				instanceConnect={{ appName: 'Vocab', setting: instanceSetting }}
 			/>

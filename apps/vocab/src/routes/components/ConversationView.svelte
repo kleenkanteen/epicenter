@@ -6,6 +6,7 @@
 	import { Markdown } from '@epicenter/ui/markdown';
 	import { agentMessageText } from '@epicenter/workspace/agent';
 	import { pinyinRomanizer } from '$lib/romanize/pinyin';
+	import { auth } from '$platform/auth';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
 	import DictationButton from './DictationButton.svelte';
 
@@ -33,6 +34,7 @@
 		conversation={active}
 		connections={inferenceConnections}
 		placeholder="Ask something in English..."
+		onSignIn={() => void auth.startSignIn()}
 	>
 		{#snippet inputAccessory()}
 			<DictationButton disabled={isGenerating} onTranscript={appendTranscript} />
