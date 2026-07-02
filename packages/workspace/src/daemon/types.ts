@@ -11,19 +11,8 @@
  */
 
 import type { Collaboration } from '../document/open-collaboration.js';
-import type { Peer } from '../document/presence-protocol.js';
 import type { ActionRegistry } from '../shared/actions.js';
 import type { MaybePromise } from '../shared/types.js';
-
-/**
- * Collaboration fields the daemon socket app reads while serving `/peers`: the
- * live peer list for this workspace room.
- */
-type DaemonServedCollaboration = {
-	peers: {
-		list(): Peer[];
-	};
-};
 
 /**
  * One mounted runtime as served by the daemon socket app.
@@ -35,7 +24,7 @@ export type DaemonServedMount = {
 	mount: string;
 	runtime: {
 		actions: ActionRegistry;
-		collaboration?: DaemonServedCollaboration;
+		collaboration?: { peers: Pick<Collaboration['peers'], 'list'> };
 	};
 };
 
