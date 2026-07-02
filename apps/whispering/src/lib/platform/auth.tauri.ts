@@ -15,23 +15,7 @@ import type { PlatformAuth } from './types';
 
 const log = createLogger('whispering/platform/auth');
 
-// Keyed independently of `namespace` (which only shapes the localStorage key
-// the web build and the pre-fix desktop build used): the OS credential store
-// addresses secrets by service/account, not by a single string key.
-//
-// macOS scopes keychain ACLs to the app's code signature, so an ad-hoc-signed
-// dev build touching an entry created by the notarized prod build (or the
-// reverse) can trigger a Keychain permission prompt. If that bites, suffix
-// this service string per channel (e.g. `whispering-dev`) rather than sharing
-// one entry across signatures.
-const KEYRING_SERVICE = 'whispering';
 const KEYRING_ACCOUNT = 'auth-grant';
-
-// The pre-fix desktop build persisted the grant under this `localStorage` key
-// (`${namespace}.auth.persisted` from `createHostedDeepLinkAuth`'s old
-// default): a plain file on disk in the webview's data dir, exactly what
-// this change moves off of. Migrated once below, then never read again.
-const LEGACY_LOCAL_STORAGE_KEY = 'whispering.auth.persisted';
 
 /**
  * Tolerant like the `localStorage` adapter's `get`: a keychain read failure
@@ -39,10 +23,7 @@ const LEGACY_LOCAL_STORAGE_KEY = 'whispering.auth.persisted';
  * app boot. The next sign-in re-establishes the grant.
  */
 async function readGrant(): Promise<string | null> {
-	const { data, error } = await tauriOnly.keyring.read(
-		KEYRING_SERVICE,
-		KEYRING_ACCOUNT,
-	);
+	const { data, error } = await tauriOnly.keyring.read(KEYRING_ACCOUNT);
 	if (error !== null) {
 		log.warn(error);
 		return null;
@@ -56,53 +37,9 @@ async function readGrant(): Promise<string | null> {
  * look saved.
  */
 async function writeGrant(serialized: string | null): Promise<void> {
-	const { error } = await tauriOnly.keyring.write(
-		KEYRING_SERVICE,
-		KEYRING_ACCOUNT,
-		serialized,
-	);
+	const { error } = await tauriOnly.keyring.write(KEYRING_ACCOUNT, serialized);
 	if (error !== null) throw error;
 }
-
-/**
- * One-time migration off the pre-fix `localStorage` grant onto the keyring.
- * Only seeds the keyring when it's still empty (an existing keyring entry is
- * never overwritten), and only clears the legacy key once the value has
- * actually landed in the keyring, so a write failure leaves the legacy copy
- * in place for a retry on the next launch instead of losing the grant.
- *
- * Calls `tauriOnly.keyring.write` directly rather than through `writeGrant`:
- * migration is best-effort (log and retry next launch), not the "propagate
- * to the caller" contract `writeGrant` implements for `loadPersistedAuthStorage`.
- */
-async function migrateLegacyLocalStorageGrant(): Promise<void> {
-	const legacy = window.localStorage.getItem(LEGACY_LOCAL_STORAGE_KEY);
-	if (legacy === null) return;
-
-	const current = await readGrant();
-	if (current !== null) {
-		window.localStorage.removeItem(LEGACY_LOCAL_STORAGE_KEY);
-		return;
-	}
-
-	const { error } = await tauriOnly.keyring.write(
-		KEYRING_SERVICE,
-		KEYRING_ACCOUNT,
-		legacy,
-	);
-	if (error !== null) {
-		log.warn(error);
-		return;
-	}
-	window.localStorage.removeItem(LEGACY_LOCAL_STORAGE_KEY);
-}
-
-// Accepted multi-webview TOCTOU: every webview window evaluates this module,
-// so two webviews can interleave the read-check-write above (or a
-// refresh-driven `writeGrant`). The keyring is last-write-wins; the worst
-// interleaving leaves one webview holding a stale grant, which surfaces as a
-// single forced re-sign-in and self-heals. Not worth a cross-webview lock.
-await migrateLegacyLocalStorageGrant();
 
 export const auth: PlatformAuth = createHostedDeepLinkAuth({
 	instanceSetting,
