@@ -60,6 +60,8 @@ import type { Guid } from '../shared/id.js';
 import { assertSafeSegment } from '../shared/safe-segment.js';
 import type { Drainable } from '../shared/types.js';
 import type { AgentId } from './agent-id.js';
+import { attachBroadcastChannel } from './attach-broadcast-channel.js';
+import { attachIndexedDb } from './attach-indexed-db.js';
 import {
 	attachChildDocWorker,
 	type ChildDocWorker,
@@ -69,8 +71,6 @@ import {
 	type ConnectedChildDoc,
 	type ObservableChildDocLayout,
 } from './child-doc-worker.js';
-import { attachBroadcastChannel } from './attach-broadcast-channel.js';
-import { attachIndexedDb } from './attach-indexed-db.js';
 import { type ConnectionConfig, connectDoc } from './connect-doc.js';
 import { docGuid } from './doc-guid.js';
 import { KV_KEY, TableKey } from './keys.js';

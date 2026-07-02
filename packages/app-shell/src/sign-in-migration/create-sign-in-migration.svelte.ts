@@ -226,9 +226,7 @@ export function createSignInMigration<
 	function ownerScope(): OwnerScope {
 		const state = auth.state;
 		if (state.status === 'signed-out') {
-			throw new Error(
-				'[sign-in-migration] owner scope read while signed out.',
-			);
+			throw new Error('[sign-in-migration] owner scope read while signed out.');
 		}
 		return { server: new URL(auth.baseURL).host, ownerId: state.ownerId };
 	}

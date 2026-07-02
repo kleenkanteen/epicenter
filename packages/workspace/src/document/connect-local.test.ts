@@ -88,7 +88,5 @@ test('wipe() clears the whole bare guid family', async () => {
 
 	const names = await databaseNames();
 	expect(names).not.toContain('clw-notes');
-	expect(
-		names.filter((n) => n?.startsWith('clw-notes.')),
-	).toHaveLength(0);
+	expect(names.filter((n) => n?.startsWith('clw-notes.'))).toHaveLength(0);
 });
