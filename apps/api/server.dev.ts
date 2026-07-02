@@ -1,11 +1,11 @@
 /**
- * Dev-only Bun entrypoint: the apps/api server with the `Bearer dev:<userId>`
+ * Dev-only Bun entrypoint: the apps/api server with the `Bearer dev:<principalId>`
  * resolver injected, so the runtime-parity smoke (and CI) can drive the authed
  * surfaces without Google OAuth or a forged session.
  *
  * It boots the SAME {@link startBunApiServer} production uses, passing only the
- * dev `resolveUser`. This is the ONLY file that imports the credential bypass
- * ({@link resolveDevUser}); the production entrypoints (`worker/index.ts`,
+ * dev `resolvePrincipal`. This is the ONLY file that imports the credential bypass
+ * ({@link resolveDevPrincipal}); the production entrypoints (`worker/index.ts`,
  * `server.ts`) never do, so the bypass cannot ship. Run it explicitly
  * (`bun server.dev.ts`, or `bun run dev:bun:devauth`); never wire it into a
  * production process.
@@ -15,11 +15,11 @@
  * revocable token and this entry plus `dev-auth.ts` are deleted.
  */
 
-import { resolveDevUser } from './dev-auth.js';
+import { resolveDevPrincipal } from './dev-auth.js';
 import { startBunApiServer } from './server.js';
 
 console.warn(
-	'apps/api (Bun) DEV AUTH: Bearer dev:<userId> resolves a synthetic user on localhost. Never run this in production.',
+	'apps/api (Bun) DEV AUTH: Bearer dev:<principalId> resolves a synthetic principal on localhost. Never run this in production.',
 );
 
-startBunApiServer({ resolveUser: resolveDevUser });
+startBunApiServer({ resolvePrincipal: resolveDevPrincipal });

@@ -4,10 +4,10 @@
  *
  * `toConnection` reads the persisted `auth.state` ONCE at startup
  * (ADR-0088/ADR-0094): signed out projects to `null` (plaintext local doc),
- * signed in / reauth-required projects to the owner's connection (owner doc
+ * signed in / reauth-required projects to the principal's connection (principal doc
  * with relay sync). Construction is synchronous; data still loads async
  * behind `whenReady`. Identity changes are never an in-place swap:
- * `reloadOnOwnerChange` (same subpath, mounted in the root layout) reloads
+ * `reloadOnPrincipalChange` (same subpath, mounted in the root layout) reloads
  * the page so the next boot re-projects.
  *
  * `openWhispering` wraps that doc with the one action every platform needs

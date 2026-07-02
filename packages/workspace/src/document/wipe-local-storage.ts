@@ -1,18 +1,18 @@
 /// <reference lib="dom" />
 
 /**
- * `wipeLocalStorage`: delete every `(server, ownerId)`-scoped IndexedDB
+ * `wipeLocalStorage`: delete every `(server, principalId)`-scoped IndexedDB
  * database on the current browser profile.
  *
  * Enumerates `indexedDB.databases()` and clears every entry whose name
- * starts with the durable prefix produced by {@link getOwnedYjsPrefix} for
- * the given `(server, ownerId)` pair. This is a free function with no auth
+ * starts with the durable prefix produced by {@link getPrincipalYjsPrefix} for
+ * the given `(server, principalId)` pair. This is a free function with no auth
  * coupling: the caller (sign-out handler, "delete my local data" button,
  * admin migration) passes the pair explicitly.
  *
  * Belt-and-suspenders with an explicit guid list is unnecessary: every
- * owner-scoped IDB database is created under the owner prefix, and the prefix
- * scan catches all of them.
+ * principal-scoped IDB database is created under the principal prefix, and the
+ * prefix scan catches all of them.
  *
  * No-ops gracefully when `indexedDB.databases()` is unavailable (older
  * browsers): nothing to enumerate means nothing to delete here.
@@ -20,30 +20,30 @@
  * @module
  */
 
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 import { clearDocument } from 'y-indexeddb';
-import { getOwnedYjsPrefix } from './local-yjs-key.js';
+import { getPrincipalYjsPrefix } from './local-yjs-key.js';
 
 /**
- * Delete every IndexedDB database owned by `(server, ownerId)` on
+ * Delete every IndexedDB database owned by `(server, principalId)` on
  * this browser profile.
  *
  * @example
  * ```ts
  * await wipeLocalStorage({
  *   server: new URL(connection.baseURL).host,
- *   ownerId: connection.ownerId,
+ *   principalId: connection.principalId,
  * });
  * ```
  */
 export async function wipeLocalStorage({
 	server,
-	ownerId,
+	principalId,
 }: {
 	server: string;
-	ownerId: OwnerId;
+	principalId: PrincipalId;
 }): Promise<void> {
-	const prefix = getOwnedYjsPrefix(server, ownerId);
+	const prefix = getPrincipalYjsPrefix(server, principalId);
 	if (!('databases' in indexedDB)) return;
 	const databases = await indexedDB.databases().catch(() => []);
 	const names = databases
@@ -60,8 +60,8 @@ export async function wipeLocalStorage({
  * workspace: the root doc, named by its guid, plus every child doc, whose
  * guids extend the root guid (`<guid>.<collection>.<rowId>.<field>`), so one
  * prefix scan catches the whole family. The `connect(null)` bundle's
- * `wipe()` calls this; owner-scoped databases are untouched (those belong to
- * {@link wipeLocalStorage}).
+ * `wipe()` calls this; principal-scoped databases are untouched (those belong
+ * to {@link wipeLocalStorage}).
  */
 export async function wipeBareStorage(rootGuid: string): Promise<void> {
 	if (!('databases' in indexedDB)) return;

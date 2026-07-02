@@ -3,7 +3,7 @@
  * ADR-0088).
  *
  * The workspace preset branch picks the doc once at boot from `auth.state`;
- * this reloads the page when the owner identity later changes, so the next
+ * this reloads the page when the principal identity later changes, so the next
  * boot rebuilds the right doc and the app's importers never see a swapping
  * doc.
  *
@@ -15,22 +15,22 @@
 import type { AuthState, SyncAuthClient } from '@epicenter/auth';
 
 /**
- * The owner boundary: `null` when signed out, otherwise the owner id. Token
- * expiry stays `signed-in`/`reauth-required` with the SAME `ownerId`, so the key
+ * The principal boundary: `null` when signed out, otherwise the principal id.
+ * Token expiry stays `signed-in`/`reauth-required` with the same `principalId`, so the key
  * is unchanged and no reload fires; `openCollaboration` reconnects internally.
  */
-function ownerKey(state: AuthState) {
-	return state.status === 'signed-out' ? null : state.ownerId;
+function principalKey(state: AuthState) {
+	return state.status === 'signed-out' ? null : state.principalId;
 }
 
 /**
- * Reload the page when the owner identity changes (sign in / out / switch
+ * Reload the page when the principal identity changes (sign in / out / switch
  * account). Returns the unsubscribe. Mount once in the app's root layout.
  *
  * The boot key is read here at mount rather than threaded from the boot doc
- * selection, and the two agree: the owner cannot change between module load
+ * selection, and the two agree: the principal cannot change between module load
  * and first mount (sign-in/out need a user round-trip). The one-shot
- * `reloading` guard collapses the `signed-out` -> `signed-in:owner` pair an
+ * `reloading` guard collapses the `signed-out` -> `signed-in:principal` pair an
  * account switch emits into a single reload.
  *
  * Reload safety lives at the source: a host with an unsafe-to-interrupt
@@ -43,15 +43,15 @@ function ownerKey(state: AuthState) {
  * already-consumed authorization code, surfacing a spurious error after a
  * real success, so that one location gets `replace('/')` instead.
  */
-export function reloadOnOwnerChange(
+export function reloadOnPrincipalChange(
 	auth: SyncAuthClient,
 	{ callbackPath = '/auth/callback' }: { callbackPath?: string } = {},
 ) {
-	const bootKey = ownerKey(auth.state);
+	const bootKey = principalKey(auth.state);
 	let reloading = false;
 	return auth.onStateChange((state) => {
 		if (reloading) return;
-		if (ownerKey(state) === bootKey) return;
+		if (principalKey(state) === bootKey) return;
 		reloading = true;
 		if (window.location.pathname === callbackPath) {
 			window.location.replace('/');

@@ -17,8 +17,8 @@ shapes, see `docs/adr/`.
   or you run it (self-host). Distinct from a **service you call** (inference,
   blob URLs): a service is addressed by `{baseUrl, token?}`, sees only the one
   payload you hand it, and is never part of the star's topology. "Single-user /
-  sovereign" is a preset over the star's two seams (partition + credential
-  source), not a mode (ADR-0070).
+  sovereign" is a preset over the star's credential source and principal
+  resolver, not a mode (ADR-0070, amended by ADR-0092).
 - **Anchor**: the always-on node that *holds* a workspace's Y.Doc so a sleeping
   device can catch up. Who runs the anchor is the whole privacy question (ADR-0068):
   user-run gives topology privacy, Epicenter-run is trusted plaintext. Privacy moves
@@ -52,18 +52,11 @@ shapes, see `docs/adr/`.
 - **Deployable vs library**: one library, `packages/server`, consumed by two
   deployables: `apps/api` (hosted personal cloud) and `apps/self-host` (the
   community single-partition instance reference, not Epicenter-operated; ADR-0075).
-- **`perUser` / `instance`**: the `packages/server` ownership seam, exactly
-  two topologies split on partition cardinality (ADR-0075). `apps/api` uses
-  `perUser` (N partitions keyed per user, Cloud-only); `apps/self-host` uses
-  `instance` (one partition pinned to `owners/instance` behind one operator
-  bearer). There is no admission-gated `shared` topology; per-person named tokens
-  are a deliberately-unbuilt seam behind the same verifier and the same constant
-  partition. The names are deliberately not `perUser` / `shared`: "shared"
-  describes who holds the token, while `instance` describes the partition rule
-  ADR-0075 settles on. Both arms answer who owns the partition: each user, or
-  the instance itself (the durable owner id is literally `instance`, so the
-  rule name, owner id, and URL segment stay one word). Billing is hosted-only
-  and lives in `apps/api/worker/billing/`.
+- **Principal**: the authenticated identity Epicenter uses as the partition key
+  (ADR-0092). Cloud resolves many principals from Better Auth users; a
+  self-hosted instance resolves every valid operator bearer to the literal
+  `instance` principal. Durable namespaces use `principals/<principalId>/...`.
+  Billing is hosted-only and lives in `apps/api/worker/billing/`.
 - **Three cross-device layers**: every cross-device feature is one of three jobs, kept
   separate. *Inference* (the chat brain) streams tokens from an OpenAI-compatible endpoint
   (ADR-0050), over the inference seam, not the device relay. *Sync* (convergent state)
@@ -73,9 +66,9 @@ shapes, see `docs/adr/`.
   servers that live on a person's own devices, reached through a transport seam
   (`ToolCatalog` / `PeerTransport`) so the loop never sees the transport.
 - **Invoke transport**: every client reaches a device's tools over the relay floor, a typed
-  channel multiplexed on the per-user account-room WebSocket the device already holds
+  channel multiplexed on the principal account-room WebSocket the device already holds
   (ADR-0004). A browser is first-class because it uses the same floor with no app. The relay
-  stamps an unforgeable `source` and routes by nodeId; a route is admitted only on owner
+  stamps an unforgeable `source` and routes by nodeId; a route is admitted only on principal
   identity plus an explicit `relay: 'exposed'` opt-in. Confidentiality is not the
   transport's job; privacy is which relay you run (self-host, ADR-0068).
 

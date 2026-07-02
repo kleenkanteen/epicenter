@@ -108,10 +108,10 @@ type ApiSessionReadResult = Result<ApiSessionResponse, ApiSessionReadError>;
  * Use this once per runtime around one persisted auth record. The returned
  * client exposes capabilities (`fetch`, `openWebSocket`) instead of raw tokens:
  * it refreshes grants, verifies `/api/session` before attaching a bearer, and
- * keeps the cached `ownerId` available when network auth pauses. That preserves
- * the local-first invariant: offline workspace boot can continue, but server
- * access fails closed until the current persisted auth has been verified by the
- * API.
+ * keeps the cached principal id available when network auth pauses. That
+ * preserves the local-first invariant: offline workspace boot can continue,
+ * but server access fails closed until the current persisted auth has been
+ * verified by the API.
  */
 export function createOAuthAppAuth({
 	baseURL = EPICENTER_API_URL,
@@ -184,8 +184,7 @@ export function createOAuthAppAuth({
 				if (authSession.persistedAuth !== startedFrom) return false;
 				const next = {
 					grant,
-					userId: startedFrom.userId,
-					ownerId: startedFrom.ownerId,
+					principalId: startedFrom.principalId,
 				} satisfies PersistedAuth;
 				await authSession.write(next);
 				if (authSession.persistedAuth !== startedFrom) return false;
@@ -210,9 +209,9 @@ export function createOAuthAppAuth({
 
 	/**
 	 * Verify `/api/session` against the current persisted auth. Marks it
-	 * verified and wipes storage on same-owner-guard mismatch (different
-	 * `ownerId`). Single-flight: concurrent callers for the same persisted auth
-	 * share the in-flight promise.
+	 * verified and wipes storage when the server resolves a different principal.
+	 * Single-flight: concurrent callers for the same persisted auth share the
+	 * in-flight promise.
 	 */
 	async function verifyPersistedAuthForNetwork(
 		startedFrom: PersistedAuth,
@@ -238,22 +237,11 @@ export function createOAuthAppAuth({
 			const current = authSession.persistedAuth;
 			if (current !== startedFrom) return Ok(session);
 
-			if (current.ownerId !== session.ownerId) {
+			if (current.principalId !== session.principalId) {
 				await clearPersistedAuth();
 				return Ok(session);
 			}
 
-			if (current.userId !== session.user.id) {
-				const next = {
-					grant: current.grant,
-					userId: session.user.id,
-					ownerId: session.ownerId,
-				} satisfies PersistedAuth;
-				await authSession.write(next);
-				if (authSession.persistedAuth !== startedFrom) return Ok(session);
-				authSession.installVerified(next);
-				return Ok(session);
-			}
 			authSession.installVerified(current);
 			return Ok(session);
 		})().finally(() => {
@@ -273,7 +261,7 @@ export function createOAuthAppAuth({
 	 * Refuses to attach unless `/api/session` has confirmed the current persisted
 	 * auth in this runtime. Cold boot online: refresh grant if
 	 * stale, call `/api/session`, then attach. Offline: fails closed; local
-	 * workspace boot continues via the cached owner id.
+	 * workspace boot continues via the cached principal id.
 	 */
 	async function bearerForNetwork(force: boolean): Promise<string | null> {
 		if (authSession.persistedAuth === null || authSession.networkAuthPaused) {
@@ -396,14 +384,13 @@ export function createOAuthAppAuth({
 			return AuthError.StartSignInFailed({ cause: error });
 		}
 		if (!isCurrentSignIn(generation)) return Ok(undefined);
-		if (previous !== null && previous.ownerId !== session.ownerId) {
+		if (previous !== null && previous.principalId !== session.principalId) {
 			await clearAuthSession();
 			if (!isCurrentSignIn(generation)) return Ok(undefined);
 		}
 		const next = {
 			grant,
-			userId: session.user.id,
-			ownerId: session.ownerId,
+			principalId: session.principalId,
 		} satisfies PersistedAuth;
 		await authSession.write(next);
 		if (!isCurrentSignIn(generation)) return Ok(undefined);
@@ -605,12 +592,12 @@ function publicStateFromRuntime(runtimeState: RuntimeAuthState): AuthState {
 	if (runtimeState.networkAccess === 'paused') {
 		return {
 			status: 'reauth-required',
-			ownerId: runtimeState.persistedAuth.ownerId,
+			principalId: runtimeState.persistedAuth.principalId,
 		};
 	}
 	return {
 		status: 'signed-in',
-		ownerId: runtimeState.persistedAuth.ownerId,
+		principalId: runtimeState.persistedAuth.principalId,
 	};
 }
 
@@ -618,7 +605,7 @@ function authStatesEqual(left: AuthState, right: AuthState) {
 	if (left.status !== right.status) return false;
 	if (left.status === 'signed-out') return true;
 	if (right.status === 'signed-out') return false;
-	return left.ownerId === right.ownerId;
+	return left.principalId === right.principalId;
 }
 
 /**

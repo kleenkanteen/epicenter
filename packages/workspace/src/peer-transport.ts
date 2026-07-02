@@ -8,7 +8,7 @@
  *
  * One implementation sits behind this seam today, the relay-channel
  * ({@link ./relay-channel/transport.createRelayChannelTransport}): the universal
- * floor, a channel multiplexed on the per-user account-room WebSocket, so it
+ * floor, a channel multiplexed on the principal account-room WebSocket, so it
  * works in any browser with no app, server-mediated over the device's existing
  * sync connection. The seam stays an interface so the MCP `ToolCatalog` consumer
  * (`agent/mcp-gateway-catalog.ts`) never imports the relay-channel implementation
@@ -18,9 +18,9 @@
  * The seam is the {@link ByteChannel}, intentionally runtime-portable (Web
  * Streams, not node streams) so the same seam serves a browser and a node daemon.
  *
- * A *peer* is the unit that is dialed: a device authenticated to the relay as its
- * user. The relay routes by the target's nodeId and stamps an unforgeable
- * `source` on every channel, so a peer reaches another of its owner's devices
+ * A *peer* is the unit that is dialed: a device authenticated to the relay as a
+ * principal. The relay routes by the target's nodeId and stamps an unforgeable
+ * `source` on every channel, so a peer reaches another same-principal device
  * with no key exchange in between.
  */
 

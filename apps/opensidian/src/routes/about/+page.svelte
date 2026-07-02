@@ -104,7 +104,7 @@ export function openOpensidianBrowser(connection) {
 			id: 'open-opensidian',
 			line: 'export function openOpensidianBrowser(connection) { ... }',
 			explanation:
-				'A browser factory: chooses local or owner-scoped storage at boot, then composes browser-only filesystem and search services.',
+				'A browser factory: chooses local or principal-scoped storage at boot, then composes browser-only filesystem and search services.',
 		},
 		{
 			id: 'define-workspace',

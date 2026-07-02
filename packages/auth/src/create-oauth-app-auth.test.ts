@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { Ok } from 'wellcrafted/result';
 import type { AuthFetch } from './auth-contract.js';
 import type { OAuthTokenGrant, PersistedAuth } from './auth-types.js';
 import { createOAuthAppAuth } from './create-oauth-app-auth.js';
-import { asUserId } from './index.js';
 import type {
 	OAuthLauncher,
 	OAuthLaunchResult,
@@ -13,10 +12,10 @@ import type {
 const baseURL = 'https://api.epicenter.so';
 const clientId = 'client-1';
 
-function sessionBody(ownerId = 'owner-1') {
+function sessionBody(principalId = 'principal-1') {
 	return {
-		user: { id: ownerId, email: `${ownerId}@example.com` },
-		ownerId,
+		principalId,
+		email: `${principalId}@example.com`,
 	};
 }
 
@@ -40,8 +39,7 @@ function grant(overrides: Partial<OAuthTokenGrant> = {}): OAuthTokenGrant {
 function persistedAuth(): PersistedAuth {
 	return {
 		grant: grant(),
-		userId: asUserId('owner-1'),
-		ownerId: asOwnerId('owner-1'),
+		principalId: asPrincipalId('principal-1'),
 	};
 }
 
@@ -74,7 +72,7 @@ function completingLauncher(g: OAuthTokenGrant): OAuthLauncher {
 }
 
 describe('createOAuthAppAuth /api/session verification', () => {
-	test('completing sign-in verifies /api/session and installs signed-in with the ownerId', async () => {
+	test('completing sign-in verifies /api/session and installs signed-in with the principalId', async () => {
 		const calls: Array<{ url: string; init?: RequestInit }> = [];
 		const fetch: AuthFetch = async (input, init) => {
 			calls.push({ url: String(input), init });
@@ -93,7 +91,7 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		expect(error).toBeNull();
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 		// The verified grant and the ids the session reported are persisted.
 		expect(storage.current).toEqual(persistedAuth());
@@ -156,17 +154,17 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		// Boots signed-in (unverified) from the persisted cell.
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 
-		await auth.fetch('/api/owners/owner-1/blobs');
+		await auth.fetch('/api/blobs');
 
 		const sessionCall = calls.find(
 			(call) => call.url === `${baseURL}/api/session`,
 		);
 		expect(sessionCall).toBeDefined();
 		const resourceCall = calls.find(
-			(call) => call.url === `${baseURL}/api/owners/owner-1/blobs`,
+			(call) => call.url === `${baseURL}/api/blobs`,
 		);
 		expect(new Headers(resourceCall?.init?.headers).get('authorization')).toBe(
 			'Bearer access-1',
@@ -210,10 +208,10 @@ describe('createOAuthAppAuth /api/session verification', () => {
 			fetch,
 		});
 
-		await auth.fetch('/api/owners/owner-1/blobs');
+		await auth.fetch('/api/blobs');
 		expect(auth.state).toEqual({
 			status: 'reauth-required',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 	});
 
@@ -230,8 +228,8 @@ describe('createOAuthAppAuth /api/session verification', () => {
 		const { data, error } = await auth.getProfile();
 		expect(error).toBeNull();
 		expect(data).toEqual({
-			id: asUserId('owner-1'),
-			email: 'owner-1@example.com',
+			id: asPrincipalId('principal-1'),
+			email: 'principal-1@example.com',
 		});
 	});
 });

@@ -3,12 +3,12 @@
  * (ADR-0088/ADR-0094): `connect(null)` wires the bare local-first bundle
  * (guid-named IndexedDB, no relay, per-row child-doc openers included) and
  * its `wipe()` clears the whole bare guid family; `connect(connection)`
- * persists under the owner-scoped database name.
+ * persists under the principal-scoped database name.
  */
 
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { field } from '@epicenter/field';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 import type * as Y from 'yjs';
 import { defineTable } from './define-table.js';
@@ -79,10 +79,10 @@ test('bare root + bare child docs persist under guid names, no relay', async () 
 	bundle[Symbol.dispose]();
 });
 
-test('signed-in root persists under the owner-scoped database name', async () => {
+test('signed-in root persists under the principal-scoped database name', async () => {
 	const bundle = model.connect({
 		baseURL: 'https://api.example.com',
-		ownerId: asOwnerId('owner-1'),
+		principalId: asPrincipalId('owner-1'),
 		nodeId: asNodeId('node-test'),
 		openWebSocket: () => new Promise<never>(() => {}),
 		onReconnectSignal: () => () => {},
@@ -91,7 +91,7 @@ test('signed-in root persists under the owner-scoped database name', async () =>
 	await bundle.idb.whenLoaded;
 
 	expect(await databaseNames()).toContain(
-		'epicenter/api.example.com/owners/owner-1/clw-notes',
+		'epicenter/api.example.com/principals/owner-1/clw-notes',
 	);
 
 	bundle[Symbol.dispose]();

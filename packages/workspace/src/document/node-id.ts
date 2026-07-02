@@ -32,7 +32,7 @@ import { generateId } from '../shared/id.js';
  * scope (one "node" in the user-facing presence vocabulary). Generated
  * by {@link createNodeId} or
  * {@link createNodeIdAsync}; brand prevents accidental mixing with
- * unrelated string ids (UserId, OwnerId, room ids, etc.).
+ * unrelated string ids (PrincipalId, AgentId, room ids, etc.).
  *
  * At trusted call sites that receive a known `string`, brand it with
  * {@link asNodeId}.

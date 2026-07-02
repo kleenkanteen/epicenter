@@ -43,7 +43,7 @@
 import { Database } from 'bun:sqlite';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import type { UserId } from '@epicenter/auth';
+import type { PrincipalId } from '@epicenter/identity';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import type { Connection } from '../../../types.js';
 import type { ResolvedRoom, Rooms, RoomUpgrade } from '../../contracts.js';
@@ -88,7 +88,7 @@ function serverNotBound(): Promise<Response> {
  * WebSocket upgrade through {@link Rooms.rejectUpgrade}).
  */
 export type BunRoomSocketData =
-	| { kind: 'room'; roomName: string; userId: UserId; nodeId: string }
+	| { kind: 'room'; roomName: string; principalId: PrincipalId; nodeId: string }
 	| { kind: 'reject'; code: number; reason: string };
 
 /** A live room: its core, its open sqlite handle, and any pending eviction. */
@@ -176,7 +176,7 @@ export function createBunRooms({ dir }: { dir: string }): {
 	const rooms: Rooms = {
 		get(name: string): ResolvedRoom {
 			return {
-				handleUpgrade: ({ request, userId, nodeId }: RoomUpgrade) => {
+				handleUpgrade: ({ request, principalId, nodeId }: RoomUpgrade) => {
 					if (!server) return serverNotBound();
 					// Resolve the room now (creating it if needed); `getOrCreate`
 					// cancels any pending eviction, so the entry survives the gap
@@ -192,7 +192,7 @@ export function createBunRooms({ dir }: { dir: string }): {
 					const data: BunRoomSocketData = {
 						kind: 'room',
 						roomName: name,
-						userId,
+						principalId,
 						nodeId,
 					};
 					const upgraded = server.upgrade(request, { data });
@@ -233,14 +233,15 @@ export function createBunRooms({ dir }: { dir: string }): {
 				ws.close(ws.data.code, ws.data.reason);
 				return;
 			}
-			const { roomName, userId, nodeId } = ws.data;
+			const { roomName, principalId, nodeId } = ws.data;
 			// `getOrCreate` cancels any pending eviction, so a socket landing in
 			// the grace window keeps its room alive.
 			const entry = getOrCreate(roomName);
 			const connection: Connection = {
-				userId,
+				principalId,
 				nodeId,
 				connectedAt: Date.now(),
+				actions: {},
 			};
 			entry.core.addConnection(ws, connection);
 		},

@@ -99,7 +99,7 @@ export type { Drainable } from './shared/types.js';
 // DOCUMENT PRIMITIVES
 // ════════════════════════════════════════════════════════════════════════════
 
-// The per-user account room: the relay floor's home. Browser-safe; a browser
+// The principal account room: the relay floor's home. Browser-safe; a browser
 // passes `{ ...signedIn, nodeId }` to reach the same room the daemon joins, so
 // the two route cross-device channels to each other over the floor. The daemon's
 // node-only opener (`@epicenter/workspace/node`) wraps this core.
@@ -166,10 +166,9 @@ export {
 } from './document/table.js';
 // Transport URL builder.
 //
-// `roomWsUrl({ baseURL, ownerId, guid, nodeId })` builds the WebSocket
-// URL for the partitioned `/api/owners/:ownerId/rooms/:roomId` endpoint. The
-// same single URL form is used by per-user cloud and self-hosted instance
-// deployments. Browser apps and the daemon use this one builder.
+// `roomWsUrl({ baseURL, guid, nodeId })` builds the WebSocket URL for the
+// principal-authenticated `/api/rooms/:roomId` endpoint. Browser apps and the
+// daemon use this one builder.
 export { type RoomWsUrlOptions, roomWsUrl } from './document/transport.js';
 export {
 	wipeBareStorage,

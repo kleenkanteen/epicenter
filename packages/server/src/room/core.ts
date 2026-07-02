@@ -327,12 +327,13 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 	 * and a target device's socket over this same room. A SEPARATE module that
 	 * imports no sync, MCP, or action code; the core reaches it through one
 	 * delegation in `handleTextFrame` and one teardown in `removeConnection`.
-	 * `findDevice` is `pickRecipient` (this room is one user's fleet); `ownerOf`
-	 * is the socket's authenticated `userId`, the relay's only routing authority.
+	 * `findDevice` is `pickRecipient` (this room is one principal's fleet);
+	 * `principalOf` is the socket's authenticated principal id, the relay's only
+	 * routing authority.
 	 */
 	const channelRouter = createChannelRouter({
 		findDevice: pickRecipient,
-		ownerOf: (socket) => connections.get(socket)?.userId,
+		principalOf: (socket) => connections.get(socket)?.principalId,
 	});
 
 	/**
@@ -433,9 +434,9 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 		 *   responsible for the runtime-specific accept (hibernation API
 		 *   or `Bun.serve` upgrade) before calling this.
 		 * @param connection - The connection attachment URL-stamped at
-		 *   upgrade. `nodeId` is the relay routing address; `userId`
-		 *   is the auth principal; `connectedAt` is mirrored on the
-		 *   wire so receivers can render node affordances.
+		 *   upgrade. `nodeId` is the relay routing address; `principalId`
+		 *   is the auth principal; `connectedAt` and `actions` are mirrored
+		 *   on the wire so receivers can render node affordances.
 		 */
 		addConnection(socket: RoomSocket, connection: Connection): void {
 			connections.set(socket, connection);

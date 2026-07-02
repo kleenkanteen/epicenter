@@ -2,7 +2,7 @@
  * The relay floor through the REAL room: channel frames driven into
  * `createRoomCore.handleMessage` between two connections, proving the core
  * delegates `channel_*` frames to the channel router and the router forwards
- * them blind between a caller and a same-owner target. The transport, acceptor,
+ * them blind between a caller and a same-principal target. The transport, acceptor,
  * and MCP framing on top are proven in `packages/workspace`
  * `relay-channel/transport.test.ts`; the two halves meet at this wire protocol.
  *
@@ -57,9 +57,10 @@ function fakeSocket() {
 
 function conn(nodeId: string, userId = 'u1'): Connection {
 	return {
-		userId: userId as Connection['userId'],
+		principalId: userId as Connection['principalId'],
 		nodeId,
 		connectedAt: Date.now(),
+		actions: {},
 	};
 }
 
@@ -72,7 +73,7 @@ function send(
 	core.handleMessage(socket, JSON.stringify(frame));
 }
 
-/** A room with a caller (`phone`) and a same-owner target (`laptop`) connected. */
+/** A room with a caller (`phone`) and a same-principal target (`laptop`) connected. */
 function setup() {
 	const core = createRoomCore({ updateLog: memLog() });
 	const caller = fakeSocket();
@@ -94,7 +95,7 @@ describe('relay channels through createRoomCore', () => {
 		send(core, caller.socket, open);
 		// The relay stamps the server-authored source onto the forwarded open.
 		expect(target.frames).toEqual([
-			{ ...open, source: { kind: 'user', userId: 'u1' } },
+			{ ...open, source: { kind: 'principal', principalId: 'u1' } },
 		]);
 		expect(caller.frames).toEqual([]);
 
@@ -111,7 +112,7 @@ describe('relay channels through createRoomCore', () => {
 		expect(caller.frames.at(-1)).toEqual(res);
 	});
 
-	test('overwrites a caller-forged source with the authenticated owner', () => {
+	test('overwrites a caller-forged source with the authenticated principal', () => {
 		const { core, caller, target } = setup();
 		send(core, caller.socket, {
 			type: 'channel_open',
@@ -119,14 +120,14 @@ describe('relay channels through createRoomCore', () => {
 			target: 'laptop',
 			route: 'books',
 			// A caller tries to forge a different identity.
-			source: { kind: 'user', userId: 'attacker' },
+			source: { kind: 'principal', principalId: 'attacker' },
 		});
 		expect(target.frames.at(-1)).toMatchObject({
-			source: { kind: 'user', userId: 'u1' }, // the relay's, not the forged one
+			source: { kind: 'principal', principalId: 'u1' }, // the relay's, not the forged one
 		});
 	});
 
-	test('refuses an open to a different owner', () => {
+	test('refuses an open to a different principal', () => {
 		const { core, caller } = setup();
 		const intruder = fakeSocket();
 		core.addConnection(intruder.socket, conn('intruder', 'u2'));

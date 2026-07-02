@@ -4,9 +4,9 @@
  *
  * `openHoneycrispBrowser` reads the persisted `auth.state` ONCE at startup
  * and picks the workspace preset: bare local IndexedDB (signed out) or
- * owner-scoped storage plus relay sync (signed in / reauth-required).
+ * principal-scoped storage plus relay sync (signed in / reauth-required).
  * Construction is synchronous; data still loads async behind `whenReady`.
- * Identity changes are never an in-place swap: `reloadOnOwnerChange` (mounted
+ * Identity changes are never an in-place swap: `reloadOnPrincipalChange` (mounted
  * in the root layout) reloads the page so the next boot re-runs this selection.
  *
  * `honeycrisp` composes that browser bundle with `createHoneycrispState`, the

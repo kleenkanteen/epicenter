@@ -4,7 +4,7 @@
  * Verifies cloud sync URL construction for the rooms WebSocket endpoint.
  *
  * Key behaviors:
- * - Single URL form: `/api/owners/<ownerId>/rooms/<guid>` in every deployment.
+ * - Single URL form: `/api/rooms/<guid>` in every deployment.
  * - `guid` is `encodeURIComponent`-encoded.
  * - Trailing slashes on `baseURL` are stripped.
  * - `http` origins become `ws`; `https` origins become `wss`.
@@ -12,60 +12,37 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId, INSTANCE_OWNER_ID } from '@epicenter/identity';
 import { asNodeId } from './node-id.js';
 import { roomWsUrl } from './transport.js';
 
 describe('roomWsUrl', () => {
-	test('per-user owner id partitions the path under /owners/', () => {
+	test('builds the public room URL without a principal path segment', () => {
 		expect(
 			roomWsUrl({
 				baseURL: 'https://api.example.com',
-				ownerId: asOwnerId('alice'),
 				guid: 'epicenter-fuji',
 				nodeId: asNodeId('client-1'),
 			}),
-		).toBe(
-			'wss://api.example.com/api/owners/alice/rooms/epicenter-fuji?nodeId=client-1',
-		);
-	});
-
-	test("instance uses the literal 'instance' owner id under the same /owners/ partition", () => {
-		expect(
-			roomWsUrl({
-				baseURL: 'https://instance.example.com',
-				ownerId: INSTANCE_OWNER_ID,
-				guid: 'epicenter-fuji',
-				nodeId: asNodeId('client-1'),
-			}),
-		).toBe(
-			'wss://instance.example.com/api/owners/instance/rooms/epicenter-fuji?nodeId=client-1',
-		);
+		).toBe('wss://api.example.com/api/rooms/epicenter-fuji?nodeId=client-1');
 	});
 
 	test('encodes the guid and strips trailing slashes', () => {
 		expect(
 			roomWsUrl({
 				baseURL: 'https://api.example.com/',
-				ownerId: INSTANCE_OWNER_ID,
 				guid: 'a/b?c#d',
 				nodeId: asNodeId('client-1'),
 			}),
-		).toBe(
-			'wss://api.example.com/api/owners/instance/rooms/a%2Fb%3Fc%23d?nodeId=client-1',
-		);
+		).toBe('wss://api.example.com/api/rooms/a%2Fb%3Fc%23d?nodeId=client-1');
 	});
 
 	test('converts http origins to ws and https origins to wss', () => {
 		expect(
 			roomWsUrl({
 				baseURL: 'http://localhost:8787',
-				ownerId: INSTANCE_OWNER_ID,
 				guid: 'epicenter-fuji',
 				nodeId: asNodeId('client-1'),
 			}),
-		).toBe(
-			'ws://localhost:8787/api/owners/instance/rooms/epicenter-fuji?nodeId=client-1',
-		);
+		).toBe('ws://localhost:8787/api/rooms/epicenter-fuji?nodeId=client-1');
 	});
 });

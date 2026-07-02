@@ -1,7 +1,7 @@
 /**
- * Open the per-person account room on the daemon: the relay floor's home.
+ * Open the principal account room on the daemon: the relay floor's home.
  *
- * The account room is the per-user fleet room: an ordinary sync room at the
+ * The account room is the per-principal fleet room: an ordinary sync room at the
  * reserved guid, so it reuses every bit of room machinery (bearer auth, Y.Doc
  * sync, the WebSocket upgrade) the same way a mount's room does. `epicenter
  * daemon up` opens it alongside its mount and rides the relay floor over the one
@@ -14,7 +14,7 @@
  * (Y.Doc at the reserved guid, sync, the channel port) is the shared
  * {@link openAccountRoomConnection} core a browser uses the same way. There is no
  * per-device signing or trust ledger; the relay floor authenticates by the
- * session's `userId`, and a route is reached on owner identity plus a
+ * session's `principalId`, and a route is reached on principal identity plus a
  * relay-exposed gate (see `gateway/relay-route.ts`).
  *
  * It is gated on a signed-in session: the room is bearer-authed, so a signed-out
@@ -65,7 +65,7 @@ export async function openAccountRoom(
 ): Promise<AccountRoomHandle | null> {
 	const { auth } = options;
 	if (auth === null || auth.state.status === 'signed-out') return null;
-	const { ownerId } = auth.state;
+	const principalId = auth.state.principalId;
 
 	// The nodeId the relay routes by is the daemon's durable node id, shared with
 	// its mount room so the device presents one identity across both rooms.
@@ -73,7 +73,7 @@ export async function openAccountRoom(
 
 	return openAccountRoomConnection({
 		nodeId,
-		ownerId,
+		principalId,
 		baseURL: resolveSyncBaseURL(options.baseURL),
 		openWebSocket: auth.openWebSocket,
 		onReconnectSignal: auth.onStateChange,

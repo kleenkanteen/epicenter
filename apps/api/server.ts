@@ -25,11 +25,11 @@
  * deleted. The library ships the parts; each Bun entry composes its own product.
  *
  * The wiring lives in {@link startBunApiServer} so `server.dev.ts` can boot the
- * SAME server with a dev `resolveUser` injected (the parity smoke's credential)
+ * SAME server with a dev `resolvePrincipal` injected (the parity smoke's credential)
  * without duplicating it. The bottom of this file runs production only when this
  * file IS the entrypoint (`import.meta.main`), so `server.dev.ts` importing the
  * builder does not also start a second listener. Production passes no
- * `resolveUser` and keeps the real OAuth resolver; this file never imports the
+ * `resolvePrincipal` and keeps the real OAuth resolver; this file never imports the
  * dev bypass.
  *
  * Runtime skew is fenced by design: a DO-only behavior (hibernation restore,
@@ -55,11 +55,10 @@ import {
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
-	perUser,
-	type ResolveUser,
-	requireBearerUser,
-	requireCookieOrBearerUser,
-	resolveRequestOAuthUser,
+	type ResolvePrincipal,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
+	resolveRequestOAuthPrincipal,
 	ServerBindings,
 } from '@epicenter/server/bun';
 import { type } from 'arktype';
@@ -91,16 +90,16 @@ const ApiBunBindings = ServerBindings.merge(CloudAuthBindings).merge({
 });
 
 /**
- * Boot the apps/api Bun server, optionally with an injected user resolver.
+ * Boot the apps/api Bun server, optionally with an injected principal resolver.
  *
  * Production (`server.ts` as the entrypoint) passes nothing, so
  * `createServerApp` keeps the real OAuth resolver. `server.dev.ts` passes a
- * dev `Bearer dev:<userId>` resolver so the parity smoke needs no interactive
+ * dev `Bearer dev:<principalId>` resolver so the parity smoke needs no interactive
  * login. Everything else (env validation, pool, rooms, mounts, `Bun.serve`) is
  * identical across the two, so they cannot drift.
  */
 export function startBunApiServer(
-	opts: { resolveUser?: ResolveUser<CloudEnv> } = {},
+	opts: { resolvePrincipal?: ResolvePrincipal<CloudEnv> } = {},
 ): void {
 	// Validate this Bun host's environment once, at boot. The validated result IS
 	// the typed env handed to the Hono app: no `as`-cast over `process.env`, no
@@ -129,7 +128,6 @@ export function startBunApiServer(
 	const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
 	const db = createDb(pool);
 
-	const ownership = perUser;
 	const app = createServerApp<CloudEnv>({
 		resolveRooms: () => bunRooms.rooms,
 		identity: {
@@ -139,10 +137,11 @@ export function startBunApiServer(
 	});
 
 	// The dev entry passes a dev bearer resolver for the parity smoke; production
-	// keeps the real OAuth bearer resolver. Each owner-scoped wrapper closes over it.
-	const resolveUser = opts.resolveUser ?? resolveRequestOAuthUser;
-	const cookieOrBearer = requireCookieOrBearerUser(resolveUser);
-	const bearer = requireBearerUser(resolveUser);
+	// keeps the real OAuth bearer resolver. Each protected wrapper closes over it.
+	const resolvePrincipal =
+		opts.resolvePrincipal ?? resolveRequestOAuthPrincipal;
+	const cookieOrBearer = requireCookieOrBearerPrincipal(resolvePrincipal);
+	const bearer = requireBearerPrincipal(resolvePrincipal);
 
 	app.get('/', (c) =>
 		c.json({ product: 'hub', version: '0.1.0', runtime: 'bun' }),
@@ -162,11 +161,11 @@ export function startBunApiServer(
 	// auth secrets come from the validated `env` closure (ADR-0076), never the
 	// portable `ServerBindings`.
 	mountCloudAuth(app, { resolveAuthSecrets: () => env });
-	mountSessionApp(app, { ownership, auth: cookieOrBearer });
+	mountSessionApp(app, { auth: cookieOrBearer });
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
-	mountRoomsApp(app, { ownership, resolveUser });
-	mountInferenceApp(app, { auth: bearer, ownership });
-	mountBlobsApp(app, { ownership, auth: cookieOrBearer });
+	mountRoomsApp(app, { resolvePrincipal });
+	mountInferenceApp(app, { auth: bearer });
+	mountBlobsApp(app, { auth: cookieOrBearer });
 
 	const server = Bun.serve({
 		port,

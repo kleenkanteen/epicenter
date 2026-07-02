@@ -1,12 +1,13 @@
 /**
- * The reserved guid of the per-person account room.
+ * The reserved guid of the principal account room.
  *
- * The account room (the per-user fleet room the relay floor rides) is not a new
+ * The account room (the principal fleet room the relay floor rides) is not a new
  * Durable Object type: it is an ordinary sync room opened at
- * `owners/<userId>/rooms/<RESERVED_ACCOUNT_ROOM_GUID>`, so it reuses every bit
- * of room machinery (bearer auth, Y.Doc sync, the WebSocket upgrade). What makes
- * it safe to reserve a fixed guid is that it cannot collide with any guid a user
- * workspace mints:
+ * `/api/rooms/<RESERVED_ACCOUNT_ROOM_GUID>`, so it reuses every bit of room
+ * machinery (bearer auth, Y.Doc sync, the WebSocket upgrade). Auth selects the
+ * `principals/<principalId>` partition server-side. What makes it safe to
+ * reserve a fixed guid is that it cannot collide with any guid a user workspace
+ * mints:
  *
  *   - A workspace ROOT guid is a single {@link assertSafeSegment} segment, so it
  *     contains no dot (`epicenter-fuji`).
@@ -25,8 +26,8 @@
 import { assertSafeSegment } from '../shared/safe-segment.js';
 
 /**
- * The fixed room guid every device opens to reach its owner's account doc. Two
- * dotted safe segments: structurally distinct from both a one-segment workspace
+ * The fixed room guid every device opens to reach its principal's account doc.
+ * Two dotted safe segments: structurally distinct from both a one-segment workspace
  * root and a four-segment content doc, so it can never collide with user data.
  */
 export const RESERVED_ACCOUNT_ROOM_GUID = 'epicenter.account';

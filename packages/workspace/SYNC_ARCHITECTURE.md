@@ -17,7 +17,7 @@ import {
 } from '@epicenter/workspace';
 
 const collaboration = openCollaboration(ydoc, {
-    url: roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, nodeId }),
+    url: roomWsUrl({ baseURL, guid: ydoc.guid, nodeId }),
     waitFor: idb.whenLoaded,
     openWebSocket: auth.openWebSocket,
     onReconnectSignal: auth.onStateChange,
@@ -123,7 +123,7 @@ Cursor and selection sync, when they arrive, bring Awareness back, used for what
 
 ### Relay-channel plane (text, blind)
 
-A cross-device tool call rides text frames on the same socket as presence and sync, but the relay never understands them: the relay-channel layer multiplexes named request/response channels, and the relay forwards each channel's bytes BLIND. This is the relay floor (ADR-0073): one per-user authenticated socket that routes typed channels to a person's own devices, with sync as the first channel and cross-device tool calls as another.
+A cross-device tool call rides text frames on the same socket as presence and sync, but the relay never understands them: the relay-channel layer multiplexes named request/response channels, and the relay forwards each channel's bytes BLIND. This is the relay floor (ADR-0073): one principal-authenticated socket that routes typed channels to a person's own devices, with sync as the first channel and cross-device tool calls as another.
 
 The wire is a four-frame, reset-only channel protocol. `id` is the caller-minted channel correlation id, echoed unchanged:
 
@@ -140,57 +140,54 @@ End to end:
 caller                      relay                         target device
 ──────                      ─────                         ─────────────
 channel_open ─────────────▶ validate `target` is a live
-{ id, target, route }       same-owner device, stamp the
+{ id, target, route }       same-principal device, stamp the
                             authenticated source
-                            { kind: 'user', userId }
+                            { kind: 'principal', principalId }
                             │
                             ├─ no live socket ─▶ channel_reset { offline }
                             │
                             └─ channel_open ────────────▶ acceptor admits only if
-                                                          source.userId is its own
-                                                          owner AND `route` is
+                                                          source.principalId is its
+                                                          own principal AND `route` is
                                                           relay: 'exposed'
                             ◀── channel_accept ───────────┘
    channel_data  ◀────────  forward bytes verbatim  ──────────▶  channel_data
    (MCP request / response; the relay decodes neither direction)
 ```
 
-The bytes inside `channel_data` are an MCP session today (an HTTP one later); the relay base64-forwards them and parses nothing. Authorization is two server-side checks with no device-key ledger: the relay stamps the caller's authenticated `source` (overwriting any caller-supplied value), and the device acceptor admits the channel only when `source.userId` matches its own owner and the named route was opted in with `--relay-expose` (default refused, ADR-0078). A `channel_reset` is the terminal frame in both directions: `closed` is a clean end, while `offline`, `refused`, `cancelled`, `too_large`, and `protocol_error` are the failure codes.
+The bytes inside `channel_data` are an MCP session today (an HTTP one later); the relay base64-forwards them and parses nothing. Authorization is two server-side checks with no device-key ledger: the relay stamps the caller's authenticated `source` (overwriting any caller-supplied value), and the device acceptor admits the channel only when `source.principalId` matches its own principal and the named route was opted in with `--relay-expose` (default refused, ADR-0078). A `channel_reset` is the terminal frame in both directions: `closed` is a clean end, while `offline`, `refused`, `cancelled`, `too_large`, and `protocol_error` are the failure codes.
 
 There is no in-room request/response RPC on this socket. Cross-device capability is exclusively the relay floor's explicitly-exposed MCP routes: a daemon advertises its `relay: 'exposed'` route names in account-room presence via `exposedRoutes`, and a signed-in client auto-mounts every advertised `(device, route)` of its own fleet as an MCP tool catalog over this channel transport.
 
 ## URLs and routing
 
-A cloud document is owned by the authenticated `OwnerId` and addressed by its own `ydoc.guid`. The client builds the URL from `(baseURL, ownerId, guid, nodeId)`:
+A cloud document is partitioned by the authenticated `PrincipalId` and addressed by its own `ydoc.guid`. The client builds the public URL from `(baseURL, guid, nodeId)`:
 
 ```ts
 roomWsUrl({
     baseURL: 'https://api.epicenter.so',
-    ownerId,
     guid: ydoc.guid,
     nodeId,
 });
-// -> wss://api.epicenter.so/api/owners/<ownerId>/rooms/<guid>?nodeId=<id>
+// -> wss://api.epicenter.so/api/rooms/<guid>?nodeId=<id>
 ```
 
-In per-user cloud, `ownerId` equals the signed-in user's id; on an instance it
-is the literal `'instance'`. The URL shape is uniform across deployments. The
-relay takes the user from the auth token, resolves the expected owner partition
-for the deployment, verifies the URL `:ownerId` matches that partition, and
-builds the internal Durable Object name `owners/${ownerId}/rooms/${room}`.
-Cloud deployments resolve one partition per user. Self-hosted instance
-deployments resolve one partition for operator-authorized requests.
+The URL shape is uniform across deployments. The relay takes the principal from
+the auth token and builds the internal Durable Object name
+`principals/${principalId}/rooms/${room}`. Cloud deployments resolve one
+partition per signed-in principal. Self-hosted instance deployments resolve one
+partition for operator-authorized requests.
 
 This is the consumer Google Docs model and the first of three account layers, introduced over time:
 
-- **Layer 1 (this)**: personal content. `owners/${ownerId}` owns the doc, where `ownerId === userId`.
-- **Layer 1.5 (future)**: sharing. A per-document ACL grants other users access; the owner's DO name does not change.
-- **Layer 2 (future)**: shared-drive content. A self-hosted instance uses `ownerId === 'instance'` so content is decoupled from any caller identity.
+- **Layer 1 (this)**: personal content. `principals/${principalId}` owns the doc.
+- **Layer 1.5 (future)**: sharing. A per-document ACL grants other users access; the home DO name does not change.
+- **Layer 2 (future)**: shared-drive content. A self-hosted instance uses `principalId === 'instance'` so content is decoupled from any caller identity.
 - **Layer 3 (future)**: tenancy and billing. An organization groups user accounts for one invoice and admin policy; it never owns a document.
 
 `nodeId` is appended as a query parameter (`?nodeId=`) on every connect, including reconnects. It is a routing label stamped on the socket at upgrade, not an auth principal: the relay authorizes the room from the token, and within that room `nodeId` only decides which socket the relay routes a frame to (a presence push, or a relay-channel byte chunk).
 
-`/owners/:ownerId/rooms/:room` is the single cloud sync route shape (per-user cloud: `:ownerId` is the user id; instance: `:ownerId === 'instance'`). Browser apps and the workspace daemon both build their URL with `roomWsUrl`.
+`/api/rooms/:room` is the single cloud sync route shape. Browser apps and the workspace daemon both build their URL with `roomWsUrl`.
 
 ## Supervisor lifecycle
 

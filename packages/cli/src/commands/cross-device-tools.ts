@@ -4,9 +4,9 @@
  *
  * You name the device you want, not a tool floating in a global namespace: the
  * picker resolves `<device>` against the relay floor's live presence (the
- * same-owner devices currently online), then the LOCAL daemon opens a channel to
+ * same-principal devices currently online), then the LOCAL daemon opens a channel to
  * that device over the relay, runs an MCP session against the named route, and
- * lists or calls. The remote admits the channel on owner identity and a
+ * lists or calls. The remote admits the channel on principal identity and a
  * relay-exposed route, so a route the target has not exposed is refused before
  * any tool runs.
  *

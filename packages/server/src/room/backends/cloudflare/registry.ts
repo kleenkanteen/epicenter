@@ -27,9 +27,8 @@ export function createDurableObjectRooms(
 	return {
 		/**
 		 * Resolve a room by its host-owned opaque name (built by
-		 * `doName(ownerId, roomId)`, producing `owners/<ownerId>/rooms/<roomId>`
-		 * for either deployment: in the per-user topology `ownerId === user.id`,
-		 * on an instance `ownerId` is the pinned `INSTANCE_OWNER_ID`).
+		 * `doName(principalId, roomId)`, producing
+		 * `principals/<principalId>/rooms/<roomId>`.
 		 *
 		 * Returns a {@link ResolvedRoom} whose `handleUpgrade` forwards to the
 		 * DO stub's `fetch` (a 101-returning upgrade).
@@ -37,15 +36,15 @@ export function createDurableObjectRooms(
 		get(name: string): ResolvedRoom {
 			const stub = namespace.get(namespace.idFromName(name));
 			return {
-				// The DO reads `userId`/`nodeId` from the forwarded request URL.
+				// The DO reads `principalId`/`nodeId` from the forwarded request URL.
 				// `nodeId` already rides the client's URL; stamp the server-resolved
-				// `userId` over any client-supplied value, then forward to the stub
+				// `principalId` over any client-supplied value, then forward to the stub
 				// (a 101-returning `fetch`). Reconstructing the request is fine here
 				// because Cloudflare matches the socket by the DO it routes to, not
 				// by request-object identity the way Bun's `server.upgrade` does.
-				handleUpgrade: ({ request, userId }) => {
+				handleUpgrade: ({ request, principalId }) => {
 					const url = new URL(request.url);
-					url.searchParams.set('userId', userId);
+					url.searchParams.set('principalId', principalId);
 					return stub.fetch(new Request(url.toString(), request));
 				},
 			} satisfies ResolvedRoom;
