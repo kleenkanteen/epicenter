@@ -6,6 +6,7 @@
  * an expired cursor.
  */
 
+import { Database } from 'bun:sqlite';
 import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -628,6 +629,40 @@ describe('syncMailbox: INCREMENTAL', () => {
 		expect(outcome.failure).toBeNull();
 		expect(outcome.cursorAfter).toBe('9000');
 		expect(db.readRealmState().historyId).toBe('9000');
+		cleanup();
+	});
+});
+
+describe('syncMailbox: concurrent writers', () => {
+	test('a mirror locked past the busy timeout reports MirrorBusy instead of throwing', async () => {
+		const { db, cleanup } = tempDb();
+		// Shrink the production 5s timeout so the test fails fast.
+		db.raw.exec('PRAGMA busy_timeout = 50;');
+		const rival = new Database(db.raw.filename);
+		rival.exec('BEGIN IMMEDIATE;');
+
+		const client = createFakeGmailClient({
+			mailbox: new Map([['m1', message('m1')]]),
+			historyPages: [],
+			profileHistoryId: '1000',
+		});
+		const deps = {
+			db,
+			client,
+			config,
+			now: () => Date.parse('2026-07-01T00:00:00.000Z'),
+		};
+
+		const outcome = await syncMailbox(deps, { forceFull: true });
+		expect(outcome.failure?.name).toBe('MirrorBusy');
+		expect(outcome.cursorAfter).toBe(outcome.cursorBefore);
+
+		// The lock released: the very next pass succeeds against the same handle.
+		rival.exec('ROLLBACK;');
+		rival.close();
+		const retry = await syncMailbox(deps, { forceFull: true });
+		expect(retry.failure).toBeNull();
+		expect(db.readRealmState().historyId).toBe('1000');
 		cleanup();
 	});
 });
