@@ -3,11 +3,12 @@
  * content-addressed URL. The sha256 rides inside the URL, so the documents
  * that cite it are the only manifest; nothing is recorded anywhere else.
  *
- *   add <file|url>  upload the bytes (hash -> ticket -> presigned PUT straight
- *                   to the store) and print the URL; writes nothing to disk
- *   ls              list the owner's stored blobs (the store is the index)
- *   get <sha256>    download one blob by content address to a file
- *   rm  <sha256>    delete one blob from the store (breaks every citation)
+ *   add <file|url>      upload the bytes (hash -> ticket -> presigned PUT
+ *                       straight to the store) and print the URL; writes
+ *                       nothing to disk
+ *   ls                  list the owner's stored blobs (the store is the index)
+ *   get <sha256|url>    download one blob by content address to a file
+ *   rm  <sha256|url>    delete one blob from the store (breaks every citation)
  *
  * Every subcommand is a direct cloud round-trip built from the resolved machine
  * auth client (the persisted OAuth cell, or a configured instance token for a
@@ -99,14 +100,14 @@ const lsCommand = cmd({
 });
 
 const getCommand = cmd({
-	command: 'get <sha256>',
+	command: 'get <blob>',
 	describe: 'Download a blob by content address and write it to a file',
 	builder: (yargs) =>
 		yargs
-			.positional('sha256', {
+			.positional('blob', {
 				type: 'string',
 				demandOption: true,
-				describe: 'The lowercase-hex sha256 content address',
+				describe: 'A lowercase-hex sha256 content address, or a blob URL',
 			})
 			.option('output', {
 				alias: 'o',
@@ -116,10 +117,16 @@ const getCommand = cmd({
 			.options(formatOptions)
 			.strict(),
 	handler: async (argv) => {
+		const { data: sha256, error: parseError } = parseSha256(argv.blob);
+		if (parseError !== null) {
+			fail(parseError);
+			return;
+		}
+
 		const epicenter = await connectCloud();
 		if (!epicenter) return;
 
-		const { data: res, error } = await epicenter.blobs.get(argv.sha256);
+		const { data: res, error } = await epicenter.blobs.get(sha256);
 		if (error !== null) {
 			fail(error.message, { code: 2 });
 			return;
@@ -130,9 +137,9 @@ const getCommand = cmd({
 		// The store enforces the hash on write, but a download can still be
 		// truncated mid-flight; verify before we trust the bytes on disk.
 		const actual = createHash('sha256').update(bytes).digest('hex');
-		if (actual !== argv.sha256) {
+		if (actual !== sha256) {
 			fail(
-				`downloaded bytes do not match their content address: expected ${argv.sha256}, got ${actual}`,
+				`downloaded bytes do not match their content address: expected ${sha256}, got ${actual}`,
 				{ code: 2 },
 			);
 			return;
@@ -144,14 +151,14 @@ const getCommand = cmd({
 			res.headers.get('content-type') ?? 'application/octet-stream';
 		const ext = mime.getExtension(contentType);
 		const outputPath = path.resolve(
-			argv.output ?? (ext ? `${argv.sha256}.${ext}` : argv.sha256),
+			argv.output ?? (ext ? `${sha256}.${ext}` : sha256),
 		);
 		await fs.mkdir(path.dirname(outputPath), { recursive: true });
 		await fs.writeFile(outputPath, bytes);
 
 		output(
 			{
-				sha256: argv.sha256,
+				sha256,
 				output: path.relative(process.cwd(), outputPath),
 				size_bytes: bytes.byteLength,
 				content_type: contentType,
@@ -163,28 +170,34 @@ const getCommand = cmd({
 
 // Removes the cloud object only; local files are yours to manage.
 const rmCommand = cmd({
-	command: 'rm <sha256>',
+	command: 'rm <blob>',
 	describe:
 		'Delete a blob from the store by content address; every URL citing it breaks forever (idempotent)',
 	builder: (yargs) =>
 		yargs
-			.positional('sha256', {
+			.positional('blob', {
 				type: 'string',
 				demandOption: true,
-				describe: 'The lowercase-hex sha256 content address',
+				describe: 'A lowercase-hex sha256 content address, or a blob URL',
 			})
 			.options(formatOptions)
 			.strict(),
 	handler: async (argv) => {
+		const { data: sha256, error: parseError } = parseSha256(argv.blob);
+		if (parseError !== null) {
+			fail(parseError);
+			return;
+		}
+
 		const epicenter = await connectCloud();
 		if (!epicenter) return;
 
-		const { error } = await epicenter.blobs.delete(argv.sha256);
+		const { error } = await epicenter.blobs.delete(sha256);
 		if (error !== null) {
 			fail(error.message, { code: 2 });
 			return;
 		}
-		output({ sha256: argv.sha256, deleted: true }, { format: argv.format });
+		output({ sha256, deleted: true }, { format: argv.format });
 	},
 });
 
@@ -225,6 +238,21 @@ async function connectCloud(): Promise<EpicenterClient | null> {
 		fetch: (input, init) => auth.fetch(input, init),
 		ownerId: auth.state.ownerId,
 	});
+}
+
+/**
+ * Accept a bare content address or a pasted blob URL and return the
+ * lowercase-hex sha256. The URL form matches the read-URL shape
+ * (`.../blobs/<sha256>`), so a citation can be pasted back verbatim to `get`
+ * or `rm` without extracting the hash by hand.
+ */
+function parseSha256(input: string): Result<string, string> {
+	if (/^[a-f0-9]{64}$/.test(input)) return Ok(input);
+	const fromUrl = input.match(/\/blobs\/([a-f0-9]{64})(?:[/?#]|$)/);
+	if (fromUrl?.[1]) return Ok(fromUrl[1]);
+	return Err(
+		`expected a 64-character lowercase-hex sha256 or a blob URL containing one, got: ${input}`,
+	);
 }
 
 /**
