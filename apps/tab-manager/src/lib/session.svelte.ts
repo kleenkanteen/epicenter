@@ -36,6 +36,7 @@ import {
 	TAB_MANAGER_SYSTEM_PROMPT,
 } from './chat/system-prompt';
 import { createDeviceProfile, registerDevice } from './device';
+import { createTabManagerSignInMigration } from './migration/sign-in-migration';
 import {
 	instanceSettingPromise,
 	oauthLauncher,
@@ -63,6 +64,9 @@ export type TabManagerBundle = ReturnType<typeof buildTabManager>;
 let authClient: SyncAuthClient | undefined;
 let instanceSettingValue: InstanceSetting | undefined;
 let bundle: TabManagerBundle | undefined;
+let signInMigrationValue:
+	| ReturnType<typeof createTabManagerSignInMigration>
+	| undefined;
 
 const whenReady = Promise.all([
 	persistedAuthStoragePromise,
@@ -80,6 +84,7 @@ const whenReady = Promise.all([
 	authClient = auth;
 	instanceSettingValue = instanceSetting;
 	bundle = buildTabManager(auth, profile);
+	signInMigrationValue = createTabManagerSignInMigration(auth, bundle);
 	// Option A (ADR-0088): the doc is picked once at boot (the preset branch
 	// inside `openTabManagerBrowser`); an owner-identity change reloads the
 	// sidepanel document so the next boot rebuilds the right doc.
@@ -167,6 +172,16 @@ export const tabManagerBoot = {
 			);
 		}
 		return bundle;
+	},
+	get signInMigration(): ReturnType<typeof createTabManagerSignInMigration> {
+		if (!signInMigrationValue) {
+			throw new Error(
+				'[tab-manager] tabManagerBoot.signInMigration read before storage ' +
+					'readiness. Components must mount under ' +
+					'`{#await tabManagerBoot.whenReady}`.',
+			);
+		}
+		return signInMigrationValue;
 	},
 	whenReady,
 	[Symbol.dispose]() {
