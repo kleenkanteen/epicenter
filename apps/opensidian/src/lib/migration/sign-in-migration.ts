@@ -45,10 +45,17 @@ export const signInMigration = createSignInMigration({
 	errorNoun: 'files',
 	childDocs: {
 		// A file's content lives in its own per-row Y.Doc; the kit merges these
-		// into owner storage before the row copy.
-		guids: (tables) =>
-			tables.files
+		// into owner storage before the row copy. Conversations ride along:
+		// their UI is retired (ADR-0086), but the schema still carries the
+		// table, and a legacy local doc may hold rows whose message child docs
+		// would otherwise strand as stubs.
+		guids: (tables) => [
+			...tables.files
 				.scan()
 				.rows.map((row) => tables.files.docs.content.guid(row.id)),
+			...tables.conversations
+				.scan()
+				.rows.map((row) => tables.conversations.docs.messages.guid(row.id)),
+		],
 	},
 });
