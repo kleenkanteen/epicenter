@@ -77,13 +77,13 @@
 		 */
 		onForgetDevice?: () => void | Promise<void>;
 		/**
-		 * When set, the signed-out panel also offers connecting to a self-hosted
-		 * Epicenter instance, via the shared sign-in panel (a hosted sign-in button
-		 * plus a "Connect to a self-hosted instance" link that opens the settings
-		 * modal), the same affordance the full-page `SignedOutScreen` uses. Omit to
-		 * keep the hosted-only sign-in panel.
+		 * Self-host instance connect for the signed-out panel: the shared sign-in
+		 * panel offers a hosted sign-in button plus a "Connect to a self-hosted
+		 * instance" link that opens the settings modal. Required: this popover is
+		 * the app's only auth surface (ADR-0088), so every app injects its
+		 * instance setting here.
 		 */
-		instanceConnect?: {
+		instanceConnect: {
 			/** The app's display name, woven into the modal's description. */
 			appName: string;
 			/** The shared instance setting handle this app injected. */
@@ -120,9 +120,9 @@
 	// box, and the host IS the identity there (the instance session's email is a
 	// canned placeholder, not an account).
 	const selfHostHost = $derived(
-		instanceConnect && !instanceConnect.setting.isDefault()
-			? new URL(instanceConnect.setting.read().baseURL).host
-			: undefined,
+		instanceConnect.setting.isDefault()
+			? undefined
+			: new URL(instanceConnect.setting.read().baseURL).host,
 	);
 	// Identity lives on the auth client: `state` carries the capability id
 	// (`ownerId`), and `getProfile()` reads presentational identity (the email)
@@ -337,20 +337,19 @@
 					title="Sign in"
 					description={`Sign in to sync your ${syncNoun} across devices.`}
 					{disabledReason}
-					instance={instanceConnect
-						? { setting: instanceConnect.setting, onConfigure: openInstanceModal }
-						: undefined}
+					instance={{
+						setting: instanceConnect.setting,
+						onConfigure: openInstanceModal,
+					}}
 				/>
 			</div>
 		{/if}
 	</Popover.Content>
 </Popover.Root>
 
-{#if instanceConnect}
-	<InstanceSettingsModal
-		bind:open={instanceModalOpen}
-		appName={instanceConnect.appName}
-		setting={instanceConnect.setting}
-		{disabledReason}
-	/>
-{/if}
+<InstanceSettingsModal
+	bind:open={instanceModalOpen}
+	appName={instanceConnect.appName}
+	setting={instanceConnect.setting}
+	{disabledReason}
+/>

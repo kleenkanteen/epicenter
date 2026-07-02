@@ -8,10 +8,11 @@
 	import Server from '@lucide/svelte/icons/server';
 
 	/**
-	 * One shared signed-out sign-in panel.
+	 * The signed-out sign-in panel inside the account popover, the app's only
+	 * auth surface (ADR-0088).
 	 *
-	 * Renders the hosted primary action plus an optional self-host instance
-	 * connect affordance. Used by the account popover and the signed-out screen.
+	 * Renders the hosted primary action plus the self-host instance connect
+	 * affordance.
 	 */
 	type SignInPanelProps = {
 		/** The app's auth client; its `startSignIn` drives the primary button. */
@@ -28,12 +29,12 @@
 		 */
 		description: string;
 		/**
-		 * Optional self-host instance controls. When present, the panel offers
-		 * connecting to a self-hosted instance; grouping means a configure
-		 * affordance cannot ship without the setting that gives it meaning. Omit
-		 * for a hosted-only panel.
+		 * Self-host instance controls. The panel offers connecting to a
+		 * self-hosted instance; grouping means a configure affordance cannot ship
+		 * without the setting that gives it meaning. Required: self-host is a
+		 * real mode on every app's sign-in surface (ADR-0071, ADR-0088).
 		 */
-		instance?: {
+		instance: {
 			/** The shared instance setting handle this app injected. */
 			setting: InstanceSetting;
 			/**
@@ -70,15 +71,13 @@
 	// A self-host override is configured (a non-hosted star with a token is
 	// persisted, ADR-0071), which flips the labels from "sign in / connect" to
 	// "retry / change". Reads the boot snapshot, which only changes across a reload.
-	const configured = $derived(instance ? !instance.setting.isDefault() : false);
+	const configured = $derived(!instance.setting.isDefault());
 
 	// The self-host token client reports why it is not connected; hosted OAuth has
 	// no such channel (`auth.connection` is undefined) and falls back to the
 	// generic startSignIn error rendered below.
 	const host = $derived(
-		instance && configured
-			? new URL(instance.setting.read().baseURL).host
-			: undefined,
+		configured ? new URL(instance.setting.read().baseURL).host : undefined,
 	);
 	const connectionState = $derived(auth.connection?.state);
 	const connectionNotice = $derived.by(() => {
@@ -150,16 +149,14 @@
 			Sign in with Epicenter
 		{/if}
 	</Button>
-	{#if instance}
-		<!-- Self-host is a real mode, so it gets a real button; Cloud vs Server names the two modes. -->
-		<Button
-			variant="outline"
-			class="w-full"
-			disabled={accountLocked}
-			onclick={instance.onConfigure}
-		>
-			<Server class="size-4" />
-			{configured ? 'Change instance' : 'Connect to a self-hosted instance'}
-		</Button>
-	{/if}
+	<!-- Self-host is a real mode, so it gets a real button; Cloud vs Server names the two modes. -->
+	<Button
+		variant="outline"
+		class="w-full"
+		disabled={accountLocked}
+		onclick={instance.onConfigure}
+	>
+		<Server class="size-4" />
+		{configured ? 'Change instance' : 'Connect to a self-hosted instance'}
+	</Button>
 </div>
