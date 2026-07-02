@@ -41,17 +41,13 @@ export function openWhispering(
 	defaultTranscriptionService: TranscriptionServiceId,
 ) {
 	const model = defineWhispering(defaultTranscriptionService);
-	type ComposeWorkspace = Pick<
-		ReturnType<typeof model.create>,
-		'ydoc' | 'kv' | 'tables'
-	>;
+	type ComposeWorkspace = Pick<ReturnType<typeof model.create>, 'tables'>;
 	const compose = (workspace: ComposeWorkspace) => ({
 		actions: defineActions({
 			recordings_export_markdown: defineRecordingsMarkdownExport(
 				workspace.tables.recordings,
 			),
 		}),
-		settings: model.createSettings(workspace),
 	});
 	const bundle =
 		auth.state.status === 'signed-out'

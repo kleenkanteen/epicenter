@@ -62,7 +62,14 @@ export function createKv<TKvDefinitions extends KvDefinitions>(
 	ykv: ObservableKvStore<unknown>,
 	definitions: TKvDefinitions,
 ) {
+	const keys = Object.keys(definitions) as Array<
+		keyof TKvDefinitions & string
+	>;
+
 	return {
+		/** Every defined key, in declaration order. */
+		keys,
+
 		get<K extends keyof TKvDefinitions & string>(
 			key: K,
 		): InferKvValue<TKvDefinitions[K]> {
@@ -81,6 +88,32 @@ export function createKv<TKvDefinitions extends KvDefinitions>(
 			value: InferKvValue<TKvDefinitions[K]>,
 		): void {
 			ykv.set(key, value);
+		},
+
+		/**
+		 * The default value for a key, factory-evaluated: each call returns a
+		 * fresh value safe to mutate. The schema stays the single source of
+		 * defaults; callers never redeclare them.
+		 */
+		getDefault<K extends keyof TKvDefinitions & string>(
+			key: K,
+		): InferKvValue<TKvDefinitions[K]> {
+			return definitions[key]!.defaultValue() as InferKvValue<
+				TKvDefinitions[K]
+			>;
+		},
+
+		/**
+		 * Write every key's default in one batch (one observer firing, not one
+		 * per key), via the store's `bulkSet`.
+		 */
+		reset(): void {
+			ykv.bulkSet(
+				keys.map((key) => ({
+					key,
+					val: definitions[key]!.defaultValue(),
+				})),
+			);
 		},
 
 		delete<K extends keyof TKvDefinitions & string>(key: K): void {
