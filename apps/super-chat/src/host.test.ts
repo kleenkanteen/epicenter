@@ -84,6 +84,21 @@ describe('createSuperChatHost', () => {
 		});
 	});
 
+	test('a subprocess that never speaks MCP fails host creation fast', async () => {
+		// Without the catalog's own connect timeout this would ride the SDK's
+		// minute-long per-request default and the host would look wedged.
+		await expect(
+			createSuperChatHost({
+				engine: scriptedEngine([[]]),
+				localBooks: {
+					command: 'bun',
+					args: ['-e', 'await new Promise(() => {})'],
+					connectTimeoutMs: 300,
+				},
+			}),
+		).rejects.toThrow(/timeout \(300ms\)/);
+	});
+
 	test('a stdio MCP subprocess joins the same composed surface', async () => {
 		const engine = scriptedEngine([
 			[

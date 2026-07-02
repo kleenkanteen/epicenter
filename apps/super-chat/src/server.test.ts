@@ -87,11 +87,9 @@ describe('createSuperChatServer', () => {
 		try {
 			const url = `${server.url.origin.replace('http', 'ws')}/ws?token=${TOKEN}`;
 			const ws = new WebSocket(url);
-			const snapshots: ServerEvent[] = [];
 			const answered = new Promise<ServerEvent>((resolve, reject) => {
 				ws.addEventListener('message', (event) => {
 					const parsed = JSON.parse(String(event.data)) as ServerEvent;
-					snapshots.push(parsed);
 					const last = parsed.snapshot.messages.at(-1);
 					if (
 						!parsed.snapshot.isGenerating &&

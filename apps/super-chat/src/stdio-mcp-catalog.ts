@@ -22,10 +22,7 @@ import type {
 	ToolCatalog,
 } from '@epicenter/workspace/agent';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import {
-	getDefaultEnvironment,
-	StdioClientTransport,
-} from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { JsonValue } from 'wellcrafted/json';
 
@@ -35,11 +32,19 @@ export type StdioMcpCatalogOptions = {
 	/** Arguments to the executable (e.g. the server script plus its flags). */
 	args?: string[];
 	/**
-	 * Extra environment for the subprocess, merged over the SDK's safe-to-inherit
-	 * defaults (HOME, PATH, ...). The subprocess never sees this process's full
-	 * environment unless a variable is passed here explicitly.
+	 * Extra environment for the subprocess. The SDK merges this over its
+	 * safe-to-inherit defaults (HOME, PATH, ...) at spawn, so the subprocess
+	 * never sees this process's full environment unless a variable is passed
+	 * here explicitly.
 	 */
 	env?: Record<string, string>;
+	/**
+	 * How long to wait for the spawn + MCP handshake + first `tools/list`
+	 * before giving up (ms, default 15000). Without this bound a subprocess
+	 * that starts but never speaks MCP would stall host creation on the SDK's
+	 * minute-long per-request timeout, twice.
+	 */
+	connectTimeoutMs?: number;
 };
 
 /**
@@ -59,24 +64,29 @@ export type StdioMcpCatalog = ToolCatalog & {
 export async function createStdioMcpCatalog(
 	options: StdioMcpCatalogOptions,
 ): Promise<StdioMcpCatalog> {
+	const { connectTimeoutMs = 15_000 } = options;
 	const client = new Client({ name: 'super-chat', version: '0.0.0' });
 	const transport = new StdioClientTransport({
 		command: options.command,
 		...(options.args !== undefined && { args: options.args }),
-		env: { ...getDefaultEnvironment(), ...options.env },
+		...(options.env !== undefined && { env: options.env }),
 	});
 
-	try {
-		await client.connect(transport);
-	} catch (error) {
+	const definitions = await withTimeout(
+		connectTimeoutMs,
+		`start stdio MCP server (${options.command})`,
+		async () => {
+			await client.connect(transport);
+			const listed = await client.listTools();
+			return listed.tools.map(toAgentToolDefinition);
+		},
+	).catch(async (error) => {
+		// Reap the subprocess even when the handshake settled after the timeout
+		// fired (otherwise it leaks), then propagate the failure.
+		await client.close().catch(() => {});
 		await transport.close().catch(() => {});
 		throw error;
-	}
-	const listed = await client.listTools().catch(async (error) => {
-		await client.close().catch(() => {});
-		throw error;
 	});
-	const definitions = listed.tools.map(toAgentToolDefinition);
 
 	return {
 		definitions: () => definitions,
@@ -123,6 +133,26 @@ function toAgentToolDefinition(tool: Tool): AgentToolDefinition {
 			inputSchema: tool.inputSchema as JsonValue,
 		}),
 	};
+}
+
+/** Run `work`, rejecting if it has not settled within `ms`. */
+async function withTimeout<T>(
+	ms: number,
+	label: string,
+	work: () => Promise<T>,
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<never>((_, reject) => {
+		timer = setTimeout(
+			() => reject(new Error(`timeout (${ms}ms): ${label}`)),
+			ms,
+		);
+	});
+	try {
+		return await Promise.race([work(), timeout]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
 }
 
 /** MCP `arguments` is an object; a non-object tool input is sent as `{}`. */
