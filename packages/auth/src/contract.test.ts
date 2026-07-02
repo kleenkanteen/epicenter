@@ -798,13 +798,13 @@ test('openWebSocket rejects with a permanent denial when signed out', async () =
 		fetch: async () => new Response(null, { status: 204 }),
 	});
 
-	await expect(auth.openWebSocket('ws://localhost:8787/sync')).rejects.toMatchObject(
-		{
-			name: 'OpenWebSocketDenied',
-			permanence: 'permanent',
-			code: 'signed-out',
-		},
-	);
+	await expect(
+		auth.openWebSocket('ws://localhost:8787/sync'),
+	).rejects.toMatchObject({
+		name: 'OpenWebSocketDenied',
+		permanence: 'permanent',
+		code: 'signed-out',
+	});
 	expect(openings).toEqual([]);
 	auth[Symbol.dispose]();
 });
@@ -827,13 +827,13 @@ test('openWebSocket rejects with a permanent denial after /api/session rejects t
 		},
 	});
 
-	await expect(auth.openWebSocket('ws://localhost:8787/sync')).rejects.toMatchObject(
-		{
-			name: 'OpenWebSocketDenied',
-			permanence: 'permanent',
-			code: 'reauth-required',
-		},
-	);
+	await expect(
+		auth.openWebSocket('ws://localhost:8787/sync'),
+	).rejects.toMatchObject({
+		name: 'OpenWebSocketDenied',
+		permanence: 'permanent',
+		code: 'reauth-required',
+	});
 	await Promise.resolve();
 	expect(openings).toEqual([]);
 	auth[Symbol.dispose]();
@@ -861,13 +861,13 @@ test('openWebSocket rejects with a permanent denial when a stale grant cannot re
 		},
 	});
 
-	await expect(auth.openWebSocket('ws://localhost:8787/sync')).rejects.toMatchObject(
-		{
-			name: 'OpenWebSocketDenied',
-			permanence: 'permanent',
-			code: 'reauth-required',
-		},
-	);
+	await expect(
+		auth.openWebSocket('ws://localhost:8787/sync'),
+	).rejects.toMatchObject({
+		name: 'OpenWebSocketDenied',
+		permanence: 'permanent',
+		code: 'reauth-required',
+	});
 	expect(auth.state.status).toBe('reauth-required');
 	expect(openings).toEqual([]);
 	auth[Symbol.dispose]();
@@ -888,13 +888,13 @@ test('openWebSocket rejects with a transient denial when /api/session is unreach
 		},
 	});
 
-	await expect(auth.openWebSocket('ws://localhost:8787/sync')).rejects.toMatchObject(
-		{
-			name: 'OpenWebSocketDenied',
-			permanence: 'transient',
-			code: 'auth-unavailable',
-		},
-	);
+	await expect(
+		auth.openWebSocket('ws://localhost:8787/sync'),
+	).rejects.toMatchObject({
+		name: 'OpenWebSocketDenied',
+		permanence: 'transient',
+		code: 'auth-unavailable',
+	});
 	await Promise.resolve();
 	// Offline verification is not a rejection: the cell stays signed-in.
 	expect(auth.state.status).toBe('signed-in');

@@ -102,7 +102,10 @@ function presenceNodeIds(frames: Frame[]): string[][] {
 		.map((m: { peers: { nodeId: string }[] }) => m.peers.map((p) => p.nodeId));
 }
 
-async function readRawHandshake(path: string, protocols: string): Promise<string> {
+async function readRawHandshake(
+	path: string,
+	protocols: string,
+): Promise<string> {
 	return new Promise<string>((resolve, reject) => {
 		const client = net.createConnection({ port: Number(server.port) }, () => {
 			client.write(
