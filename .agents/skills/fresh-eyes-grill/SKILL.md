@@ -28,6 +28,17 @@ If subagents are not available, simulate the same posture locally: read only the
 files named by the task first, then widen by caller search only when a question
 requires it.
 
+A different-model reviewer (the Codex rescue subagent, when that plugin is
+present) is a strong backend for this pass: separate training means separate
+blind spots, and context independence is the point. Two rules keep it honest:
+
+- Findings are hypotheses, not patches. Verify each against the actual source
+  (including the installed dependency's code, not its docs) before applying;
+  apply only what survives.
+- This skill delegates review, never execution. Mid-flight implementation stays
+  with the agent holding the invariants; hand an executor only a bounded,
+  separable slice specified by a tight brief.
+
 Always load the relevant local skills before reviewing:
 
 - `typescript` for type ownership, local shape copies, and discriminated unions

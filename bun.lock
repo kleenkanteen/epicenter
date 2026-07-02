@@ -347,6 +347,24 @@
         "yjs": "catalog:",
       },
     },
+    "apps/super-chat": {
+      "name": "@epicenter/super-chat",
+      "version": "0.0.1",
+      "dependencies": {
+        "@epicenter/client": "workspace:*",
+        "@epicenter/honeycrisp": "workspace:*",
+        "@epicenter/todos": "workspace:*",
+        "@epicenter/workspace": "workspace:*",
+        "@modelcontextprotocol/sdk": "catalog:",
+        "hono": "catalog:",
+        "wellcrafted": "catalog:",
+        "yjs": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "apps/tab-manager": {
       "name": "@epicenter/tab-manager",
       "version": "0.0.2",
@@ -1330,6 +1348,8 @@
     "@epicenter/server": ["@epicenter/server@workspace:packages/server"],
 
     "@epicenter/skills": ["@epicenter/skills@workspace:packages/skills"],
+
+    "@epicenter/super-chat": ["@epicenter/super-chat@workspace:apps/super-chat"],
 
     "@epicenter/svelte": ["@epicenter/svelte@workspace:packages/svelte-utils"],
 
