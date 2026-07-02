@@ -140,7 +140,7 @@ describe('defineWorkspace', () => {
 			expect(String(body.guid)).toBe(
 				'ws-definition-connected.notes.note-1.body',
 			);
-			await Promise.all([workspace.idb.whenLoaded, body.whenLoaded]);
+			await Promise.all([workspace.storage.whenLoaded, body.whenLoaded]);
 		} finally {
 			body[Symbol.dispose]();
 			workspace[Symbol.dispose]();

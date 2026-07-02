@@ -55,5 +55,5 @@ export const opensidian = {
 		sampleData,
 	},
 	/** Resolves when local persistence has hydrated the root doc. */
-	whenReady: browser.idb.whenLoaded,
+	whenReady: browser.storage.whenLoaded,
 };

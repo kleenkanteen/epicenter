@@ -82,7 +82,7 @@ export type SaveCloseFailed = Extract<TabError, { name: 'SaveCloseFailed' }>;
  * `chrome.storage.local` via `createDeviceProfile()` in `device.ts`). Reads
  * `auth.state` exactly once, at call time, to pick the preset branch.
  *
- * Consumers gate UI render on `tabManager.idb.whenLoaded`.
+ * Consumers gate UI render on `tabManager.storage.whenLoaded`.
  */
 export function openTabManagerBrowser({
 	auth,

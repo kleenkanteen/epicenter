@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AgentEngine, EngineChunk } from '@epicenter/workspace/agent';
-import { createSuperChatHost, type SuperChatHost } from './host.ts';
+import {
+	createSuperChatHost,
+	type SuperChatHost,
+	type SuperChatHostOptions,
+} from './host.ts';
 import { createSuperChatServer, type ServerEvent } from './server.ts';
 
 const TOKEN = 'per-launch-secret';
@@ -12,6 +19,14 @@ function scriptedEngine(scripts: EngineChunk[][]): AgentEngine {
 		step += 1;
 		for (const chunk of script) yield chunk;
 	};
+}
+
+function testDataDir(): string {
+	return mkdtempSync(join(tmpdir(), 'super-chat-server-test-'));
+}
+
+function createTestHost(options: Omit<SuperChatHostOptions, 'dataDir'>) {
+	return createSuperChatHost({ dataDir: testDataDir(), ...options });
 }
 
 async function serveHost(host: SuperChatHost) {
@@ -27,7 +42,7 @@ async function serveHost(host: SuperChatHost) {
 
 describe('createSuperChatServer', () => {
 	test('refuses an empty token at construction', async () => {
-		await using host = await createSuperChatHost({
+		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
 		expect(() => createSuperChatServer({ host, token: '' })).toThrow(
@@ -36,7 +51,7 @@ describe('createSuperChatServer', () => {
 	});
 
 	test('rejects every request without the token, on any route', async () => {
-		await using host = await createSuperChatHost({
+		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
 		const server = await serveHost(host);
@@ -53,7 +68,7 @@ describe('createSuperChatServer', () => {
 	});
 
 	test('serves the page via query token and the API via bearer', async () => {
-		await using host = await createSuperChatHost({
+		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
 		const server = await serveHost(host);
@@ -78,7 +93,7 @@ describe('createSuperChatServer', () => {
 	});
 
 	test('a WebSocket session drives a chat turn and streams snapshots', async () => {
-		await using host = await createSuperChatHost({
+		await using host = await createTestHost({
 			engine: scriptedEngine([
 				[{ type: 'text-delta', delta: 'Hello from the host.' }],
 			]),
@@ -122,7 +137,7 @@ describe('createSuperChatServer', () => {
 	});
 
 	test('two sockets share the one host session (the remote-session proof)', async () => {
-		await using host = await createSuperChatHost({
+		await using host = await createTestHost({
 			engine: scriptedEngine([[{ type: 'text-delta', delta: 'Shared.' }]]),
 		});
 		const server = await serveHost(host);
@@ -174,7 +189,7 @@ describe('createSuperChatServer', () => {
 	});
 
 	test('a WebSocket upgrade without the token is refused', async () => {
-		await using host = await createSuperChatHost({
+		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
 		const server = await serveHost(host);

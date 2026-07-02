@@ -175,6 +175,8 @@ export {
 	createWorkspace,
 	type DefineWorkspaceOptions,
 	defineWorkspace,
+	type LocalPersistence,
+	type LocalPersistenceAttachment,
 	type LocalWorkspace,
 	type MountComposeContext,
 	type MountComposition,

@@ -18,7 +18,7 @@
 	// conversation lives in internal state (Vocab has no URL seam).
 	const chat = createAgentChatState({
 		table: vocab.tables.conversations,
-		whenLoaded: vocab.idb.whenLoaded,
+		whenLoaded: vocab.storage.whenLoaded,
 		connections: inferenceConnections,
 		agent: {
 			buildSystemPrompts: () => [VOCAB_SYSTEM_PROMPT],

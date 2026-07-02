@@ -6,8 +6,8 @@ Design authority: [ADR-0080](../../docs/adr/0080-the-super-app-is-a-desktop-host
 
 ## Shape
 
-- `src/host.ts` composes the static install list: in-process Yjs apps (arm A) as `createLocalToolCatalog` over their action registries, boxed apps (arm B, Local Books) as a local stdio MCP subprocess via `src/stdio-mcp-catalog.ts`. Every source is namespaced (`todos__`, `localbooks__`) and merged with `composeToolCatalogs` into the one `ToolCatalog` the agent loop consumes.
-- The in-process apps open through zero-attachment `create()`: proof of composition, not the data model. The ungated durable local open path is a named gap.
+- `src/host.ts` composes the static install list: in-process Yjs apps (arm A) as durable local `connect(null, { persistence })` replicas over their action registries, boxed apps (arm B, Local Books) as a local stdio MCP subprocess via `src/stdio-mcp-catalog.ts`. Every source is namespaced (`todos__`, `localbooks__`) and merged with `composeToolCatalogs` into the one `ToolCatalog` the agent loop consumes.
+- The in-process apps use `bunLocalPersistence({ dir, nodeId })` under the host data directory. This is signed-out local durability only; sign-in and relay sync for the host are a later enhancement.
 - Chat history is intentionally ephemeral (`src/message-store.ts`) until the transcript-persistence decision is made; tool results can carry data ADR-0080's confidentiality rule keeps off hosted readable planes.
 
 ## Refusals (do not reopen without a new ADR)

@@ -18,7 +18,10 @@ do not live in the app package at all; they live per-project under
 There is ONE composition shape (ADR-0088: sign-in is an enhancement, never a
 door). Every app boots into a working local workspace with one call;
 `toConnection` reads the persisted `auth.state` once and projects it to the
-connection (signed in) or `null` (signed out, bare local wiring, ADR-0094):
+connection (signed in) or `null` (signed out, bare local wiring, ADR-0094).
+Storage is an environment concern: browser apps use the default IndexedDB
+local persistence, while Bun hosts inject `bunLocalPersistence({ dir, nodeId })`
+through `connect(null, { persistence })` (ADR-0095).
 
 ```ts
 model.connect(toConnection(auth, nodeId), compose);
@@ -100,7 +103,7 @@ add a `./browser` export to the rest for symmetry's sake.
 | Layer | File | Job | Returns |
 | --- | --- | --- | --- |
 | Iso factory | `<app>.ts` / `workspace/index.ts` | `defineWorkspace({...})`: pure doc model | workspace model (`create`, `connect`, `mount`) |
-| Browser factory | `<app>.browser.ts` / `workspace/browser.ts` | `open<App>Browser({ auth, nodeId })`: the one boot call | `LocalWorkspace \| ConnectedWorkspace` bundle (idb, collaboration, wipe, child-doc openers) |
+| Browser factory | `<app>.browser.ts` / `workspace/browser.ts` | `open<App>Browser({ auth, nodeId })`: the one boot call | `LocalWorkspace \| ConnectedWorkspace` bundle (storage, collaboration, wipe, child-doc openers) |
 | Extension / tauri factory | `<app>.extension.ts` etc. | same branch after async storage resolves | iso bundle plus runtime resources |
 | Mount factory | `mount.ts` / `workspace/mount.ts` | Optional. `<app>(opts?)` calls `<app>Workspace.mount({ runtime: nodeMountRuntime(), ... })` and returns the `Mount` a project's `epicenter.config.ts` default-exports | `Mount` (node persistence, materializers) |
 | Workspace singleton | `src/lib/<app>.ts` | compose the bundle with app state, alias `whenReady` | `<app>` handle, never `null` |
@@ -176,7 +179,7 @@ export const honeycrisp = {
 	...browser,
 	state: createHoneycrispState(browser),
 	/** Resolves when local persistence has hydrated the root doc. */
-	whenReady: browser.idb.whenLoaded,
+	whenReady: browser.storage.whenLoaded,
 };
 ```
 
@@ -215,7 +218,7 @@ and child-doc migration together.
 ## Gating Readiness on Hydration
 
 A workspace-backed route reads empty tables until the workspace's readiness
-promise resolves (`idb.whenLoaded`, aliased as `whenReady`; matter's is the
+promise resolves (`storage.whenLoaded`, aliased as `whenReady`; matter's is the
 `once()`-memoized store read `ensureHydrated()`), so it flashes an empty state
 ("No recordings yet", "All clear"). No useful partial UI exists here, so gate
 the first paint rather than skeleton it.

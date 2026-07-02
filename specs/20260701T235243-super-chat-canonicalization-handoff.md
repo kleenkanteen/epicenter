@@ -112,7 +112,6 @@ ADR-0084's packaging shape is not implemented yet. The prototype does not have:
 - bearer checks on every HTTP and WebSocket request;
 - Tauri sidecar wiring;
 - `bun build --compile` packaging;
-- durable headless workspace opening;
 - dynamic scanned tool-file loading;
 - a tool module contract for third-party TypeScript files.
 
@@ -160,7 +159,7 @@ Chat persistence:
   The prototype uses an in-memory message store. Two plausible next steps are append-only JSONL for a simple local transcript, or dogfooding an Epicenter workspace for conversation history. Do not sync sensitive tool results through a hosted readable plane without revisiting ADR-0080's confidentiality rule.
 
 Headless durable workspace opening:
-  The prototype opens apps through zero-attachment factories (`create()` / `createTodos()`), so it has no persistence, sync, IndexedDB, or SQLite. The production node opener is currently gated on a signed-in cloud session. A real Super Chat host needs an ungated local durable open path.
+  Implemented by ADR-0095. Super Chat opens first-party apps as durable signed-out replicas through `connect(null, { persistence })`; signed-in host sync remains a later enhancement.
 
 jsrepo:
   Keep it deferred. It can deliver source, but it does not by itself solve lockfiles, integrity, installed-state tracking, review prompts, or sandboxing.
@@ -174,8 +173,8 @@ jsrepo:
 3. [x] Port the Slice 1 catalog proof from `feat/super-app-slice1`, keeping the static install list at first.
    > **Note:** Reconstructed, not ported; the prototype was unrecoverable. The
    > proof now composes Honeycrisp + Todos in-process (`defineWorkspace`
-   > `create()` / `createTodos()`) plus a stdio MCP fixture, driven end to end
-   > by a scripted engine in `apps/super-chat/src/host.test.ts`.
+   > `connect(null, { persistence })`) plus a stdio MCP fixture, driven end to
+   > end by a scripted engine in `apps/super-chat/src/host.test.ts`.
 4. [x] Promote `createStdioMcpCatalog` if a second local stdio MCP consumer appears; keep it app-local for the first slice.
    > Kept app-local: `apps/super-chat/src/stdio-mcp-catalog.ts`.
 5. [x] Add the Super Chat Hono/Bun server: static assets, chat API, WebSocket, loopback bind, and per-launch token gate.
@@ -185,7 +184,8 @@ jsrepo:
    > from env). Static assets are a placeholder page until the SPA slice
    > exists; the serving shape (page + API from one origin) is in place.
 6. [ ] Write a small ADR for the tool module contract before dynamic third-party files land.
-7. [ ] Spec or implement the ungated durable local open path. This is the real gap between "composition proof" and "loads my workspaces."
+7. [x] Spec or implement the ungated durable local open path. This is the real gap between "composition proof" and "loads my workspaces."
+   > Implemented via ADR-0095: `connect(null, { persistence })` plus `bunLocalPersistence({ dir, nodeId })`. Super Chat now opens Honeycrisp and Todos as durable signed-out local replicas, and `src/host.test.ts` proves a second host over the same data dir reads the first host's todo through the composed catalog.
 8. [x] Reconcile the Fuji removal branch after the canonical app skeleton is clear, so docs do not keep pointing at a deleted app.
    > Landed upstream as PR #2245 and arrived via the `origin/main` merge; its
    > "mount is not the composition path" conclusion is preserved above and in
