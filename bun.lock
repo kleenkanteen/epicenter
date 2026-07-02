@@ -351,10 +351,12 @@
       "name": "@epicenter/super-chat",
       "version": "0.0.1",
       "dependencies": {
+        "@epicenter/client": "workspace:*",
         "@epicenter/honeycrisp": "workspace:*",
         "@epicenter/todos": "workspace:*",
         "@epicenter/workspace": "workspace:*",
         "@modelcontextprotocol/sdk": "catalog:",
+        "hono": "catalog:",
         "wellcrafted": "catalog:",
         "yjs": "catalog:",
       },

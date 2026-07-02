@@ -160,7 +160,12 @@ jsrepo:
    > by a scripted engine in `apps/super-chat/src/host.test.ts`.
 4. [x] Promote `createStdioMcpCatalog` if a second local stdio MCP consumer appears; keep it app-local for the first slice.
    > Kept app-local: `apps/super-chat/src/stdio-mcp-catalog.ts`.
-5. [ ] Add the Super Chat Hono/Bun server: static assets, chat API, WebSocket, loopback bind, and per-launch token gate.
+5. [x] Add the Super Chat Hono/Bun server: static assets, chat API, WebSocket, loopback bind, and per-launch token gate.
+   > `src/server.ts` (Hono app + WS, bearer-or-query token on every request,
+   > constant-time compare) and `src/main.ts` (token over stdin, `127.0.0.1`
+   > port 0, single stdout port announcement, BYOK OpenAI-compatible engine
+   > from env). Static assets are a placeholder page until the SPA slice
+   > exists; the serving shape (page + API from one origin) is in place.
 6. [ ] Write a small ADR for the tool module contract before dynamic third-party files land.
 7. [ ] Spec or implement the ungated durable local open path. This is the real gap between "composition proof" and "loads my workspaces."
 8. [x] Reconcile the Fuji removal branch after the canonical app skeleton is clear, so docs do not keep pointing at a deleted app.
