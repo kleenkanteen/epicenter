@@ -75,7 +75,7 @@ export type Peer = Static<typeof PeerSchema>;
 
 /**
  * Server -> client: full set of currently-connected peers, pushed on every
- * membership or manifest change. `peers` always excludes the receiver's
+ * membership or identity change. `peers` always excludes the receiver's
  * own install: the relay computes the list per-recipient so the client never
  * has to filter self.
  */

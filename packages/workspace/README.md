@@ -637,9 +637,10 @@ const unsubscribe = workspace.collaboration.peers.subscribe((peers) => {
 });
 ```
 
-Each entry is a `Peer` (`{ nodeId, connectedAt, actions }`);
-the local install is excluded. Product-level data (display name, cursor,
-capability list) lives in app-owned tables, not on the presence wire. See
+Each entry is a `Peer` (`{ nodeId, connectedAt, agentId?, exposedRoutes? }`,
+plus an optional legacy `actions` field during the removal wave); the local
+install is excluded. Product-level data (display name, cursor, capability list)
+lives in app-owned tables, not on the presence wire. See
 [SYNC_ARCHITECTURE.md](./SYNC_ARCHITECTURE.md) for the full model.
 
 Cursor and selection sync (genuine ephemeral peer-to-peer state) is future
@@ -1571,7 +1572,7 @@ import {
 } from '@epicenter/workspace';
 ```
 
-`openCollaboration` returns a `Collaboration`. Online peers (relay-owned presence, with each peer's `nodeId`, `connectedAt`, and published `actions` manifest):
+`openCollaboration` returns a `Collaboration`. Online peers are relay-owned presence rows with each peer's `nodeId`, `connectedAt`, optional `agentId`, and optional `exposedRoutes`. The local `actions` registry remains on the `Collaboration` handle; it is no longer published as a peer manifest:
 
 - `collaboration.peers.list()`: `Peer[]`, the local install excluded
 - `collaboration.peers.subscribe(fn)`: returns an unsubscribe function
