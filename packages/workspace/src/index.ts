@@ -137,10 +137,6 @@ export { defineTable } from './document/define-table.js';
 // `docGuid` is intentionally NOT exported: child-doc guid derivation is an
 // internal workspace detail. Callers reach it through the table path,
 // `tables.<table>.docs.<field>.guid(rowId)`, which is the public contract.
-// One-shot HTTP read of a hosted room: GET the snapshot into a throwaway doc.
-// The atomic snapshot lets a relay-only doc be read without a live
-// `openCollaboration` session.
-export { readRoomOverHttp } from './document/http-room-sync.js';
 export type { SyncStatus } from './document/internal/sync-supervisor.js';
 export type {
 	InferKvValue,
