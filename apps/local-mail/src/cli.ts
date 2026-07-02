@@ -7,6 +7,7 @@ import { openLocalMailRuntime, openSyncSession } from './runtime.ts';
 import { readMailStatus } from './status.ts';
 import { runSyncLoop, type SyncOutcome, syncMailbox } from './sync.ts';
 import { createFileTokenStore } from './token-store.ts';
+import { VERSION } from './version.ts';
 
 export type ParsedArgs = {
 	command: string;
@@ -18,8 +19,6 @@ export type ParsedArgs = {
 	help: boolean;
 	version: boolean;
 };
-
-export const VERSION = '0.0.1';
 
 const DEFAULT_WATCH_INTERVAL_MS = 30_000;
 

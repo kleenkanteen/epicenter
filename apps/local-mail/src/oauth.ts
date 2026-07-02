@@ -148,75 +148,14 @@ async function fetchAccountEmail(
 	return Ok(data.emailAddress);
 }
 
-export async function completeAuthorization(
-	config: AppConfig,
-	{
-		callbackUrl,
-		state,
-		codeVerifier,
-		redirectUri,
-	}: {
-		callbackUrl: URL;
-		state: string;
-		codeVerifier: string;
-		redirectUri: string;
-	},
-	now: () => number,
-): GrantResult {
-	if (!config.clientId || !config.clientSecret) {
-		return OAuthError.MissingCredentials();
-	}
-	const as = authServer(config);
-	const client: oauth.Client = { client_id: config.clientId };
-	try {
-		const params = oauth.validateAuthResponse(as, client, callbackUrl, state);
-		const response = await oauth.authorizationCodeGrantRequest(
-			as,
-			client,
-			oauth.ClientSecretBasic(config.clientSecret),
-			params,
-			redirectUri,
-			codeVerifier,
-			httpOptions(config),
-		);
-		const grant = await oauth.processAuthorizationCodeResponse(
-			as,
-			client,
-			response,
-		);
-		const accessToken =
-			typeof grant.access_token === 'string' ? grant.access_token : null;
-		if (!accessToken) {
-			return OAuthError.ProfileLookupFailed({
-				cause: new Error('token response did not include access_token'),
-			});
-		}
-		const { data: accountEmail, error } = await fetchAccountEmail(
-			config,
-			accessToken,
-		);
-		if (error) return { data: null, error };
-		return tokenSetFromGrant(grant, {
-			accountEmail,
-			clientIdUsed: config.clientId,
-			now: now(),
-		});
-	} catch (cause) {
-		if (cause instanceof oauth.AuthorizationResponseError) {
-			return OAuthError.AuthorizationDenied({
-				error: cause.error,
-				description: cause.error_description ?? '',
-			});
-		}
-		return OAuthError.TokenExchangeFailed({ cause });
-	}
-}
-
 export async function runAuthorizationFlow(
 	config: AppConfig,
 	options: AuthorizationFlowOptions,
 ): GrantResult {
-	if (!config.clientId || !config.clientSecret) {
+	// Destructured so the narrowing survives the awaits below; this is the
+	// connect path's ONLY credentials guard.
+	const { clientId, clientSecret } = config;
+	if (!clientId || !clientSecret) {
 		return OAuthError.MissingCredentials();
 	}
 
@@ -259,11 +198,50 @@ export async function runAuthorizationFlow(
 	server.stop(true);
 	if (!callbackUrl) return OAuthError.Timeout({ ms: timeoutMs });
 
-	return completeAuthorization(
-		config,
-		{ callbackUrl, state, codeVerifier, redirectUri },
-		options.now,
-	);
+	const as = authServer(config);
+	const client: oauth.Client = { client_id: clientId };
+	try {
+		const params = oauth.validateAuthResponse(as, client, callbackUrl, state);
+		const response = await oauth.authorizationCodeGrantRequest(
+			as,
+			client,
+			oauth.ClientSecretBasic(clientSecret),
+			params,
+			redirectUri,
+			codeVerifier,
+			httpOptions(config),
+		);
+		const grant = await oauth.processAuthorizationCodeResponse(
+			as,
+			client,
+			response,
+		);
+		const accessToken =
+			typeof grant.access_token === 'string' ? grant.access_token : null;
+		if (!accessToken) {
+			return OAuthError.ProfileLookupFailed({
+				cause: new Error('token response did not include access_token'),
+			});
+		}
+		const { data: accountEmail, error } = await fetchAccountEmail(
+			config,
+			accessToken,
+		);
+		if (error) return { data: null, error };
+		return tokenSetFromGrant(grant, {
+			accountEmail,
+			clientIdUsed: clientId,
+			now: options.now(),
+		});
+	} catch (cause) {
+		if (cause instanceof oauth.AuthorizationResponseError) {
+			return OAuthError.AuthorizationDenied({
+				error: cause.error,
+				description: cause.error_description ?? '',
+			});
+		}
+		return OAuthError.TokenExchangeFailed({ cause });
+	}
 }
 
 async function requestRefreshGrant({

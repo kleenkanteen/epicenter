@@ -51,7 +51,7 @@ import {
 } from './runtime.ts';
 import { readMailStatus } from './status.ts';
 import { syncMailbox } from './sync.ts';
-import { VERSION } from './cli.ts';
+import { VERSION } from './version.ts';
 
 type ToolOutcome = Result<unknown, { message: string }>;
 

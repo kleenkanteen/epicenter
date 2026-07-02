@@ -54,10 +54,12 @@ export function loadConfig(): AppConfig {
 		// The bare GMAIL_* names match what Infisical injects at /apps/local-mail.
 		clientId: env('GMAIL_CLIENT_ID') ?? null,
 		clientSecret: env('GMAIL_CLIENT_SECRET') ?? null,
+		// The env override exists for the MCP subprocess test, which cannot
+		// inject an AppConfig in-process. The OAuth endpoints have no such
+		// consumer: in-process tests override the AppConfig fields directly.
 		apiBase: env('LOCAL_MAIL_GMAIL_API_BASE') ?? DEFAULT_API_BASE,
-		authorizeUrl:
-			env('LOCAL_MAIL_GMAIL_AUTHORIZE_URL') ?? DEFAULT_AUTHORIZE_URL,
-		tokenUrl: env('LOCAL_MAIL_GMAIL_TOKEN_URL') ?? DEFAULT_TOKEN_URL,
+		authorizeUrl: DEFAULT_AUTHORIZE_URL,
+		tokenUrl: DEFAULT_TOKEN_URL,
 		historySafeWindowDays: 5,
 		fullBackstopDays: 30,
 		pageSize: 100,

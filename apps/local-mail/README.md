@@ -91,9 +91,8 @@ Tools:
   `mcp`. Required only when more than one account is connected.
 - `LOCAL_MAIL_DIR`: data directory override.
 - `LOCAL_MAIL_TOKEN_FILE`: token file override.
-- `LOCAL_MAIL_GMAIL_API_BASE`: Gmail API base URL for tests.
-- `LOCAL_MAIL_GMAIL_AUTHORIZE_URL`: OAuth authorization endpoint override.
-- `LOCAL_MAIL_GMAIL_TOKEN_URL`: OAuth token endpoint override.
+- `LOCAL_MAIL_GMAIL_API_BASE`: test plumbing only; points the Gmail client at
+  a mock server in the MCP subprocess test.
 
 ## Testing
 
