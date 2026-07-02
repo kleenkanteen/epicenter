@@ -71,9 +71,6 @@ export type EpicenterClientOptions = {
 /** One row of the owner's blob listing (`GET /blobs`). */
 export type BlobRow = { sha256: string; size: number; uploaded: string };
 
-/** Total stored bytes for the owner (`GET /blobs/usage`). */
-export type BlobUsage = { totalBytes: number };
-
 /** Result of the client's `blobs.add`. */
 export type AddBlobResult = {
 	/** Lowercase-hex content address of the stored bytes. */
@@ -285,16 +282,57 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 
 		/**
 		 * Read a blob's bytes. The server answers 302 to a short-lived presigned
-		 * GET; `fetch` follows it, and the cross-origin redirect drops the bearer
-		 * so the presigned URL is hit clean. On success `data` is the bytes
-		 * `Response`.
+		 * GET. A cookie-authed fetch follows the redirect itself and arrives here
+		 * as a 2xx bytes `Response`. A bearer-authed fetch pins
+		 * `redirect: 'manual'` (a bearer must never follow a cross-origin
+		 * redirect), so the 302 surfaces raw; we read `Location` and fetch the
+		 * presigned URL with the plain global `fetch`, so no bearer reaches the
+		 * storage origin. On success `data` is the bytes `Response`.
 		 */
 		async get(sha256: string): Promise<Result<Response, ClientError>> {
-			return request(
-				API_ROUTES.blobs.byHash.url(base, ownerId, sha256),
-				undefined,
-				'GET /blobs/:sha256',
-			);
+			const operation = 'GET /blobs/:sha256';
+			const { data: res, error } = await tryAsync({
+				try: () =>
+					opts.fetch(API_ROUTES.blobs.byHash.url(base, ownerId, sha256)),
+				catch: (cause) => ClientError.TransportFailed({ operation, cause }),
+			});
+			if (error !== null) return Err(error);
+
+			// A fetch that followed the redirect already holds the bytes.
+			if (res.ok) return Ok(res);
+
+			if (res.status >= 300 && res.status < 400) {
+				const location = res.headers.get('location');
+				if (!location) {
+					return ClientError.RequestFailed({
+						operation,
+						status: res.status,
+						detail: 'redirect without a Location header',
+					});
+				}
+				const { data: store, error: storeError } = await tryAsync({
+					try: () => fetch(location),
+					catch: (cause) =>
+						ClientError.TransportFailed({ operation: 'store GET', cause }),
+				});
+				if (storeError !== null) return Err(storeError);
+				if (!store.ok) {
+					const detail = (await store.text().catch(() => '')).slice(0, 200);
+					return ClientError.RequestFailed({
+						operation: 'store GET',
+						status: store.status,
+						detail,
+					});
+				}
+				return Ok(store);
+			}
+
+			const detail = (await res.text().catch(() => '')).slice(0, 200);
+			return ClientError.RequestFailed({
+				operation,
+				status: res.status,
+				detail,
+			});
 		},
 
 		async list(): Promise<Result<BlobRow[], ClientError>> {
@@ -305,16 +343,6 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 			);
 			if (reqError !== null) return Err(reqError);
 			return Ok((await res.json()) as BlobRow[]);
-		},
-
-		async usage(): Promise<Result<BlobUsage, ClientError>> {
-			const { data: res, error: reqError } = await request(
-				API_ROUTES.blobs.usage.url(base, ownerId),
-				undefined,
-				'GET /blobs/usage',
-			);
-			if (reqError !== null) return Err(reqError);
-			return Ok((await res.json()) as BlobUsage);
 		},
 
 		async delete(sha256: string): Promise<Result<void, ClientError>> {
