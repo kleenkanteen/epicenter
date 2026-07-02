@@ -27,7 +27,7 @@ export const OAuthError = defineErrors({
 			'(or pass --client-id with GMAIL_CLIENT_SECRET set, or run via `infisical run --path=/apps/local-mail`).',
 	}),
 	TokenExchangeFailed: ({ cause }: { cause: unknown }) => ({
-		message: `Gmail token exchange failed: ${extractErrorMessage(cause)}`,
+		message: `Gmail token exchange failed: ${extractOAuthErrorMessage(cause)}`,
 		cause,
 	}),
 	AuthorizationDenied: ({
@@ -79,6 +79,16 @@ export type AuthorizationFlowOptions = {
 };
 
 const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+
+function extractOAuthErrorMessage(cause: unknown): string {
+	if (cause instanceof oauth.ResponseBodyError) {
+		const detail = cause.error_description
+			? `${cause.error}: ${cause.error_description}`
+			: cause.error;
+		return `${extractErrorMessage(cause)} (${detail}, HTTP ${cause.status})`;
+	}
+	return extractErrorMessage(cause);
+}
 
 /** Hand-built server metadata; Google's OAuth endpoints are known constants. */
 function authServer(config: AppConfig): oauth.AuthorizationServer {
@@ -209,7 +219,7 @@ export async function runAuthorizationFlow(
 		const response = await oauth.authorizationCodeGrantRequest(
 			as,
 			client,
-			oauth.ClientSecretBasic(clientSecret),
+			oauth.ClientSecretPost(clientSecret),
 			params,
 			redirectUri,
 			codeVerifier,
@@ -265,7 +275,7 @@ async function requestRefreshGrant({
 		const response = await oauth.refreshTokenGrantRequest(
 			as,
 			client,
-			oauth.ClientSecretBasic(clientSecret),
+			oauth.ClientSecretPost(clientSecret),
 			refreshToken,
 			httpOptions(config),
 		);

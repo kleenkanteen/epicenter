@@ -35,7 +35,7 @@ infisical run --env=dev --path=/apps/local-mail -- \
 
 Use `--client-id <id>` to override `GMAIL_CLIENT_ID` for the connect command.
 `GMAIL_CLIENT_SECRET` is still required because Google Desktop clients have a
-secret and the token exchange sends it.
+secret and the token exchange sends it as a form parameter.
 
 Headless bootstrap is still available. The refresh token is redeemed
 immediately (one refresh grant plus a profile read), so a dead token fails

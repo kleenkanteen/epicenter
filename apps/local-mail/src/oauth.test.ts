@@ -7,12 +7,11 @@
  *
  * Key behaviors:
  * - Consent URL requests gmail.readonly only
- * - Token exchange authenticates the desktop client with HTTP Basic
+ * - Token exchange authenticates the desktop client with form parameters
  * - The connected Gmail profile supplies the token-store account key
  */
 
 import { expect, test } from 'bun:test';
-import { Buffer } from 'node:buffer';
 import type { AppConfig } from './config.ts';
 import {
 	redeemRefreshToken,
@@ -49,7 +48,7 @@ async function waitFor<T>(read: () => T | null): Promise<T> {
 
 test('runAuthorizationFlow exchanges a PKCE callback and stores the connected Gmail account', async () => {
 	const tokenRequests: URLSearchParams[] = [];
-	const tokenAuthHeaders: string[] = [];
+	const tokenAuthHeaders: (string | null)[] = [];
 	const tokenServer = Bun.serve({
 		hostname: '127.0.0.1',
 		port: 0,
@@ -121,17 +120,61 @@ test('runAuthorizationFlow exchanges a PKCE callback and stores the connected Gm
 
 	const request = tokenRequests[0];
 	expect(request?.get('grant_type')).toBe('authorization_code');
-	expect(request?.get('client_secret')).toBeNull();
-	expect(
-		Buffer.from(
-			tokenAuthHeaders[0]?.replace('Basic ', '') ?? '',
-			'base64',
-		).toString(),
-	).toBe('client%2Did%2D123:client%2Dsecret%2D456');
+	expect(request?.get('client_id')).toBe('client-id-123');
+	expect(request?.get('client_secret')).toBe('client-secret-456');
+	expect(tokenAuthHeaders[0]).toBe('');
 	expect(request?.get('code_verifier')).toBeTruthy();
 
 	tokenServer.stop(true);
 	apiServer.stop(true);
+});
+
+test('runAuthorizationFlow reports OAuth error details from the token endpoint', async () => {
+	const tokenServer = Bun.serve({
+		hostname: '127.0.0.1',
+		port: 0,
+		fetch() {
+			return Response.json(
+				{
+					error: 'invalid_client',
+					error_description: 'The OAuth client was not found.',
+				},
+				{ status: 401 },
+			);
+		},
+	});
+
+	let authorizeUrl: string | null = null;
+	const flow = runAuthorizationFlow(
+		config({
+			authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+			tokenUrl: `http://127.0.0.1:${tokenServer.port}/token`,
+		}),
+		{
+			now: () => Date.parse('2026-07-01T00:00:00.000Z'),
+			openBrowser: (url) => {
+				authorizeUrl = url;
+			},
+			timeoutMs: 5000,
+		},
+	);
+
+	const url = new URL(await waitFor(() => authorizeUrl));
+	const redirectUri = url.searchParams.get('redirect_uri');
+	const state = url.searchParams.get('state');
+	expect(redirectUri).not.toBeNull();
+	expect(state).not.toBeNull();
+	await fetch(
+		`${redirectUri}?code=auth-code-123&state=${state}&iss=https%3A%2F%2Faccounts.google.com`,
+	);
+
+	const { data, error } = await flow;
+	expect(data).toBeNull();
+	expect(error?.message).toContain('invalid_client');
+	expect(error?.message).toContain('The OAuth client was not found.');
+	expect(error?.message).toContain('HTTP 401');
+
+	tokenServer.stop(true);
 });
 
 test('redeemRefreshToken performs the grant now and reads the account email from the profile', async () => {
