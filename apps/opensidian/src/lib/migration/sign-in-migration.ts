@@ -1,8 +1,8 @@
 /**
  * Opensidian's wiring of the shared first-sign-in migration
  * (`@epicenter/app-shell/sign-in-migration`): the local-source opener and the
- * words are app-side; the probe / Add / Delete / Keep mechanics, including
- * the crash-safe file-content phases, are the kit's (`childDocs`).
+ * words are app-side; the probe, Add, Delete, Keep, and derived child-doc
+ * phases are the kit's.
  */
 
 import { createSignInMigration } from '@epicenter/app-shell/sign-in-migration';
@@ -29,6 +29,10 @@ function openLocalSource() {
 	};
 }
 
+// Legacy conversations ride along automatically because the local source keeps
+// the table. Their UI is retired (ADR-0086), but the schema still carries the
+// message child docs.
+
 /**
  * Human phrase for what is staged locally, e.g. "3 files".
  */
@@ -43,19 +47,4 @@ export const signInMigration = createSignInMigration({
 	target: opensidian,
 	describe: describeLocalContents,
 	errorNoun: 'files',
-	childDocs: {
-		// A file's content lives in its own per-row Y.Doc; the kit merges these
-		// into owner storage before the row copy. Conversations ride along:
-		// their UI is retired (ADR-0086), but the schema still carries the
-		// table, and a legacy local doc may hold rows whose message child docs
-		// would otherwise strand as stubs.
-		guids: (tables) => [
-			...tables.files
-				.scan()
-				.rows.map((row) => tables.files.docs.content.guid(row.id)),
-			...tables.conversations
-				.scan()
-				.rows.map((row) => tables.conversations.docs.messages.guid(row.id)),
-		],
-	},
 });

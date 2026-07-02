@@ -1,8 +1,8 @@
 /**
  * Honeycrisp's wiring of the shared first-sign-in migration
  * (`@epicenter/app-shell/sign-in-migration`): the local-source opener and the
- * words are app-side; the probe / Add / Delete / Keep mechanics, including
- * the crash-safe note-body phases, are the kit's (`childDocs`).
+ * words are app-side; the probe, Add, Delete, Keep, and derived child-doc
+ * phases are the kit's.
  */
 
 import { createSignInMigration } from '@epicenter/app-shell/sign-in-migration';
@@ -48,12 +48,4 @@ export const signInMigration = createSignInMigration({
 	target: honeycrisp,
 	describe: describeLocalContents,
 	errorNoun: 'notes',
-	childDocs: {
-		// A note's rich-text body lives in its own per-row Y.Doc; the kit
-		// merges these into owner storage before the row copy.
-		guids: (tables) =>
-			tables.notes
-				.scan()
-				.rows.map((row) => tables.notes.docs.body.guid(row.id)),
-	},
 });

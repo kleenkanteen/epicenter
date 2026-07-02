@@ -7,9 +7,11 @@
 
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { field } from '@epicenter/field';
+import { asOwnerId } from '@epicenter/identity';
 import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 import type * as Y from 'yjs';
 import { defineTable } from './define-table.js';
+import { asNodeId } from './node-id.js';
 import { defineWorkspace } from './workspace.js';
 
 Object.assign(globalThis, { indexedDB, IDBKeyRange });
@@ -72,6 +74,25 @@ test('bare root + bare child docs persist under guid names, no relay', async () 
 	// Cross-tab channels for both the root and the child, keyed by guid.
 	expect(FakeBroadcastChannel.names).toContain('yjs.clw-notes');
 	expect(FakeBroadcastChannel.names).toContain('yjs.clw-notes.notes.n1.body');
+
+	bundle[Symbol.dispose]();
+});
+
+test('signed-in root persists under the owner-scoped database name', async () => {
+	const bundle = model.connect({
+		server: 'api.example.com',
+		baseURL: 'https://api.example.com',
+		ownerId: asOwnerId('owner-1'),
+		nodeId: asNodeId('node-test'),
+		openWebSocket: () => new Promise<never>(() => {}),
+		onReconnectSignal: () => () => {},
+	});
+
+	await bundle.idb.whenLoaded;
+
+	expect(await databaseNames()).toContain(
+		'epicenter/api.example.com/owners/owner-1/clw-notes',
+	);
 
 	bundle[Symbol.dispose]();
 });

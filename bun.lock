@@ -623,7 +623,10 @@
         "yjs": "catalog:",
       },
       "devDependencies": {
+        "@epicenter/field": "workspace:*",
+        "@epicenter/identity": "workspace:*",
         "@types/bun": "catalog:",
+        "fake-indexeddb": "^6.2.5",
         "svelte": "catalog:",
         "svelte-check": "catalog:",
         "typescript": "catalog:",

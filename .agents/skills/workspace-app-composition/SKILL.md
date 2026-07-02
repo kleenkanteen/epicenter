@@ -27,8 +27,9 @@ auth.state.status === 'signed-out'
 
 The workspace is never `null`, no route gates on identity, and an owner change
 reloads the page (`reloadOnOwnerChange`) so the next boot re-runs the branch.
-Whispering predates `defineWorkspace` and does the same branch at the doc
-level with `connectLocalFirst`; new apps use the presets.
+When a schema needs a per-platform argument, the model is a factory
+`define<App>(args)`: the id and tables stay fixed, and only defaults or other
+read-side schema inputs vary.
 
 ## File Layout
 
@@ -104,7 +105,7 @@ add a `./browser` export to the rest for symmetry's sake.
 | Extension / tauri factory | `<app>.extension.ts` etc. | same branch after async storage resolves | iso bundle plus runtime resources |
 | Mount factory | `mount.ts` / `workspace/mount.ts` | Optional. `<app>(opts?)` calls `<app>Workspace.mount({ runtime: nodeMountRuntime(), ... })` and returns the `Mount` a project's `epicenter.config.ts` default-exports | `Mount` (node persistence, materializers) |
 | Workspace singleton | `src/lib/<app>.ts` | compose the bundle with app state, alias `whenReady` | `<app>` handle, never `null` |
-| Migration | `src/lib/migration/sign-in-migration.ts` | wire `createSignInMigration` (words + guid readers app-side) | `signInMigration` state for the shared dialog |
+| Migration | `src/lib/migration/sign-in-migration.ts` | wire `createSignInMigration` (local source + words) | `signInMigration` state for the shared dialog |
 | Auth | `src/lib/platform/auth/` (or `#platform/auth`) | auth client construction | `auth` |
 
 The iso factory and browser/extension factory are pure construction surfaces.
@@ -194,8 +195,7 @@ The first signed-in boot that finds bare local rows offers the flag-free
 Add / Delete / Keep dialog. The mechanics (probe, crash-safe child-doc phases,
 copy-then-clear) live in `@epicenter/app-shell/sign-in-migration`; the app
 supplies only `openLocalSource` (the iso model's `.create()` plus a bare
-`attachIndexedDb`), the words (`describe`, `note`, `errorNoun`), and
-`childDocs.guids` when tables declare per-row child docs:
+`attachIndexedDb`) and the words (`describe`, `note`, `errorNoun`):
 
 ```ts
 export const signInMigration = createSignInMigration({
@@ -204,19 +204,13 @@ export const signInMigration = createSignInMigration({
 	target: honeycrisp,
 	describe: describeLocalContents,
 	errorNoun: 'notes',
-	childDocs: {
-		guids: (tables) =>
-			tables.notes.scan().rows.map((row) => tables.notes.docs.body.guid(row.id)),
-	},
 });
 ```
 
-Every table with a `.docs(...)` declaration MUST appear in `childDocs.guids`
-(including tables from shared packages like `@epicenter/chat`'s
-conversations); a missing guid reader strands the child content in a bare
-database after Add. Deliberately excluding a table from `openLocalSource`
-(e.g. tab-manager's always-populated `devices`) excludes it from both the
-probe and the copy.
+Child-doc guids are derived from the tables returned by `openLocalSource`
+(ADR-0092). Deliberately excluding a table from `openLocalSource` (e.g.
+tab-manager's always-populated `devices`) excludes it from the probe, row copy,
+and child-doc migration together.
 
 ## Gating Readiness on Hydration
 

@@ -1,8 +1,8 @@
 /**
  * Tab Manager's wiring of the shared first-sign-in migration
  * (`@epicenter/app-shell/sign-in-migration`): the local-source opener and the
- * words are app-side; the probe / Add / Delete / Keep mechanics, including
- * the crash-safe conversation-message phases, are the kit's (`childDocs`).
+ * words are app-side; the probe, Add, Delete, Keep, and derived child-doc
+ * phases are the kit's.
  *
  * Unlike Honeycrisp's static singleton, this is a factory
  * (`createTabManagerSignInMigration`), not a module-level `export const`:
@@ -94,13 +94,5 @@ export function createTabManagerSignInMigration(
 		target: tabManager,
 		describe: describeLocalContents,
 		errorNoun: 'tabs and bookmarks',
-		childDocs: {
-			// A conversation's turns live in its own per-row Y.Doc; the kit
-			// merges these into owner storage before the row copy.
-			guids: (tables) =>
-				tables.conversations
-					.scan()
-					.rows.map((row) => tables.conversations.docs.messages.guid(row.id)),
-		},
 	});
 }

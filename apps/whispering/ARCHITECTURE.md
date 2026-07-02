@@ -19,14 +19,14 @@ Whispering uses a clean three-layer architecture that achieves **extensive code 
 Whispering uses the same workspace composition vocabulary as the rest of the repo, with a Tauri runtime today:
 
 ```txt
-createWorkspace()
-  -> createWhispering()
+defineWorkspace()
+  -> defineWhispering(defaultTranscriptionService)
     -> openWhispering()
 ```
 
-`createWhispering()` in `src/lib/workspace/definition.ts` is the shared model. It defines the workspace id, tables, and KV schema with no platform APIs.
+`defineWhispering(defaultTranscriptionService)` in `src/lib/workspace/definition.ts` is the shared model factory. It defines the fixed workspace id, tables, and KV schema with no platform APIs; the platform argument only changes read-side KV defaults.
 
-`openWhispering()` in `src/lib/whispering/tauri.ts` is the Tauri runtime opener. It creates the shared model, attaches IndexedDB persistence, attaches BroadcastChannel, and attaches the recording markdown export when a folder is configured. The name predates the newer `open<App>Tauri()` convention; conceptually it is Whispering's Tauri opener.
+`openWhispering()` in `src/lib/whispering/whispering.active.ts` is the shared browser/Tauri runtime opener. It picks `connectLocal()` or `connect()` at boot, layers the settings namespace and recording markdown export, and aliases `idb.whenLoaded` as `whenReady`. The `#platform/whispering` leaves only choose the platform default transcription service.
 
 The rule is the same as Fuji and Honeycrisp:
 

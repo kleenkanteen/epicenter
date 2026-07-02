@@ -85,12 +85,10 @@ This starts the app dev server on port 5176. Auth and sync expect the local API 
 
 ### Auth deployment
 
-The public `opensidian.com` app uses bearer auth because it runs on its own
-domain and cannot rely on the API server's first-party cookies. If the app moves
-behind a reverse proxy, configure `/auth/*` to proxy to
-`https://api.epicenter.so/auth/*`, then switch the app client to
-`createCookieAuth`. With that proxy in place, the browser sees auth as
-same-origin and the cookie-backed client can replace local bearer storage.
+The public `opensidian.com` app uses OAuth app auth because relay sync needs a
+bearer-capable `SyncAuthClient`. A reverse proxy for `/auth/*` can make hosted
+sign-in same-origin, but it does not replace OAuth app auth unless the sync
+relay also grows a cookie-authenticated path.
 
 ---
 

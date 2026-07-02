@@ -65,27 +65,32 @@ to open only the root doc or attach browser storage, sync, and runtime extras.
 
 ### Persistence + collaboration
 
-Auth belongs to the app. The browser opener receives the signed-in identity plus
-`nodeId`, then passes that connection into `definition.connect(connection)`.
+Auth belongs to the app. The browser opener reads the persisted auth state once:
+signed out calls `definition.connectLocal()`, signed in passes the projected
+identity plus `nodeId` into `definition.connect(connection)`.
 
 ```typescript
-import type { SignedIn } from '@epicenter/svelte/auth';
+import type { SyncAuthClient } from '@epicenter/auth';
+import { projectSignedIn } from '@epicenter/svelte/auth';
 import type { NodeId } from '@epicenter/workspace';
 
 function openBlog({
-  signedIn,
+  auth,
   nodeId,
 }: {
-  signedIn: SignedIn;
+  auth: SyncAuthClient;
   nodeId: NodeId;
 }) {
-  return blogWorkspace.connect({ ...signedIn, nodeId });
+  return auth.state.status === 'signed-out'
+    ? blogWorkspace.connectLocal()
+    : blogWorkspace.connect({ ...projectSignedIn(auth), nodeId });
 }
 ```
 
-`open(connection)` derives owner-scoped local storage and BroadcastChannel keys
-from `server`, `ownerId`, and each doc guid. `wipe()` deletes every database
-under that owner prefix in one call: no explicit guid list to maintain.
+`connectLocal()` derives bare local storage and BroadcastChannel keys from each
+doc guid. `connect(connection)` derives owner-scoped keys from `server`,
+`ownerId`, and each doc guid. `wipe()` deletes the databases for the active
+branch in one call: no explicit guid list to maintain.
 
 For content documents (rich-text bodies, attachments) that only need bytes on
 the wire, the opener uses the same collaboration primitive with an empty

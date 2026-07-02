@@ -1,13 +1,12 @@
 import { field } from '@epicenter/field';
 import {
-	createWorkspace,
 	defineKv,
 	defineTable,
+	defineWorkspace,
 	type IanaTimeZone,
 	type InferKvValue,
 	type InferTableRow,
 	nullable,
-	satisfiesWorkspace,
 } from '@epicenter/workspace';
 import { type Static, type TProperties, Type } from 'typebox';
 import type { KeyBinding } from '$lib/tauri/commands';
@@ -389,19 +388,14 @@ const shortcuts = {
 	),
 } as const;
 
-type CreateWhisperingOptions = {
-	defaultTranscriptionService: TranscriptionServiceId;
-};
-
-/** Build the Whispering workspace bundle: `{ ydoc, tables, kv, actions, settings }`. */
-export function createWhispering({
-	defaultTranscriptionService,
-}: CreateWhisperingOptions) {
+/** Define the Whispering workspace model for one platform's default service. */
+export function defineWhispering(
+	defaultTranscriptionService: TranscriptionServiceId,
+) {
 	/**
 	 * Whispering KV schemas: ~40 entries for synced preferences. Defined locally
 	 * so the raw schema map is not a module-level export. Callers reach the
-	 * defaults and key list through the `settings` namespace on the returned
-	 * workspace bundle.
+	 * defaults and key list through `model.createSettings(workspace)`.
 	 */
 	const kvDefinitions = {
 		...sound,
@@ -415,10 +409,11 @@ export function createWhispering({
 	};
 	type SettingKey = keyof typeof kvDefinitions & string;
 
-	const workspace = createWorkspace({
+	const model = defineWorkspace({
 		// Workspace/Y.Doc identity, not an OAuth client id or Tauri bundle id.
 		// This keys local storage and cloud rooms; change only with a data migration.
 		id: 'epicenter-whispering',
+		name: 'Whispering',
 		tables: {
 			recordings,
 			transformations,
@@ -429,16 +424,17 @@ export function createWhispering({
 
 	const settingKeys = Object.keys(kvDefinitions) as SettingKey[];
 
-	return satisfiesWorkspace({
-		...workspace,
-		/**
-		 * Synced setting metadata for the Whispering workspace.
-		 *
-		 * Owns the KV schema map: callers never see the raw `defineKv` definitions.
-		 * Use `kv.get`/`kv.set`/`kv.observeAll` for live values; reach for `settings`
-		 * for the key list, per-key defaults, and the bulk reset.
-		 */
-		settings: {
+	/**
+	 * Synced setting metadata for the Whispering workspace.
+	 *
+	 * Owns the KV schema map: callers never see the raw `defineKv` definitions.
+	 * Use `kv.get`/`kv.set`/`kv.observeAll` for live values; reach for `settings`
+	 * for the key list, per-key defaults, and the bulk reset.
+	 */
+	function createSettings(
+		workspace: Pick<ReturnType<typeof model.create>, 'ydoc' | 'kv'>,
+	) {
+		return {
 			/** Every synced setting key, in declaration order. */
 			keys: settingKeys,
 			/** Return the default value for a setting key (factory-evaluated). */
@@ -463,6 +459,8 @@ export function createWhispering({
 					}
 				});
 			},
-		},
-	});
+		};
+	}
+
+	return Object.assign(model, { createSettings });
 }
