@@ -161,6 +161,25 @@ superseded by ADR-0088. ADR-0086 retires opensidian's chat and cross-device
 surfaces (superseded by the super app), which rescopes opensidian's
 conversion to minimal (see per-app judgment points).
 
+**Drift note (Wave 3 child-doc promotion)**: every remaining app turned out
+to declare per-row child docs (honeycrisp note bodies, opensidian file
+content via `packages/filesystem`, vocab and tab-manager chat messages via
+`@epicenter/chat`), so the pattern was promoted with three-plus live
+consumers instead of hand-rolled per app. The extraction catalog gains:
+`defineWorkspace(...).connectLocal()` in `packages/workspace` (the bare
+sibling of `connect()`: same bundle shape, child-doc openers included,
+guid-named IDB + cross-tab channel, no relay, `wipe()` clears the bare guid
+family via `wipeBareStorage`); `projectSignedIn(auth)` in
+`@epicenter/svelte/auth`; and a `childDocs.guids` option on
+`createSignInMigration` that owns the crash-safe child-doc phases (merge
+into owner storage FIRST, then rows + root clear, then best-effort bare
+cleanup; Delete clears children first). An app's browser composition is now
+a two-line preset branch:
+`auth.state.status === 'signed-out' ? model.connectLocal(compose) : model.connect({ ...projectSignedIn(auth), nodeId }, compose)`.
+Apps on the low-level `createWorkspace` path (whispering) keep doc-level
+`connectLocalFirst`. Honeycrisp is refactored onto the presets; its Wave 2
+hand-rolled cache, wipe, and migration wrapper are the reference no longer.
+
 ### The break is compatibility-free
 
 - Gated apps never wrote unowned local data (the workspace did not exist
