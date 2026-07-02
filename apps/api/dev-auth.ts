@@ -1,8 +1,9 @@
 /**
  * Dev-only credential bypass for the runtime-parity smoke.
  *
- * `Authorization: Bearer dev:<userId>` resolves to the principal
- * `{ id: <userId>, email: <userId>@dev.invalid }` with no interactive login.
+ * `Authorization: Bearer dev:<principalId>` resolves to the principal
+ * `{ id: <principalId>, email: <principalId>@dev.invalid }` with no interactive
+ * login.
  * It exists so `apps/api/scripts/smoke.ts` (and CI) can drive the authed
  * surfaces without Google OAuth or a forged Better Auth session, which is the
  * only thing that scenario cannot obtain over plain HTTP.
@@ -30,7 +31,7 @@ const DEV_TOKEN_PREFIX = 'dev:';
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
 
 /**
- * Resolve `Authorization: Bearer dev:<userId>` to a synthetic user, on
+ * Resolve `Authorization: Bearer dev:<principalId>` to a synthetic principal, on
  * localhost only. Any other request (off-box, missing header, non-`dev:`
  * token, empty id) is an `InvalidToken`, the same `Result` arm the real
  * resolver returns, so the surface wrappers reject it unchanged.
@@ -45,13 +46,13 @@ export const resolveDevPrincipal: ResolvePrincipal<CloudEnv> = async (c) => {
 		: '';
 	if (!token.startsWith(DEV_TOKEN_PREFIX)) return OAuthError.InvalidToken();
 
-	const userId = token.slice(DEV_TOKEN_PREFIX.length);
-	if (!userId) return OAuthError.InvalidToken();
+	const principalId = token.slice(DEV_TOKEN_PREFIX.length);
+	if (!principalId) return OAuthError.InvalidToken();
 
 	return Ok(
 		Principal.assert({
-			id: asPrincipalId(userId),
-			email: `${userId}@dev.invalid`,
+			id: asPrincipalId(principalId),
+			email: `${principalId}@dev.invalid`,
 		}),
 	);
 };

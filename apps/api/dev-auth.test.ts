@@ -1,10 +1,10 @@
 /**
- * Tests for the dev-only `Bearer dev:<userId>` resolver.
+ * Tests for the dev-only `Bearer dev:<principalId>` resolver.
  *
  * Drives {@link resolveDevPrincipal} through the real `requireBearerUser` wrapper
  * (the production library middleware) by closing the wrapper over it, exactly
  * how a deployment builds its auth. This proves two things at once: the
- * resolver's own behavior (localhost guard, bearer parsing, synthetic user) and
+ * resolver's own behavior (localhost guard, bearer parsing, synthetic principal) and
  * that the wrapper honors the resolver it was given instead of a hardcoded one.
  *
  * Imported from `@epicenter/server/bun` (not the main barrel) so the Cloudflare
@@ -26,7 +26,7 @@ function devAuthApp() {
 	);
 }
 
-test('resolves Bearer dev:<userId> to a synthetic user on localhost', async () => {
+test('resolves Bearer dev:<principalId> to a synthetic principal on localhost', async () => {
 	const res = await devAuthApp().request('/protected', {
 		headers: { authorization: 'Bearer dev:alice' },
 	});
@@ -63,7 +63,7 @@ test('rejects a non-dev bearer token', async () => {
 	expect(res.status).toBe(401);
 });
 
-test('rejects an empty user id (Bearer dev:)', async () => {
+test('rejects an empty principal id (Bearer dev:)', async () => {
 	const res = await devAuthApp().request('/protected', {
 		headers: { authorization: 'Bearer dev:' },
 	});

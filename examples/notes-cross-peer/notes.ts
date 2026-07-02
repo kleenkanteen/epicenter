@@ -10,7 +10,6 @@
 
 import { EPICENTER_API_URL } from '@epicenter/constants/apps';
 import { field } from '@epicenter/field';
-import type { PrincipalId } from '@epicenter/identity';
 import {
 	createWorkspace,
 	defineMutation,
@@ -33,12 +32,10 @@ const Note = defineTable({
 
 export function openNotes({
 	nodeId,
-	ownerId,
 	openWebSocket,
 	onReconnectSignal,
 }: {
 	nodeId: NodeId;
-	ownerId: PrincipalId;
 	openWebSocket: OpenWebSocketFn;
 	onReconnectSignal: OnReconnectSignal;
 }) {

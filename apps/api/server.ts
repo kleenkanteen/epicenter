@@ -94,7 +94,7 @@ const ApiBunBindings = ServerBindings.merge(CloudAuthBindings).merge({
  *
  * Production (`server.ts` as the entrypoint) passes nothing, so
  * `createServerApp` keeps the real OAuth resolver. `server.dev.ts` passes a
- * dev `Bearer dev:<userId>` resolver so the parity smoke needs no interactive
+ * dev `Bearer dev:<principalId>` resolver so the parity smoke needs no interactive
  * login. Everything else (env validation, pool, rooms, mounts, `Bun.serve`) is
  * identical across the two, so they cannot drift.
  */

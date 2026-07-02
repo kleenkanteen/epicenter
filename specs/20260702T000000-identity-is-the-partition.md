@@ -316,9 +316,11 @@ specs/20260524T021140-asset-visibility-and-client-sdk.md
 
 ### Wave 4: deployables and smoke surfaces
 
-- [ ] Remove entry-file ownership constants and threading.
-- [ ] Update dev auth, smoke scripts, examples, and benchmarks.
-- [ ] Run the self-host and API smoke tests described in the handoff.
+- [x] Remove entry-file ownership constants and threading.
+- [x] Update dev auth, smoke scripts, examples, and benchmarks.
+- [x] Run the self-host and API smoke tests described in the handoff.
+  > Note: the API smoke passed health, session, and room checks; blob ticket hit
+  > the expected `StorageNotConfigured` skip because no `BLOBS_S3_*` env was set.
 
 ### Wave 5: docs and spec deletion
 

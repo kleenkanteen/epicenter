@@ -94,7 +94,7 @@ mountCloudDb(app, {
 // plus the auth surface (sign-in, consent, OAuth metadata). Session cookies are
 // host-only to api.epicenter.so and consumed only by the dashboard the API
 // serves itself; every other client is a bearer client (ADR-0079).
-// Mounted before the owner-scoped surfaces so `c.var.auth` is set when their
+// Mounted before the principal-scoped surfaces so `c.var.auth` is set when their
 // cookie-or-bearer wrappers run. The single-partition instance composes none of
 // this (ADR-0075). The Cloud-only auth secrets are read at this Worker's own edge
 // from its deploy-gated bindings (`c.env as Cloudflare.Env`), never the portable

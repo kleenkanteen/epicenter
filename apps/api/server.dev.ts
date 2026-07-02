@@ -1,5 +1,5 @@
 /**
- * Dev-only Bun entrypoint: the apps/api server with the `Bearer dev:<userId>`
+ * Dev-only Bun entrypoint: the apps/api server with the `Bearer dev:<principalId>`
  * resolver injected, so the runtime-parity smoke (and CI) can drive the authed
  * surfaces without Google OAuth or a forged session.
  *
@@ -19,7 +19,7 @@ import { resolveDevPrincipal } from './dev-auth.js';
 import { startBunApiServer } from './server.js';
 
 console.warn(
-	'apps/api (Bun) DEV AUTH: Bearer dev:<userId> resolves a synthetic user on localhost. Never run this in production.',
+	'apps/api (Bun) DEV AUTH: Bearer dev:<principalId> resolves a synthetic principal on localhost. Never run this in production.',
 );
 
 startBunApiServer({ resolvePrincipal: resolveDevPrincipal });
