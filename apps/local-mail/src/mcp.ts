@@ -83,10 +83,11 @@ const TOOLS: ToolDescriptor[] = [
 		name: 'query',
 		title: 'Query mail',
 		description:
-			'Run a read-only SQL query against the local Gmail mirror. Returns up to 1000 rows.',
+			'Run a read-only SQL query against the local Gmail mirror. Tables: messages(id, raw JSON, thread_id, snippet, label_ids JSON array, internal_date epoch millis, subject, sender, body_text, synced_at) and labels(id, raw JSON, name, type, synced_at). label_ids is JSON text: test membership with EXISTS (SELECT 1 FROM json_each(messages.label_ids) WHERE value = ?). Results are capped at 1000 rows. The schema can change between versions because the mirror is disposable, so saved queries are not a stable contract.',
 		input: Type.Object({
 			sql: Type.String({
-				description: 'A read-only SQL SELECT over the local mirror.',
+				description:
+					'A read-only SQL SELECT over messages or labels. Results are capped at 1000 rows.',
 			}),
 		}),
 		tier: 'read',

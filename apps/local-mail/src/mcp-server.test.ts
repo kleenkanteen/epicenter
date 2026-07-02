@@ -185,12 +185,17 @@ test('mcp: tools/list, body query, status, errors, and a clean stream', async ()
 	const list = await mcp.request('tools/list');
 	const tools = (list.result?.tools ?? []) as Array<{
 		name: string;
+		description?: string;
 		inputSchema: { type: string; properties?: Record<string, unknown> };
 		annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
 	}>;
 	const names = tools.map((tool) => tool.name).sort();
 	expect(names).toEqual(['query', 'status', 'sync']);
 	const query = tools.find((tool) => tool.name === 'query');
+	expect(query?.description).toContain('messages(id, raw JSON');
+	expect(query?.description).toContain('labels(id, raw JSON');
+	expect(query?.description).toContain('json_each(messages.label_ids)');
+	expect(query?.description).toContain('capped at 1000 rows');
 	expect(query?.inputSchema.properties).toHaveProperty('sql');
 	expect(query?.annotations?.readOnlyHint).toBe(true);
 	const sync = tools.find((tool) => tool.name === 'sync');
@@ -217,10 +222,12 @@ test('mcp: tools/list, body query, status, errors, and a clean stream', async ()
 	});
 	const statusData = status.result?.structuredContent as {
 		accountEmail: string;
+		mirror: string;
 		historyId: string;
 		rows: { messages: number; labels: number };
 	};
 	expect(statusData.accountEmail).toBe(ACCOUNT);
+	expect(statusData.mirror).toBe('ready');
 	expect(statusData.historyId).toBe('1000');
 	expect(statusData.rows).toEqual({ messages: 1, labels: 1 });
 
