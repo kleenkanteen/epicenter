@@ -194,10 +194,6 @@ export function mountInferenceApp<E extends Env = Env>(
 	},
 ): void {
 	const policies = opts.policies ?? [];
-	app.use(
-		API_ROUTES.ai.completions.prefixPattern,
-		opts.auth,
-		...policies,
-	);
+	app.use(API_ROUTES.ai.completions.prefixPattern, opts.auth, ...policies);
 	app.route('/', inferenceApp);
 }
