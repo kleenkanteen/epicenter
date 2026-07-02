@@ -10,8 +10,8 @@ import { field } from '@epicenter/field';
 import { asOwnerId } from '@epicenter/identity';
 import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 import type * as Y from 'yjs';
-import { asNodeId } from './node-id.js';
 import { defineTable } from './define-table.js';
+import { asNodeId } from './node-id.js';
 import { defineWorkspace } from './workspace.js';
 
 Object.assign(globalThis, { indexedDB, IDBKeyRange });

@@ -14,7 +14,7 @@
  */
 
 import { expect, mock, test } from 'bun:test';
-import { asUserId, type AuthClient, type AuthState } from '@epicenter/auth';
+import { type AuthClient, type AuthState, asUserId } from '@epicenter/auth';
 import { field } from '@epicenter/field';
 import { asOwnerId } from '@epicenter/identity';
 import {
@@ -85,10 +85,7 @@ function tick(): Promise<void> {
 }
 
 function createAuth(
-	overrides: {
-		state?: AuthState;
-		baseURL?: string;
-	} = {},
+	overrides: { state?: AuthState; baseURL?: string } = {},
 ): AuthClient {
 	return {
 		state: overrides.state ?? { status: 'signed-in', ownerId: OWNER_ID },
@@ -390,7 +387,8 @@ test('a local-source table subset excludes rows and child docs together', async 
 	const target = model.create();
 	const migration = createSignInMigration({
 		auth: createAuth(),
-		openLocalSource: () => openLocalSource((tables) => ({ notes: tables.notes })),
+		openLocalSource: () =>
+			openLocalSource((tables) => ({ notes: tables.notes })),
 		target: {
 			whenReady: Promise.resolve(),
 			ydoc: target.ydoc,
