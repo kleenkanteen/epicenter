@@ -14,7 +14,12 @@
 import { expect, test } from 'bun:test';
 import { Buffer } from 'node:buffer';
 import type { AppConfig } from './config.ts';
-import { runAuthorizationFlow } from './oauth.ts';
+import {
+	redeemRefreshToken,
+	refreshAccessToken,
+	runAuthorizationFlow,
+} from './oauth.ts';
+import type { TokenSet } from './tokens.ts';
 
 function config(overrides: Partial<AppConfig>): AppConfig {
 	return {
@@ -124,4 +129,78 @@ test('runAuthorizationFlow exchanges a PKCE callback and stores the connected Gm
 
 	tokenServer.stop(true);
 	apiServer.stop(true);
+});
+
+test('redeemRefreshToken performs the grant now and reads the account email from the profile', async () => {
+	const tokenRequests: URLSearchParams[] = [];
+	const tokenServer = Bun.serve({
+		hostname: '127.0.0.1',
+		port: 0,
+		async fetch(request) {
+			tokenRequests.push(new URLSearchParams(await request.text()));
+			// Google's refresh grants often omit refresh_token; the seeded one
+			// must survive via the fallback.
+			return Response.json({
+				token_type: 'Bearer',
+				access_token: 'redeemed-access-token',
+				expires_in: 3600,
+			});
+		},
+	});
+	const apiServer = Bun.serve({
+		hostname: '127.0.0.1',
+		port: 0,
+		fetch(request) {
+			expect(request.headers.get('authorization')).toBe(
+				'Bearer redeemed-access-token',
+			);
+			return Response.json({
+				historyId: '1000',
+				emailAddress: 'profile@example.com',
+			});
+		},
+	});
+
+	const { data: token, error } = await redeemRefreshToken(
+		config({
+			apiBase: `http://127.0.0.1:${apiServer.port}`,
+			tokenUrl: `http://127.0.0.1:${tokenServer.port}/token`,
+		}),
+		'seed-refresh-token',
+		() => Date.parse('2026-07-01T00:00:00.000Z'),
+	);
+
+	expect(error).toBeNull();
+	expect(token?.accountEmail).toBe('profile@example.com');
+	expect(token?.refreshToken).toBe('seed-refresh-token');
+	expect(token?.accessToken).toBe('redeemed-access-token');
+	expect(tokenRequests[0]?.get('grant_type')).toBe('refresh_token');
+	expect(tokenRequests[0]?.get('refresh_token')).toBe('seed-refresh-token');
+
+	tokenServer.stop(true);
+	apiServer.stop(true);
+});
+
+test('refreshAccessToken refuses a token minted by a different OAuth client, before any network call', async () => {
+	const token: TokenSet = {
+		accountEmail: 'you@example.com',
+		clientIdUsed: 'the-original-client',
+		accessToken: 'stale',
+		accessTokenExpiresAt: new Date(0).toISOString(),
+		refreshToken: 'a-refresh-token',
+		obtainedAt: new Date(0).toISOString(),
+	};
+
+	// tokenUrl points at port 0: any attempted request would throw, so a
+	// clean ClientIdMismatch also proves the guard fires before the network.
+	const { data, error } = await refreshAccessToken(
+		config({}),
+		token,
+		() => Date.parse('2026-07-01T00:00:00.000Z'),
+	);
+
+	expect(data).toBeNull();
+	expect(error?.name).toBe('ClientIdMismatch');
+	expect(error?.message).toContain('the-original-client');
+	expect(error?.message).toContain('client-id-123');
 });

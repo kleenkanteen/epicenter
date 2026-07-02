@@ -3,7 +3,7 @@ import type { MailDb } from './db.ts';
 import { openMailDb } from './db.ts';
 import { createGmailClient } from './gmail-client.ts';
 import { runMcpServer } from './mcp.ts';
-import { runAuthorizationFlow } from './oauth.ts';
+import { redeemRefreshToken, runAuthorizationFlow } from './oauth.ts';
 import { queryMail } from './query.ts';
 import { readMailStatus } from './status.ts';
 import { runSyncLoop, type SyncOutcome, syncMailbox } from './sync.ts';
@@ -29,7 +29,7 @@ const HELP = `local-mail: keep a private local copy of Gmail for local tools and
 
 Usage:
   local-mail connect [--client-id <id>]
-  local-mail seed-token <accountEmail> <refreshToken>
+  local-mail seed-token <refreshToken>
   local-mail sync [--full] [--watch [intervalMs]]
   local-mail status
   local-mail query "<sql>"
@@ -37,7 +37,9 @@ Usage:
 
 Commands:
   connect      Connect a Gmail account once using browser OAuth.
-  seed-token   Store an existing refresh token for headless bootstrap.
+  seed-token   Redeem an existing refresh token for headless bootstrap.
+               Verifies it against Google; the account email comes from
+               the Gmail profile.
   sync         Refresh the local mirror. Use --watch to keep polling.
   status       Show connection state, cursor, and row counts.
   query        Run a read-only SQL query over the local mirror.
@@ -154,28 +156,27 @@ async function runConnect(args: ParsedArgs): Promise<number> {
 }
 
 async function runSeedToken(args: ParsedArgs): Promise<number> {
-	const [accountEmail, refreshToken] = args.positionals;
-	if (!accountEmail || !refreshToken) {
-		console.error('Usage: local-mail seed-token <accountEmail> <refreshToken>');
+	const [refreshToken] = args.positionals;
+	if (!refreshToken || args.positionals.length > 1) {
+		console.error(
+			'Usage: local-mail seed-token <refreshToken>\nThe account email is read from the Gmail profile, not typed.',
+		);
 		return 1;
 	}
 	const config = loadConfig();
-	if (!config.clientId) {
-		console.error('Missing GMAIL_CLIENT_ID.');
+	const { data: token, error } = await redeemRefreshToken(
+		config,
+		refreshToken,
+		() => Date.now(),
+	);
+	if (error) {
+		console.error(`Could not redeem the refresh token: ${error.message}`);
 		return 1;
 	}
 	const store = createFileTokenStore(config.credentialsPath);
-	await store.set({
-		accountEmail,
-		clientIdUsed: config.clientId,
-		accessToken: 'seed-token-placeholder-forces-immediate-refresh',
-		accessTokenExpiresAt: new Date(0).toISOString(),
-		refreshToken,
-		obtainedAt: new Date(0).toISOString(),
-	});
-	console.log(
-		`Seeded a refresh token for ${accountEmail} at ${config.credentialsPath}`,
-	);
+	await store.set(token);
+	console.log(`Seeded ${token.accountEmail} at ${config.credentialsPath}.`);
+	console.log(`Next: run "local-mail sync --full".`);
 	return 0;
 }
 

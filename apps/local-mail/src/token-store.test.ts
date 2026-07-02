@@ -54,14 +54,14 @@ function config(account: string | null): AppConfig {
 	};
 }
 
-describe('seed-token bootstrap shape round-trips through the real store', () => {
-	test("a pre-expired placeholder token (bin.ts seedToken's exact shape) survives set-then-get", async () => {
+describe('token sets round-trip through the real store', () => {
+	test('a token with epoch timestamps (already expired) survives set-then-get', async () => {
 		const { path, cleanup } = tempTokenFile();
 		const store = createFileTokenStore(path);
 		const seeded: TokenSet = {
 			accountEmail: 'you@example.com',
 			clientIdUsed: 'test-client',
-			accessToken: 'seed-token-placeholder-forces-immediate-refresh',
+			accessToken: 'an-expired-access-token',
 			accessTokenExpiresAt: new Date(0).toISOString(),
 			refreshToken: 'a-real-refresh-token',
 			obtainedAt: new Date(0).toISOString(),

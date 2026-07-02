@@ -37,11 +37,14 @@ Use `--client-id <id>` to override `GMAIL_CLIENT_ID` for the connect command.
 `GMAIL_CLIENT_SECRET` is still required because Google Desktop clients have a
 secret and the token exchange sends it.
 
-Headless bootstrap is still available:
+Headless bootstrap is still available. The refresh token is redeemed
+immediately (one refresh grant plus a profile read), so a dead token fails
+here rather than on the first sync, and the account email comes from the
+Gmail profile instead of being typed:
 
 ```sh
 infisical run --env=dev --path=/apps/local-mail -- \
-  bun run src/bin.ts seed-token you@example.com <refresh-token>
+  bun run src/bin.ts seed-token <refresh-token>
 ```
 
 Build or refresh the mirror:

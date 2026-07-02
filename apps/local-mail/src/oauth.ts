@@ -53,6 +53,19 @@ export const OAuthError = defineErrors({
 		message: `Re-authentication required: ${reason}.`,
 		reason,
 	}),
+	ClientIdMismatch: ({
+		stored,
+		configured,
+	}: {
+		stored: string;
+		configured: string;
+	}) => ({
+		message:
+			`The stored token was minted by OAuth client ${stored}, but GMAIL_CLIENT_ID is ${configured}. ` +
+			'Refreshing through a different client fails as invalid_grant; restore the original client id or run "local-mail connect" again.',
+		stored,
+		configured,
+	}),
 });
 export type OAuthError = InferErrors<typeof OAuthError>;
 
@@ -253,32 +266,28 @@ export async function runAuthorizationFlow(
 	);
 }
 
-export async function refreshAccessToken(
-	config: AppConfig,
-	token: TokenSet,
-	now: () => number,
-): GrantResult {
-	if (!config.clientId || !config.clientSecret) {
-		return OAuthError.MissingCredentials();
-	}
+async function requestRefreshGrant({
+	config,
+	clientId,
+	clientSecret,
+	refreshToken,
+}: {
+	config: AppConfig;
+	clientId: string;
+	clientSecret: string;
+	refreshToken: string;
+}): Promise<Result<oauth.TokenEndpointResponse, OAuthError>> {
 	const as = authServer(config);
-	const client: oauth.Client = { client_id: config.clientId };
+	const client: oauth.Client = { client_id: clientId };
 	try {
 		const response = await oauth.refreshTokenGrantRequest(
 			as,
 			client,
-			oauth.ClientSecretBasic(config.clientSecret),
-			token.refreshToken,
+			oauth.ClientSecretBasic(clientSecret),
+			refreshToken,
 			httpOptions(config),
 		);
-		const grant = await oauth.processRefreshTokenResponse(as, client, response);
-		// Rotation: Google may omit refresh_token when the old one stays valid.
-		return tokenSetFromGrant(grant, {
-			accountEmail: token.accountEmail,
-			clientIdUsed: token.clientIdUsed,
-			now: now(),
-			fallbackRefreshToken: token.refreshToken,
-		});
+		return Ok(await oauth.processRefreshTokenResponse(as, client, response));
 	} catch (cause) {
 		// Google's OAuth-style error responses (a dead grant: revoked, or a
 		// Testing-mode client's 7-day test-user refresh token expired) throw
@@ -292,4 +301,80 @@ export async function refreshAccessToken(
 		}
 		return OAuthError.TokenExchangeFailed({ cause });
 	}
+}
+
+export async function refreshAccessToken(
+	config: AppConfig,
+	token: TokenSet,
+	now: () => number,
+): GrantResult {
+	if (!config.clientId || !config.clientSecret) {
+		return OAuthError.MissingCredentials();
+	}
+	// A refresh token is bound to the client that minted it; refreshing
+	// through a different GMAIL_CLIENT_ID dies as a bare invalid_grant, so
+	// name the drift here instead of letting it masquerade as a revoked token.
+	if (token.clientIdUsed !== config.clientId) {
+		return OAuthError.ClientIdMismatch({
+			stored: token.clientIdUsed,
+			configured: config.clientId,
+		});
+	}
+	const { data: grant, error } = await requestRefreshGrant({
+		config,
+		clientId: config.clientId,
+		clientSecret: config.clientSecret,
+		refreshToken: token.refreshToken,
+	});
+	if (error) return { data: null, error };
+	// Rotation: Google may omit refresh_token when the old one stays valid.
+	return tokenSetFromGrant(grant, {
+		accountEmail: token.accountEmail,
+		clientIdUsed: token.clientIdUsed,
+		now: now(),
+		fallbackRefreshToken: token.refreshToken,
+	});
+}
+
+/**
+ * Headless bootstrap: turn a bare refresh token into a full, verified
+ * `TokenSet` by performing the refresh grant right away and reading the
+ * account email off the Gmail profile. Seeding used to store a fabricated
+ * placeholder token under an operator-typed email; a typo minted a mirror
+ * under a wrong identity and a dead refresh token was only discovered on the
+ * first sync. Redeeming at seed time makes both impossible.
+ */
+export async function redeemRefreshToken(
+	config: AppConfig,
+	refreshToken: string,
+	now: () => number,
+): GrantResult {
+	if (!config.clientId || !config.clientSecret) {
+		return OAuthError.MissingCredentials();
+	}
+	const { data: grant, error } = await requestRefreshGrant({
+		config,
+		clientId: config.clientId,
+		clientSecret: config.clientSecret,
+		refreshToken,
+	});
+	if (error) return { data: null, error };
+	const accessToken =
+		typeof grant.access_token === 'string' ? grant.access_token : null;
+	if (!accessToken) {
+		return OAuthError.ProfileLookupFailed({
+			cause: new Error('token response did not include access_token'),
+		});
+	}
+	const { data: accountEmail, error: profileError } = await fetchAccountEmail(
+		config,
+		accessToken,
+	);
+	if (profileError) return { data: null, error: profileError };
+	return tokenSetFromGrant(grant, {
+		accountEmail,
+		clientIdUsed: config.clientId,
+		now: now(),
+		fallbackRefreshToken: refreshToken,
+	});
 }
