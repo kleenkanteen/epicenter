@@ -9,9 +9,8 @@
  *
  * Presence is liveness and participant identity, not capability
  * advertisement: the payload is each peer's `nodeId`, `connectedAt`, and
- * `agentId`. The legacy action-manifest field was deleted with the in-room
- * dispatch subsystem (ADR-0073); actions live in the local registry, never on
- * the wire.
+ * `agentId`. Action manifests and route catalogs are not presence; actions
+ * live in the local registry, never on the wire.
  *
  * Shared by the relay (`packages/server/src/room/core.ts`, the sender) and
  * the client (`open-collaboration.ts`, the reader).

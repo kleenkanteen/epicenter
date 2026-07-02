@@ -5,8 +5,6 @@ import {
 } from './presence-protocol.js';
 
 describe('presence protocol validation', () => {
-	const legacyRouteField = `exposed${'Routes'}`;
-
 	test('accepts liveness-only presence frames', () => {
 		expect(
 			checkPresenceFrame.Check({
@@ -16,7 +14,7 @@ describe('presence protocol validation', () => {
 		).toBe(true);
 	});
 
-	test('rejects legacy route or action fields on peer entries', () => {
+	test('rejects capability fields on peer entries', () => {
 		expect(
 			checkPresenceFrame.Check({
 				type: 'presence',
@@ -24,7 +22,7 @@ describe('presence protocol validation', () => {
 					{
 						nodeId: 'device-a',
 						connectedAt: 1,
-						[legacyRouteField]: ['books'],
+						capabilities: ['books'],
 					},
 				],
 			}),
@@ -49,7 +47,7 @@ describe('presence protocol validation', () => {
 			checkPresencePublishFrame.Check({
 				type: 'presence_publish',
 				agentId: 'notes',
-				[legacyRouteField]: ['books'],
+				capabilities: ['books'],
 			}),
 		).toBe(false);
 	});
