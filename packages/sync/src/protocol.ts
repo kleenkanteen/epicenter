@@ -17,6 +17,11 @@
  * State vectors are version-independent (same format for V1 and V2).
  *
  * Pure encoder/decoder functions: protocol only, no transport logic.
+ *
+ * Encoders return `Uint8Array<ArrayBuffer>`: lib0 always copies into a fresh
+ * plain buffer, and transports rely on the narrow type (`WebSocket.send`'s
+ * DOM typing rejects `ArrayBufferLike`-backed views). Don't widen these
+ * return annotations back to bare `Uint8Array`.
  */
 
 import * as decoding from 'lib0/decoding';
@@ -59,7 +64,7 @@ export type SyncMessageType =
  * @param options.doc - The Yjs document to get the state vector from
  * @returns Encoded message ready to send over WebSocket
  */
-export function encodeSyncStep1({ doc }: { doc: Y.Doc }): Uint8Array {
+export function encodeSyncStep1({ doc }: { doc: Y.Doc }): Uint8Array<ArrayBuffer> {
 	return encoding.encode((encoder) => {
 		encoding.writeVarUint(encoder, SYNC_MESSAGE_TYPE.STEP1);
 		encoding.writeVarUint8Array(encoder, Y.encodeStateVector(doc));
@@ -80,7 +85,7 @@ export function encodeSyncUpdate({
 	update,
 }: {
 	update: Uint8Array;
-}): Uint8Array {
+}): Uint8Array<ArrayBuffer> {
 	return encoding.encode((encoder) => {
 		encoding.writeVarUint(encoder, SYNC_MESSAGE_TYPE.UPDATE);
 		encoding.writeVarUint8Array(encoder, update);
@@ -115,7 +120,7 @@ export function handleSyncPayload({
 	payload: Uint8Array;
 	doc: Y.Doc;
 	origin: unknown;
-}): Uint8Array | null {
+}): Uint8Array<ArrayBuffer> | null {
 	switch (syncType) {
 		case SYNC_MESSAGE_TYPE.STEP1: {
 			const diff = Y.encodeStateAsUpdateV2(doc, payload);
@@ -163,7 +168,7 @@ export function handleSyncPayload({
 export function encodeSyncRequest(
 	stateVector: Uint8Array,
 	update?: Uint8Array,
-): Uint8Array {
+): Uint8Array<ArrayBuffer> {
 	return encoding.encode((encoder) => {
 		encoding.writeVarUint8Array(encoder, stateVector);
 		encoding.writeVarUint8Array(encoder, update ?? new Uint8Array(0));
