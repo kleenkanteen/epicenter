@@ -71,9 +71,10 @@ const CONNECTION_SWEEP_INTERVAL_MS = 5 * 60_000;
  * validates the caller, checks any route-owned policy, and builds the
  * internal DO name before forwarding `fetch`. The
  * DO itself does not re-validate. DO names are host-owned opaque strings
- * built by `doName(ownerId, roomId)`, producing `owners/<ownerId>/rooms/<roomId>`
- * for either deployment (in the per-user topology `ownerId === user.id`, on an
- * instance `ownerId` is the pinned `INSTANCE_OWNER_ID`).
+ * built by `doName(ownerId, roomId)`, producing
+ * `principals/<ownerId>/rooms/<roomId>` for either deployment (in the per-user
+ * topology `ownerId === user.id`, on an instance `ownerId` is the pinned
+ * `INSTANCE_OWNER_ID`).
  */
 export class Room extends DurableObject {
 	/**

@@ -1,15 +1,15 @@
 /**
- * Browser-local storage key for owner-scoped Yjs persistence.
+ * Browser-local storage key for principal-scoped Yjs persistence.
  *
  * Mirrors the server's `doName(ownerId, ...)` shape so the same
- * `(server, ownerId, doc)` tuple resolves to the same address on the wire
- * and on disk. Two signed-in accounts on the same browser profile, or
+ * `(server, ownerId, doc)` tuple resolves to the same partition namespace
+ * locally and remotely. Two signed-in accounts on the same browser profile, or
  * two self-hosted instances signed into the same machine, never collide on
  * IndexedDB names or BroadcastChannel names.
  *
  * Key layout (uniform across personal and instance deployments):
  *
- *   epicenter/<server>/owners/<ownerId>/<ydoc.guid>
+ *   epicenter/<server>/principals/<ownerId>/<ydoc.guid>
  *
  * The server segment is the API origin host (e.g. `api.epicenter.so`). In
  * per-user cloud, `ownerId` equals the user id; on an instance it is the
@@ -22,12 +22,12 @@ import type { OwnerId } from '@epicenter/identity';
 const APP = 'epicenter';
 
 /**
- * Prefix every key built for this `(server, ownerId)` pair starts with.
+ * Prefix for every key built for this `(server, ownerId)` pair.
  *
  * Wipe paths use this to enumerate every database owned by the pair.
  */
 export function getOwnedYjsPrefix(server: string, ownerId: OwnerId): string {
-	return `${APP}/${server}/owners/${ownerId}/`;
+	return `${APP}/${server}/principals/${ownerId}/`;
 }
 
 /**

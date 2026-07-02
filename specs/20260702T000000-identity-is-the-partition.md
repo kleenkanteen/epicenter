@@ -21,7 +21,7 @@ Read first:
   Review Stops
 
 Read when implementing:
-  Durable Byte Pins
+  Target Byte Pins
   Fresh Inventory
   ADR Notes
 ```
@@ -34,24 +34,24 @@ Cloud and the self-hosted instance differ only in how they authenticate principa
 
 The surviving id brand is `PrincipalId`, not `UserId`. Better Auth keeps owning `user`: its `user` table and `session.user` remain live, and Epicenter OAuth bearers cannot be handed to Better Auth profile endpoints. Better Auth users are one source of principals; the instance bearer is another.
 
-The HTTP and WebSocket wire drops the owner segment: `/api/rooms/:roomId`, `/api/blobs`, and `/api/blobs/:sha256`. Durable bytes keep their historical `owners/<id>/...` shape, including R2 keys, Durable Object names, Bun SQLite room filenames derived from those names, IndexedDB keys, and HKDF info bytes.
+The HTTP and WebSocket wire drops the owner segment: `/api/rooms/:roomId`, `/api/blobs`, and `/api/blobs/:sha256`. Durable bytes also take the clean-break shape because there are no durable users or data to preserve. New R2 keys, Durable Object names, Bun SQLite room filenames derived from those names, IndexedDB keys, and HKDF info bytes use the principal vocabulary: `principals/<id>/...` and `principal:${label}`.
 
 ## Review Stops
 
-- Stop after Wave 0 for Braden to review this spec, the draft ADR, the fresh inventory, and the golden pins.
+- Stop after Wave 0 for Braden to review this spec, the draft ADR, the fresh inventory, and the target byte pins.
 - Stop after Wave 2 for Braden to review the server seam collapse.
 - Do not start Wave 1 until the open PR race gate has been run:
   `gh pr list --state open --json number,title,files --limit 50`.
 
-## Durable Byte Pins
+## Target Byte Pins
 
-Wave 0 pins the strings that later waves must not move.
+Wave 0 pins the clean-break strings that later waves must not move. These are not compatibility pins for old data. They are target-shape pins so the refactor cannot accidentally keep `owners/` alive at the durable boundary.
 
-- [x] `packages/server/src/owner.test.ts` now asserts `doName`, `blobKey`, and `blobOwnerPrefix` for a per-user id and `INSTANCE_OWNER_ID`.
-- [x] `packages/workspace/src/document/local-yjs-key.test.ts` already asserts `getOwnedYjsPrefix` and `createOwnedYjsKey` for a per-user id and `INSTANCE_OWNER_ID`.
-- [x] `packages/encryption/src/crypto.test.ts` already pins exact `deriveKeyring` output bytes for labels `alice` and `instance`, with comments naming the HKDF info contract: `owner:${label}`.
+- [x] `packages/server/src/owner.test.ts` asserts `doName`, `blobKey`, and `blobOwnerPrefix` under `principals/<id>/...` for a per-user id and `INSTANCE_OWNER_ID`.
+- [x] `packages/workspace/src/document/local-yjs-key.test.ts` asserts `getOwnedYjsPrefix` and `createOwnedYjsKey` under `epicenter/<server>/principals/<id>/...` for a per-user id and `INSTANCE_OWNER_ID`.
+- [x] `packages/encryption/src/crypto.test.ts` pins exact `deriveKeyring` output bytes for labels `alice` and `instance`, with comments naming the HKDF info contract: `principal:${label}`.
 
-Any later wave may rename parameters, types, and helper names in these files. The output strings must stay byte-identical.
+Any later wave may rename parameters, types, and helper names in these files. The new output strings must stay byte-identical.
 
 ## Fresh Inventory
 
@@ -283,12 +283,12 @@ specs/20260524T021140-asset-visibility-and-client-sdk.md
 
 ## Wave Plan
 
-### Wave 0: recon, ADR draft, golden pins
+### Wave 0: recon, ADR draft, target byte pins
 
 - [x] Re-run the four inventory greps against this worktree.
 - [x] Write this execution spec and mark it In Progress.
 - [x] Draft ADR-0092 and add it to the ADR index.
-- [x] Add or confirm golden pins for server durable names, IndexedDB keys, and HKDF info bytes.
+- [x] Add or confirm target pins for server durable names, IndexedDB keys, and HKDF info bytes.
 - [ ] Stop for Braden review.
 
 ### Wave 1: brand merge
@@ -312,7 +312,7 @@ specs/20260524T021140-asset-visibility-and-client-sdk.md
 - [ ] Drop owner segments from `API_ROUTES` and `ROOM_ROUTE`.
 - [ ] Collapse `/api/session` to `{ principalId, email? }`.
 - [ ] Update all auth, workspace, SDK, CLI, Svelte state, app, and CI consumers in one coherent wave.
-- [ ] Preserve durable byte outputs.
+- [ ] Preserve the clean-break durable byte outputs pinned in Wave 0.
 
 ### Wave 4: deployables and smoke surfaces
 
@@ -334,7 +334,7 @@ ADR-0092 is drafted as Proposed in Wave 0. It amends ADR-0075 where that ADR del
 
 ADR-0092 also records the naming boundary: `PrincipalId` survives because `user` remains Better Auth vocabulary, and because the authenticated thing is not always a person.
 
-Wave 3 must add the stale-cell caveat to the ADR before acceptance: a persisted cell holding `instance-owner` may fail relay admission against an upgraded server until it re-fetches `/api/session`; that is accepted under the zero-users window.
+Wave 3 must keep the zero-users and no-durable-data assumption visible in the ADR before acceptance. A persisted cell or encrypted payload from the old shape is allowed to become unreadable; this is accepted only because there is no durable data to preserve.
 
 ## Verification
 

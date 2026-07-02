@@ -9,7 +9,7 @@
 
 Epicenter currently has two deployment seams that move together: the server resolves a user, then an ownership rule maps that user to a partition. Cloud always resolves Better Auth users with the per-user ownership rule. The self-hosted instance always resolves the operator bearer with the instance ownership rule. No deployment mixes the axes, so the second seam names optionality the product does not have.
 
-The instance also exposed the lie in the vocabulary. ADR-0075 intentionally decoupled the authenticated principal from the partition so future named instance tokens could share `owners/instance`; that preserved the single-partition invariant, but it kept "owner" alive as a second thing the server had to derive. The new refusal is sharper: a self-hosted instance has exactly one tenant, and per-person server-side attribution belongs to Cloud unless real offboarding pain earns a same-principal token registry.
+The instance also exposed the lie in the vocabulary. ADR-0075 intentionally decoupled the authenticated principal from the partition so future named instance tokens could share one partition; that preserved the single-partition invariant, but it kept "owner" alive as a second thing the server had to derive. The new refusal is sharper: a self-hosted instance has exactly one tenant, and per-person server-side attribution belongs to Cloud unless real offboarding pain earns a same-principal token registry.
 
 ## Decision
 
@@ -17,7 +17,7 @@ Epicenter treats the authenticated principal id as the partition id by definitio
 
 `PrincipalId` lives in `@epicenter/identity`, the MIT package that already carries identity state through browser, extension, CLI, daemon, and workspace code. Cloud principals may include email because Better Auth supplies one; instance principals do not. `/api/session` returns `{ principalId, email? }`, and clients persist only `{ grant, principalId }`. Email is presentational profile data, read when displayed and never cached.
 
-The public API drops owner path segments. Rooms and blobs are addressed as `/api/rooms/:roomId`, `/api/blobs`, and `/api/blobs/:sha256`. Durable storage keeps its historical bytes: R2 keys, Durable Object names, Bun room filenames, IndexedDB names, and HKDF info labels continue to use `owners/<principalId>/...` or `owner:${label}` where they already do. The `owners/` string becomes a byte-pinned fossil from the ownership era, not live vocabulary on the wire.
+The public API drops owner path segments. Rooms and blobs are addressed as `/api/rooms/:roomId`, `/api/blobs`, and `/api/blobs/:sha256`. Durable storage also takes the clean-break shape because there are no durable users or data to preserve: R2 keys, Durable Object names, Bun room filenames, IndexedDB names, and HKDF info labels use `principals/<principalId>/...` and `principal:${label}`. There is no byte-pinned `owners/` fossil.
 
 The forward seam is resolver shaped, not ownership shaped. A future hosted team brain may map many Better Auth accounts to one shared principal; that is still `ResolvePrincipal` deciding which principal the session represents. It does not require a second ownership rule.
 
@@ -31,7 +31,7 @@ ADR-0067's session contract changes. Auth still owns `/api/session`, but the res
 
 ADR-0075's self-host conclusion is tightened. The instance remains one partition behind one operator bearer, but the partition principal is the literal `instance` principal. The old named `instance-owner` principal goes away because it was never durable input. Named instance tokens remain refused for now; if they are earned, they map to the same principal id and put attribution in presence or audit metadata, not in storage partitioning.
 
-This is a clean break under the zero-users assumption. Old clients that still call `/api/owners/:ownerId/...` or persist `ownerId` may fail to sync until upgraded. Durable local and server data stays reachable because the byte-level keys do not move.
+This is a clean break under the zero-users and no-durable-data assumption. Old clients that still call `/api/owners/:ownerId/...` or persist `ownerId` may fail to sync until upgraded. Durable local or server data written under the old shape is allowed to become unreachable because there is no data to preserve.
 
 ## Considered alternatives
 

@@ -353,12 +353,10 @@ describe('deriveKeyring', () => {
 
 	// Pinning test: lock the EXACT byte output of deriveKeyring for known
 	// inputs. The intent is to catch accidental edits to the HKDF info bytes
-	// (`owner:${label}` prefix), salt, hash, or output length. Any change
-	// that produces different bytes for these inputs breaks every existing
-	// keyring derived from this deployment's ENCRYPTION_SECRETS, so the test
-	// fails loudly before such a change ships.
+	// (`principal:${label}` prefix), salt, hash, or output length. There is no
+	// compatibility exception for the old `owner:${label}` shape.
 	//
-	// Format: SHA-256(secret) -> HKDF-SHA256 with salt=[], info=`owner:${label}`,
+	// Format: SHA-256(secret) -> HKDF-SHA256 with salt=[], info=`principal:${label}`,
 	// output 32 bytes, base64-encoded. The fixtures cover both shapes the
 	// label can take in production: an opaque per-user id and the literal
 	// `'instance'`.
@@ -372,14 +370,14 @@ describe('deriveKeyring', () => {
 		expect(await deriveKeyring({ rootKeyring, label: 'alice' })).toEqual([
 			{
 				version: 1,
-				keyBytesBase64: 'gkn6jlaCXiVx+RCTmQfb7GhEWwC+rhrI4hdCNC0y5Rs=',
+				keyBytesBase64: 'zcJ7UwciLKz9jnrpBN2hvcUMYvMm42mcObKF2abWc28=',
 			},
 		]);
 
 		expect(await deriveKeyring({ rootKeyring, label: 'instance' })).toEqual([
 			{
 				version: 1,
-				keyBytesBase64: 'OrLMIfewJkgtlpQat6xiarfFstFogtXY+/N4rqnQ+XI=',
+				keyBytesBase64: 'GW4KqvTC8dJgaEeODLCcl8OBRS6W3ISS4lsCVMUmc2o=',
 			},
 		]);
 	});

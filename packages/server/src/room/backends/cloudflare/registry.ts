@@ -27,9 +27,10 @@ export function createDurableObjectRooms(
 	return {
 		/**
 		 * Resolve a room by its host-owned opaque name (built by
-		 * `doName(ownerId, roomId)`, producing `owners/<ownerId>/rooms/<roomId>`
-		 * for either deployment: in the per-user topology `ownerId === user.id`,
-		 * on an instance `ownerId` is the pinned `INSTANCE_OWNER_ID`).
+		 * `doName(ownerId, roomId)`, producing
+		 * `principals/<ownerId>/rooms/<roomId>` for either deployment: in the
+		 * per-user topology `ownerId === user.id`, on an instance `ownerId` is
+		 * the pinned `INSTANCE_OWNER_ID`).
 		 *
 		 * Returns a {@link ResolvedRoom} whose `handleUpgrade` forwards to the
 		 * DO stub's `fetch` (a 101-returning upgrade).
