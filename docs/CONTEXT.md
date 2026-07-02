@@ -52,13 +52,18 @@ shapes, see `docs/adr/`.
 - **Deployable vs library**: one library, `packages/server`, consumed by two
   deployables: `apps/api` (hosted personal cloud) and `apps/self-host` (the
   community single-partition instance reference, not Epicenter-operated; ADR-0075).
-- **`personal()` / `instance()`**: the `packages/server` ownership seam, exactly
+- **`perUser` / `instance`**: the `packages/server` ownership seam, exactly
   two topologies split on partition cardinality (ADR-0075). `apps/api` uses
-  `personal()` (N partitions keyed per user, Cloud-only); `apps/self-host` uses
-  `instance()` (one partition pinned to `owners/instance` behind one operator
+  `perUser` (N partitions keyed per user, Cloud-only); `apps/self-host` uses
+  `instance` (one partition pinned to `owners/instance` behind one operator
   bearer). There is no admission-gated `shared` topology; per-person named tokens
   are a deliberately-unbuilt seam behind the same verifier and the same constant
-  partition. Billing is hosted-only and lives in `apps/api/worker/billing/`.
+  partition. The names are deliberately not `perUser` / `shared`: "shared"
+  describes who holds the token, while `instance` describes the partition rule
+  ADR-0075 settles on. Both arms answer who owns the partition: each user, or
+  the instance itself (the durable owner id is literally `instance`, so the
+  rule name, owner id, and URL segment stay one word). Billing is hosted-only
+  and lives in `apps/api/worker/billing/`.
 - **Three cross-device layers**: every cross-device feature is one of three jobs, kept
   separate. *Inference* (the chat brain) streams tokens from an OpenAI-compatible endpoint
   (ADR-0050), over the inference seam, not the device relay. *Sync* (convergent state)

@@ -15,8 +15,8 @@
  * is disabled and Google is interactive), so it relies on the server running
  * with the dev resolver injected: boot it via `bun run dev:bun:devauth`
  * (server.dev.ts), which resolves `Authorization: Bearer dev:<userId>` to a
- * synthetic user on localhost. The smoke just sends that header. In personal
- * mode the resolved id is the owner partition directly, so no user is seeded and
+ * synthetic user on localhost. The smoke just sends that header. In the per-user
+ * topology the resolved id is the owner partition directly, so no user is seeded and
  * the script needs no database access of its own.
  *
  * Requirements to run:
@@ -38,7 +38,7 @@ const BASE_URL = (
 	`http://localhost:${API_BUN_DEV_PORT}`
 ).replace(/\/+$/, '');
 
-// The dev resolver synthesizes the user from this id; personal-mode ownership
+// The dev resolver synthesizes the user from this id; per-user ownership
 // makes it the owner partition too. Random per run so repeated smokes never
 // collide on room or blob state.
 const userId = `smoke-${randHex(4)}`;

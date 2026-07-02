@@ -5,7 +5,7 @@
  * `c.var.ownerId`. These tests pin the execution invariants for both
  * variants of `OwnershipRule`:
  *
- *   - personal: URL `:ownerId` MUST equal `c.var.user.id`.
+ *   - perUser: URL `:ownerId` MUST equal `c.var.user.id`.
  *   - instance: URL `:ownerId` MUST equal `INSTANCE_OWNER_ID`, regardless of
  *               caller identity (the partition is pinned to a constant).
  *
@@ -19,7 +19,7 @@ import { describe, expect, test } from 'bun:test';
 import { type AuthUser, asUserId } from '@epicenter/auth';
 import { INSTANCE_OWNER_ID } from '@epicenter/identity';
 import { Hono } from 'hono';
-import { instance, type OwnershipRule, personal } from '../ownership.js';
+import { instance, type OwnershipRule, perUser } from '../ownership.js';
 import type { Env } from '../types.js';
 import { createRequireOwnership } from './require-ownership.js';
 
@@ -41,9 +41,9 @@ function createTestApp(rule: OwnershipRule, userId: string) {
 	return app;
 }
 
-describe('personal()', () => {
+describe('perUser', () => {
 	test('attaches user.id as ownerId when URL :ownerId matches', async () => {
-		const res = await createTestApp(personal(), 'alice').request(
+		const res = await createTestApp(perUser, 'alice').request(
 			'/api/owners/alice/rooms/r1',
 		);
 		expect(res.status).toBe(200);
@@ -51,7 +51,7 @@ describe('personal()', () => {
 	});
 
 	test('rejects URL :ownerId mismatch with 403 OwnerMismatch', async () => {
-		const res = await createTestApp(personal(), 'alice').request(
+		const res = await createTestApp(perUser, 'alice').request(
 			'/api/owners/bob/rooms/r1',
 		);
 		expect(res.status).toBe(403);
@@ -60,24 +60,22 @@ describe('personal()', () => {
 	});
 
 	test('rejects URL :ownerId set to a foreign partition string', async () => {
-		const res = await createTestApp(personal(), 'alice').request(
+		const res = await createTestApp(perUser, 'alice').request(
 			'/api/owners/instance/rooms/r1',
 		);
 		expect(res.status).toBe(403);
 	});
 
 	test('routes without :ownerId attach user.id and pass through', async () => {
-		const res = await createTestApp(personal(), 'alice').request(
-			'/api/session',
-		);
+		const res = await createTestApp(perUser, 'alice').request('/api/session');
 		expect(res.status).toBe(200);
 		expect(await res.text()).toBe('alice');
 	});
 });
 
-describe('instance()', () => {
+describe('instance', () => {
 	test('attaches INSTANCE_OWNER_ID under owners/instance', async () => {
-		const res = await createTestApp(instance(), 'owner').request(
+		const res = await createTestApp(instance, 'owner').request(
 			'/api/owners/instance/rooms/r1',
 		);
 		expect(res.status).toBe(200);
@@ -88,9 +86,9 @@ describe('instance()', () => {
 		// The load-bearing invariant (ADR-0075): the partition is decoupled from
 		// the principal, so two different principals resolve to one `owners/instance`
 		// and a future per-person named token never re-partitions the box's data.
-		// This is exactly what `personal()` + a fixed owner id would NOT give.
+		// This is exactly what `perUser` + a fixed owner id would NOT give.
 		for (const id of ['alice', 'bob', 'instance']) {
-			const res = await createTestApp(instance(), id).request(
+			const res = await createTestApp(instance, id).request(
 				'/api/owners/instance/rooms/r1',
 			);
 			expect(res.status).toBe(200);
@@ -99,7 +97,7 @@ describe('instance()', () => {
 	});
 
 	test('REJECTS URL :ownerId set to a user id (silent-bypass guard)', async () => {
-		const res = await createTestApp(instance(), 'owner').request(
+		const res = await createTestApp(instance, 'owner').request(
 			'/api/owners/owner/rooms/r1',
 		);
 		expect(res.status).toBe(403);
@@ -108,9 +106,7 @@ describe('instance()', () => {
 	});
 
 	test('routes without :ownerId attach INSTANCE_OWNER_ID', async () => {
-		const res = await createTestApp(instance(), 'owner').request(
-			'/api/session',
-		);
+		const res = await createTestApp(instance, 'owner').request('/api/session');
 		expect(res.status).toBe(200);
 		expect(await res.text()).toBe(INSTANCE_OWNER_ID);
 	});

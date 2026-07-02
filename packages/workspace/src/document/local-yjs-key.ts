@@ -12,9 +12,9 @@
  *   epicenter/<server>/owners/<ownerId>/<ydoc.guid>
  *
  * The server segment is the API origin host (e.g. `api.epicenter.so`). In
- * personal mode `ownerId` equals the user id; on an instance it is the literal
- * `'instance'` for every operator, so the server segment is what keeps two
- * instances on one machine from colliding.
+ * per-user cloud, `ownerId` equals the user id; on an instance it is the
+ * literal `'instance'` for every operator, so the server segment is what keeps
+ * two instances on one machine from colliding.
  */
 
 import type { OwnerId } from '@epicenter/identity';

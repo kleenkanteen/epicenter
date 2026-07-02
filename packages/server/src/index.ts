@@ -2,7 +2,7 @@
  * @epicenter/server
  *
  * One shared Hono library, two deployables (ADR-0075): the hosted Epicenter
- * Cloud (`personal`, multi-tenant, partition keyed per user) and the self-hosted
+ * Cloud (`perUser`, multi-tenant, partition keyed per user) and the self-hosted
  * single-partition instance (`instance`, one pinned `owners/instance` partition
  * behind one operator bearer).
  *
@@ -16,7 +16,7 @@
 
 // The single-partition instance's bearer resolver (self-host; ADR-0075). The
 // deployment injects `createEnvTokenResolver(secret)` as its `ResolveUser` (paired
-// with `instance()`). The pure generator + boot entropy gate (`generateInstanceToken`
+// with `instance`). The pure generator + boot entropy gate (`generateInstanceToken`
 // / `assertStrongToken`) live in `@epicenter/auth`.
 export {
 	createEnvTokenResolver,
@@ -60,11 +60,11 @@ export { mountCloudDb } from './mount-cloud-db.js';
 // `doName` builds a room's owner-scoped DO name, deployment-agnostic and
 // exported for composing apps.
 export { doName } from './owner.js';
-// Ownership composition: the deployment constructs the rule once via
-// `personal()` (Cloud, multi-tenant) or `instance()` (self-host, one pinned
+// Ownership composition: the deployment selects the rule once as
+// `perUser` (Cloud, multi-tenant) or `instance` (self-host, one pinned
 // partition) and threads it into every mount primitive that needs the
 // partition. See ./ownership.ts for the design note.
-export { instance, type OwnershipRule, personal } from './ownership.js';
+export { instance, type OwnershipRule, perUser } from './ownership.js';
 // Re-export the Cloudflare Durable Object class so each deployment's
 // wrangler.jsonc can resolve `class_name: "Room"` against this entrypoint.
 export { Room } from './room/backends/cloudflare/durable-object.js';

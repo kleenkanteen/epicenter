@@ -5,11 +5,11 @@
  * into a resolved owner partition on `c.var.ownerId`:
  *
  *   1. Resolve the owner partition from `(rule, c.var.user)` via
- *      {@link resolveOwnerPartition}. This cannot fail: a personal request
+ *      {@link resolveOwnerId}. This cannot fail: a per-user request
  *      owns its user's partition, an instance request its pinned constant.
  *   2. If the route declares `:ownerId`, assert the URL segment equals
- *      the resolved partition. Mismatch is 403 OwnerMismatch in both
- *      modes.
+ *      the resolved partition. Mismatch is 403 OwnerMismatch in every
+ *      deployment.
  *   3. Routes without `:ownerId` (the session endpoint) skip the URL
  *      check; the partition still resolves and attaches.
  *
@@ -21,20 +21,20 @@
 import { RequestGuardError } from '@epicenter/constants/request-guard-errors';
 import type { MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { type OwnershipRule, resolveOwnerPartition } from '../ownership.js';
+import { type OwnershipRule, resolveOwnerId } from '../ownership.js';
 import type { Env } from '../types.js';
 
 export function createRequireOwnership<E extends Env = Env>(
 	rule: OwnershipRule,
 ): MiddlewareHandler<E> {
 	return createMiddleware<E>(async (c, next) => {
-		const ownerPartition = resolveOwnerPartition(rule, c);
+		const ownerId = resolveOwnerId(rule, c);
 		const urlOwnerId = c.req.param('ownerId');
-		if (urlOwnerId !== undefined && urlOwnerId !== ownerPartition) {
+		if (urlOwnerId !== undefined && urlOwnerId !== ownerId) {
 			const err = RequestGuardError.OwnerMismatch();
 			return c.json(err, err.error.status);
 		}
-		c.set('ownerId', ownerPartition);
+		c.set('ownerId', ownerId);
 		await next();
 	});
 }

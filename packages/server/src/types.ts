@@ -3,7 +3,7 @@
  *
  * Per-request state lives on the Hono context (`c.var.user`, `c.var.db`,
  * etc.). The `requireOwnership` middleware resolves the owner partition
- * from `(mode, c.var.user.id)`, rejects URL `:ownerId` mismatches at
+ * from `(rule, c.var.user.id)`, rejects URL `:ownerId` mismatches at
  * the boundary, and stashes the result on `c.var.ownerId`.
  */
 
@@ -66,10 +66,10 @@ export type ResolveUser<E extends Env = Env> = (
  * at upgrade; updated to the node's manifest when `presence_publish` arrives.
  * Relay treats the value as opaque (it forwards JSON to peers, never inspects).
  *
- * In personal mode every connection to a given DO shares the same `userId`
- * (the DO name partitions by user). On an instance every connection resolves to
- * the one pinned partition; the DO is owner-blind and never branches on which
- * deployment it is.
+ * In the per-user topology every connection to a given DO shares the same
+ * `userId` (the DO name partitions by user). On an instance every connection
+ * resolves to the one pinned partition; the DO is owner-blind and never branches
+ * on which deployment it is.
  */
 export type Connection = {
 	userId: UserId;
@@ -126,10 +126,10 @@ export type Env = {
 		user: AuthUser;
 		/**
 		 * Resolved owner partition for this request. Populated by the
-		 * `requireOwnership` middleware after auth runs. In personal mode
+		 * `requireOwnership` middleware after auth runs. In the per-user topology
 		 * equals the authenticated user's id; on an instance equals
 		 * `INSTANCE_OWNER_ID`. Handlers read this instead of branching on
-		 * mode or re-deriving from the URL `:ownerId` param.
+		 * topology or re-deriving from the URL `:ownerId` param.
 		 */
 		ownerId: OwnerId;
 		rooms: Rooms;

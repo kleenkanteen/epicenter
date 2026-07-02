@@ -173,13 +173,13 @@ roomWsUrl({
 // -> wss://api.epicenter.so/api/owners/<ownerId>/rooms/<guid>?nodeId=<id>
 ```
 
-In personal mode `ownerId` equals the signed-in user's id; on an instance it is
-the literal `'instance'`. The URL shape is uniform across both modes. The relay
-takes the user from the auth token, resolves the expected owner partition for
-the deployment, verifies the URL `:ownerId` matches that partition, and builds
-the internal Durable Object name `owners/${ownerId}/rooms/${room}`. Personal
-deployments resolve one partition per user. Self-hosted instance deployments
-resolve one partition for operator-authorized requests.
+In per-user cloud, `ownerId` equals the signed-in user's id; on an instance it
+is the literal `'instance'`. The URL shape is uniform across deployments. The
+relay takes the user from the auth token, resolves the expected owner partition
+for the deployment, verifies the URL `:ownerId` matches that partition, and
+builds the internal Durable Object name `owners/${ownerId}/rooms/${room}`.
+Cloud deployments resolve one partition per user. Self-hosted instance
+deployments resolve one partition for operator-authorized requests.
 
 This is the consumer Google Docs model and the first of three account layers, introduced over time:
 
@@ -190,7 +190,7 @@ This is the consumer Google Docs model and the first of three account layers, in
 
 `nodeId` is appended as a query parameter (`?nodeId=`) on every connect, including reconnects. It is a routing label stamped on the socket at upgrade, not an auth principal: the relay authorizes the room from the token, and within that room `nodeId` only decides which socket the relay routes a frame to (a presence push, or a relay-channel byte chunk).
 
-`/owners/:ownerId/rooms/:room` is the single cloud sync route shape (personal: `:ownerId` is the user id; instance: `:ownerId === 'instance'`). Browser apps and the workspace daemon both build their URL with `roomWsUrl`.
+`/owners/:ownerId/rooms/:room` is the single cloud sync route shape (per-user cloud: `:ownerId` is the user id; instance: `:ownerId === 'instance'`). Browser apps and the workspace daemon both build their URL with `roomWsUrl`.
 
 ## Supervisor lifecycle
 

@@ -4,7 +4,7 @@
  * Verifies cloud sync URL construction for the rooms WebSocket endpoint.
  *
  * Key behaviors:
- * - Single URL form: `/api/owners/<ownerId>/rooms/<guid>` in both modes.
+ * - Single URL form: `/api/owners/<ownerId>/rooms/<guid>` in every deployment.
  * - `guid` is `encodeURIComponent`-encoded.
  * - Trailing slashes on `baseURL` are stripped.
  * - `http` origins become `ws`; `https` origins become `wss`.
@@ -17,7 +17,7 @@ import { asNodeId } from './node-id.js';
 import { roomWsUrl } from './transport.js';
 
 describe('roomWsUrl', () => {
-	test('personal mode owner id partitions the path under /owners/', () => {
+	test('per-user owner id partitions the path under /owners/', () => {
 		expect(
 			roomWsUrl({
 				baseURL: 'https://api.example.com',

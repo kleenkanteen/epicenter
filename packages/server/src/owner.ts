@@ -7,8 +7,8 @@
  * a server cares about: Durable Object names, R2 object keys, and the
  * partition path segment they all share.
  *
- * Personal and instance share the exact same path shape. The partition
- * segment is always `owners/<ownerId>`. In personal mode `ownerId` is the
+ * Per-user and instance share the exact same path shape. The partition
+ * segment is always `owners/<ownerId>`. In the per-user topology `ownerId` is the
  * signed-in user's id; on an instance it is the pinned constant
  * `INSTANCE_OWNER_ID` (the literal `instance`). The path is honest either way:
  * every durable identifier the server writes is rooted at `owners/<ownerId>`.
