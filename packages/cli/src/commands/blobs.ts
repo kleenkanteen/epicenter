@@ -48,7 +48,14 @@ const addCommand = cmd({
 				type: 'string',
 				describe: 'Override the content type (else inferred from the source)',
 			})
-			.options(formatOptions)
+			// The shared json/jsonl pair plus a plain mode: the bare URL on stdout,
+			// so `$(epicenter blobs add x.png)` drops straight into a document.
+			.option('format', {
+				type: 'string',
+				choices: ['json', 'jsonl', 'plain'] as const,
+				describe:
+					"Output format (default: json; 'plain' prints the bare URL)",
+			})
 			.strict(),
 	handler: async (argv) => {
 		const epicenter = await connectCloud();
@@ -74,6 +81,10 @@ const addCommand = cmd({
 			return;
 		}
 
+		if (argv.format === 'plain') {
+			console.log(result.url);
+			return;
+		}
 		output(
 			{ sha256: result.sha256, url: result.url, duplicate: result.duplicate },
 			{ format: argv.format },

@@ -179,8 +179,8 @@ output(
 
 ### Phase 2: agent ergonomics
 
-- [ ] **2.1** `get` and `rm` accept a full blob URL and extract the hash (regex on `/blobs/([a-f0-9]{64})`).
-- [ ] **2.2** Plain (non-JSON) `add` output prints the URL alone on stdout, so `$(epicenter blobs add x.png)` composes.
+- [x] **2.1** `get` and `rm` accept a full blob URL and extract the hash (regex on `/blobs/([a-f0-9]{64})`).
+- [x] **2.2** Plain (non-JSON) `add` output prints the URL alone on stdout, so `$(epicenter blobs add x.png)` composes (`--format plain`).
 
 ### Phase 3: trigger-gated, not scheduled
 
