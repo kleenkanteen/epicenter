@@ -26,7 +26,8 @@ import { Err, Ok, type Result, tryAsync } from 'wellcrafted/result';
 import { cmd } from '../util/cmd.js';
 import { fail, formatOptions, output } from '../util/format-output.js';
 
-/** A source is fetched when it looks like an http(s) URL, else read from disk. */
+/** An `add` source that looks like an http(s) URL is handed to the SDK to
+ * fetch; anything else is read from disk. */
 const HTTP_URL = /^https?:\/\//i;
 
 const addCommand = cmd({
@@ -49,21 +50,20 @@ const addCommand = cmd({
 		const epicenter = await connectCloud();
 		if (!epicenter) return;
 
-		// Hold the bytes locally so we hand the SDK a Blob (no second fetch of a
-		// URL we already downloaded).
-		const { data: resolved, error: resolveError } = await resolveSource(
-			argv.source,
-			argv.contentType,
-		);
-		if (resolveError !== null) {
-			fail(resolveError);
+		// A URL source goes to the SDK as-is: it fetches the bytes once and takes
+		// the content type from the response. A local file is read here and typed
+		// by its extension; `--content-type` overrides either.
+		const { data: source, error: readError } = HTTP_URL.test(argv.source)
+			? Ok(argv.source)
+			: await readLocalFile(argv.source);
+		if (readError !== null) {
+			fail(readError);
 			return;
 		}
-		const { bytes, contentType } = resolved;
 
 		const { data: result, error: uploadError } = await epicenter.blobs.add(
-			new Blob([new Uint8Array(bytes)], { type: contentType }),
-			{ contentType },
+			source,
+			{ contentType: argv.contentType },
 		);
 		if (uploadError !== null) {
 			fail(uploadError.message, { code: 2 });
@@ -154,7 +154,7 @@ const getCommand = cmd({
 
 		// The store enforces the hash on write, but a download can still be
 		// truncated mid-flight; verify before we trust the bytes on disk.
-		const actual = sha256Of(bytes);
+		const actual = createHash('sha256').update(bytes).digest('hex');
 		if (actual !== argv.sha256) {
 			fail(
 				`downloaded bytes do not match their content address: expected ${argv.sha256}, got ${actual}`,
@@ -177,7 +177,7 @@ const getCommand = cmd({
 		output(
 			{
 				sha256: argv.sha256,
-				output: rel(outputPath),
+				output: path.relative(process.cwd(), outputPath),
 				size_bytes: bytes.byteLength,
 				content_type: contentType,
 			},
@@ -225,40 +225,12 @@ async function connectCloud(): Promise<EpicenterClient | null> {
 	});
 }
 
-/** The bytes to upload plus the content type that rides with them. */
-type ResolvedSource = {
-	bytes: Buffer;
-	contentType: string;
-};
-
 /**
- * Read a source into bytes. An http(s) URL is downloaded (content type from the
- * response); a local path is read (content type inferred from the extension via
- * `mime`). The error channel is a ready-to-print message so the handler has one
- * failure path.
+ * Read a local file into a Blob typed by its extension (via `mime`; the SDK
+ * defaults an untyped Blob to `application/octet-stream`). The error channel
+ * is a ready-to-print message so the handler has one failure path.
  */
-async function resolveSource(
-	source: string,
-	contentTypeOverride: string | undefined,
-): Promise<Result<ResolvedSource, string>> {
-	if (HTTP_URL.test(source)) {
-		const { data: res, error } = await tryAsync({
-			try: () => fetch(source),
-			catch: (cause) =>
-				Err(`could not fetch ${source}: ${extractErrorMessage(cause)}`),
-		});
-		if (error !== null) return Err(error);
-		if (!res.ok) return Err(`could not fetch ${source}: ${res.status}`);
-		const bytes = Buffer.from(await res.arrayBuffer());
-		return Ok({
-			bytes,
-			contentType:
-				contentTypeOverride ??
-				res.headers.get('content-type') ??
-				'application/octet-stream',
-		});
-	}
-
+async function readLocalFile(source: string): Promise<Result<Blob, string>> {
 	const localPath = path.resolve(source);
 	const { data: bytes, error } = await tryAsync({
 		try: () => fs.readFile(localPath),
@@ -266,21 +238,7 @@ async function resolveSource(
 			Err(`could not read ${source}: ${extractErrorMessage(cause)}`),
 	});
 	if (error !== null) return Err(error);
-	return Ok({
-		bytes,
-		contentType:
-			contentTypeOverride ??
-			mime.getType(localPath) ??
-			'application/octet-stream',
-	});
-}
-
-/** Lowercase-hex sha256 of bytes, to verify a download against its address. */
-function sha256Of(bytes: Buffer): string {
-	return createHash('sha256').update(bytes).digest('hex');
-}
-
-/** A path relative to the cwd, for terse output. */
-function rel(p: string): string {
-	return path.relative(process.cwd(), p);
+	return Ok(
+		new Blob([new Uint8Array(bytes)], { type: mime.getType(localPath) ?? '' }),
+	);
 }
