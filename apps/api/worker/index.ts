@@ -102,38 +102,6 @@ mountCloudDb(app, {
 // this (ADR-0075). The Cloud-only auth secrets are read at this Worker's own edge
 // from its deploy-gated bindings (`c.env as Cloudflare.Env`), never the portable
 // `ServerBindings` (ADR-0076/0066).
-// ROLLOUT SHIM, delete after 2026-07-15. Sessions minted before the host-only
-// cookie change carried `Domain=.epicenter.so`. A domain cookie and the new
-// host-only cookie coexist under the same name, the browser sends the stale
-// domain cookie first (created earlier), and sign-out clears only the host-only
-// one, so the stale session would keep winning. The Cookie header cannot say
-// which scope a value came from, so whenever a session cookie is present at
-// all, append an expiring Set-Cookie for the old domain scope (deleting a
-// domain cookie requires matching Domain + Path; this cannot touch the
-// host-only cookie). Sessions live 7 days, so every legacy cookie is dead by
-// the delete-after date. Registered BEFORE mountCloudAuth so it wraps the
-// auth routes: Hono runs the chain in registration order, and a handler that
-// responds ends it, so anything registered after a route never sees its
-// requests.
-const LEGACY_COOKIE_DOMAIN = '.epicenter.so';
-const LEGACY_COOKIE_NAMES = [
-	'__Secure-better-auth.session_token',
-	'__Secure-better-auth.session_data',
-];
-app.use('*', async (c, next) => {
-	await next();
-	const cookieHeader = c.req.header('cookie');
-	if (!cookieHeader) return;
-	for (const name of LEGACY_COOKIE_NAMES) {
-		if (!cookieHeader.includes(name)) continue;
-		c.header(
-			'Set-Cookie',
-			`${name}=; Domain=${LEGACY_COOKIE_DOMAIN}; Path=/; Max-Age=0; Secure; SameSite=Lax`,
-			{ append: true },
-		);
-	}
-});
-
 mountCloudAuth(app, {
 	resolveAuthSecrets: (c) => c.env as Cloudflare.Env,
 });

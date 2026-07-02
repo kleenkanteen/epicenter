@@ -29,7 +29,7 @@ const KEYRING_ACCOUNT = 'auth-grant';
 
 // The pre-fix desktop build persisted the grant under this `localStorage` key
 // (`${namespace}.auth.persisted` from `createHostedDeepLinkAuth`'s old
-// default) — a plain file on disk in the webview's data dir, exactly what
+// default): a plain file on disk in the webview's data dir, exactly what
 // this change moves off of. Migrated once below, then never read again.
 const LEGACY_LOCAL_STORAGE_KEY = 'whispering.auth.persisted';
 
@@ -106,7 +106,6 @@ await migrateLegacyLocalStorageGrant();
 
 export const auth: PlatformAuth = createHostedDeepLinkAuth({
 	instanceSetting,
-	namespace: 'whispering',
 	clientId: EPICENTER_WHISPERING_OAUTH_CLIENT_ID,
 	redirectUri: EPICENTER_WHISPERING_TAURI_OAUTH_REDIRECT_URI,
 	api: APP_URLS.API,
