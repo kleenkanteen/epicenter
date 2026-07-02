@@ -94,7 +94,6 @@ function conn(nodeId: string, opts?: { connectedAt?: number }): Connection {
 		principalId: asPrincipalId('u1'),
 		nodeId,
 		connectedAt: opts?.connectedAt ?? Date.now(),
-		actions: {},
 	};
 }
 

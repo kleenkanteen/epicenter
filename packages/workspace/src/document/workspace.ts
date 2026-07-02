@@ -895,16 +895,15 @@ export function defineWorkspace<
 						baseURL,
 					});
 				}
-				// `attachInfrastructure` wires sync/presence and returns the same
-				// `composition.actions` as the daemon-served local registry. It also
-				// drains every registered materializer in order on shutdown, so it
-				// runs after compose has registered them.
+				// `attachInfrastructure` wires sync/presence and drains every
+				// registered materializer in order on shutdown, so it runs after
+				// compose has registered them. The composition's actions stay on the
+				// returned daemon runtime bundle.
 				const infrastructure = runtime.attachInfrastructure(
 					workspace.ydoc,
 					ctx,
 					{
 						baseURL,
-						actions: composition.actions,
 						// Publish the mount's agent so peers can decorate it as live in
 						// a picker (ADR-0025); the same id the child-doc workers use for
 						// designation. Absent when the mount answers as no named agent.

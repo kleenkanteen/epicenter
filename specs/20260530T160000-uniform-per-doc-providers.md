@@ -40,7 +40,6 @@ attachWorkspaceProviders(workspace, ({ ydoc, role }) => {
 		url: roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, deviceId }),
 		openWebSocket, onReconnectSignal,
 		waitFor: storage.whenLoaded,                       // <- restored barrier
-		actions: role === 'root' ? workspace.actions : {},
 	});
 	return { whenLoaded: storage.whenLoaded, providers: [storage, sync] };
 });
@@ -152,9 +151,9 @@ This creates problems:
 Root and child get the **identical treatment**, addressed by `ydoc.guid`:
 
 ```txt
-            storage                         sync (room keyed by guid)        actions
+            storage                         sync (room keyed by guid)        local registry
 root        attachStorage(workspace.ydoc)   openCollaboration({guid})        workspace (+ materializers on daemon)
-child       attachStorage(childYdoc)        openCollaboration({guid})        {} (pure content)
+child       attachStorage(childYdoc)        openCollaboration({guid})        none (pure content)
 ```
 
 And the cloud is **already flat by guid**: every doc, root or child, is the room
@@ -175,7 +174,6 @@ attachWorkspaceProviders(workspace, ({ ydoc, role }) => [
 	attachLocalStorage(ydoc, { server, ownerId, keyring }),
 	openCollaboration(ydoc, {
 		url: roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, deviceId }),
-		actions: role === 'root' ? workspace.actions : {},
 		openWebSocket, onReconnectSignal,
 	}),
 ]);
@@ -313,7 +311,6 @@ export function openFujiBrowser({ signedIn, deviceId }) {
 		openCollaboration(ydoc, {
 			url: roomWsUrl({ baseURL: signedIn.baseURL, ownerId: signedIn.ownerId, guid: ydoc.guid, deviceId }),
 			openWebSocket: signedIn.openWebSocket, onReconnectSignal: signedIn.onReconnectSignal,
-			actions: role === 'root' ? workspace.actions : {},
 		}),
 	]);
 	return defineWorkspace({ ...workspace, [Symbol.asyncDispose]: teardown[Symbol.asyncDispose] });
@@ -334,7 +331,6 @@ attachWorkspaceProviders(workspace, ({ ydoc, role }) => [
 	openCollaboration(ydoc, {
 		url: roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, deviceId }),
 		openWebSocket, onReconnectSignal,
-		actions: role === 'root' ? mergedActions : {},
 	}),
 ]);
 ```

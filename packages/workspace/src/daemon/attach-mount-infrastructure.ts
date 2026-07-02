@@ -13,21 +13,16 @@
  * once at root open and persisted under `.epicenter/`) is the relay's routing id
  * and the seed for the Y.Doc `clientID`. The owner and transport refs come from
  * `ctx.session`. The mount name is a label only, never an identity seed. The
- * caller supplies what is genuinely its own: the sync `baseURL`, its local
- * `actions` choice, and any materializers.
- *
- * The `actions` choice stays explicit so a mount cannot accidentally serve the
- * wrong set: app workspaces with browser-only actions pass `{}` to refuse them
- * on the daemon side, while workspaces with daemon-safe actions pass
- * `workspace.actions`.
+ * caller supplies what is genuinely its own: the sync `baseURL`, catalog-agent
+ * identity, and any materializers.
  *
  * `clientID` is pinned before any local edit; materializers attached earlier
  * only project the doc outward and never write to it, so this ordering is safe.
  *
- * Returns the daemon-served `actions`, the optional-peer `collaboration`, the
- * side-effectful `yjsLog` handle, and an `[Symbol.asyncDispose]` that encodes
- * the destroy order. Callers usually spread the result into their
- * `DaemonRuntime` and compose materializers around the same ydoc.
+ * Returns the optional-peer `collaboration`, the side-effectful `yjsLog` handle,
+ * and an `[Symbol.asyncDispose]` that encodes the destroy order. Callers usually
+ * spread the result into their `DaemonRuntime` and compose materializers around
+ * the same ydoc.
  */
 
 import type * as Y from 'yjs';
@@ -36,40 +31,32 @@ import { attachYjsLog } from '../document/attach-yjs-log.js';
 import { openCollaboration } from '../document/open-collaboration.js';
 import { roomWsUrl } from '../document/transport.js';
 import { yjsPath } from '../document/workspace-paths.js';
-import type { ActionRegistry } from '../shared/actions.js';
 import { hashYDocClientId } from '../shared/client-id.js';
 import type { Drainable } from '../shared/types.js';
 import type { SessionMountContext } from './define-mount.js';
 
-export type AttachMountInfrastructureOptions<TActions extends ActionRegistry> =
-	{
-		/** Base URL of the sync server (the Epicenter cloud, or a self-hosted hub). */
-		baseURL: string;
-		actions: TActions;
-		/**
-		 * The catalog agent this daemon answers as (ADR-0025), published in
-		 * presence so peers can decorate it as live. Omit for a mount that hosts
-		 * sync without answering as a named agent.
-		 */
-		agentId?: string;
-		/**
-		 * Materializer attachments composed around the same ydoc. Their teardown
-		 * drains are awaited alongside collaboration and log teardown, so a daemon
-		 * shutdown cannot drop projection writes mid-flight. Each drain is bounded
-		 * by the materializer's own `disposeTimeoutMs`.
-		 */
-		materializers?: ReadonlyArray<Drainable>;
-	};
+export type AttachMountInfrastructureOptions = {
+	/** Base URL of the sync server (the Epicenter cloud, or a self-hosted hub). */
+	baseURL: string;
+	/**
+	 * The catalog agent this daemon answers as (ADR-0025), published in
+	 * presence so peers can decorate it as live. Omit for a mount that hosts
+	 * sync without answering as a named agent.
+	 */
+	agentId?: string;
+	/**
+	 * Materializer attachments composed around the same ydoc. Their teardown
+	 * drains are awaited alongside collaboration and log teardown, so a daemon
+	 * shutdown cannot drop projection writes mid-flight. Each drain is bounded
+	 * by the materializer's own `disposeTimeoutMs`.
+	 */
+	materializers?: ReadonlyArray<Drainable>;
+};
 
-export function attachMountInfrastructure<TActions extends ActionRegistry>(
+export function attachMountInfrastructure(
 	ydoc: Y.Doc,
 	ctx: SessionMountContext,
-	{
-		baseURL,
-		actions,
-		agentId,
-		materializers = [],
-	}: AttachMountInfrastructureOptions<TActions>,
+	{ baseURL, agentId, materializers = [] }: AttachMountInfrastructureOptions,
 ) {
 	ydoc.clientID = hashYDocClientId(ctx.nodeId);
 
@@ -89,8 +76,6 @@ export function attachMountInfrastructure<TActions extends ActionRegistry>(
 	});
 
 	return {
-		/** Local action registry served by this daemon runtime. */
-		actions,
 		/** Durable Y.Doc update log handle. */
 		yjsLog,
 		/** Cloud sync and presence handle for this mount. */

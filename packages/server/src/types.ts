@@ -8,7 +8,6 @@
 import type { Principal } from '@epicenter/auth';
 import type { OAuthError } from '@epicenter/constants/oauth-errors';
 import type { PrincipalId } from '@epicenter/identity';
-import type { ActionManifest } from '@epicenter/workspace';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Context } from 'hono';
 import type { Result } from 'wellcrafted/result';
@@ -62,10 +61,6 @@ export type ResolvePrincipal<E extends Env = Env> = (
  * receivers can render an "online since" affordance and tie-break multi-tab
  * same-node (newest wins).
  *
- * `actions` is the published action manifest for this socket. Starts as `{}`
- * at upgrade; updated to the node's manifest when `presence_publish` arrives.
- * Relay treats the value as opaque (it forwards JSON to peers, never inspects).
- *
  * Every connection to a given room carries the authenticated principal id that
  * selected the partition. The room stays deployment-blind and never branches on
  * where that principal came from.
@@ -74,7 +69,6 @@ export type Connection = {
 	principalId: PrincipalId;
 	nodeId: string;
 	connectedAt: number;
-	actions: ActionManifest;
 	/**
 	 * The catalog agent this connection answers as (ADR-0025), set from the
 	 * node's `presence_publish` and mirrored on the wire so a picker can decorate

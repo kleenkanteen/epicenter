@@ -129,7 +129,7 @@ Ordering is lexical. `openCollaboration` reads `idb.whenLoaded` as `waitFor` bec
 For extensions that need their own Y.Doc per row (file content, note bodies), use sub-doc primitives like `attachRichText(childYdoc)` or `attachTimeline(childYdoc)` against a raw `Y.Doc`, then mount `openCollaboration` on it for sync and presence.
 
 ### 5. Collaboration is just another runtime opener, but it changes the topology
-`openCollaboration` does not own the document. It attaches to a Y.Doc that already exists and starts moving CRDT updates between peers. The relay publishes presence over its own channel; cross-device dispatch rides a plain HTTP POST. The `waitFor: idb.whenLoaded` option ensures local state is replayed first, so the initial handshake is a delta, not a full document transfer.
+`openCollaboration` does not own the document. It attaches to a Y.Doc that already exists and starts moving CRDT updates between peers. The relay publishes presence over its own channel. Action invocation lives on workspace and daemon runtime surfaces, outside collaboration. The `waitFor: idb.whenLoaded` option ensures local state is replayed first, so the initial handshake is a delta, not a full document transfer.
 
 Local state exists first, then optional durability, then optional network coordination.
 
@@ -262,7 +262,7 @@ The server is a relay, not the authority. Clients own schema meaning, table help
 
 `@epicenter/sync` reflects that philosophy in its API. It exports protocol encode/decode functions, while `openCollaboration` plugs those primitives into a live workspace that already knows how to read and write its own data.
 
-That means the server does not need to understand your tables. It forwards Yjs sync messages. Presence is server state: the relay owns the `connections` map and pushes a `presence` text frame, the full list of connected installs, on every change. Cross-device dispatch is a plain HTTP POST the relay routes to the recipient's socket. Neither rides the CRDT, and neither needs the server to decode your data.
+That means the server does not need to understand your tables. It forwards Yjs sync messages. Presence is server state: the relay owns the `connections` map and pushes a `presence` text frame, the full list of connected installs, on every change. Neither sync nor presence needs the server to decode your data.
 
 This is what "smart client" means here. The client can boot locally, read persisted state, expose actions, open document timelines, and keep working offline before the network helps at all.
 

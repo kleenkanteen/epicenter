@@ -16,7 +16,7 @@
 >
 > **Regenerate (deterministic per ref set, lossless):** `bun scripts/generate-spec-history.ts`. The totals track the refs this clone can see; `--all` is deliberate so the timeline recovers specs that only lived on unmerged or deleted branches.
 
-**1324 specs ever** (569 still in tree, 755 removed).
+**1324 specs ever** (566 still in tree, 758 removed).
 
 
 ## 2026
@@ -265,7 +265,7 @@
 | 2026-05-15 | subject-owner-boundary | removed | specs/20260515T172411-subject-owner-boundary.md |
 | 2026-05-15 | logger-vision | removed | specs/20260515T081145-logger-vision.md |
 | 2026-05-15 | daemon-run-ownership-map | in tree | specs/20260515T120000-daemon-run-ownership-map.md |
-| 2026-05-15 | daemon-run-clean-break | in tree | specs/20260515T140000-daemon-run-clean-break.md |
+| 2026-05-15 | daemon-run-clean-break | removed | specs/20260515T140000-daemon-run-clean-break.md |
 | 2026-05-15 | auth-canonical-path-audit | in tree | specs/20260515T010000-auth-canonical-path-audit.md |
 | 2026-05-15 | latest-spec-orchestration-guide | in tree | specs/20260515T000000-latest-spec-orchestration-guide.md |
 | 2026-05-14 | script-surfaces-resolution | in tree | specs/20260514T160000-script-surfaces-resolution.md |
@@ -283,11 +283,11 @@
 | 2026-05-14 | actions-docs-rewrite-tier2 | removed | specs/20260514T000000-actions-docs-rewrite-tier2.md |
 | 2026-05-13 | tauri-specta-bindings | in tree | specs/20260513T105808-tauri-specta-bindings.md |
 | 2026-05-13 | action-runtime-one-envelope | removed | specs/20260513T120000-action-runtime-one-envelope.md |
-| 2026-05-13 | workspace-surface-clean-break-vision | in tree | specs/20260513T200000-workspace-surface-clean-break-vision.md |
+| 2026-05-13 | workspace-surface-clean-break-vision | removed | specs/20260513T200000-workspace-surface-clean-break-vision.md |
 | 2026-05-13 | collaboration-identity-roster-clean-break | removed | specs/20260513T210000-collaboration-identity-roster-clean-break.md |
 | 2026-05-13 | session-encryption-keys-collapse | removed | specs/20260513T233700-session-encryption-keys-collapse.md |
 | 2026-05-13 | rpc-on-yjs-state | removed | specs/20260513T235000-rpc-on-yjs-state.md |
-| 2026-05-13 | document-sync-and-identity-collapse | in tree | specs/20260513T220000-document-sync-and-identity-collapse.md |
+| 2026-05-13 | document-sync-and-identity-collapse | removed | specs/20260513T220000-document-sync-and-identity-collapse.md |
 | 2026-05-13 | define-actions-typed-key-validation | removed | specs/20260513T233714-define-actions-typed-key-validation.md |
 | 2026-05-13 | actions-snake-case-only-no-dots | removed | specs/20260513T231157-actions-snake-case-only-no-dots.md |
 | 2026-05-13 | actions-path-first-clean-break | removed | specs/20260513T210000-actions-path-first-clean-break.md |

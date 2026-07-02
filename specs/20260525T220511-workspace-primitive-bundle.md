@@ -81,8 +81,8 @@ return attachDaemonInfrastructure(ydoc, {
 using workspace = createHoneycrispWorkspace({ keyring: signedIn.keyring });
 const actions = createHoneycrispActions(workspace);
 
-const idb = attachLocalStorage(workspace, { server, ownerId });
-openCollaboration(workspace, { url, openWebSocket, onReconnectSignal });
+const idb = attachLocalStorage(workspace.ydoc, { server, ownerId });
+openCollaboration(workspace.ydoc, { url, openWebSocket, onReconnectSignal });
 ```
 
 Three lines collapse to two. Every downstream attachment takes `workspace` instead of `(ydoc, { tables, kv })`. `using` makes lifecycle obvious.
@@ -95,7 +95,8 @@ Three lines collapse to two. Every downstream attachment takes `workspace` inste
 
 | Category | Examples | Migration |
 |---|---|---|
-| **Root-doc attachments** | attachLocalStorage, attachBroadcastChannel, attachIndexedDb, attachEncryptedIndexedDb, attachYjsLog, attachYjsLogReader, attachBunSqliteMaterializer, attachTursoMaterializer, attachMarkdownMaterializer, attachDaemonInfrastructure, openCollaboration | `(ydoc, ...)` → `(workspace, ...)` |
+| **Root-doc bundle attachments** | attachBunSqliteMaterializer, attachTursoMaterializer, attachMarkdownMaterializer | `(ydoc, { tables, kv })` → `(workspace, ...)` |
+| **Root-doc Y.Doc attachments** | attachLocalStorage, attachBroadcastChannel, attachIndexedDb, attachEncryptedIndexedDb, attachYjsLog, attachYjsLogReader, attachDaemonInfrastructure, openCollaboration | Stay `(ydoc, ...)` |
 | **Sub-doc attachments** | attachRichText, attachPlainText, attachTimeline | Stay `(ydoc, ...)`. Operate on per-row child Y.Docs. Do NOT take Workspace. |
 | **Reader free functions** | openSqliteReader, openWorkspaceSqlite | Stay `(options)`. No Y.Doc, no workspace identity. |
 | **Folded primitives** | attachEncryption, attachTable, attachTables, attachKv | Move inside `createWorkspace`; no longer exported as standalone primitives. Slot definitions go onto the `createWorkspace` options bag. |
