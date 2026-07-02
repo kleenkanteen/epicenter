@@ -12,7 +12,7 @@
  * Every subcommand is a direct cloud round-trip built from the resolved machine
  * auth client (the persisted OAuth cell, or a configured instance token for a
  * self-hosted star); none route through the local daemon, unlike `run`. See
- * `docs/adr/0090-blobs-trade-a-file-for-a-durable-content-addressed-url-documents-are-the-only-manifest.md`.
+ * `docs/adr/0091-blobs-trade-a-file-for-a-durable-content-addressed-url-documents-are-the-only-manifest.md`.
  */
 
 import { createHash } from 'node:crypto';

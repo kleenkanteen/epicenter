@@ -1,4 +1,4 @@
-# 0090. Blobs trade a file for a durable content-addressed URL; documents are the only manifest
+# 0091. Blobs trade a file for a durable content-addressed URL; documents are the only manifest
 
 - **Status:** Accepted
 - **Date:** 2026-07-01

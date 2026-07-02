@@ -24,7 +24,7 @@
  *
  * v1 is all-private: every route is auth + ownership gated (R2 public access is
  * bucket-level, so a public tier is a separate bucket, deferred). See
- * `docs/adr/0088-the-blob-store-is-a-presigned-s3-kernel-and-the-bucket-is-its-only-index.md`.
+ * `docs/adr/0089-the-blob-store-is-a-presigned-s3-kernel-and-the-bucket-is-its-only-index.md`.
  */
 
 import { API_ROUTES, SHA256_HEX_REGEX } from '@epicenter/constants/api-routes';

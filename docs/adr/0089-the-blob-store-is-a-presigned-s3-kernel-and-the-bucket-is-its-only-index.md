@@ -1,4 +1,4 @@
-# 0088. The blob store is a presigned-S3 kernel and the bucket is its only index
+# 0089. The blob store is a presigned-S3 kernel and the bucket is its only index
 
 - **Status:** Accepted
 - **Date:** 2026-07-01
@@ -13,7 +13,7 @@ Blobs live in one S3-compatible bucket under owner-scoped content-addressed keys
 
 ## Consequences
 
-Dedupe is a HEAD on the owner-scoped key, so re-uploading identical bytes is free and idempotent within one owner; content is deliberately never addressed across owners (a cross-owner store would be an equality oracle). The 5 GiB single-PUT ceiling is the integrity contract, not a temporary limit: multipart is refused because its composite checksum breaks content addressing. Usage is computed by list-and-sum until real metering lands. The store never learns whether bytes are plaintext or ciphertext (see ADR-0089).
+Dedupe is a HEAD on the owner-scoped key, so re-uploading identical bytes is free and idempotent within one owner; content is deliberately never addressed across owners (a cross-owner store would be an equality oracle). The 5 GiB single-PUT ceiling is the integrity contract, not a temporary limit: multipart is refused because its composite checksum breaks content addressing. Usage is computed by list-and-sum until real metering lands. The store never learns whether bytes are plaintext or ciphertext (see ADR-0090).
 
 ## Considered alternatives
 

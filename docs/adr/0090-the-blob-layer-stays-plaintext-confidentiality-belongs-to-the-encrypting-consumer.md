@@ -1,4 +1,4 @@
-# 0089. The blob layer stays plaintext; confidentiality belongs to the encrypting consumer
+# 0090. The blob layer stays plaintext; confidentiality belongs to the encrypting consumer
 
 - **Status:** Accepted
 - **Date:** 2026-07-01
