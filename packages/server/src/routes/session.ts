@@ -1,9 +1,8 @@
 /**
  * `/api/session` sub-app.
  *
- * Returns the authenticated principal through the temporary Wave 1 response
- * shape. Clients cache the response so workspace boot and local-storage keying
- * work offline.
+ * Returns the authenticated principal. Clients cache the principal id so
+ * workspace boot and local-storage keying work offline.
  *
  * {@link mountSessionApp} wires the deployment's auth middleware so
  * `c.var.principal` is populated before the handler runs. Deployment shape is
@@ -25,11 +24,9 @@ const sessionApp = new Hono<Env>().get(
 	}),
 	async (c) => {
 		const principal = c.var.principal;
-		// WAVE-3-SHIM: keep `/api/session` on `{ user, ownerId }` until the
-		// auth-client persisted/wire shape collapses.
 		return c.json({
-			user: { id: principal.id, email: principal.email },
-			ownerId: principal.id,
+			principalId: principal.id,
+			email: principal.email,
 		} satisfies ApiSessionResponse);
 	},
 );

@@ -5,10 +5,10 @@ import { createSameOriginCookieAuth } from './same-origin-cookie-auth.js';
 
 const baseURL = 'https://api.epicenter.so';
 
-function sessionBody(ownerId = 'owner-1') {
+function sessionBody(principalId = 'owner-1') {
 	return {
-		user: { id: ownerId, email: `${ownerId}@example.com` },
-		ownerId,
+		principalId,
+		email: `${principalId}@example.com`,
 	};
 }
 

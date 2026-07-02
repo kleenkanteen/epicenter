@@ -7,10 +7,10 @@ import { createInstanceTokenAuth } from './instance-token-auth.js';
 const baseURL = 'http://localhost:8788';
 const token = 'dev:owner-1';
 
-function sessionBody(ownerId = 'owner-1') {
+function sessionBody(principalId = 'owner-1') {
 	return {
-		user: { id: ownerId, email: `${ownerId}@example.com` },
-		ownerId,
+		principalId,
+		email: `${principalId}@example.com`,
 	};
 }
 
@@ -63,9 +63,9 @@ describe('createInstanceTokenAuth', () => {
 		const auth = createInstanceTokenAuth({ baseURL, token, fetch });
 		await flush();
 
-		await auth.fetch('/api/owners/owner-1/blobs');
+		await auth.fetch('/api/blobs');
 		const blobs = calls.at(-1);
-		expect(blobs?.url).toBe(`${baseURL}/api/owners/owner-1/blobs`);
+		expect(blobs?.url).toBe(`${baseURL}/api/blobs`);
 		expect(blobs?.init?.credentials).toBe('omit');
 		expect(new Headers(blobs?.init?.headers).get('authorization')).toBe(
 			`Bearer ${token}`,
@@ -98,7 +98,7 @@ describe('createInstanceTokenAuth', () => {
 		await flush();
 		expect(auth.state.status).toBe('signed-in');
 
-		await auth.fetch('/api/owners/owner-1/blobs');
+		await auth.fetch('/api/blobs');
 		expect(auth.state.status).toBe('signed-out');
 	});
 
@@ -118,11 +118,11 @@ describe('createInstanceTokenAuth', () => {
 		});
 		await flush();
 
-		await auth.openWebSocket('ws://localhost:8788/api/owners/owner-1/rooms/r', [
+		await auth.openWebSocket('ws://localhost:8788/api/rooms/r', [
 			'existing-protocol',
 		]);
 		expect(wsCalls.at(-1)).toEqual({
-			url: 'ws://localhost:8788/api/owners/owner-1/rooms/r',
+			url: 'ws://localhost:8788/api/rooms/r',
 			protocols: ['existing-protocol', `${BEARER_SUBPROTOCOL_PREFIX}${token}`],
 		});
 	});
@@ -238,7 +238,7 @@ describe('createInstanceTokenAuth', () => {
 		await flush();
 		expect(auth.connection?.state).toEqual({ status: 'connected' });
 
-		await auth.fetch('/api/owners/owner-1/blobs');
+		await auth.fetch('/api/blobs');
 		expect(auth.connection?.state).toEqual({
 			status: 'failed',
 			reason: 'rejected',

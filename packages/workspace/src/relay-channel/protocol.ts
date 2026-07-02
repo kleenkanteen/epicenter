@@ -44,15 +44,14 @@ import { Compile } from 'typebox/compile';
 
 /**
  * Who opened a channel, as the RELAY authenticated them. The relay stamps this
- * onto the open it forwards from the caller's `Connection.userId` and overwrites
- * any caller-provided value, so the device acceptor can authorize a keyless
- * caller by its server-authenticated identity. `kind` is a discriminant kept
- * open for forward compatibility; today the only source the relay stamps is
- * `user`.
+ * onto the open it forwards from the caller's principal and overwrites any
+ * caller-provided value, so the device acceptor can authorize a keyless caller
+ * by its server-authenticated identity. `kind` is a discriminant kept open for
+ * forward compatibility; today the only source the relay stamps is `principal`.
  */
 export const ChannelSourceSchema = Type.Object({
-	kind: Type.Literal('user'),
-	userId: Type.String(),
+	kind: Type.Literal('principal'),
+	principalId: Type.String(),
 });
 export type ChannelSource = Static<typeof ChannelSourceSchema>;
 

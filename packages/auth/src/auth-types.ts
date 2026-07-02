@@ -51,15 +51,14 @@ export type OAuthTokenGrant = typeof OAuthTokenGrant.infer;
  * Profile data is intentionally absent; application surfaces fetch it when
  * they display it.
  *
- * Wave 1 keeps the old field names so persisted JSON remains unchanged until
- * the session and client shape collapse in Wave 3. Both ids are now
- * {@link PrincipalId}; the duplicate fields disappear when the wire shape does.
+ * The grant is server-access material. The principal id is the offline-useful
+ * partition key, so local workspace boot can still pick the right storage when
+ * the network is unavailable.
  */
 export const PersistedAuth = type({
 	'+': 'delete',
 	grant: OAuthTokenGrant,
-	userId: PrincipalId,
-	ownerId: PrincipalId,
+	principalId: PrincipalId,
 });
 
 export type PersistedAuth = typeof PersistedAuth.infer;
@@ -69,14 +68,13 @@ export type PersistedAuth = typeof PersistedAuth.infer;
  * API and every Epicenter auth client (browser, extension, CLI machine,
  * daemon).
  *
- * Wave 1 keeps the old response fields (`user`, `ownerId`) while merging their
- * brands to {@link PrincipalId}. Wave 3 collapses this to the final
- * `{ principalId, email? }` shape.
+ * The session endpoint exposes Epicenter's resource-server projection, not
+ * Better Auth's internal session shape.
  */
 export const ApiSessionResponse = type({
 	'+': 'delete',
-	user: Principal,
-	ownerId: PrincipalId,
+	principalId: PrincipalId,
+	'email?': 'string',
 });
 
 export type ApiSessionResponse = typeof ApiSessionResponse.infer;

@@ -309,15 +309,14 @@ export async function loginWithOob({
 
 	const cell = {
 		grant,
-		userId: session.user.id,
-		ownerId: session.ownerId,
+		principalId: session.principalId,
 	} satisfies PersistedAuth;
 	const saved = await saveMachineTokens(cell, { filePath: authFilePath });
 	if (saved.error) return Err(saved.error);
 
 	return Ok({
 		identity: {
-			user: { id: session.user.id, email: session.user.email },
+			user: { id: session.principalId, email: session.email },
 		},
 	});
 }
@@ -325,7 +324,7 @@ export async function loginWithOob({
 /**
  * Load the persisted cell and verify it by hitting `/api/session` through a
  * regular `createOAuthAppAuth` client (so refresh-on-401 fires automatically
- * and the same-owner guard wipes the cell on mismatch). Returns `unverified`
+ * and the same-principal guard wipes the cell on mismatch). Returns `unverified`
  * on network failures so the CLI can still report the cached identity.
  */
 export async function status({
@@ -348,12 +347,12 @@ export async function status({
 	const cachedCell = loaded.data;
 
 	// Cell may still be valid for local use when the server is unreachable;
-	// the underlying auth client wipes it on same-owner mismatch or
+	// the underlying auth client wipes it on same-principal mismatch or
 	// reauth-required. Email is unknown without /api/session.
 	const unverifiedFromCache = {
 		status: 'unverified' as const,
 		identity: {
-			user: { id: cachedCell.userId },
+			user: { id: cachedCell.principalId },
 		},
 	};
 
@@ -391,7 +390,7 @@ export async function status({
 		return Ok({
 			status: 'valid' as const,
 			identity: {
-				user: { id: session.user.id, email: session.user.email },
+				user: { id: session.principalId, email: session.email },
 			},
 		});
 	}

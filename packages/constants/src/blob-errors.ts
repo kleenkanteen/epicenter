@@ -1,7 +1,7 @@
 import { defineErrors, type InferErrors } from 'wellcrafted/error';
 
 /**
- * Structured error variants for the `/api/owners/:ownerId/blobs` surface.
+ * Structured error variants for the `/api/blobs` surface.
  *
  * The blob store is content-addressed: the upload is a presigned PUT straight
  * to R2 (the Worker never sees the bytes), and R2 itself is the index, so

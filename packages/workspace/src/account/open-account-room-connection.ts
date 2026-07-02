@@ -147,7 +147,6 @@ export function openAccountRoomConnection(
 		const collaboration = openCollaboration(ydoc, {
 			url: roomWsUrl({
 				baseURL,
-				ownerId,
 				guid: ydoc.guid,
 				nodeId,
 			}),

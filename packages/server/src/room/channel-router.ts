@@ -151,9 +151,7 @@ export function createChannelRouter(deps: ChannelRouterDeps): ChannelRouter {
 		// reads `route` to pick its handler and answers with accept or reset.
 		send(target, {
 			...frame,
-			// WAVE-3-SHIM: the relay wire still spells this userId until the
-			// client protocol moves to principal vocabulary.
-			source: { kind: 'user', userId: callerPrincipal },
+			source: { kind: 'principal', principalId: callerPrincipal },
 		});
 	}
 

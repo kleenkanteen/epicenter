@@ -1,11 +1,11 @@
 /**
  * Blobs sub-app: a content-addressed object store where S3 IS the index.
  *
- * Uniform owner-partitioned URL shape:
- *   POST   /api/owners/:ownerId/blobs              authed — request an upload ticket
- *   GET    /api/owners/:ownerId/blobs              authed — list the owner's blobs
- *   GET    /api/owners/:ownerId/blobs/:sha256      authed — read (302 → presigned GET)
- *   DELETE /api/owners/:ownerId/blobs/:sha256      authed — delete
+ * Uniform principal-partitioned URL shape:
+ *   POST   /api/blobs              authed — request an upload ticket
+ *   GET    /api/blobs              authed — list the principal's blobs
+ *   GET    /api/blobs/:sha256      authed — read (302 → presigned GET)
+ *   DELETE /api/blobs/:sha256      authed — delete
  *
  * There is NO database row, NO queue, and NO event notification. The blob's
  * key IS its sha256 content address, so the store itself answers "does it
@@ -29,10 +29,9 @@
 
 import { API_ROUTES, SHA256_HEX_REGEX } from '@epicenter/constants/api-routes';
 import { BlobError } from '@epicenter/constants/blob-errors';
-import { RequestGuardError } from '@epicenter/constants/request-guard-errors';
 import { sValidator } from '@hono/standard-validator';
 import { type } from 'arktype';
-import { type Context, Hono, type MiddlewareHandler } from 'hono';
+import { Hono, type MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { describeRoute } from 'hono-openapi';
 import { MAX_BLOB_BYTES } from '../constants.js';
@@ -125,15 +124,6 @@ const requireBlobStore: MiddlewareHandler = createMiddleware<BlobEnv>(
 	},
 );
 
-function requireUrlPrincipal(c: Context<BlobEnv>) {
-	const principalId = c.var.principal.id;
-	if (c.req.param('ownerId') !== principalId) {
-		const err = RequestGuardError.OwnerMismatch();
-		return { principalId, response: c.json(err, err.error.status) };
-	}
-	return { principalId, response: null };
-}
-
 const blobsApp = new Hono<BlobEnv>()
 	// POST — request an upload ticket (presigned PUT, or a duplicate hit).
 	.post(
@@ -145,8 +135,7 @@ const blobsApp = new Hono<BlobEnv>()
 		}),
 		sValidator('json', TicketBody),
 		async (c) => {
-			const { principalId, response } = requireUrlPrincipal(c);
-			if (response) return response;
+			const principalId = c.var.principal.id;
 			const { sha256, sizeBytes, contentType } = c.req.valid('json');
 
 			if (!SHA256_HEX.test(sha256)) {
@@ -168,7 +157,6 @@ const blobsApp = new Hono<BlobEnv>()
 			const key = blobKey(principalId, sha256);
 			const url = API_ROUTES.blobs.byHash.url(
 				c.var.authBaseURL,
-				principalId,
 				sha256,
 			);
 
@@ -207,8 +195,7 @@ const blobsApp = new Hono<BlobEnv>()
 			tags: ['blobs'],
 		}),
 		async (c) => {
-			const { principalId, response } = requireUrlPrincipal(c);
-			if (response) return response;
+			const principalId = c.var.principal.id;
 			const blobs = await listPrincipalBlobs(c.var.blobStore, principalId);
 			return c.json(blobs);
 		},
@@ -222,8 +209,7 @@ const blobsApp = new Hono<BlobEnv>()
 			tags: ['blobs'],
 		}),
 		async (c) => {
-			const { principalId, response } = requireUrlPrincipal(c);
-			if (response) return response;
+			const principalId = c.var.principal.id;
 			const sha256 = c.req.param('sha256');
 			const key = blobKey(principalId, sha256);
 			if (!(await c.var.blobStore.exists(key))) {
@@ -245,8 +231,7 @@ const blobsApp = new Hono<BlobEnv>()
 			tags: ['blobs'],
 		}),
 		async (c) => {
-			const { principalId, response } = requireUrlPrincipal(c);
-			if (response) return response;
+			const principalId = c.var.principal.id;
 			const sha256 = c.req.param('sha256');
 			await c.var.blobStore.delete(blobKey(principalId, sha256));
 			return c.body(null, 204);

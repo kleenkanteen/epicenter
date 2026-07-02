@@ -6,12 +6,12 @@
  * the grant, and attach bearer credentials to fetch or WebSocket transports.
  *
  * Covers:
- * - PersistedAuth = { grant, userId, ownerId } shape
+ * - PersistedAuth = { grant, principalId } shape
  * - AuthState three variants; profile data is absent from state
  * - Refresh writes only grant, identity byte-identical
- * - Same-owner guard at /api/session response
- * - Network gate: bearer not attached until /api/session confirms same owner
- * - Cold-boot offline keeps signed-in with ownerId and no profile field
+ * - Same-principal guard at /api/session response
+ * - Network gate: bearer not attached until /api/session confirms same principal
+ * - Cold-boot offline keeps signed-in with principalId and no profile field
  */
 
 import { expect, test } from 'bun:test';
@@ -45,16 +45,15 @@ function completed(g: OAuthTokenGrant) {
 }
 
 function cell({
-	userId = 'user-1',
+	principalId = 'user-1',
 	grant: g = grant(),
 }: {
-	userId?: string;
+	principalId?: string;
 	grant?: OAuthTokenGrant;
 } = {}): PersistedAuth {
 	return {
 		grant: g,
-		userId: asPrincipalId(userId),
-		ownerId: asPrincipalId(userId),
+		principalId: asPrincipalId(principalId),
 	};
 }
 
@@ -103,10 +102,10 @@ function oauthTokenResponse({
 	return json(body);
 }
 
-function apiSessionBody(userId = 'user-1') {
+function apiSessionBody(principalId = 'user-1') {
 	return {
-		user: { id: userId, email: `${userId}@example.com` },
-		ownerId: userId,
+		principalId,
+		email: `${principalId}@example.com`,
 	};
 }
 
@@ -135,7 +134,7 @@ test('signed-out by default; AuthClient satisfies the public contract', () => {
 	auth[Symbol.dispose]();
 });
 
-test('cold-boot signed-in exposes ownerId immediately without profile data', () => {
+test('cold-boot signed-in exposes principalId immediately without profile data', () => {
 	const setup = createStorage(cell());
 	const auth = createOAuthAppAuth({
 		baseURL: 'http://localhost:8787',
@@ -184,8 +183,7 @@ test('startSignIn calls /api/session and writes both sections', async () => {
 			refreshToken: 'sign-in-refresh',
 			accessTokenExpiresAt: now + 3_600_000,
 		},
-		userId: asPrincipalId('user-1'),
-		ownerId: asPrincipalId('user-1'),
+		principalId: asPrincipalId('user-1'),
 	});
 	expect(auth.state).toMatchObject({
 		status: 'signed-in',
@@ -218,8 +216,8 @@ test('startSignIn with launched result does not install a session', async () => 
 	auth[Symbol.dispose]();
 });
 
-test('startSignIn publishes signed-out before installing a different owner', async () => {
-	const setup = createStorage(cell({ userId: 'alice' }));
+test('startSignIn publishes signed-out before installing a different principal', async () => {
+	const setup = createStorage(cell({ principalId: 'alice' }));
 	const states: string[] = [];
 	const auth = createOAuthAppAuth({
 		baseURL: 'http://localhost:8787',
@@ -256,8 +254,7 @@ test('startSignIn publishes signed-out before installing a different owner', asy
 				refreshToken: 'bob-refresh',
 				accessTokenExpiresAt: now + 3_600_000,
 			},
-			userId: asPrincipalId('bob'),
-			ownerId: asPrincipalId('bob'),
+			principalId: asPrincipalId('bob'),
 		},
 	]);
 	expect(auth.state).toEqual({
@@ -375,8 +372,7 @@ test('concurrent startSignIn shares one launcher flight', async () => {
 			refreshToken: 'bob-refresh',
 			accessTokenExpiresAt: now + 3_600_000,
 		},
-		userId: asPrincipalId('bob'),
-		ownerId: asPrincipalId('bob'),
+		principalId: asPrincipalId('bob'),
 	});
 	auth[Symbol.dispose]();
 });
@@ -443,8 +439,8 @@ test('/api/session 503 leaves local auth signed-in without attaching a bearer', 
 	auth[Symbol.dispose]();
 });
 
-test('stale /api/session verification after owner-switch sign-in cannot replace the new owner', async () => {
-	const setup = createStorage(cell({ userId: 'alice' }));
+test('stale /api/session verification after principal-switch sign-in cannot replace the new principal', async () => {
+	const setup = createStorage(cell({ principalId: 'alice' }));
 	let resolveOldApiSession!: (response: Response) => void;
 	const oldApiSessionPromise = new Promise<Response>((r) => {
 		resolveOldApiSession = r;
@@ -493,8 +489,7 @@ test('stale /api/session verification after owner-switch sign-in cannot replace 
 			refreshToken: 'bob-refresh',
 			accessTokenExpiresAt: now + 3_600_000,
 		},
-		userId: asPrincipalId('bob'),
-		ownerId: asPrincipalId('bob'),
+		principalId: asPrincipalId('bob'),
 	});
 	expect(auth.state).toEqual({
 		status: 'signed-in',
@@ -524,8 +519,7 @@ test('refresh writes ONLY the grant section; identity byte-identical', async () 
 
 	await auth.fetch('http://localhost:8787/resource');
 	const last = setup.saved.at(-1);
-	expect(last?.userId).toEqual(initial.userId);
-	expect(last?.ownerId).toEqual(initial.ownerId);
+	expect(last?.principalId).toEqual(initial.principalId);
 	expect(last?.grant).toEqual({
 		accessToken: 'new-access',
 		refreshToken: 'new-refresh',
@@ -562,8 +556,8 @@ test('refresh keeps existing refresh token when token response omits rotation', 
 	auth[Symbol.dispose]();
 });
 
-test('same-owner guard wipes the cell when /api/session returns a different owner', async () => {
-	const setup = createStorage(cell({ userId: 'alice' }));
+test('same-principal guard wipes the cell when /api/session returns a different principal', async () => {
+	const setup = createStorage(cell({ principalId: 'alice' }));
 	const auth = createOAuthAppAuth({
 		baseURL: 'http://localhost:8787',
 		clientId: 'client-1',
@@ -633,7 +627,7 @@ test('a 401 from getProfile pauses network auth and reports unavailable', async 
 	auth[Symbol.dispose]();
 });
 
-test('same-owner /api/session preserves state without rewriting identity', async () => {
+test('same-principal /api/session preserves state without rewriting identity', async () => {
 	const setup = createStorage(cell());
 	const auth = createOAuthAppAuth({
 		baseURL: 'http://localhost:8787',
@@ -655,38 +649,7 @@ test('same-owner /api/session preserves state without rewriting identity', async
 	auth[Symbol.dispose]();
 });
 
-test('same-owner /api/session updates cached userId when it changes', async () => {
-	const setup = createStorage(cell());
-	const auth = createOAuthAppAuth({
-		baseURL: 'http://localhost:8787',
-		clientId: 'client-1',
-		now: () => now,
-		persistedAuthStorage: setup.storage,
-		launcher: { startSignIn: async () => launched() },
-		fetch: async (input) => {
-			if (String(input).endsWith('/api/session')) {
-				return json({
-					user: { id: 'user-2', email: 'user-2@example.com' },
-					ownerId: 'user-1',
-				});
-			}
-			return new Response(null, { status: 204 });
-		},
-	});
-
-	await auth.fetch('http://localhost:8787/resource');
-	const last = setup.saved.at(-1);
-	expect(last?.userId).toEqual(asPrincipalId('user-2'));
-	expect(last?.ownerId).toEqual(asPrincipalId('user-1'));
-	expect(last?.grant).toEqual(cell().grant);
-	expect(auth.state).toEqual({
-		status: 'signed-in',
-		principalId: asPrincipalId('user-1'),
-	});
-	auth[Symbol.dispose]();
-});
-
-test('network gate: no Authorization header until /api/session confirms same owner', async () => {
+test('network gate: no Authorization header until /api/session confirms same principal', async () => {
 	const setup = createStorage(cell());
 	const seenAuth: Array<string | null> = [];
 	let resolveApiSession!: (response: Response) => void;
@@ -786,7 +749,7 @@ test('auth.fetch preserves iterable init headers when attaching bearer', async (
 	auth[Symbol.dispose]();
 });
 
-test('network gate: no WebSocket bearer protocol until /api/session confirms same owner', async () => {
+test('network gate: no WebSocket bearer protocol until /api/session confirms same principal', async () => {
 	const setup = createStorage(cell());
 	const { openings, WebSocketRecorder } = createWebSocketRecorder();
 	let resolveApiSession!: (response: Response) => void;
@@ -1148,16 +1111,15 @@ test('/api/session identity update after signOut is discarded without writing id
 
 	resolveApiSession(
 		json({
-			user: { id: 'user-2', email: 'user-2@example.com' },
-			ownerId: 'user-1',
+			principalId: 'user-2',
+			email: 'user-2@example.com',
 		}),
 	);
 	await fetchPromise;
 	expect(setup.current).toBeNull();
 	expect(setup.saved).not.toContainEqual({
 		grant: grant(),
-		userId: asPrincipalId('user-2'),
-		ownerId: asPrincipalId('user-1'),
+		principalId: asPrincipalId('user-2'),
 	});
 	expect(auth.state).toEqual({ status: 'signed-out' });
 	auth[Symbol.dispose]();

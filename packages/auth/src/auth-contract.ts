@@ -53,7 +53,7 @@ export type AuthClient = {
 	/**
 	 * Origin of the API this client signs into. Exposed so client-side
 	 * partitioning (local storage keys, BroadcastChannel names) can scope by
-	 * `(server, ownerId)` and stay distinct across two signed-in deployments on
+	 * `(server, principalId)` and stay distinct across two signed-in deployments on
 	 * the same machine. Mirrors the `baseURL` passed at construction.
 	 */
 	baseURL: string;

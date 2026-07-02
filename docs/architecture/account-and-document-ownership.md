@@ -59,20 +59,20 @@ Layer 3. They never merge.
 
 ## Cloud sync addressing
 
-A cloud doc syncs through one route, keyed by the owning user and the doc's
-guid.
+A cloud doc syncs through one route, keyed by the authenticated principal and
+the doc's guid.
 
 ```
-route     /api/owners/:ownerId/rooms/:room   (all deployments)
-DO name   owners/${ownerId}/rooms/${room}    (room = ydoc.guid)
-builder   roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, nodeId })
+route     /api/rooms/:room                          (all deployments)
+DO name   principals/${principalId}/rooms/${room}    (room = ydoc.guid)
+builder   roomWsUrl({ baseURL, guid: ydoc.guid, nodeId })
 ```
 
-The DO partition is `owners/<ownerId>` in every deployment. In per-user cloud,
-`ownerId === user.id`, derived from the authenticated user's id. On a
-self-hosted instance, `ownerId === 'instance'`, so every operator-authorized
-request on the deployment shares the same partition. The room id is the Y.Doc's
-guid: the document already carries its own identity, so nothing else is
+The DO partition is `principals/<principalId>` in every deployment. In per-user
+cloud, the principal is derived from the authenticated user. On a self-hosted
+instance, `principalId === 'instance'`, so every operator-authorized request on
+the deployment shares the same partition. The room id is the Y.Doc's guid: the
+document already carries its own identity, so nothing else is
 composed into the name.
 
 Browser apps and the daemon use the same route and the same builder. They sync

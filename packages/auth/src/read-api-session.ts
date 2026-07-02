@@ -103,5 +103,5 @@ export async function getProfileVia(
 		token: '',
 	});
 	if (error) return AuthError.ProfileUnavailable({ cause: error });
-	return Ok(session.user);
+	return Ok({ id: session.principalId, email: session.email });
 }

@@ -1,5 +1,3 @@
-import type { PrincipalId } from '@epicenter/identity';
-
 /**
  * Wire URL paths and Hono route patterns for the Epicenter API.
  *
@@ -16,8 +14,7 @@ import type { PrincipalId } from '@epicenter/identity';
  *                      from typed inputs. All path parameters are
  *                      `encodeURIComponent`-encoded.
  *
- * URL values here MUST match what production clients hit today. This
- * module moves declarations; it does not change wire shape.
+ * URL values here are the public API contract.
  *
  * @example
  * ```ts
@@ -55,14 +52,13 @@ export const API_ROUTES = {
 	 */
 	blobs: {
 		list: {
-			pattern: '/api/owners/:ownerId/blobs',
-			url: (baseURL: string, ownerId: PrincipalId) =>
-				`${stripTrailing(baseURL)}/api/owners/${encodeURIComponent(ownerId)}/blobs`,
+			pattern: '/api/blobs',
+			url: (baseURL: string) => `${stripTrailing(baseURL)}/api/blobs`,
 		},
 		byHash: {
-			pattern: `/api/owners/:ownerId/blobs/:sha256{${SHA256_HEX_REGEX}}`,
-			url: (baseURL: string, ownerId: PrincipalId, sha256: string) =>
-				`${stripTrailing(baseURL)}/api/owners/${encodeURIComponent(ownerId)}/blobs/${encodeURIComponent(sha256)}`,
+			pattern: `/api/blobs/:sha256{${SHA256_HEX_REGEX}}`,
+			url: (baseURL: string, sha256: string) =>
+				`${stripTrailing(baseURL)}/api/blobs/${encodeURIComponent(sha256)}`,
 		},
 	},
 	ai: {

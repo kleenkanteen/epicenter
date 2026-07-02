@@ -226,12 +226,12 @@ export const blobsCommand = cmd({
 });
 
 /**
- * Build the owner-scoped cloud client from the resolved machine auth client, or
+ * Build the authenticated cloud client from the resolved machine auth client, or
  * print a ready-to-read failure and return `null`. Every `blobs` subcommand is a
  * direct cloud round-trip (no daemon), so each one starts here.
  * `resolveMachineAuthClient` settles the credential (OAuth cell or a configured
- * instance token) before returning, so `auth.state` is readable synchronously
- * here; the client is owner-scoped and never re-resolves `/api/session` itself.
+ * instance token) before returning, so `auth.state` is readable synchronously.
+ * The blob client never re-resolves `/api/session` itself.
  */
 async function connectCloud(): Promise<EpicenterClient | null> {
 	const { data: auth, error: authError } =
@@ -247,7 +247,6 @@ async function connectCloud(): Promise<EpicenterClient | null> {
 	return createEpicenterClient({
 		baseURL: auth.baseURL,
 		fetch: (input, init) => auth.fetch(input, init),
-		ownerId: auth.state.principalId,
 	});
 }
 

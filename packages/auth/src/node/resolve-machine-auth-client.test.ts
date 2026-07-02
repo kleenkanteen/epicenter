@@ -26,8 +26,8 @@ import {
 const BASE_URL = 'http://localhost:8788';
 const TOKEN = 'dev:owner-1';
 
-function sessionBody(ownerId = 'owner-1') {
-	return { user: { id: ownerId, email: `${ownerId}@example.com` }, ownerId };
+function sessionBody(principalId = 'owner-1') {
+	return { principalId, email: `${principalId}@example.com` };
 }
 
 function json(value: unknown, status = 200) {
@@ -214,8 +214,7 @@ describe('resolveMachineAuthClient', () => {
 				refreshToken: 'r',
 				accessTokenExpiresAt: 1_700_000_600_000,
 			},
-			userId: asPrincipalId('owner-1'),
-			ownerId: asPrincipalId('owner-1'),
+			principalId: asPrincipalId('owner-1'),
 		});
 		const fetch: AuthFetch = async () => json(sessionBody());
 

@@ -5,7 +5,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types.js';
 import { mountSessionApp } from './session.js';
 
-test('/api/session keeps the temporary user/ownerId response shape', async () => {
+test('/api/session returns the principal projection', async () => {
 	const app = new Hono<Env>();
 	mountSessionApp(app, {
 		auth: async (c, next) => {
@@ -22,10 +22,7 @@ test('/api/session keeps the temporary user/ownerId response shape', async () =>
 	expect(res.status).toBe(200);
 	const body = (await res.json()) as unknown;
 	expect(body).toEqual({
-		user: {
-			id: 'alice',
-			email: 'alice@example.com',
-		},
-		ownerId: 'alice',
+		principalId: 'alice',
+		email: 'alice@example.com',
 	});
 });

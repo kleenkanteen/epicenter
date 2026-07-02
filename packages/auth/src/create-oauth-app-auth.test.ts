@@ -12,10 +12,10 @@ import type {
 const baseURL = 'https://api.epicenter.so';
 const clientId = 'client-1';
 
-function sessionBody(ownerId = 'owner-1') {
+function sessionBody(principalId = 'owner-1') {
 	return {
-		user: { id: ownerId, email: `${ownerId}@example.com` },
-		ownerId,
+		principalId,
+		email: `${principalId}@example.com`,
 	};
 }
 
@@ -39,8 +39,7 @@ function grant(overrides: Partial<OAuthTokenGrant> = {}): OAuthTokenGrant {
 function persistedAuth(): PersistedAuth {
 	return {
 		grant: grant(),
-		userId: asPrincipalId('owner-1'),
-		ownerId: asPrincipalId('owner-1'),
+		principalId: asPrincipalId('owner-1'),
 	};
 }
 
@@ -73,7 +72,7 @@ function completingLauncher(g: OAuthTokenGrant): OAuthLauncher {
 }
 
 describe('createOAuthAppAuth /api/session verification', () => {
-	test('completing sign-in verifies /api/session and installs signed-in with the ownerId', async () => {
+	test('completing sign-in verifies /api/session and installs signed-in with the principalId', async () => {
 		const calls: Array<{ url: string; init?: RequestInit }> = [];
 		const fetch: AuthFetch = async (input, init) => {
 			calls.push({ url: String(input), init });
@@ -158,14 +157,14 @@ describe('createOAuthAppAuth /api/session verification', () => {
 			principalId: asPrincipalId('owner-1'),
 		});
 
-		await auth.fetch('/api/owners/owner-1/blobs');
+		await auth.fetch('/api/blobs');
 
 		const sessionCall = calls.find(
 			(call) => call.url === `${baseURL}/api/session`,
 		);
 		expect(sessionCall).toBeDefined();
 		const resourceCall = calls.find(
-			(call) => call.url === `${baseURL}/api/owners/owner-1/blobs`,
+			(call) => call.url === `${baseURL}/api/blobs`,
 		);
 		expect(new Headers(resourceCall?.init?.headers).get('authorization')).toBe(
 			'Bearer access-1',
@@ -209,7 +208,7 @@ describe('createOAuthAppAuth /api/session verification', () => {
 			fetch,
 		});
 
-		await auth.fetch('/api/owners/owner-1/blobs');
+		await auth.fetch('/api/blobs');
 		expect(auth.state).toEqual({
 			status: 'reauth-required',
 			principalId: asPrincipalId('owner-1'),

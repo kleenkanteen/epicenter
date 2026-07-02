@@ -309,10 +309,10 @@ specs/20260524T021140-asset-visibility-and-client-sdk.md
 
 ### Wave 3: wire atom
 
-- [ ] Drop owner segments from `API_ROUTES` and `ROOM_ROUTE`.
-- [ ] Collapse `/api/session` to `{ principalId, email? }`.
-- [ ] Update all auth, workspace, SDK, CLI, Svelte state, app, and CI consumers in one coherent wave.
-- [ ] Preserve the clean-break durable byte outputs pinned in Wave 0.
+- [x] Drop owner segments from `API_ROUTES` and `ROOM_ROUTE`.
+- [x] Collapse `/api/session` to `{ principalId, email? }`.
+- [x] Update all auth, workspace, SDK, CLI, Svelte state, app, and CI consumers in one coherent wave.
+- [x] Preserve the clean-break durable byte outputs pinned in Wave 0.
 
 ### Wave 4: deployables and smoke surfaces
 

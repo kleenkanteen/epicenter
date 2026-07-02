@@ -240,13 +240,12 @@ floor rides to carry cross-device MCP tool calls over the same socket. See
 The `id` you pass to `defineWorkspace(...)` becomes `workspace.ydoc.guid` when
 you call `.connect(...)`. Namespace it to your app (e.g. `epicenter.my-app`) to
 avoid collisions when multiple apps share the same IndexedDB origin. Cloud sync
-targets the single uniform shape `/api/owners/:ownerId/rooms/:roomId` in
-per-user cloud and self-hosted instance deployments: build the URL with
-`roomWsUrl({ baseURL, ownerId, guid: workspace.ydoc.guid, nodeId })`. A cloud
-doc is owned by the authenticated `OwnerId`, so the server resolves the Durable
-Object name `owners/${ownerId}/rooms/${room}` from the auth token (per-user
-cloud: `ownerId === userId`; instance: `ownerId === 'instance'`), with no
-workspace lookup.
+targets the single uniform shape `/api/rooms/:roomId` in per-user cloud and
+self-hosted instance deployments: build the URL with
+`roomWsUrl({ baseURL, guid: workspace.ydoc.guid, nodeId })`. A cloud doc is
+owned by the authenticated `PrincipalId`, so the server resolves the Durable
+Object name `principals/${principalId}/rooms/${room}` from the auth token, with
+no workspace lookup.
 
 For production-shaped browser wiring, see
 `apps/honeycrisp/src/lib/workspace/browser.ts`. For the boot-time doc selection, see

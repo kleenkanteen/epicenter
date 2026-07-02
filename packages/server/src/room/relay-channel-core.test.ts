@@ -94,7 +94,7 @@ describe('relay channels through createRoomCore', () => {
 		send(core, caller.socket, open);
 		// The relay stamps the server-authored source onto the forwarded open.
 		expect(target.frames).toEqual([
-			{ ...open, source: { kind: 'user', userId: 'u1' } },
+			{ ...open, source: { kind: 'principal', principalId: 'u1' } },
 		]);
 		expect(caller.frames).toEqual([]);
 
@@ -119,10 +119,10 @@ describe('relay channels through createRoomCore', () => {
 			target: 'laptop',
 			route: 'books',
 			// A caller tries to forge a different identity.
-			source: { kind: 'user', userId: 'attacker' },
+			source: { kind: 'principal', principalId: 'attacker' },
 		});
 		expect(target.frames.at(-1)).toMatchObject({
-			source: { kind: 'user', userId: 'u1' }, // the relay's, not the forged one
+			source: { kind: 'principal', principalId: 'u1' }, // the relay's, not the forged one
 		});
 	});
 

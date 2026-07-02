@@ -223,7 +223,7 @@ export async function runUp(
 		const relayAcceptor = openRelayAcceptor({
 			channelPort: accountRoom.channelPort,
 			routes,
-			ownerUserId: accountRoom.ownerId,
+			ownerPrincipalId: accountRoom.ownerId,
 		});
 		stack.defer(() => relayAcceptor.close());
 

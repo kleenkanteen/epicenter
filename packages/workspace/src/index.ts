@@ -166,10 +166,9 @@ export {
 } from './document/table.js';
 // Transport URL builder.
 //
-// `roomWsUrl({ baseURL, ownerId, guid, nodeId })` builds the WebSocket
-// URL for the partitioned `/api/owners/:ownerId/rooms/:roomId` endpoint. The
-// same single URL form is used by per-user cloud and self-hosted instance
-// deployments. Browser apps and the daemon use this one builder.
+// `roomWsUrl({ baseURL, guid, nodeId })` builds the WebSocket URL for the
+// principal-authenticated `/api/rooms/:roomId` endpoint. Browser apps and the
+// daemon use this one builder.
 export { type RoomWsUrlOptions, roomWsUrl } from './document/transport.js';
 export {
 	wipeBareStorage,

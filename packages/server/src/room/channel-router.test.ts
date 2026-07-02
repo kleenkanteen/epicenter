@@ -54,7 +54,7 @@ describe('channel open', () => {
 		router.handleFrame(caller.socket, open);
 		// The relay stamps the server-authored source onto the forwarded open.
 		expect(target.sent).toEqual([
-			{ ...open, source: { kind: 'user', userId: 'u1' } },
+			{ ...open, source: { kind: 'principal', principalId: 'u1' } },
 		]);
 		expect(caller.sent).toEqual([]);
 	});

@@ -18,7 +18,7 @@ type AuthFetchInput = Request | string | URL;
  *
  * `baseURL` is the self-hosted star's origin (optionally with a path prefix);
  * `token` is the operator-supplied bearer (the self-host `INSTANCE_TOKEN`, or the
- * quarantined dev `dev:<userId>` resolver's token). `fetch`, `WebSocket`, and
+ * quarantined dev `dev:<principalId>` resolver's token). `fetch`, `WebSocket`, and
  * `log` exist so tests can drive the client without a DOM.
  */
 export type CreateInstanceTokenAuthConfig = {
@@ -71,8 +71,9 @@ const InstanceTokenAuthError = defineErrors({
  *     a custom inference backend or any third party can never leak the token.
  *   - identity is resolved by reading `/api/session` once at construction (via
  *     the shared {@link readApiSession}); a 200 installs `signed-in` with the
- *     response's `ownerId`, a rejected token stays `signed-out`. `startSignIn`
- *     re-runs that check so a UI can retry a connection that was offline at boot.
+ *     response's principal id, a rejected token stays `signed-out`.
+ *     `startSignIn` re-runs that check so a UI can retry a connection that was
+ *     offline at boot.
  *   - `signOut` is local-only: it drops to `signed-out` without a server call,
  *     because there is no grant to revoke. Forgetting the instance itself
  *     (reverting to hosted) is an app-level concern.
@@ -163,7 +164,7 @@ export function createInstanceTokenAuth({
 			});
 			return AuthError.StartSignInFailed({ cause: error });
 		}
-		setState({ status: 'signed-in', principalId: session.ownerId });
+		setState({ status: 'signed-in', principalId: session.principalId });
 		setConnection({ status: 'connected' });
 		return Ok(undefined);
 	}

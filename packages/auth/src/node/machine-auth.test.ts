@@ -156,11 +156,11 @@ function tokenSuccess(): Route {
 		});
 }
 
-function apiSessionOk(userId = 'user-1'): Route {
+function apiSessionOk(principalId = 'user-1'): Route {
 	return () =>
 		jsonResponse({
-			user: { id: userId, email: `${userId}@example.com` },
-			ownerId: userId,
+			principalId,
+			email: `${principalId}@example.com`,
 		});
 }
 
@@ -210,8 +210,7 @@ test('loginWithOob writes PersistedAuth and returns identity', async () => {
 			refreshToken: 'refresh-1',
 			accessTokenExpiresAt: NOW + 3_600_000,
 		},
-		userId: asPrincipalId('user-1'),
-		ownerId: asPrincipalId('user-1'),
+		principalId: asPrincipalId('user-1'),
 	});
 
 	if (process.platform !== 'win32') {
@@ -272,21 +271,20 @@ test('loginWithOob with /api/session 401 returns Err and writes no file', async 
 	expect(exists).toBe(false);
 });
 
-async function preWriteCell(filePath: string, userId = 'user-1') {
+async function preWriteCell(filePath: string, principalId = 'user-1') {
 	const cell: PersistedAuth = {
 		grant: {
 			accessToken: 'access-stored',
 			refreshToken: 'refresh-stored',
 			accessTokenExpiresAt: NOW + 3_600_000,
 		},
-		userId: asPrincipalId(userId),
-		ownerId: asPrincipalId(userId),
+		principalId: asPrincipalId(principalId),
 	};
 	await writeCell(filePath, cell);
 	return cell;
 }
 
-test('status valid when /api/session returns 200 with same owner', async () => {
+test('status valid when /api/session returns 200 with same principal', async () => {
 	const filePath = tmpAuthPath();
 	await preWriteCell(filePath, 'user-1');
 	const { fetch } = createFetch({ apiSessionRoute: apiSessionOk('user-1') });
@@ -372,7 +370,7 @@ test('status signedOut when no file', async () => {
 	expect(data).toEqual({ status: 'signedOut' });
 });
 
-test('same-owner guard wipes cell when /api/session returns different owner', async () => {
+test('same-principal guard wipes cell when /api/session returns different principal', async () => {
 	const filePath = tmpAuthPath();
 	await preWriteCell(filePath, 'alice');
 	const { fetch } = createFetch({ apiSessionRoute: apiSessionOk('bob') });
@@ -515,8 +513,8 @@ test('createMachineAuthClient loads file and attaches Bearer after gate', async 
 		});
 		if (url.endsWith('/api/session')) {
 			return jsonResponse({
-				user: { id: 'user-1', email: 'user-1@example.com' },
-				ownerId: 'user-1',
+				principalId: 'user-1',
+				email: 'user-1@example.com',
 			});
 		}
 		if (url.endsWith('/api/something')) {

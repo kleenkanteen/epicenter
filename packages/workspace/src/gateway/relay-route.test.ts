@@ -26,33 +26,36 @@ const routes: RouteTable = {
 	books: { kind: 'spawn', command: 'local-books', args: ['mcp'] },
 };
 
-const owner = { kind: 'user', userId: 'u1' } as const;
+const owner = { kind: 'principal', principalId: 'u1' } as const;
 
 test('admits an exposed route for the owner', () => {
-	const open = createRelayRouteOpener({ routes, ownerUserId: 'u1' });
+	const open = createRelayRouteOpener({ routes, ownerPrincipalId: 'u1' });
 	const target = open({ route: 'echo', source: owner });
 	expect(target).not.toBeNull();
 	if (target) opened.push(target);
 });
 
 test('refuses a route not exposed over the relay (default refused stays refused)', () => {
-	const open = createRelayRouteOpener({ routes, ownerUserId: 'u1' });
+	const open = createRelayRouteOpener({ routes, ownerPrincipalId: 'u1' });
 	expect(open({ route: 'books', source: owner })).toBeNull();
 });
 
 test('refuses a source that is not the owner', () => {
-	const open = createRelayRouteOpener({ routes, ownerUserId: 'u1' });
+	const open = createRelayRouteOpener({ routes, ownerPrincipalId: 'u1' });
 	expect(
-		open({ route: 'echo', source: { kind: 'user', userId: 'attacker' } }),
+		open({
+			route: 'echo',
+			source: { kind: 'principal', principalId: 'attacker' },
+		}),
 	).toBeNull();
 });
 
 test('refuses a missing source (no compliant relay stamped one)', () => {
-	const open = createRelayRouteOpener({ routes, ownerUserId: 'u1' });
+	const open = createRelayRouteOpener({ routes, ownerPrincipalId: 'u1' });
 	expect(open({ route: 'echo' })).toBeNull();
 });
 
 test('refuses an unknown route', () => {
-	const open = createRelayRouteOpener({ routes, ownerUserId: 'u1' });
+	const open = createRelayRouteOpener({ routes, ownerPrincipalId: 'u1' });
 	expect(open({ route: 'ghost', source: owner })).toBeNull();
 });

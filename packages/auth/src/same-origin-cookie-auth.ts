@@ -67,8 +67,8 @@ const SameOriginAuthError = defineErrors({
  * There is no OAuth grant, refresh token, or persisted cell: the browser owns
  * the cookie. Because the httpOnly cookie is invisible to JS, the client cannot
  * know synchronously whether it is signed in; it reads `/api/session` once at
- * construction to confirm, and that response also supplies the `ownerId` the
- * public `AuthState` carries.
+ * construction to confirm, and that response also supplies the `principalId`
+ * the public `AuthState` carries.
  *
  * This is the cookie-credential sibling of {@link createOAuthAppAuth}, not a
  * mode flag on it: the two are different credential models. Cross-origin and
@@ -104,7 +104,7 @@ export function createSameOriginCookieAuth({
 
 	/**
 	 * Confirm the session by reading `/api/session` with the cookie. A 401/403 is
-	 * signed-out; a 200 installs `signed-in` with the response's `ownerId`.
+	 * signed-out; a 200 installs `signed-in` with the response's principal id.
 	 * Network or parse failures leave the current state, so an offline
 	 * load keeps the last known projection.
 	 */
@@ -127,7 +127,7 @@ export function createSameOriginCookieAuth({
 			const session = ApiSessionResponse.assert(await response.json());
 			setState({
 				status: 'signed-in',
-				principalId: session.ownerId,
+				principalId: session.principalId,
 			});
 		} catch {
 			// Malformed body: leave the current state rather than guessing.
@@ -208,7 +208,10 @@ export function createSameOriginCookieAuth({
 				});
 			}
 			const { data: user, error: parseError } = await tryAsync({
-				try: async () => ApiSessionResponse.assert(await response.json()).user,
+				try: async () => {
+					const session = ApiSessionResponse.assert(await response.json());
+					return { id: session.principalId, email: session.email };
+				},
 				catch: (cause) => AuthError.ProfileUnavailable({ cause }),
 			});
 			if (parseError) return Err(parseError);

@@ -96,7 +96,7 @@ Use `defineWorkspace()` when returning the composed object so TypeScript keeps t
 ### 4. Runtime openers attach resources
 There is no plugin chain. Persistence, indexing, and materializers all mount through `attach*` functions; the workspace's network surface (sync + presence + dispatch) mounts through the `openCollaboration` primitive. Runtime openers compose them inline against `workspace.ydoc` after `create<App>()`.
 
-The example below syncs a cloud document. A cloud doc is owned by the authenticated `ownerId` and addressed by its own `ydoc.guid`, so the client builds the URL with `roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, nodeId })`; the server resolves it from the authenticated owner and room id. There is no workspace lookup.
+The example below syncs a cloud document. A cloud doc is owned by the authenticated `principalId` and addressed by its own `ydoc.guid`, so the client builds the URL with `roomWsUrl({ baseURL, guid: ydoc.guid, nodeId })`; the server resolves it from the authenticated principal and room id. There is no workspace lookup.
 
 ```ts
 import {

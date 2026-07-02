@@ -3,8 +3,8 @@
  * account-room socket and serve them from the daemon's route table. It is the
  * device's accept loop, riding the connection the account room already holds.
  *
- * The endpoint gate (the caller must be this owner, the route must be explicitly
- * `relay: 'exposed'`) lives in {@link createRelayRouteOpener}; the acceptor is
+ * The endpoint gate (the caller must be this principal, the route must be
+ * explicitly `relay: 'exposed'`) lives in {@link createRelayRouteOpener}; the acceptor is
  * pure mechanism. By default the route table exposes NOTHING over the relay (the
  * `books` route is `refused`), so this is safe to wire unconditionally: the
  * device participates in the floor but admits a route only once one opts in.
@@ -25,8 +25,8 @@ export type OpenRelayAcceptorOptions = {
 	channelPort: ChannelPort;
 	/** The served route table. */
 	routes: RouteTable;
-	/** This daemon's authenticated account owner; the only caller admitted. */
-	ownerUserId: string;
+	/** This daemon's authenticated principal; the only caller admitted. */
+	ownerPrincipalId: string;
 	logger?: Logger;
 };
 
@@ -42,13 +42,13 @@ export function openRelayAcceptor(
 	const {
 		channelPort,
 		routes,
-		ownerUserId,
+		ownerPrincipalId,
 		logger = createLogger('workspace/relay-acceptor'),
 	} = options;
 
 	const acceptor = createChannelAcceptor(
 		channelPort,
-		createRelayRouteOpener({ routes, ownerUserId }),
+		createRelayRouteOpener({ routes, ownerPrincipalId }),
 	);
 
 	const exposed = Object.keys(routes).filter((name) =>

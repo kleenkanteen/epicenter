@@ -29,11 +29,11 @@ export const DEFAULT_DEVICE_ROUTES: RouteTable = {
 /**
  * The relay-floor exposure policy every route variant carries (default
  * `refused`): whether this route is reachable over the relay floor at all, where
- * the caller is a server-authenticated USER (the relay stamps an unforgeable
- * `source.userId`). A sensitive route (financial, a shell) stays `refused`; a
- * route author opts one IN with `relay: 'exposed'`, knowingly accepting the relay
- * floor's trusted-relay ceiling (a self-hosted relay removes the third party;
- * ADR-0068). It lives on the shared base, not a variant, so {@link
+ * the caller is a server-authenticated principal (the relay stamps an
+ * unforgeable `source.principalId`). A sensitive route (financial, a shell)
+ * stays `refused`; a route author opts one IN with `relay: 'exposed'`, knowingly
+ * accepting the relay floor's trusted-relay ceiling (a self-hosted relay removes
+ * the third party; ADR-0068). It lives on the shared base, not a variant, so {@link
  * routeRelayExposed} and {@link withRelayExposed} stay branchless across kinds.
  */
 type RouteRelayPolicy = {

@@ -72,7 +72,6 @@ export function connectDoc<TActions extends ActionRegistry = ActionRegistry>(
 	const collaboration = openCollaboration(ydoc, {
 		url: roomWsUrl({
 			baseURL: config.baseURL,
-			ownerId: config.ownerId,
 			guid: ydoc.guid,
 			nodeId: config.nodeId,
 		}),

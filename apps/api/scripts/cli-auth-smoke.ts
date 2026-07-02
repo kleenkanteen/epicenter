@@ -69,7 +69,7 @@ async function main() {
 			JSON.stringify(auth.state),
 		);
 		check(
-			'token arg: ownerId is the dev user',
+			'token arg: principalId is the dev user',
 			auth.state.status === 'signed-in' && auth.state.principalId === userId,
 			auth.state.status === 'signed-in'
 				? auth.state.principalId

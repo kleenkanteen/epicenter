@@ -6,8 +6,8 @@
  * authorization lives here, the device's whole admission gate: admit an inbound
  * channel only when
  *
- *   - the relay-authored `source` is a `user` that is THIS daemon's own owner
- *     (the relay authenticated it; a keyless caller cannot forge it), and
+ *   - the relay-authored `source` is THIS daemon's own principal (the relay
+ *     authenticated it; a keyless caller cannot forge it), and
  *   - the named route is explicitly `relay: 'exposed'` (default refused), so a
  *     sensitive route (financial, a shell) stays refused.
  *
@@ -26,18 +26,23 @@ import {
 export type RelayRouteOpenerOptions = {
 	/** The named, default-closed route table this daemon serves. */
 	routes: RouteTable;
-	/** This daemon's authenticated account owner; the only `source.userId` admitted. */
-	ownerUserId: string;
+	/** This daemon's authenticated principal; the only source admitted. */
+	ownerPrincipalId: string;
 };
 
 /** Build the relay-path {@link RouteOpener} that gates inbound channels for a daemon. */
 export function createRelayRouteOpener(
 	options: RelayRouteOpenerOptions,
 ): RouteOpener {
-	const { routes, ownerUserId } = options;
+	const { routes, ownerPrincipalId } = options;
 	return ({ route, source }) => {
-		// The caller must be this owner, as the relay authenticated them.
-		if (source?.kind !== 'user' || source.userId !== ownerUserId) return null;
+		// The caller must be this principal, as the relay authenticated them.
+		if (
+			source?.kind !== 'principal' ||
+			source.principalId !== ownerPrincipalId
+		) {
+			return null;
+		}
 		// The route must exist AND be opted in to the relay floor.
 		const target = routes[route];
 		if (!target || !routeRelayExposed(target)) return null;

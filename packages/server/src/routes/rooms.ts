@@ -3,8 +3,8 @@
  * `Rooms` registry (a Cloudflare Durable Object in the cloud, an in-process
  * `bun:sqlite` room on a Bun host). The route is backend-blind.
  *
- * URL shape: `/api/rooms/:roomId`. The deployment mounts auth upstream; the
- * resolved `principal.id` is the partition key by definition.
+ * URL shape: `/api/rooms/:roomId`. The deployment mounts auth upstream, and
+ * `c.var.principal.id` is the partition key by definition.
  *
  * The Durable Object name is the principal-partitioned identifier produced by
  * {@link doName}; nothing here interpolates strings inline. The DO itself

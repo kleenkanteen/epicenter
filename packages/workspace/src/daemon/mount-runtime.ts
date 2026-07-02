@@ -190,7 +190,6 @@ function connectMountChildDoc(
 		const collaboration = openCollaboration(ydoc, {
 			url: roomWsUrl({
 				baseURL,
-				ownerId: ctx.session.ownerId,
 				guid,
 				nodeId: ctx.nodeId,
 			}),

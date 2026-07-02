@@ -65,7 +65,6 @@ export function openNotes({
 	const collaboration = openCollaboration(ydoc, {
 		url: roomWsUrl({
 			baseURL: EPICENTER_API_URL,
-			ownerId,
 			guid: ydoc.guid,
 			nodeId,
 		}),
