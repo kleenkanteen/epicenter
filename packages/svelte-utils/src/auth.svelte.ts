@@ -17,6 +17,10 @@ import { createSubscriber } from 'svelte/reactivity';
 // auth + session story is one subpath. Re-exported here rather than from the
 // package root, which stays pure workspace-data reactivity (`fromTable`, etc.).
 export { createSession, type SignedIn } from './session.svelte.js';
+// The one composition shape (ADR-0088): boot-time doc selection plus
+// reload-on-owner-change, extracted from Whispering's shipped wiring.
+export { connectLocalFirst } from './connect-local-first.js';
+export { reloadOnOwnerChange } from './reload-on-owner-change.js';
 
 /**
  * Make an auth client's `state` Svelte-reactive: spread the closure-bound
