@@ -19,20 +19,30 @@ relink. macOS Accessibility (TCC) keys the grant on that identity, so each Rust
 rebuild looked like a brand-new app and the grant went stale. The Rust
 supervisor then reported `DictationCapability::Broken`.
 
-The fix is a stable signature, not a bundle id. Tauri's `build.runner` hook
-(`tauri.dev.macos.conf.json`) points `tauri dev` at
-[`dev-codesign-runner.sh`](./dev-codesign-runner.sh), which builds, re-signs the
-binary with a stable cert and the fixed identifier `so.epicenter.whispering.dev`,
-then `exec`s it. The resulting designated requirement depends only on the
-identifier and the certificate, never the cdhash, so the grant survives rebuilds.
+The fix is a stable designated requirement, not a certificate. Tauri's
+`build.runner` hook (`tauri.dev.macos.conf.json`) points `tauri dev` at
+[`dev-codesign-runner.sh`](./dev-codesign-runner.sh), which builds the binary,
+overwrites its signature, and then `exec`s it:
 
-The signing cert is chosen in three tiers: an explicit
-`WHISPERING_DEV_SIGNING_IDENTITY` override, else the first Developer ID or Apple
-Development identity on the machine, else a persistent self-signed code-signing
-cert the runner mints once (`Whispering Dev Local Codesign`) and reuses. Every
-tier is a stable signature, so there is no ad-hoc fallback to break the grant:
-even with no Apple account and no setup, the first `bun run dev` provisions the
-self-signed cert and asks once (a keychain prompt) to let `codesign` use it.
+```sh
+codesign --force \
+	--sign - \
+	--identifier so.epicenter.whispering.dev \
+	--requirements '=designated => identifier "so.epicenter.whispering.dev"' \
+	--entitlements src-tauri/entitlements.plist \
+	target/debug/whispering
+```
+
+The `--sign -` identity is still ad-hoc, but the embedded designated requirement
+is explicit and identifier-only. TCC keys the dev grant to that requirement, so
+the grant survives relinks even though the binary's cdhash changes.
+
+This is intentionally local-only. Any local process could sign itself ad-hoc
+with `so.epicenter.whispering.dev` and satisfy the same requirement. That tradeoff
+is acceptable for a dev-only identity because it avoids keychain prompts,
+certificate trust repair, and machine-specific signing state. Production keeps
+its separate identifier, `so.epicenter.whispering`, and must never use this dev
+signing model.
 
 ## Granting and resetting
 
@@ -53,8 +63,8 @@ Then relaunch dev and grant Accessibility again.
 bun run dev:doctor
 ```
 
-prints the dev binary path, its signed identifier and authority, whether the
-signature is stable, and the reset command. Live trust, the current
-`DictationCapability`, and the rdev listener's health are owned by the running
-app's supervisor (`src/keyboard/mod.rs`) and show up in the app and the Tauri
-log.
+prints the dev binary path, its signed identifier, signature, designated
+requirement, whether the fixed requirement is present, and the reset command.
+Live trust, the current `DictationCapability`, and the rdev listener's health
+are owned by the running app's supervisor
+(`src/keyboard/mod.rs`) and show up in the app and the Tauri log.
