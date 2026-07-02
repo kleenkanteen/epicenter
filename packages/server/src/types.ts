@@ -31,7 +31,7 @@ import type { ServerBindings } from './server-bindings.js';
  * The cloud closes over the real resolver (`resolveRequestOAuthPrincipal`: an
  * OAuth bearer verified against JWKS); an instance closes over its env-token
  * resolver (`createEnvTokenResolver`). A dev-only entrypoint closes over a trivial
- * `Bearer dev:<userId>` resolver so the runtime-parity smoke needs no interactive
+ * `Bearer dev:<principalId>` resolver so the runtime-parity smoke needs no interactive
  * login; that bypass lives in a dev entry production never imports, never an
  * env-gated branch in this library.
  *

@@ -202,7 +202,7 @@ async function saveMachineTokens(
 }
 
 /**
- * Identity returned to the CLI for display. `user.email` is fetched from
+ * Identity returned to the CLI for display. `identity.user.email` is fetched from
  * `/api/session` and returned by value here so the CLI can print "Signed in as
  * <email>" without a second round-trip. `email` is absent when the machine is
  * offline during `status`.
