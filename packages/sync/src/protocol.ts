@@ -64,7 +64,11 @@ export type SyncMessageType =
  * @param options.doc - The Yjs document to get the state vector from
  * @returns Encoded message ready to send over WebSocket
  */
-export function encodeSyncStep1({ doc }: { doc: Y.Doc }): Uint8Array<ArrayBuffer> {
+export function encodeSyncStep1({
+	doc,
+}: {
+	doc: Y.Doc;
+}): Uint8Array<ArrayBuffer> {
 	return encoding.encode((encoder) => {
 		encoding.writeVarUint(encoder, SYNC_MESSAGE_TYPE.STEP1);
 		encoding.writeVarUint8Array(encoder, Y.encodeStateVector(doc));

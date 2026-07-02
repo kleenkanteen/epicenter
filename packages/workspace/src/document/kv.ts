@@ -62,9 +62,7 @@ export function createKv<TKvDefinitions extends KvDefinitions>(
 	ykv: ObservableKvStore<unknown>,
 	definitions: TKvDefinitions,
 ) {
-	const keys = Object.keys(definitions) as Array<
-		keyof TKvDefinitions & string
-	>;
+	const keys = Object.keys(definitions) as Array<keyof TKvDefinitions & string>;
 
 	return {
 		/** Every defined key, in declaration order. */
