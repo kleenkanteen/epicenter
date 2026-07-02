@@ -52,6 +52,6 @@ export function openWhispering(
 
 	return satisfiesWorkspace({
 		...bundle,
-		whenReady: bundle.idb.whenLoaded,
+		whenReady: bundle.storage.whenLoaded,
 	});
 }

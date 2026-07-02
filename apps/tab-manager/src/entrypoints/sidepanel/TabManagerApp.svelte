@@ -210,7 +210,7 @@
 			</div>
 		</header>
 		<!-- Gate on browser state seed so child components can read data synchronously -->
-		{#await Promise.all([tabManager.idb.whenLoaded, browserState.whenReady])}
+		{#await Promise.all([tabManager.storage.whenLoaded, browserState.whenReady])}
 			<Loading class="flex-1" label="Loading tabs…" />
 		{:then}
 			<div class="flex-1 min-h-0"><UnifiedTabList /></div>

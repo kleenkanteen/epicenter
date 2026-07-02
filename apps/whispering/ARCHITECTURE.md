@@ -26,7 +26,7 @@ defineWorkspace()
 
 `defineWhispering(defaultTranscriptionService)` in `src/lib/workspace/definition.ts` is the shared model factory. It defines the fixed workspace id, tables, and KV schema with no platform APIs; the platform argument only changes read-side KV defaults.
 
-`openWhispering()` in `src/lib/whispering/whispering.active.ts` is the shared browser/Tauri runtime opener. It connects once at boot with `toConnection(auth, nodeId)`, layers the recording markdown export, and aliases `idb.whenLoaded` as `whenReady`; settings metadata comes from the workspace's own `kv.keys` / `kv.getDefault` / `kv.reset` (ADR-0093). The `#platform/whispering` leaves only choose the platform default transcription service.
+`openWhispering()` in `src/lib/whispering/whispering.active.ts` is the shared browser/Tauri runtime opener. It connects once at boot with `toConnection(auth, nodeId)`, layers the recording markdown export, and aliases `storage.whenLoaded` as `whenReady`; settings metadata comes from the workspace's own `kv.keys` / `kv.getDefault` / `kv.reset` (ADR-0093). The `#platform/whispering` leaves only choose the platform default transcription service.
 
 The rule is the same as Fuji and Honeycrisp:
 

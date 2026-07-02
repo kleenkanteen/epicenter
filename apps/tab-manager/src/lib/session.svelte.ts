@@ -107,7 +107,7 @@ function buildTabManager(
 	// folded into the approval policy.
 	const aiChat = createAgentChatState({
 		table: tabManager.tables.conversations,
-		whenLoaded: tabManager.idb.whenLoaded,
+		whenLoaded: tabManager.storage.whenLoaded,
 		connections: inferenceConnections,
 		agent: {
 			buildSystemPrompts: () => [
@@ -132,7 +132,7 @@ function buildTabManager(
 		aiChat,
 	};
 
-	void tabManager.idb.whenLoaded.then(() =>
+	void tabManager.storage.whenLoaded.then(() =>
 		registerDevice(tabManager, profile.defaultName),
 	);
 
@@ -140,7 +140,7 @@ function buildTabManager(
 		...tabManager,
 		state,
 		/** Resolves when local persistence has hydrated the root doc. */
-		whenReady: tabManager.idb.whenLoaded,
+		whenReady: tabManager.storage.whenLoaded,
 		[Symbol.dispose]() {
 			aiChat[Symbol.dispose]();
 			tabManager[Symbol.dispose]();

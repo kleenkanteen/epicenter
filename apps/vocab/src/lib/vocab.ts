@@ -26,5 +26,5 @@ const browser = openVocabBrowser({ auth, nodeId });
 export const vocab = {
 	...browser,
 	/** Resolves when local persistence has hydrated the root doc. */
-	whenReady: browser.idb.whenLoaded,
+	whenReady: browser.storage.whenLoaded,
 };

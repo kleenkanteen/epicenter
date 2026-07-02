@@ -151,11 +151,11 @@ async function seedBareLocal(options: {
 	conversation?: { id: string; title: string; messages?: string };
 }) {
 	const oldBundle = model.connect(null);
-	await oldBundle.idb.whenLoaded;
+	await oldBundle.storage.whenLoaded;
 	await oldBundle.wipe();
 
 	const bundle = model.connect(null);
-	await bundle.idb.whenLoaded;
+	await bundle.storage.whenLoaded;
 
 	if (options.note) {
 		bundle.tables.notes.set({
@@ -192,20 +192,20 @@ async function seedBareLocal(options: {
 
 	await tick();
 	bundle[Symbol.dispose]();
-	await bundle.idb.whenDisposed;
+	await bundle.storage.whenDisposed;
 }
 
 async function seedRowsOnlyLocal(row: { id: string; title: string }) {
 	const oldBundle = rowsOnlyModel.connect(null);
-	await oldBundle.idb.whenLoaded;
+	await oldBundle.storage.whenLoaded;
 	await oldBundle.wipe();
 
 	const bundle = rowsOnlyModel.connect(null);
-	await bundle.idb.whenLoaded;
+	await bundle.storage.whenLoaded;
 	bundle.tables.folders.set(row);
 	await tick();
 	bundle[Symbol.dispose]();
-	await bundle.idb.whenDisposed;
+	await bundle.storage.whenDisposed;
 }
 
 async function readBareText(guid: string, textName: string): Promise<string> {

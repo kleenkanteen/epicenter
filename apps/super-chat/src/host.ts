@@ -9,16 +9,17 @@
  * mechanism for the first slice (no registry, no scanned tool files; dynamic
  * loading waits for the tool module contract ADR named in ADR-0084).
  *
- * The in-process apps open through their zero-attachment `create()` factories:
- * in-memory Y.Docs with no persistence, no sync, no IndexedDB or SQLite. That
- * is a deliberate proof of composition, not the data model; the ungated
- * durable local open path is the named gap between "composition proof" and
- * "loads my workspaces" (see the Super Chat handoff spec).
+ * The in-process apps open through the ungated durable local preset:
+ * `connect(null, { persistence })`. Sign-in is still an enhancement; the Bun
+ * host gets disk-backed replicas without constructing an auth client.
  */
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir, platform } from 'node:os';
+import { dirname, join } from 'node:path';
 import { honeycrispWorkspace } from '@epicenter/honeycrisp';
-import { createTodos } from '@epicenter/todos';
-import { generateId } from '@epicenter/workspace';
+import { todosWorkspace } from '@epicenter/todos';
+import { createNodeId, generateId } from '@epicenter/workspace';
 import {
 	type AgentEngine,
 	type Approval,
@@ -29,11 +30,19 @@ import {
 	namespaceToolCatalog,
 	type ToolCatalog,
 } from '@epicenter/workspace/agent';
+import { bunLocalPersistence } from '@epicenter/workspace/node';
 import { createInMemoryMessageStore } from './message-store.ts';
 import {
 	createStdioMcpCatalog,
 	type StdioMcpCatalogOptions,
 } from './stdio-mcp-catalog.ts';
+
+export type {
+	ToolHost,
+	ToolModule,
+	ToolModuleResult,
+	ToolWorkspaces,
+} from './tool-module.ts';
 
 export type SuperChatHostOptions = {
 	/** The inference backend driving the loop (BYOK, local, or scripted). */
@@ -49,6 +58,8 @@ export type SuperChatHostOptions = {
 	 * not installed; the host runs with the in-process apps only.
 	 */
 	localBooks?: StdioMcpCatalogOptions;
+	/** Host-owned data directory for installed app replicas and node identity. */
+	dataDir?: string;
 };
 
 export type SuperChatHost = {
@@ -68,8 +79,14 @@ export async function createSuperChatHost(
 ): Promise<SuperChatHost> {
 	// Arm A: in-process Yjs apps. Each app's namespace keeps same-named verbs
 	// distinct in the composed surface; the prefix must not contain `__`.
-	const honeycrisp = honeycrispWorkspace.create();
-	const todos = createTodos();
+	const dataDir = options.dataDir ?? defaultDataDir();
+	const nodeId = createNodeId({
+		storage: fileStorage(join(dataDir, 'node-id')),
+	});
+	const persistence = bunLocalPersistence({ dir: dataDir, nodeId });
+	const honeycrisp = honeycrispWorkspace.connect(null, { persistence });
+	const todos = todosWorkspace.connect(null, { persistence });
+	await Promise.all([honeycrisp.storage.whenLoaded, todos.storage.whenLoaded]);
 	const catalogs: ToolCatalog[] = [
 		namespaceToolCatalog(
 			'honeycrisp',
@@ -109,6 +126,40 @@ export async function createSuperChatHost(
 			await localBooks?.[Symbol.asyncDispose]();
 			honeycrisp[Symbol.dispose]();
 			todos[Symbol.dispose]();
+			await Promise.all([
+				honeycrisp.storage.whenDisposed,
+				todos.storage.whenDisposed,
+			]);
+		},
+	};
+}
+
+function defaultDataDir(): string {
+	if (process.env.SUPER_CHAT_DATA_DIR) return process.env.SUPER_CHAT_DATA_DIR;
+	if (platform() === 'darwin') {
+		return join(
+			homedir(),
+			'Library',
+			'Application Support',
+			'epicenter-super-chat',
+		);
+	}
+	const xdgDataHome = process.env.XDG_DATA_HOME;
+	if (xdgDataHome) return join(xdgDataHome, 'epicenter-super-chat');
+	return join(homedir(), '.local', 'share', 'epicenter-super-chat');
+}
+
+function fileStorage(filePath: string) {
+	return {
+		getItem(key: string): string | null {
+			if (key !== 'epicenter.node.id') return null;
+			if (!existsSync(filePath)) return null;
+			return readFileSync(filePath, 'utf8');
+		},
+		setItem(key: string, value: string): void {
+			if (key !== 'epicenter.node.id') return;
+			mkdirSync(dirname(filePath), { recursive: true });
+			writeFileSync(filePath, value);
 		},
 	};
 }

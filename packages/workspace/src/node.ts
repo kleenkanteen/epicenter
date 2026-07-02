@@ -89,6 +89,10 @@ export {
 	type YjsLogReaderAttachment,
 } from './document/attach-yjs-log-reader.js';
 export {
+	type BunLocalPersistenceOptions,
+	bunLocalPersistence,
+} from './document/bun-local-persistence.js';
+export {
 	type OpenSqliteReaderOptions,
 	openSqliteReader,
 	type SqliteReader,

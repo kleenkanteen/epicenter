@@ -163,5 +163,7 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0093](0093-kv-metadata-belongs-to-the-workspace-kv-namespace.md) | KV metadata belongs to the workspace kv namespace | Accepted |
 | [0094](0094-the-connection-is-the-boot-decision-one-connect-call.md) | The connection is the boot decision: one connect call | Accepted |
 | [0095](0095-websocket-room-auth-uses-route-owned-subprotocol-bearers.md) | WebSocket room auth uses route-owned subprotocol bearers | Accepted |
+| [0096](0096-local-workspace-persistence-is-environment-injected.md) | Local workspace persistence is environment-injected | Accepted |
+| [0097](0097-super-chat-tool-modules-receive-a-host-api.md) | Super Chat tool modules receive a host API | Accepted |
 
 When you add an ADR, add its row here.

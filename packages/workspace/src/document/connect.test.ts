@@ -62,7 +62,7 @@ test('bare root + bare child docs persist under guid names, no relay', async () 
 	const bundle = model.connect(null);
 
 	expect(bundle.collaboration).toBeUndefined();
-	await bundle.idb.whenLoaded;
+	await bundle.storage.whenLoaded;
 
 	bundle.tables.notes.set({ id: 'n1', title: 'first' });
 	const body = bundle.tables.notes.docs.body.open('n1');
@@ -88,7 +88,7 @@ test('signed-in root persists under the principal-scoped database name', async (
 		onReconnectSignal: () => () => {},
 	});
 
-	await bundle.idb.whenLoaded;
+	await bundle.storage.whenLoaded;
 
 	expect(await databaseNames()).toContain(
 		'epicenter/api.example.com/principals/owner-1/clw-notes',
@@ -99,7 +99,7 @@ test('signed-in root persists under the principal-scoped database name', async (
 
 test('wipe() clears the whole bare guid family', async () => {
 	const bundle = model.connect(null);
-	await bundle.idb.whenLoaded;
+	await bundle.storage.whenLoaded;
 	bundle.tables.notes.set({ id: 'n2', title: 'doomed' });
 	const body = bundle.tables.notes.docs.body.open('n2');
 	body.text.insert(0, 'gone soon');

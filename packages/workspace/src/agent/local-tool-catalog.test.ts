@@ -43,7 +43,11 @@ describe('createLocalToolCatalog', () => {
 			NO_SIGNAL,
 		);
 
-		expect(outcome).toEqual({ output: { now: 7 }, isError: false });
+		expect(outcome).toEqual({
+			content: '{"now":7}',
+			details: { now: 7 },
+			isError: false,
+		});
 	});
 
 	test('a handler that fails becomes an error outcome the model can read', async () => {
@@ -63,7 +67,7 @@ describe('createLocalToolCatalog', () => {
 		);
 
 		expect(outcome.isError).toBe(true);
-		expect(typeof outcome.output).toBe('string');
+		expect(typeof outcome.content).toBe('string');
 	});
 
 	test('an unknown tool resolves to an error rather than throwing', async () => {

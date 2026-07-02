@@ -54,7 +54,7 @@ export function composeToolCatalogs(
 			if (owns) return catalog.resolve(call, signal);
 		}
 		return {
-			output: `No tool named ${call.toolName} is available.`,
+			content: `No tool named ${call.toolName} is available.`,
 			isError: true,
 		};
 	}

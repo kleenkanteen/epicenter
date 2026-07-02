@@ -5,7 +5,7 @@
  * the one handle every runtime shares:
  *
  *   .create()            bare isomorphic doc for tests and advanced runtimes
- *   .connect(connection) browser runtime: local storage, sync, wipe, row
+ *   .connect(connection) local runtime: storage, optional sync, wipe, row
  *                        child-doc openers
  *   .mount(options)      daemon runtime: the same root plus Yjs-log persistence,
  *                        cloud sync, and materializers, with every node
@@ -184,6 +184,7 @@ type ChildDocHandle<TLayout extends (ydoc: Y.Doc) => object> =
 		readonly ydoc: Y.Doc;
 		readonly guid: Guid;
 		readonly whenLoaded: Promise<unknown>;
+		readonly whenDisposed: Promise<unknown>;
 		[Symbol.dispose](): void;
 	};
 
@@ -256,6 +257,42 @@ export type ConnectedTables<TTableDefinitions extends TableDefinitions> = {
 	};
 };
 
+export type LocalPersistenceAttachment = {
+	/** Resolves when persisted state has replayed into the doc. */
+	readonly whenLoaded: Promise<unknown>;
+	/** Resolves after the doc is destroyed and the storage handle is closed. */
+	readonly whenDisposed: Promise<unknown>;
+};
+
+export type LocalPersistence = {
+	/** Attach local storage to one doc: the root or a row child doc. */
+	attach(ydoc: Y.Doc): LocalPersistenceAttachment;
+	/** Remove every locally stored doc for one workspace guid family. */
+	wipe(workspaceId: string): Promise<void>;
+};
+
+function browserLocalPersistence(): LocalPersistence {
+	return {
+		attach(ydoc) {
+			attachBroadcastChannel(ydoc);
+			return attachIndexedDb(ydoc);
+		},
+		wipe: wipeBareStorage,
+	};
+}
+
+type ConnectOptions<
+	TTables extends TableDefinitions,
+	TKv extends KvDefinitions,
+	TActions extends ActionRegistry,
+	TRuntime extends ConnectComposition,
+> = {
+	readonly persistence?: LocalPersistence;
+	readonly compose?: (
+		workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
+	) => TRuntime;
+};
+
 /**
  * What a runtime `compose` callback sees: the connected workspace before its
  * infrastructure is soldered on. This is the one place `tables` is retyped from
@@ -279,9 +316,9 @@ export type ConnectedWorkspaceContext<
 };
 
 /**
- * The browser-connected workspace `connect()` returns: the connected context
- * plus its soldered-on infrastructure (local IndexedDB persistence, the
- * collaboration relay, and `wipe()`). Defined as `context + infra` to mirror
+ * The signed-in workspace `connect(connection)` returns: the connected context
+ * plus its soldered-on infrastructure (local persistence, the collaboration
+ * relay, and `wipe()`). Defined as `context + infra` to mirror
  * what `connect()` does at runtime: take the context, bolt on the connection
  * handles.
  */
@@ -290,7 +327,7 @@ export type ConnectedWorkspace<
 	TKv extends KvDefinitions,
 	TActions extends ActionRegistry = ActionRegistry,
 > = ConnectedWorkspaceContext<TTables, TKv, TActions> & {
-	readonly idb: ReturnType<typeof connectDoc>['idb'];
+	readonly storage: ReturnType<typeof connectDoc>['idb'];
 	readonly collaboration: Collaboration;
 	wipe(): Promise<void>;
 };
@@ -323,9 +360,10 @@ type ConnectedWorkspaceWithRuntime<
 
 /**
  * The local-first workspace `connect(null)` returns: the connected context
- * (child-doc openers included) plus bare local infrastructure, guid-named
- * IndexedDB persistence, the cross-tab BroadcastChannel, and `wipe()`, with
- * no relay. `collaboration` is a literal `undefined` field so a
+ * (child-doc openers included) plus bare local infrastructure and `wipe()`,
+ * with no relay. Browser callers use guid-named IndexedDB plus the cross-tab
+ * BroadcastChannel by default; Bun callers can inject disk persistence.
+ * `collaboration` is a literal `undefined` field so a
  * `LocalWorkspace | ConnectedWorkspace` union narrows on it and shared UI
  * (the account popover's sync surface) can take `collaboration` optionally.
  */
@@ -334,7 +372,7 @@ export type LocalWorkspace<
 	TKv extends KvDefinitions,
 	TActions extends ActionRegistry = ActionRegistry,
 > = ConnectedWorkspaceContext<TTables, TKv, TActions> & {
-	readonly idb: ReturnType<typeof attachIndexedDb>;
+	readonly storage: LocalPersistenceAttachment;
 	readonly collaboration: undefined;
 	wipe(): Promise<void>;
 };
@@ -550,6 +588,15 @@ export type WorkspaceDefinition<
 	):
 		| LocalWorkspace<TTables, TKv, TActions>
 		| ConnectedWorkspace<TTables, TKv, TActions>;
+	connect(
+		connection: null,
+		options: ConnectOptions<
+			TTables,
+			TKv,
+			TActions,
+			{ readonly actions: TActions }
+		>,
+	): LocalWorkspace<TTables, TKv, TActions>;
 	connect<TRuntime extends ConnectComposition>(
 		connection: ConnectionConfig | null,
 		compose: (
@@ -558,6 +605,10 @@ export type WorkspaceDefinition<
 	):
 		| LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>
 		| ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
+	connect<TRuntime extends ConnectComposition>(
+		connection: null,
+		options: ConnectOptions<TTables, TKv, TActions, TRuntime>,
+	): LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>;
 	mount(options: MountOptions<TTables, TKv, TActions>): Mount;
 };
 
@@ -744,6 +795,15 @@ export function defineWorkspace<
 	):
 		| LocalWorkspace<TTables, TKv, TActions>
 		| ConnectedWorkspace<TTables, TKv, TActions>;
+	function connect(
+		connection: null,
+		connectOptions: ConnectOptions<
+			TTables,
+			TKv,
+			TActions,
+			{ readonly actions: TActions }
+		>,
+	): LocalWorkspace<TTables, TKv, TActions>;
 	function connect<TRuntime extends ConnectComposition>(
 		connection: ConnectionConfig | null,
 		compose: (
@@ -752,28 +812,51 @@ export function defineWorkspace<
 	):
 		| LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>
 		| ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
+	function connect<TRuntime extends ConnectComposition>(
+		connection: null,
+		connectOptions: ConnectOptions<TTables, TKv, TActions, TRuntime>,
+	): LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>;
 	function connect(
 		connection: ConnectionConfig | null,
-		compose: (
-			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
-		) => ConnectComposition = (workspace) => ({
-			actions: workspace.actions,
-		}),
+		connectOptions:
+			| ((
+					workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
+			  ) => ConnectComposition)
+			| ConnectOptions<TTables, TKv, TActions, ConnectComposition> = {},
 	) {
 		const workspace = create();
+		const localPersistence =
+			typeof connectOptions === 'function'
+				? browserLocalPersistence()
+				: (connectOptions.persistence ?? browserLocalPersistence());
+		const childStorageDisposals: Promise<unknown>[] = [];
+		const compose: (
+			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
+		) => ConnectComposition =
+			typeof connectOptions === 'function'
+				? connectOptions
+				: (connectOptions.compose ??
+					((workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>) => ({
+						actions: workspace.actions,
+					})));
 
 		// Connect the per-row child-doc openers, then run the caller's composer,
 		// then solder infrastructure on. compose sees live tables/ydoc and the
 		// base actions (carried on `workspace.actions`); the `actions` it returns
 		// is the final local registry exposed on the workspace bundle. Omitting
 		// compose serves the base actions unchanged. The child-doc caches cascade
-		// off the root `ydoc.destroy()`, so there is no teardown handle to thread
-		// back here.
+		// off the root `ydoc.destroy()`; each opened body's storage disposal is
+		// still registered here so `wipe()` can wait before deleting the guid
+		// family from disk.
 		const tables = connectTableChildDocs({
 			ydoc: workspace.ydoc,
 			tables: workspace.tables,
 			definitions: options.tables,
 			connection,
+			localPersistence,
+			registerChildStorage: (storage) => {
+				childStorageDisposals.push(storage.whenDisposed);
+			},
 		});
 		const runtime = compose({ ...workspace, tables });
 
@@ -788,23 +871,22 @@ export function defineWorkspace<
 		});
 
 		// The connection is the boot decision (ADR-0094): `null` wires the bare
-		// local infrastructure (guid-named IndexedDB, cross-tab channel, no
-		// relay); credentials wire principal-scoped storage plus the relay. Both
+		// local infrastructure through the local persistence environment, with no
+		// relay; credentials wire principal-scoped storage plus the relay. Both
 		// arms return the same bundle shape, discriminated by `collaboration`.
 		if (connection === null) {
-			attachBroadcastChannel(workspace.ydoc);
-			const idb = attachIndexedDb(workspace.ydoc);
+			const storage = localPersistence.attach(workspace.ydoc);
 			return satisfiesWorkspace({
 				...workspace,
 				...runtime,
 				tables,
 				actions: runtime.actions,
-				idb,
+				storage,
 				collaboration: undefined,
 				async wipe() {
 					dispose();
-					await idb.whenDisposed;
-					await wipeBareStorage(options.id);
+					await Promise.all([storage.whenDisposed, ...childStorageDisposals]);
+					await localPersistence.wipe(options.id);
 				},
 				[Symbol.dispose]: dispose,
 			});
@@ -816,11 +898,15 @@ export function defineWorkspace<
 			...runtime,
 			tables,
 			actions: runtime.actions,
-			idb,
+			storage: idb,
 			collaboration,
 			async wipe() {
 				dispose();
-				await Promise.all([idb.whenDisposed, collaboration.whenDisposed]);
+				await Promise.all([
+					idb.whenDisposed,
+					collaboration.whenDisposed,
+					...childStorageDisposals,
+				]);
 				await wipeLocalStorage({
 					server: new URL(connection.baseURL).host,
 					principalId: connection.principalId,
@@ -956,24 +1042,28 @@ export function defineWorkspace<
  *
  * Teardown mirrors how the root's own stores release: each cache registers on
  * `ydoc.once('destroy', ...)`, so a single root `ydoc.destroy()` flushes every
- * child-doc cache alongside the tables and KV. There is no separate teardown
- * handle to return and thread through `connect()`.
+ * child-doc cache alongside the tables and KV. The connected root also records
+ * each opened body's storage disposal so `wipe()` can wait for child docs before
+ * deleting the persisted guid family.
  */
 function connectTableChildDocs<TTableDefinitions extends TableDefinitions>({
 	ydoc,
 	tables,
 	definitions,
 	connection,
+	localPersistence,
+	registerChildStorage,
 }: {
 	ydoc: Y.Doc;
 	tables: WorkspaceTables<TTableDefinitions>;
 	definitions: TTableDefinitions;
 	/**
-	 * Connection coordinates, or `null` for the bare local-first wiring
-	 * (`connect(null)`): guid-named IndexedDB plus the cross-tab channel,
-	 * no relay.
+	 * Connection coordinates, or `null` for the bare local-first wiring:
+	 * injected local persistence and no relay.
 	 */
 	connection: ConnectionConfig | null;
+	localPersistence: LocalPersistence;
+	registerChildStorage: (storage: LocalPersistenceAttachment) => void;
 }): ConnectedTables<TTableDefinitions> {
 	const connectedTables: Record<string, unknown> = {};
 
@@ -1008,16 +1098,17 @@ function connectTableChildDocs<TTableDefinitions extends TableDefinitions>({
 			const cache = createDisposableCache((rowId: string) => {
 				const guid = guidEntry.guid(rowId);
 				const bodyDoc = new Y.Doc({ guid, gc: true });
-				// A body is a doc like any other: connected, `connectDoc` is the same
-				// storage + sync wiring the root uses; bare, it gets the same
-				// guid-named IDB + cross-tab channel the bare root gets.
-				let idb: ReturnType<typeof attachIndexedDb>;
+				// wiring the root uses (no action registry: the body's only writers
+				// are the `attach*` layout and the server generation worker streaming
+				// in); bare, it gets the same injected local persistence the bare root
+				// gets.
+				let storage: LocalPersistenceAttachment;
 				if (connection) {
-					({ idb } = connectDoc(bodyDoc, connection));
+					({ idb: storage } = connectDoc(bodyDoc, connection));
 				} else {
-					attachBroadcastChannel(bodyDoc);
-					idb = attachIndexedDb(bodyDoc);
+					storage = localPersistence.attach(bodyDoc);
 				}
+				registerChildStorage(storage);
 				// Recency: a local edit bumps a column on the row. One observer per
 				// shared body Y.Doc (built here, not per `open`), torn down on
 				// eviction. `tx.local` scopes it to local edits, so remote/hydrated
@@ -1034,8 +1125,10 @@ function connectTableChildDocs<TTableDefinitions extends TableDefinitions>({
 					ydoc: bodyDoc,
 					/** The doc's guid (its room id). */
 					guid,
-					/** Resolves when local IndexedDB state has replayed into the doc. */
-					whenLoaded: idb.whenLoaded,
+					/** Resolves when local storage state has replayed into the doc. */
+					whenLoaded: storage.whenLoaded,
+					/** Resolves after the body doc has destroyed its storage handle. */
+					whenDisposed: storage.whenDisposed,
 					[Symbol.dispose]() {
 						offLocalEdit?.();
 						bodyDoc.destroy();

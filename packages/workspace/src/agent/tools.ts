@@ -27,8 +27,16 @@ export type AgentToolCall = {
 	input: JsonValue;
 };
 
-/** The outcome of running a tool: a JSON value, flagged when it is an error. */
-export type AgentToolOutcome = { output: JsonValue; isError: boolean };
+/**
+ * The outcome of running a tool. `content` is the model-facing text that gets
+ * re-read in the next prompt; `details` is optional structured JSON for a UI
+ * renderer (tables, reports, previews) that should not have to parse prose.
+ */
+export type AgentToolOutcome = {
+	content: string;
+	details?: JsonValue;
+	isError: boolean;
+};
 
 /**
  * The tool surface the loop is handed. `definitions` is the live catalog the
@@ -44,7 +52,7 @@ export type ToolCatalog = {
 export const NO_TOOLS: ToolCatalog = {
 	definitions: () => [],
 	resolve: async (call) => ({
-		output: `No tool named ${call.toolName} is available.`,
+		content: `No tool named ${call.toolName} is available.`,
 		isError: true,
 	}),
 };
