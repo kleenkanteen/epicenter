@@ -9,7 +9,7 @@
 	import { onMount } from 'svelte';
 	import { auth } from '#platform/auth';
 	import { honeycrisp } from '$lib/honeycrisp';
-	import { signInMigration } from '$lib/migration/sign-in-migration';
+	import { signInMigration } from '$lib/migration/sign-in-migration.svelte';
 	import '@epicenter/ui/app.css';
 
 	let { children } = $props();
@@ -29,7 +29,11 @@
 
 <svelte:head><title>Honeycrisp</title></svelte:head>
 
-<WorkspaceGate pending={honeycrisp.whenReady} onSignOut={() => auth.signOut()}>
+<WorkspaceGate
+	pending={honeycrisp.whenReady}
+	onForgetDevice={() => honeycrisp.wipe()}
+	onSignOut={() => auth.signOut()}
+>
 	<Tooltip.Provider>{@render children?.()}</Tooltip.Provider>
 </WorkspaceGate>
 
