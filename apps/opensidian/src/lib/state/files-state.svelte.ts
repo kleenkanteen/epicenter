@@ -21,7 +21,7 @@ type InteractionMode =
  * Reactive filesystem state factory.
  *
  * Follows the tab-manager pattern: a factory function creates all state.
- * The session creates one instance and exposes it at
+ * The `$lib/opensidian` singleton creates one instance and exposes it at
  * `opensidian.state.files`.
  *
  * Reactivity: `fromTable()` provides a coarse-grained `ReadonlyTableView`.
@@ -34,7 +34,7 @@ type InteractionMode =
  * @example
  * ```svelte
  * <script>
- *   const opensidian = requireOpensidian();
+ *   import { opensidian } from '$lib/opensidian';
  *   const children = opensidian.state.files.rootChildIds;
  * </script>
  * ```

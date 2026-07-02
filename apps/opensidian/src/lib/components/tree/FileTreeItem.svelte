@@ -3,12 +3,11 @@
 	import { confirmationDialog } from '@epicenter/ui/confirmation-dialog';
 	import * as ContextMenu from '@epicenter/ui/context-menu';
 	import * as TreeView from '@epicenter/ui/tree-view';
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 	import { getFileIcon } from '$lib/utils/file-icons';
 	import FileTreeItem from './FileTreeItem.svelte';
 	import InlineNameInput from './InlineNameInput.svelte';
 
-	const opensidian = requireOpensidian();
 	let { id }: { id: FileId } = $props();
 
 	const row = $derived(opensidian.state.files.getFile(id));
