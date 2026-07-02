@@ -127,34 +127,19 @@ function secureDbFiles(path: string): void {
 	chmodIfExists(`${path}-shm`, 0o600);
 }
 
-export function openMailDb(
-	path: string,
-	{ readonly = false }: { readonly?: boolean } = {},
-) {
-	// See `apps/local-books/src/db.ts` for why a read-only handle skips every
-	// mutation below: it must never write, and must not fail with SQLITE_BUSY
-	// contending for a lock a concurrent sync already holds.
-	if (!readonly) {
-		secureDir(dirname(dirname(path)));
-		secureDir(dirname(path));
-	}
-	const db = new Database(
-		path,
-		readonly ? { readonly: true } : { create: true },
-	);
+export function openMailDb(path: string) {
+	secureDir(dirname(dirname(path)));
+	secureDir(dirname(path));
+	const db = new Database(path, { create: true });
 
-	if (readonly) {
-		db.exec('PRAGMA busy_timeout = 5000;');
-	} else {
-		db.exec('PRAGMA journal_mode = WAL;');
-		db.exec('PRAGMA busy_timeout = 5000;');
-		db.exec('PRAGMA synchronous = NORMAL;');
-		db.exec('PRAGMA foreign_keys = ON;');
-		secureDbFiles(path);
-		db.exec(
-			`CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT);`,
-		);
-	}
+	db.exec('PRAGMA journal_mode = WAL;');
+	db.exec('PRAGMA busy_timeout = 5000;');
+	db.exec('PRAGMA synchronous = NORMAL;');
+	db.exec('PRAGMA foreign_keys = ON;');
+	secureDbFiles(path);
+	db.exec(
+		`CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT);`,
+	);
 
 	const setMetaStmt = db.query(
 		`INSERT INTO _meta (key, value) VALUES (?, ?)
@@ -164,15 +149,15 @@ export function openMailDb(
 		`SELECT value FROM _meta WHERE key = ?`,
 	);
 
-	// Schema-version gate (writers only), same asymmetric-win reasoning as
-	// local-books: the mirror is a re-pullable cache Gmail owns the truth for,
-	// so a format change just drops the derived tables and clears the cursor;
-	// the next sync rebuilds with one full pull. This MUST run before the
-	// CREATE TABLE block below: unlike local-books (which recreates tables
-	// lazily inside `ingest`), table creation here happens once at open-time,
-	// so a drop that ran after creation would leave the mirror with no tables
-	// at all until the next open.
-	if (!readonly) {
+	// Schema-version gate, same asymmetric-win reasoning as local-books: the
+	// mirror is a re-pullable cache Gmail owns the truth for, so a format
+	// change just drops the derived tables and clears the cursor; the next
+	// sync rebuilds with one full pull. This MUST run before the CREATE TABLE
+	// block below: unlike local-books (which recreates tables lazily inside
+	// `ingest`), table creation here happens once at open-time, so a drop that
+	// ran after creation would leave the mirror with no tables at all until
+	// the next open.
+	{
 		const storedVersion = getMetaStmt.get('schema_version')?.value ?? null;
 		if (storedVersion !== null && storedVersion !== SCHEMA_VERSION) {
 			for (const table of ['messages', 'threads', 'labels']) {
@@ -354,6 +339,65 @@ export function openMailDb(
 				setMetaStmt.run('last_synced_at', syncedAt);
 			});
 			tx.immediate();
+		},
+
+		close(): void {
+			db.close();
+		},
+	};
+}
+
+export type MailDbReader = ReturnType<typeof openMailDbReadonly>;
+
+/**
+ * The read-only view of a mirror file, for surfaces that must never write and
+ * must never assume the on-disk schema is current (`status`, `query`): a
+ * pre-current mirror is a valid thing to inspect, so nothing here prepares a
+ * statement against today's column set up front; every read compiles at call
+ * time against whatever schema the file actually has. The handle rejects
+ * writes at the SQLite level, and `busy_timeout` keeps reads from failing
+ * against a lock a concurrent sync briefly holds.
+ */
+export function openMailDbReadonly(path: string) {
+	const db = new Database(path, { readonly: true });
+	db.exec('PRAGMA busy_timeout = 5000;');
+
+	const meta = (key: string): string | null =>
+		db
+			.query<{ value: string | null }, [string]>(
+				`SELECT value FROM _meta WHERE key = ?`,
+			)
+			.get(key)?.value ?? null;
+
+	return {
+		/** The ad-hoc SQL surface (the `query` verb and tests). */
+		raw: db,
+
+		realmState(): RealmState {
+			return {
+				historyId: meta('history_id'),
+				lastFullPullAt: meta('last_full_pull_at'),
+				lastSyncedAt: meta('last_synced_at'),
+			};
+		},
+
+		schemaVersion(): string | null {
+			return meta('schema_version');
+		},
+
+		counts(): { messages: number; labels: number } {
+			return {
+				messages:
+					db
+						.query<{ n: number }, []>(
+							`SELECT count(*) AS n FROM messages WHERE deleted = 0`,
+						)
+						.get()?.n ?? 0,
+				labels:
+					db
+						.query<{ n: number }, []>(`SELECT count(*) AS n FROM labels`)
+						.get()?.n ?? 0,
+			};
 		},
 
 		close(): void {

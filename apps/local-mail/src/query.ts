@@ -1,4 +1,3 @@
-import { Database } from 'bun:sqlite';
 import { existsSync } from 'node:fs';
 import {
 	defineErrors,
@@ -6,6 +5,7 @@ import {
 	type InferErrors,
 } from 'wellcrafted/error';
 import { Ok, type Result } from 'wellcrafted/result';
+import { openMailDbReadonly } from './db.ts';
 
 export const MailQueryError = defineErrors({
 	NoMirror: ({ path }: { path: string }) => ({
@@ -35,12 +35,11 @@ export function queryMail({
 }): Result<MailQueryResult, MailQueryError> {
 	if (!existsSync(dbPath)) return MailQueryError.NoMirror({ path: dbPath });
 	try {
-		const db = new Database(dbPath, { readonly: true });
+		const db = openMailDbReadonly(dbPath);
 		try {
-			db.exec('PRAGMA busy_timeout = 5000;');
 			const rows: Record<string, unknown>[] = [];
 			let truncated = false;
-			for (const row of db.query(sql).iterate()) {
+			for (const row of db.raw.query(sql).iterate()) {
 				if (rows.length === MAX_ROWS) {
 					truncated = true;
 					break;

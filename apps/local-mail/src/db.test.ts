@@ -9,12 +9,13 @@
  * discipline ported from `db.ts`.
  */
 
+import { Database } from 'bun:sqlite';
 import { describe, expect, test } from 'bun:test';
 import { Buffer } from 'node:buffer';
-import { chmodSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type MailDb, openMailDb } from './db.ts';
+import { type MailDb, openMailDb, openMailDbReadonly } from './db.ts';
 import type { GmailMessage } from './schema.ts';
 
 function tempDir() {
@@ -372,6 +373,54 @@ describe('labels', () => {
 			)
 			.all();
 		expect(rows).toEqual([{ id: 'INBOX', name: 'Inbox renamed', type: 'system' }]);
+		cleanup();
+	});
+});
+
+describe('readonly open', () => {
+	test('a stale-schema mirror opens readonly without touching the current column set', () => {
+		// Hand-build a v1-shaped mirror: no body_text column, a threads table,
+		// TEXT internal_date. A readonly consumer (`status` before the first
+		// post-upgrade sync) must read it without throwing; only the next
+		// writer open migrates.
+		const tmp = tempDir();
+		const accountDir = join(tmp.dir, 'you@example.com');
+		mkdirSync(accountDir, { recursive: true });
+		const path = join(accountDir, 'mail.db');
+		const old = new Database(path, { create: true });
+		old.exec(`
+			CREATE TABLE _meta (key TEXT PRIMARY KEY, value TEXT);
+			CREATE TABLE messages (
+				id TEXT PRIMARY KEY,
+				raw TEXT NOT NULL,
+				subject TEXT,
+				sender TEXT,
+				synced_at TEXT NOT NULL,
+				deleted INTEGER NOT NULL DEFAULT 0
+			);
+			CREATE TABLE threads (id TEXT PRIMARY KEY, raw TEXT NOT NULL);
+			CREATE TABLE labels (id TEXT PRIMARY KEY, raw TEXT NOT NULL, synced_at TEXT NOT NULL);
+			INSERT INTO _meta (key, value) VALUES ('schema_version', '1'), ('history_id', '42');
+			INSERT INTO messages (id, raw, synced_at) VALUES ('m1', '{}', 's1');
+		`);
+		old.close();
+
+		const reader = openMailDbReadonly(path);
+		expect(reader.schemaVersion()).toBe('1');
+		expect(reader.realmState().historyId).toBe('42');
+		expect(reader.counts()).toEqual({ messages: 1, labels: 0 });
+		reader.close();
+		tmp.cleanup();
+	});
+
+	test('the readonly handle rejects writes', () => {
+		const { db, cleanup } = openTmp();
+		db.ingestFullPullPage([message()], 's1');
+		const reader = openMailDbReadonly(
+			db.raw.filename,
+		);
+		expect(() => reader.raw.exec(`DELETE FROM messages`)).toThrow();
+		reader.close();
 		cleanup();
 	});
 });

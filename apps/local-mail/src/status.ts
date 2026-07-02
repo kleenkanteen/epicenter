@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import type { AppConfig } from './config.ts';
-import { openMailDb } from './db.ts';
+import { openMailDbReadonly } from './db.ts';
 import { dbPath } from './paths.ts';
 import type { TokenStore } from './token-store.ts';
 import { isAccessTokenExpired } from './tokens.ts';
@@ -55,32 +55,17 @@ export async function readMailStatus({
 		};
 	}
 
-	const db = openMailDb(path, { readonly: true });
+	const db = openMailDbReadonly(path);
 	try {
-		const realm = db.readRealmState();
-		const schemaVersion =
-			db.raw
-				.query<{ value: string }, []>(
-					`SELECT value FROM _meta WHERE key = 'schema_version'`,
-				)
-				.get()?.value ?? null;
-		const messages =
-			db.raw
-				.query<{ n: number }, []>(
-					`SELECT count(*) AS n FROM messages WHERE deleted = 0`,
-				)
-				.get()?.n ?? 0;
-		const labels =
-			db.raw.query<{ n: number }, []>(`SELECT count(*) AS n FROM labels`).get()
-				?.n ?? 0;
+		const realm = db.realmState();
 		return {
 			...base,
 			mirrorBuilt: true,
-			schemaVersion,
+			schemaVersion: db.schemaVersion(),
 			historyId: realm.historyId,
 			lastFullPullAt: realm.lastFullPullAt,
 			lastSyncedAt: realm.lastSyncedAt,
-			rows: { messages, labels },
+			rows: db.counts(),
 		};
 	} finally {
 		db.close();
