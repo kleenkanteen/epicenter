@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SignInMigrationDialog } from '@epicenter/app-shell/sign-in-migration';
 	import { WorkspaceGate } from '@epicenter/app-shell/workspace-gate';
 	import { reloadOnOwnerChange } from '@epicenter/svelte/auth';
 	import { ConfirmationDialog } from '@epicenter/ui/confirmation-dialog';
@@ -8,6 +9,7 @@
 	import { onMount } from 'svelte';
 	import { auth } from '$platform/auth';
 	import { opensidian } from '$lib/opensidian';
+	import { signInMigration } from '$lib/migration/sign-in-migration';
 	import '../app.css';
 
 	let { children } = $props();
@@ -16,6 +18,13 @@
 	// inside `openOpensidianBrowser`); an owner-identity change reloads so the
 	// next boot rebuilds the right doc.
 	onMount(() => reloadOnOwnerChange(auth));
+
+	// Signed-in only: prompt to migrate this device's local files into the
+	// account (no-op when signed out or when there is no local data). Fire and
+	// forget: `signInMigration.check()` owns its own once-per-boot guard.
+	onMount(() => {
+		void signInMigration.check();
+	});
 </script>
 
 <WorkspaceGate
@@ -30,4 +39,5 @@
 
 <ConfirmationDialog />
 <Toaster />
+<SignInMigrationDialog migration={signInMigration} />
 <ModeWatcher defaultMode="dark" track={false} />
