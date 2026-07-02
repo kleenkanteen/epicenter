@@ -87,15 +87,12 @@ export type AddBlobResult = {
  * headers the client must echo verbatim (`upload`). Internal to `blobs.add`.
  */
 type BlobTicket =
-	| { status: 'duplicate'; sha256: string; key: string; url: string }
+	| { status: 'duplicate'; url: string }
 	| {
 			status: 'upload';
-			sha256: string;
-			key: string;
 			url: string;
 			uploadUrl: string;
 			requiredHeaders: Record<string, string>;
-			expiresInSeconds: number;
 	  };
 
 /** Failure modes of the Result-returning client surfaces (`blobs.*`). */
@@ -215,9 +212,12 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 					});
 				}
 				bytes = await source.arrayBuffer();
+				// `||`, matching the Blob branch below: an empty-string content type
+				// (an override of '' or a bare header) falls through to the default
+				// instead of being pinned into the stored object verbatim.
 				contentType =
-					params.contentType ??
-					source.headers.get('content-type') ??
+					params.contentType ||
+					source.headers.get('content-type') ||
 					'application/octet-stream';
 			} else {
 				bytes = await fileOrUrl.arrayBuffer();

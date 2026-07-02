@@ -3,16 +3,20 @@
  * content-addressed URL. The sha256 rides inside the URL, so the documents
  * that cite it are the only manifest; nothing is recorded anywhere else.
  *
- *   add <file|url>  upload the bytes (hash -> ticket -> presigned PUT straight
- *                   to the store) and print the URL; writes nothing to disk
- *   ls              list the owner's stored blobs (the store is the index)
- *   get <sha256>    download one blob by content address to a file
- *   rm  <sha256>    delete one blob from the store (breaks every citation)
+ *   add <file|url>      upload the bytes (hash -> ticket -> presigned PUT
+ *                       straight to the store) and print the URL; writes
+ *                       nothing to disk
+ *   ls                  list the owner's stored blobs (the store is the index)
+ *   get <sha256|url>    download one blob by content address to a file
+ *   rm  <sha256|url>    delete one blob from the store (breaks every citation)
  *
  * Every subcommand is a direct cloud round-trip built from the resolved machine
  * auth client (the persisted OAuth cell, or a configured instance token for a
  * self-hosted star); none route through the local daemon, unlike `run`. See
  * `docs/adr/0091-blobs-trade-a-file-for-a-durable-content-addressed-url-documents-are-the-only-manifest.md`.
+ *
+ * Exit codes: 1 for a local problem (auth, reading a source file), 2 when the
+ * cloud round-trip itself fails.
  */
 
 import { createHash } from 'node:crypto';
@@ -26,7 +30,8 @@ import { Err, Ok, type Result, tryAsync } from 'wellcrafted/result';
 import { cmd } from '../util/cmd.js';
 import { fail, formatOptions, output } from '../util/format-output.js';
 
-/** A source is fetched when it looks like an http(s) URL, else read from disk. */
+/** An `add` source that looks like an http(s) URL is handed to the SDK to
+ * fetch; anything else is read from disk. */
 const HTTP_URL = /^https?:\/\//i;
 
 const addCommand = cmd({
@@ -43,33 +48,43 @@ const addCommand = cmd({
 				type: 'string',
 				describe: 'Override the content type (else inferred from the source)',
 			})
-			.options(formatOptions)
+			// The shared json/jsonl pair plus a plain mode: the bare URL on stdout,
+			// so `$(epicenter blobs add x.png)` drops straight into a document.
+			.option('format', {
+				type: 'string',
+				choices: ['json', 'jsonl', 'plain'] as const,
+				describe:
+					"Output format (default: json, auto-pretty for TTY; 'plain' prints the bare URL)",
+			})
 			.strict(),
 	handler: async (argv) => {
 		const epicenter = await connectCloud();
 		if (!epicenter) return;
 
-		// Hold the bytes locally so we hand the SDK a Blob (no second fetch of a
-		// URL we already downloaded).
-		const { data: resolved, error: resolveError } = await resolveSource(
-			argv.source,
-			argv.contentType,
-		);
-		if (resolveError !== null) {
-			fail(resolveError);
+		// A URL source goes to the SDK as-is: it fetches the bytes once and takes
+		// the content type from the response. A local file is read here and typed
+		// by its extension; `--content-type` overrides either.
+		const { data: source, error: readError } = HTTP_URL.test(argv.source)
+			? Ok(argv.source)
+			: await readLocalFile(argv.source);
+		if (readError !== null) {
+			fail(readError);
 			return;
 		}
-		const { bytes, contentType } = resolved;
 
 		const { data: result, error: uploadError } = await epicenter.blobs.add(
-			new Blob([new Uint8Array(bytes)], { type: contentType }),
-			{ contentType },
+			source,
+			{ contentType: argv.contentType },
 		);
 		if (uploadError !== null) {
 			fail(uploadError.message, { code: 2 });
 			return;
 		}
 
+		if (argv.format === 'plain') {
+			console.log(result.url);
+			return;
+		}
 		output(
 			{ sha256: result.sha256, url: result.url, duplicate: result.duplicate },
 			{ format: argv.format },
@@ -95,43 +110,15 @@ const lsCommand = cmd({
 	},
 });
 
-const rmCommand = cmd({
-	command: 'rm <sha256>',
-	// Removes the cloud object only; local files are yours to manage. Every
-	// document URL citing this hash 404s from now on.
-	describe:
-		'Delete a blob from the store by content address; every URL citing it breaks forever (idempotent)',
-	builder: (yargs) =>
-		yargs
-			.positional('sha256', {
-				type: 'string',
-				demandOption: true,
-				describe: 'The lowercase-hex sha256 content address',
-			})
-			.options(formatOptions)
-			.strict(),
-	handler: async (argv) => {
-		const epicenter = await connectCloud();
-		if (!epicenter) return;
-
-		const { error } = await epicenter.blobs.delete(argv.sha256);
-		if (error !== null) {
-			fail(error.message, { code: 2 });
-			return;
-		}
-		output({ sha256: argv.sha256, deleted: true }, { format: argv.format });
-	},
-});
-
 const getCommand = cmd({
-	command: 'get <sha256>',
+	command: 'get <blob>',
 	describe: 'Download a blob by content address and write it to a file',
 	builder: (yargs) =>
 		yargs
-			.positional('sha256', {
+			.positional('blob', {
 				type: 'string',
 				demandOption: true,
-				describe: 'The lowercase-hex sha256 content address',
+				describe: 'A lowercase-hex sha256 content address, or a blob URL',
 			})
 			.option('output', {
 				alias: 'o',
@@ -141,10 +128,16 @@ const getCommand = cmd({
 			.options(formatOptions)
 			.strict(),
 	handler: async (argv) => {
+		const { data: sha256, error: parseError } = parseSha256(argv.blob);
+		if (parseError !== null) {
+			fail(parseError);
+			return;
+		}
+
 		const epicenter = await connectCloud();
 		if (!epicenter) return;
 
-		const { data: res, error } = await epicenter.blobs.get(argv.sha256);
+		const { data: res, error } = await epicenter.blobs.get(sha256);
 		if (error !== null) {
 			fail(error.message, { code: 2 });
 			return;
@@ -154,10 +147,10 @@ const getCommand = cmd({
 
 		// The store enforces the hash on write, but a download can still be
 		// truncated mid-flight; verify before we trust the bytes on disk.
-		const actual = sha256Of(bytes);
-		if (actual !== argv.sha256) {
+		const actual = createHash('sha256').update(bytes).digest('hex');
+		if (actual !== sha256) {
 			fail(
-				`downloaded bytes do not match their content address: expected ${argv.sha256}, got ${actual}`,
+				`downloaded bytes do not match their content address: expected ${sha256}, got ${actual}`,
 				{ code: 2 },
 			);
 			return;
@@ -169,20 +162,53 @@ const getCommand = cmd({
 			res.headers.get('content-type') ?? 'application/octet-stream';
 		const ext = mime.getExtension(contentType);
 		const outputPath = path.resolve(
-			argv.output ?? (ext ? `${argv.sha256}.${ext}` : argv.sha256),
+			argv.output ?? (ext ? `${sha256}.${ext}` : sha256),
 		);
 		await fs.mkdir(path.dirname(outputPath), { recursive: true });
 		await fs.writeFile(outputPath, bytes);
 
 		output(
 			{
-				sha256: argv.sha256,
-				output: rel(outputPath),
+				sha256,
+				output: path.relative(process.cwd(), outputPath),
 				size_bytes: bytes.byteLength,
 				content_type: contentType,
 			},
 			{ format: argv.format },
 		);
+	},
+});
+
+// Removes the cloud object only; local files are yours to manage.
+const rmCommand = cmd({
+	command: 'rm <blob>',
+	describe:
+		'Delete a blob from the store by content address; every URL citing it breaks forever (idempotent)',
+	builder: (yargs) =>
+		yargs
+			.positional('blob', {
+				type: 'string',
+				demandOption: true,
+				describe: 'A lowercase-hex sha256 content address, or a blob URL',
+			})
+			.options(formatOptions)
+			.strict(),
+	handler: async (argv) => {
+		const { data: sha256, error: parseError } = parseSha256(argv.blob);
+		if (parseError !== null) {
+			fail(parseError);
+			return;
+		}
+
+		const epicenter = await connectCloud();
+		if (!epicenter) return;
+
+		const { error } = await epicenter.blobs.delete(sha256);
+		if (error !== null) {
+			fail(error.message, { code: 2 });
+			return;
+		}
+		output({ sha256, deleted: true }, { format: argv.format });
 	},
 });
 
@@ -225,40 +251,27 @@ async function connectCloud(): Promise<EpicenterClient | null> {
 	});
 }
 
-/** The bytes to upload plus the content type that rides with them. */
-type ResolvedSource = {
-	bytes: Buffer;
-	contentType: string;
-};
+/**
+ * Accept a bare content address or a pasted blob URL and return the
+ * lowercase-hex sha256. The URL form matches the read-URL shape
+ * (`.../blobs/<sha256>`), so a citation can be pasted back verbatim to `get`
+ * or `rm` without extracting the hash by hand.
+ */
+function parseSha256(input: string): Result<string, string> {
+	if (/^[a-f0-9]{64}$/.test(input)) return Ok(input);
+	const fromUrl = input.match(/\/blobs\/([a-f0-9]{64})(?:[/?#]|$)/);
+	if (fromUrl?.[1]) return Ok(fromUrl[1]);
+	return Err(
+		`expected a 64-character lowercase-hex sha256 or a blob URL containing one, got: ${input}`,
+	);
+}
 
 /**
- * Read a source into bytes. An http(s) URL is downloaded (content type from the
- * response); a local path is read (content type inferred from the extension via
- * `mime`). The error channel is a ready-to-print message so the handler has one
- * failure path.
+ * Read a local file into a Blob typed by its extension (via `mime`; the SDK
+ * defaults an untyped Blob to `application/octet-stream`). The error channel
+ * is a ready-to-print message so the handler has one failure path.
  */
-async function resolveSource(
-	source: string,
-	contentTypeOverride: string | undefined,
-): Promise<Result<ResolvedSource, string>> {
-	if (HTTP_URL.test(source)) {
-		const { data: res, error } = await tryAsync({
-			try: () => fetch(source),
-			catch: (cause) =>
-				Err(`could not fetch ${source}: ${extractErrorMessage(cause)}`),
-		});
-		if (error !== null) return Err(error);
-		if (!res.ok) return Err(`could not fetch ${source}: ${res.status}`);
-		const bytes = Buffer.from(await res.arrayBuffer());
-		return Ok({
-			bytes,
-			contentType:
-				contentTypeOverride ??
-				res.headers.get('content-type') ??
-				'application/octet-stream',
-		});
-	}
-
+async function readLocalFile(source: string): Promise<Result<Blob, string>> {
 	const localPath = path.resolve(source);
 	const { data: bytes, error } = await tryAsync({
 		try: () => fs.readFile(localPath),
@@ -266,21 +279,7 @@ async function resolveSource(
 			Err(`could not read ${source}: ${extractErrorMessage(cause)}`),
 	});
 	if (error !== null) return Err(error);
-	return Ok({
-		bytes,
-		contentType:
-			contentTypeOverride ??
-			mime.getType(localPath) ??
-			'application/octet-stream',
-	});
-}
-
-/** Lowercase-hex sha256 of bytes, to verify a download against its address. */
-function sha256Of(bytes: Buffer): string {
-	return createHash('sha256').update(bytes).digest('hex');
-}
-
-/** A path relative to the cwd, for terse output. */
-function rel(p: string): string {
-	return path.relative(process.cwd(), p);
+	return Ok(
+		new Blob([new Uint8Array(bytes)], { type: mime.getType(localPath) ?? '' }),
+	);
 }

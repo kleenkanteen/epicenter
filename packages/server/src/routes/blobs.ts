@@ -167,7 +167,7 @@ const blobsApp = new Hono<BlobEnv>()
 			// upload is a no-op. Content addressing makes this safe and cheap (one
 			// HEAD).
 			if (await c.var.blobStore.exists(key)) {
-				return c.json({ status: 'duplicate' as const, sha256, key, url });
+				return c.json({ status: 'duplicate' as const, url });
 			}
 
 			const { url: uploadUrl, requiredHeaders } =
@@ -178,14 +178,15 @@ const blobsApp = new Hono<BlobEnv>()
 					expiresInSeconds: PUT_TTL_SECONDS,
 				});
 
+			// The ticket carries only what the uploader acts on: the read URL (which
+			// ends in the sha256 the caller sent), the presigned PUT, and the signed
+			// headers to echo. The PUT's TTL rides inside `uploadUrl` as the standard
+			// `X-Amz-Expires` query param.
 			return c.json({
 				status: 'upload' as const,
-				sha256,
-				key,
 				url,
 				uploadUrl,
 				requiredHeaders,
-				expiresInSeconds: PUT_TTL_SECONDS,
 			});
 		},
 	)
