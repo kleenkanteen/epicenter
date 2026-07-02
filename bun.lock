@@ -95,8 +95,6 @@
         "@epicenter/field": "workspace:*",
         "@epicenter/svelte": "workspace:*",
         "@epicenter/workspace": "workspace:*",
-        "@tanstack/svelte-query": "catalog:",
-        "@tanstack/svelte-query-devtools": "catalog:",
         "arktype": "catalog:",
         "better-auth": "catalog:",
         "bits-ui": "catalog:",
@@ -855,9 +853,11 @@
       "devDependencies": {
         "@standard-schema/spec": "catalog:",
         "@types/bun": "catalog:",
+        "fake-indexeddb": "^6.2.5",
         "svelte": "catalog:",
         "svelte-check": "catalog:",
         "typescript": "catalog:",
+        "yjs": "catalog:",
       },
     },
     "packages/sync": {
