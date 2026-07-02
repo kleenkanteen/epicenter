@@ -2,9 +2,9 @@
  * Reactive unified view state for the side panel.
  *
  * Manages section expansion (open tabs, saved for later, bookmarks) and
- * derives a single flat item array from browser state plus the session-owned
- * saved tab and bookmark states. The flat array feeds a single VList that
- * renders all sections in one scrollable view.
+ * derives a single flat item array from browser state plus the saved tab and
+ * bookmark states built alongside it. The flat array feeds a single VList
+ * that renders all sections in one scrollable view.
  *
  * Section expand/collapse works identically to how window expand/collapse
  * already works in the original `FlatTabList`: a `SvelteSet` tracks expanded
@@ -64,8 +64,8 @@ export function createUnifiedViewState({
 	/**
 	 * Which windows are expanded within the open tabs section.
 	 *
-	 * Starts empty because the session creates this before browser state is
-	 * ready. The focused window is seeded once browser data is available.
+	 * Starts empty because boot creates this before browser state is ready.
+	 * The focused window is seeded once browser data is available.
 	 */
 	const expandedWindows = new SvelteSet<number>();
 

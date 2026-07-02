@@ -13,7 +13,7 @@
 	import Volume2Icon from '@lucide/svelte/icons/volume-2';
 	import VolumeXIcon from '@lucide/svelte/icons/volume-x';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { requireTabManager } from '$lib/session.svelte';
+	import { tabManagerBoot } from '$lib/session.svelte';
 	import {
 		type BrowserTab,
 		browserState,
@@ -21,7 +21,7 @@
 	import { getDomain } from '$lib/utils/format';
 	import TabFavicon from './TabFavicon.svelte';
 
-	const tabManager = requireTabManager();
+	const tabManager = tabManagerBoot.tabManager;
 	let { tab }: { tab: BrowserTab } = $props();
 
 	const domain = $derived(tab.url ? getDomain(tab.url) : '');

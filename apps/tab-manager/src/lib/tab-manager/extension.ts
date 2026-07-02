@@ -1,12 +1,14 @@
 /**
- * Tab-manager browser composition.
+ * Tab-manager browser composition: the one boot branch (ADR-0088).
  *
- * Single source of truth for "how Tab Manager mounts in a browser extension."
- * `tabManagerWorkspace.connect()` is the browser preset: it builds the root
- * Y.Doc, attaches IndexedDB persistence and the relay sync transport, and wires
- * the per-row child-doc openers (`tables.conversations.docs.messages.open(id)`).
- * The `compose` callback wires tab and bookmark actions against the connected
- * tables, with Y.Doc transaction batching.
+ * Reads `auth.state` once and picks a preset: `connectLocal(compose)` signed
+ * out (bare guid-named IndexedDB, cross-tab channel, no relay) or
+ * `connect({ ...projectSignedIn(auth), nodeId }, compose)` signed in. Both
+ * presets take the SAME `compose` callback and return the same bundle shape
+ * (per-row conversation child-doc openers from `@epicenter/chat` included),
+ * so nothing downstream branches on auth again. `compose` wires tab and
+ * bookmark actions against the connected tables, with Y.Doc transaction
+ * batching.
  *
  * Live browser state (tabs, windows, tab groups) is NOT stored here. Chrome is
  * the sole authority for ephemeral browser state. See `browser-state.svelte.ts`.
@@ -15,9 +17,11 @@
  * tears down the root Y.Doc, which cascades to persistence and sync.
  */
 
+import type { SyncAuthClient } from '@epicenter/auth';
 import { InstantString } from '@epicenter/field';
-import type { SignedIn } from '@epicenter/svelte/auth';
+import { projectSignedIn } from '@epicenter/svelte/auth';
 import {
+	type ConnectedWorkspaceContext,
 	defineActions,
 	defineMutation,
 	defineQuery,
@@ -77,18 +81,24 @@ export type SaveCloseFailed = Extract<TabError, { name: 'SaveCloseFailed' }>;
 /**
  * Build the tab-manager binding. Synchronous: callers must resolve the
  * node id before invoking (the extension's node id comes from
- * `chrome.storage.local` via `createDeviceProfile()` in `device.ts`).
+ * `chrome.storage.local` via `createDeviceProfile()` in `device.ts`). Reads
+ * `auth.state` exactly once, at call time, to pick the preset branch.
  *
  * Consumers gate UI render on `tabManager.idb.whenLoaded`.
  */
 export function openTabManagerBrowser({
-	signedIn,
+	auth,
 	nodeId,
 }: {
-	signedIn: SignedIn;
+	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	return tabManagerWorkspace.connect({ ...signedIn, nodeId }, (workspace) => {
+	function compose(
+		workspace: ConnectedWorkspaceContext<
+			typeof tabManagerWorkspace.tables,
+			typeof tabManagerWorkspace.kv
+		>,
+	) {
 		const { tables } = workspace;
 		const batch = (fn: () => void) => workspace.ydoc.transact(fn);
 		return {
@@ -471,7 +481,14 @@ export function openTabManagerBrowser({
 				}),
 			}),
 		};
-	});
+	}
+
+	return auth.state.status === 'signed-out'
+		? tabManagerWorkspace.connectLocal(compose)
+		: tabManagerWorkspace.connect(
+				{ ...projectSignedIn(auth), nodeId },
+				compose,
+			);
 }
 
 export type TabManagerBrowser = ReturnType<typeof openTabManagerBrowser>;
