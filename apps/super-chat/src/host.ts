@@ -36,6 +36,7 @@ import {
 	createStdioMcpCatalog,
 	type StdioMcpCatalogOptions,
 } from './stdio-mcp-catalog.ts';
+
 export type {
 	ToolHost,
 	ToolModule,
