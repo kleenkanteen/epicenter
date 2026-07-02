@@ -19,6 +19,7 @@
 		"@epicenter/workspace": "workspace:*",
 		"@modelcontextprotocol/sdk": "catalog:",
 		"hono": "catalog:",
+		"typebox": "catalog:",
 		"wellcrafted": "catalog:",
 		"yjs": "catalog:"
 	},

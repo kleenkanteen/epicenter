@@ -161,5 +161,6 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0091](0091-blobs-trade-a-file-for-a-durable-content-addressed-url-documents-are-the-only-manifest.md) | Blobs trade a file for a durable content-addressed URL; documents are the only manifest | Accepted (URL shape amended by 0092) |
 | [0092](0092-identity-is-the-partition.md) | Identity is the partition | Accepted |
 | [0095](0095-local-workspace-persistence-is-environment-injected.md) | Local workspace persistence is environment-injected | Accepted |
+| [0096](0096-super-chat-tool-modules-receive-a-host-api.md) | Super Chat tool modules receive a host API | Accepted |
 
 When you add an ADR, add its row here.

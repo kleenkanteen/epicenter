@@ -102,7 +102,7 @@ export async function createStdioMcpCatalog(
 				return toToolOutcome(result);
 			} catch (error) {
 				return {
-					output: error instanceof Error ? error.message : String(error),
+					content: error instanceof Error ? error.message : String(error),
 					isError: true,
 				};
 			}
@@ -163,8 +163,8 @@ function asArguments(input: JsonValue): Record<string, unknown> {
 
 /**
  * Flatten an MCP {@link CallToolResult} into an {@link AgentToolOutcome}. Text
- * parts join into one string; a result carrying non-text content falls back to
- * the raw content array as a JSON value. `isError` rides the MCP flag.
+ * parts join into model-facing content; a result carrying non-text content also
+ * keeps the raw content array as renderer details. `isError` rides the MCP flag.
  */
 function toToolOutcome(result: CallToolResult): AgentToolOutcome {
 	const isError = result.isError === true;
@@ -172,8 +172,12 @@ function toToolOutcome(result: CallToolResult): AgentToolOutcome {
 		(part): part is { type: 'text'; text: string } => part.type === 'text',
 	);
 	const allText = textParts.length === result.content.length;
-	const output: JsonValue = allText
+	const content = allText
 		? textParts.map((part) => part.text).join('\n')
-		: (result.content as JsonValue);
-	return { output, isError };
+		: JSON.stringify(result.content);
+	return {
+		content,
+		...(!allText && { details: result.content as JsonValue }),
+		isError,
+	};
 }

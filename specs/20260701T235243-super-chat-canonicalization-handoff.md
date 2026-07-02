@@ -124,7 +124,9 @@ The mount path is for daemon/CLI projection: one folder exports one mounted app 
 ## Open architecture decisions
 
 Tool module contract:
-  ADR-0084 settles `scan .ts + import()`, but not what the imported file exports. The likely clean-break answer is a factory injection shape:
+  Implemented by ADR-0096. ADR-0084 settles `scan .ts + import()`; ADR-0096
+  settles what the imported file exports: a default factory receiving the host
+  API as an argument.
 
 ```ts
 import type { ToolHost } from '@epicenter/super-chat';
@@ -139,21 +141,21 @@ export default function defineToolModule({
 		weather_get: defineQuery({
 			description: 'Current weather for a city',
 			input: Type.Object({ city: Type.String() }),
-			handler: async ({ city }) => ({ city }),
+			handler: async ({ city }) => `Weather for ${city}`,
 		}),
 	};
 }
 ```
 
-Why this direction:
-
-- Runtime imports from vendored tool files are brittle once the host is a compiled Bun binary.
-- Passing `defineQuery`, `defineMutation`, and `Type` from the host avoids dual-package schema hazards.
-- Passing scoped `workspaces` gives third-party tools a deliberate way to compose across installed apps.
-- Type-only imports still give authors a good editor experience and erase at runtime.
+Runtime imports from vendored tool files stay out of the contract; type-only
+imports are allowed for editor help. The host injects `defineQuery`,
+`defineMutation`, `Type`, and scoped `workspaces`.
 
 Tool result shape:
-  Consider splitting model-facing content from renderer-facing details before the SPA hardens. The current `AgentToolOutcome` is enough for the loop, but a table, report, or document preview should not become JSON text in a chat bubble forever.
+  Implemented with ADR-0096. `AgentToolOutcome.content` is the model-facing
+  string; `details` is optional structured JSON for the future SPA renderer.
+  Action-registry modules get this derived from their action return value; custom
+  `ToolCatalog` modules can return it directly.
 
 Chat persistence:
   The prototype uses an in-memory message store. Two plausible next steps are append-only JSONL for a simple local transcript, or dogfooding an Epicenter workspace for conversation history. Do not sync sensitive tool results through a hosted readable plane without revisiting ADR-0080's confidentiality rule.
@@ -183,7 +185,10 @@ jsrepo:
    > port 0, single stdout port announcement, BYOK OpenAI-compatible engine
    > from env). Static assets are a placeholder page until the SPA slice
    > exists; the serving shape (page + API from one origin) is in place.
-6. [ ] Write a small ADR for the tool module contract before dynamic third-party files land.
+6. [x] Write a small ADR for the tool module contract before dynamic third-party files land.
+   > Implemented by ADR-0096. Tool modules export a default factory receiving
+   > `ToolHost`; runtime helpers are injected, type-only imports are allowed,
+   > and tool outcomes now split model `content` from renderer `details`.
 7. [x] Spec or implement the ungated durable local open path. This is the real gap between "composition proof" and "loads my workspaces."
    > Implemented via ADR-0095: `connect(null, { persistence })` plus `bunLocalPersistence({ dir, nodeId })`. Super Chat now opens Honeycrisp and Todos as durable signed-out local replicas, and `src/host.test.ts` proves a second host over the same data dir reads the first host's todo through the composed catalog.
 8. [x] Reconcile the Fuji removal branch after the canonical app skeleton is clear, so docs do not keep pointing at a deleted app.

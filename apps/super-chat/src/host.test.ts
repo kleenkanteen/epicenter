@@ -89,7 +89,7 @@ describe('createSuperChatHost', () => {
 		expect(results).toHaveLength(1);
 		expect(results[0]!.isError).toBe(false);
 		// todos_create returns the created TodoId: proof the verb ran in-process.
-		expect(typeof results[0]!.output).toBe('string');
+		expect(typeof results[0]!.content).toBe('string');
 		expect(messages.at(-1)!.parts).toContainEqual({
 			type: 'text',
 			text: 'Created your todo.',
@@ -142,7 +142,7 @@ describe('createSuperChatHost', () => {
 		const results = messages.flatMap((m) => toolResults(m.parts));
 		expect(results).toHaveLength(1);
 		expect(results[0]!.isError).toBe(false);
-		expect(results[0]!.output).toContain('Acme | 4200.00');
+		expect(results[0]!.content).toContain('Acme | 4200.00');
 	});
 
 	test('a second host over the same data dir reads the first host todos through the catalog', async () => {
@@ -177,7 +177,7 @@ describe('createSuperChatHost', () => {
 			new AbortController().signal,
 		);
 		expect(result.isError).toBe(false);
-		expect(result.output).toContainEqual(
+		expect(result.details).toContainEqual(
 			expect.objectContaining({ title: 'Survives restart' }),
 		);
 	});

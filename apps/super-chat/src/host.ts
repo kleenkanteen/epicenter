@@ -36,6 +36,12 @@ import {
 	createStdioMcpCatalog,
 	type StdioMcpCatalogOptions,
 } from './stdio-mcp-catalog.ts';
+export type {
+	ToolHost,
+	ToolModule,
+	ToolModuleResult,
+	ToolWorkspaces,
+} from './tool-module.ts';
 
 export type SuperChatHostOptions = {
 	/** The inference backend driving the loop (BYOK, local, or scripted). */
