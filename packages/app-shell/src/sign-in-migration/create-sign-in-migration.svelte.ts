@@ -29,6 +29,12 @@ import * as Y from 'yjs';
 /** Row type of a migratable table, inferred from its `scan()` shape. */
 type TableRows<T> = T extends { scan(): { rows: Array<infer R> } } ? R : never;
 
+/** Migratable table handle, including any per-row child-doc guid derivers. */
+type MigratableTable = {
+	scan(): { rows: Array<{ id: string }> };
+	docs: Record<string, { guid(rowId: string): string }>;
+};
+
 /** Owner-scoped storage coordinates for the child-doc merge. */
 type OwnerScope = Parameters<typeof attachLocalStorage>[1];
 
@@ -108,6 +114,17 @@ function copyTable<TRow extends { id: string }>(
 	}
 }
 
+/** Child-doc guids for every staged row, derived from the source schema. */
+function deriveChildGuids<TTables extends Record<string, MigratableTable>>(
+	tables: TTables,
+): string[] {
+	return Object.values(tables).flatMap((table) =>
+		Object.values(table.docs).flatMap((field) =>
+			table.scan().rows.map((row) => field.guid(row.id)),
+		),
+	);
+}
+
 /**
  * Build the flag-free sign-in migration state for one app.
  *
@@ -122,9 +139,13 @@ function copyTable<TRow extends { id: string }>(
  * Every table on the source is copied; a source table missing from the
  * target throws loudly rather than dropping data silently (unreachable when
  * both sides come from the same app factory, which is the contract).
+ *
+ * Per-row child docs are derived from the source tables' `.docs` namespace.
+ * To exclude a table and its child docs from migration, leave the table out
+ * of `openLocalSource()`'s returned subset.
  */
 export function createSignInMigration<
-	TTables extends Record<string, { scan(): { rows: Array<{ id: string }> } }>,
+	TTables extends Record<string, MigratableTable>,
 >({
 	auth,
 	openLocalSource,
@@ -132,7 +153,6 @@ export function createSignInMigration<
 	describe,
 	note,
 	errorNoun = 'local data',
-	childDocs,
 }: {
 	/** The app's auth client; only the boot status gates the probe. */
 	auth: AuthClient;
@@ -159,20 +179,6 @@ export function createSignInMigration<
 	note?: (counts: MigrationCounts) => string | undefined;
 	/** Noun for the error toasts, e.g. "recordings". */
 	errorNoun?: string;
-	/**
-	 * Per-row child docs staged in the bare local doc (note bodies, chat
-	 * messages). The kit owns the crash-safety ordering: Add merges child
-	 * content into owner-scoped storage FIRST (idempotent CRDT merge, so a
-	 * crash re-prompts and a retry re-runs safely), then copies rows and
-	 * clears the bare root, then best-effort deletes the bare child copies;
-	 * Delete clears bare children FIRST, then the root, so a crash in between
-	 * leaves the rows intact and the deletion converges on retry. Omit for a
-	 * rows-only workspace.
-	 */
-	childDocs?: {
-		/** Child-doc guids for every staged row, read from an open local source. */
-		guids: (tables: TTables) => string[];
-	};
 }): SignInMigrationState {
 	const MigrationError = defineErrors({
 		AddFailed: ({ cause }: { cause: unknown }) => ({
@@ -233,11 +239,10 @@ export function createSignInMigration<
 
 	/** Child-doc guids for every staged row, via a throwaway local source. */
 	async function readChildGuids(): Promise<string[]> {
-		if (!childDocs) return [];
 		const source = openLocalSource();
 		try {
 			await source.whenLoaded;
-			return childDocs.guids(source.tables);
+			return deriveChildGuids(source.tables);
 		} finally {
 			source.dispose();
 		}
@@ -321,22 +326,22 @@ export function createSignInMigration<
 			phase = 'adding';
 
 			let childGuids: string[] = [];
-			if (childDocs) {
-				const { error } = await tryAsync({
-					try: async () => {
-						childGuids = await readChildGuids();
+			const { error: childError } = await tryAsync({
+				try: async () => {
+					childGuids = await readChildGuids();
+					if (childGuids.length > 0) {
 						const scope = ownerScope();
 						for (const guid of childGuids) {
 							await mergeBareDocIntoOwner(guid, scope);
 						}
-					},
-					catch: (cause) => MigrationError.AddFailed({ cause }),
-				});
-				if (error) {
-					phase = 'idle';
-					toastOnError(error, error.message);
-					return;
-				}
+					}
+				},
+				catch: (cause) => MigrationError.AddFailed({ cause }),
+			});
+			if (childError) {
+				phase = 'idle';
+				toastOnError(childError, childError.message);
+				return;
 			}
 
 			const { error } = await tryAsync({
@@ -383,11 +388,9 @@ export function createSignInMigration<
 			phase = 'deleting';
 			const { error } = await tryAsync({
 				try: async () => {
-					if (childDocs) {
-						const guids = await readChildGuids();
-						for (const guid of guids) {
-							await clearBareDoc(guid);
-						}
+					const guids = await readChildGuids();
+					for (const guid of guids) {
+						await clearBareDoc(guid);
 					}
 					const source = openLocalSource();
 					try {

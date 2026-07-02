@@ -18,7 +18,8 @@
 		"./workspace-gate": "./src/workspace-gate/index.ts"
 	},
 	"scripts": {
-		"typecheck": "svelte-check --tsconfig ./tsconfig.json"
+		"typecheck": "svelte-check --tsconfig ./tsconfig.json",
+		"test": "bun test"
 	},
 	"dependencies": {
 		"@epicenter/auth": "workspace:*",
@@ -35,7 +36,10 @@
 		"yjs": "catalog:"
 	},
 	"devDependencies": {
+		"@epicenter/field": "workspace:*",
+		"@epicenter/identity": "workspace:*",
 		"@types/bun": "catalog:",
+		"fake-indexeddb": "^6.2.5",
 		"svelte": "catalog:",
 		"svelte-check": "catalog:",
 		"typescript": "catalog:"

@@ -1,8 +1,8 @@
 /**
  * Vocab's wiring of the shared first-sign-in migration
  * (`@epicenter/app-shell/sign-in-migration`): the local-source opener and the
- * words are app-side; the probe / Add / Delete / Keep mechanics, including
- * the crash-safe message-doc phases, are the kit's (`childDocs`).
+ * words are app-side; the probe, Add, Delete, Keep, and derived child-doc
+ * phases are the kit's.
  */
 
 import { createSignInMigration } from '@epicenter/app-shell/sign-in-migration';
@@ -44,12 +44,4 @@ export const signInMigration = createSignInMigration({
 	target: vocab,
 	describe: describeLocalContents,
 	errorNoun: 'conversations',
-	childDocs: {
-		// A conversation's transcript lives in its own per-row Y.Doc; the kit
-		// merges these into owner storage before the row copy.
-		guids: (tables) =>
-			tables.conversations
-				.scan()
-				.rows.map((row) => tables.conversations.docs.messages.guid(row.id)),
-	},
 });
