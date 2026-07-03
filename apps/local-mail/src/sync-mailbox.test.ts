@@ -516,10 +516,10 @@ describe('syncMailbox: INCREMENTAL', () => {
 		cleanup();
 	});
 
-	test('labelsAdded patches labelIds without a messages.get call', async () => {
+	test('a label change on a mirrored message patches labelIds without a messages.get call', async () => {
 		const { db, cleanup } = seededDb();
 		const client = createFakeGmailClient({
-			mailbox: new Map(), // empty: a fetch here would 404, proving no fetch happens
+			mailbox: new Map(), // empty: a fetch here would 404 and evict the row
 			historyPages: [
 				{
 					historyId: '502',
@@ -550,12 +550,105 @@ describe('syncMailbox: INCREMENTAL', () => {
 
 		expect(outcome.failure).toBeNull();
 		expect(outcome.labelsPatched).toBe(1);
+		expect(client.calls.getMessage()).toBe(0);
 		const row = db.raw
 			.query<{ label_ids: string }, [string]>(
 				`SELECT label_ids FROM messages WHERE id = ?`,
 			)
 			.get('existing');
 		expect(JSON.parse(row?.label_ids ?? '[]')).toEqual(['INBOX', 'IMPORTANT']);
+		cleanup();
+	});
+
+	test('labelsRemoved for an unmirrored message refetches it (untrash after a full-pull sweep)', async () => {
+		const { db, cleanup } = seededDb();
+		const mailbox = new Map([
+			['untrashed', message('untrashed', { labelIds: ['INBOX'] })],
+		]);
+		const client = createFakeGmailClient({
+			mailbox,
+			historyPages: [
+				{
+					historyId: '504',
+					history: [
+						{
+							id: 'h1',
+							labelsRemoved: [
+								{
+									message: {
+										id: 'untrashed',
+										threadId: 't-untrashed',
+										labelIds: ['INBOX'],
+									},
+									labelIds: ['TRASH'],
+								},
+							],
+						},
+					],
+				},
+			],
+			profileHistoryId: '999',
+		});
+
+		const outcome = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-06-30T01:00:00.000Z') },
+			{ forceFull: false },
+		);
+
+		expect(outcome.failure).toBeNull();
+		expect(client.calls.getMessage()).toBe(1);
+		expect(outcome.messagesUpserted).toBe(1);
+		expect(outcome.cursorAfter).toBe('504');
+		const row = db.raw
+			.query<{ subject: string | null }, [string]>(
+				`SELECT subject FROM messages WHERE id = ?`,
+			)
+			.get('untrashed');
+		expect(row?.subject).toBe('Subject untrashed');
+		cleanup();
+	});
+
+	test('a refetch for an unmirrored label patch that 404s leaves no row and still advances the cursor', async () => {
+		const { db, cleanup } = seededDb();
+		const client = createFakeGmailClient({
+			mailbox: new Map(), // getMessage 404s: gone again before we fetched
+			historyPages: [
+				{
+					historyId: '504',
+					history: [
+						{
+							id: 'h1',
+							labelsRemoved: [
+								{
+									message: {
+										id: 'gone',
+										threadId: 't-gone',
+										labelIds: ['INBOX'],
+									},
+									labelIds: ['TRASH'],
+								},
+							],
+						},
+					],
+				},
+			],
+			profileHistoryId: '999',
+		});
+
+		const outcome = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-06-30T01:00:00.000Z') },
+			{ forceFull: false },
+		);
+
+		expect(outcome.failure).toBeNull();
+		expect(client.calls.getMessage()).toBe(1);
+		expect(outcome.cursorAfter).toBe('504');
+		const row = db.raw
+			.query<{ n: number }, []>(
+				`SELECT count(*) AS n FROM messages WHERE id = 'gone'`,
+			)
+			.get();
+		expect(row?.n).toBe(0);
 		cleanup();
 	});
 

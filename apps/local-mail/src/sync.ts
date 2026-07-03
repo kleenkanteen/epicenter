@@ -282,24 +282,29 @@ async function incrementalPoll(
 	for (const [id, action] of actions) {
 		if (action.kind === 'delete') {
 			messagesToDelete.push(id);
-		} else if (action.kind === 'labelPatch') {
-			labelPatches.push({ messageId: id, labelIds: action.labelIds });
-		} else {
-			const fetched = await client.getMessage(id);
-			if (fetched.error) {
-				if (fetched.error.name === 'Http' && fetched.error.status === 404) {
-					messagesToDelete.push(id);
-					continue;
-				}
-				return failedOutcome(
-					'INCREMENTAL',
-					'messages.get failed while resolving an added message',
-					cursorBefore,
-					fetched.error,
-				);
-			}
-			messagesToUpsert.push(fetched.data);
+			continue;
 		}
+		if (action.kind === 'labelPatch' && db.hasMessage(id)) {
+			labelPatches.push({ messageId: id, labelIds: action.labelIds });
+			continue;
+		}
+		// An upsert, or a label patch aimed at a row the mirror lacks: full
+		// pulls exclude SPAM/TRASH, so the sweep can evict a row that a later
+		// patch targets (untrash), and refetching converges the mirror.
+		const fetched = await client.getMessage(id);
+		if (fetched.error) {
+			if (fetched.error.name === 'Http' && fetched.error.status === 404) {
+				messagesToDelete.push(id);
+				continue;
+			}
+			return failedOutcome(
+				'INCREMENTAL',
+				'messages.get failed while resolving an added message',
+				cursorBefore,
+				fetched.error,
+			);
+		}
+		messagesToUpsert.push(fetched.data);
 	}
 
 	const labels = await client.listLabels();

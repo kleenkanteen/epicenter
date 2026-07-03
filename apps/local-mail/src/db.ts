@@ -242,6 +242,9 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 	const getMessageRawStmt = db.query<{ raw: string }, [string]>(
 		`SELECT raw FROM messages WHERE id = ?`,
 	);
+	const hasMessageStmt = db.query<{ 1: number }, [string]>(
+		`SELECT 1 FROM messages WHERE id = ?`,
+	);
 	const patchMessageLabelsStmt = db.query(
 		`UPDATE messages SET raw = ?, synced_at = ? WHERE id = ?`,
 	);
@@ -292,6 +295,11 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 		raw: db,
 
 		readRealmState,
+
+		/** Whether a message row is mirrored; sync uses this to detect label patches aimed at unmirrored rows. */
+		hasMessage(id: string): boolean {
+			return hasMessageStmt.get(id) !== null;
+		},
 
 		counts(): { messages: number; labels: number } {
 			return {
@@ -357,10 +365,10 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 		 * snapshot (that's what `labelsAdded`/`labelsRemoved` records give us),
 		 * so it patches the existing row's `raw.labelIds` in place rather than
 		 * replacing the row; a patch for a message not yet mirrored is silently
-		 * skipped, since that message either arrived via the same or an earlier
-		 * `messagesAdded` record, or predates this mirror's cursor and was
-		 * already created by the last FULL pull, either way something else is
-		 * responsible for creating the row, never this patch.
+		 * skipped, but only as a residual guard: sync pre-resolves patches
+		 * aimed at unmirrored rows into full refetches (`hasMessage`), so a
+		 * miss here means the message changed mid-pass and the next pass
+		 * converges.
 		 */
 		applyHistoryBatch({
 			messagesToUpsert,
