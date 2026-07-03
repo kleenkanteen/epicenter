@@ -10,7 +10,7 @@
  * Defined once here because the logic is identical on every platform: the
  * `#platform/download` seam absorbs the only difference. It is not a pure
  * workspace action (it reaches the download capability), so it lives beside the
- * env factories rather than in the iso `createWhispering`.
+ * env factories rather than in the iso `defineWhispering`.
  */
 
 import { defineMutation, type Table } from '@epicenter/workspace';

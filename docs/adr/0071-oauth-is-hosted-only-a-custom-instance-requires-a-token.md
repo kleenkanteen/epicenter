@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-06-25
-- **Relates:** [ADR-0070](0070-self-host-adds-no-new-ownership-or-auth-mode.md) (self-host's credential source is the first-boot bearer; this sharpens it at the client), [ADR-0069](0069-epicenter-is-one-runnable-star-plus-services-called-by-url-and-token.md) (the star is the deployment; the instance setting picks which star), [ADR-0053](0053-the-epicenter-bearer-is-an-audience-scoped-credential.md) (the bearer is attached only to the origin that signed in), [ADR-0067](0067-auth-owns-the-session-endpoint-the-data-client-is-owner-scoped.md) (auth owns `/api/session`).
+- **Relates:** [ADR-0070](0070-self-host-adds-no-new-ownership-or-auth-mode.md) (self-host's credential source is the first-boot bearer; this sharpens it at the client), [ADR-0069](0069-epicenter-is-one-runnable-star-plus-services-called-by-url-and-token.md) (the star is the deployment; the instance setting picks which star), [ADR-0053](0053-the-epicenter-bearer-is-an-audience-scoped-credential.md) (the bearer is attached only to the origin that signed in), [ADR-0067](0067-auth-owns-the-session-endpoint-the-data-client-is-owner-scoped.md) (auth owns `/api/session`), [ADR-0092](0092-identity-is-the-partition.md) (custom instance tokens resolve the `instance` principal).
 
 ## Context
 

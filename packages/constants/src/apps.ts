@@ -28,7 +28,6 @@ export const APPS = {
 	API: { port: 8787, url: PRODUCTION_API_URL },
 	SH: { port: 5173, url: 'https://epicenter.sh' },
 	WHISPERING: { port: 1420, url: 'https://whispering.epicenter.so' },
-	FUJI: { port: 5174, url: 'https://fuji.epicenter.so' },
 	HONEYCRISP: { port: 5175, url: 'https://honeycrisp.epicenter.so' },
 	OPENSIDIAN: {
 		port: 5176,
@@ -40,6 +39,17 @@ export const APPS = {
 } as const;
 
 export type AppId = keyof typeof APPS;
+
+/**
+ * Dev listen port for the apps/api Bun runtime (`apps/api/server.ts`,
+ * ADR-0066): the off-Cloudflare twin of the wrangler dev server on
+ * {@link APPS.API.port} (8787). The two are deliberately one apart so the
+ * runtime-parity smoke can run both backends at once (`apps/api/scripts/smoke.ts`
+ * targets :8788 and :8787). An operator overrides it with `PORT`; this is only
+ * the unset-`PORT` default. It is not an app origin (never a CORS or OAuth
+ * target), so it lives beside {@link APPS} rather than as a field inside it.
+ */
+export const API_BUN_DEV_PORT = 8788;
 
 /**
  * Local dev URL for an app, derived from its `port`. Single owner for the

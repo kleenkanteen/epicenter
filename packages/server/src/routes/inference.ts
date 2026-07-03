@@ -14,10 +14,10 @@
  * It never executes a tool and keeps no transcript: a stateless inference turn
  * (ADR-0049).
  *
- * This is library-side and billing-agnostic. Auth, ownership, and any credit
+ * This is library-side and billing-agnostic. Auth and any credit
  * policy are supplied by the deployment through {@link mountInferenceApp}:
- * apps/api passes its Autumn metering policy, a self-hosted shared-wiki
- * deployment passes none. The gateway is house-key-only: it accepts no provider
+ * apps/api passes its Autumn metering policy, a self-hosted instance passes none.
+ * The gateway is house-key-only: it accepts no provider
  * key in the body, so it provably never receives a user's key (ADR-0054). BYOK is
  * a custom client backend (your own URL and key), never the Epicenter gateway.
  *
@@ -45,8 +45,6 @@ import { Hono, type MiddlewareHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { describeRoute } from 'hono-openapi';
 import { extractErrorMessage } from 'wellcrafted/error';
-import { createRequireOwnership } from '../middleware/require-ownership.js';
-import type { OwnershipRule } from '../ownership.js';
 import type { Env } from '../types.js';
 
 /**
@@ -182,28 +180,20 @@ const inferenceApp = new Hono<Env>().post(
 /**
  * Mount the OpenAI-compatible inference gateway on a deployment's server app.
  *
- * Like the other mount primitives, it bundles the deployment's auth, its
- * ownership rule (admission, gating a house-key spend behind membership in
- * shared mode),
- * and any deployment policies (apps/api passes its Autumn metering policy; a
- * self-hosted shared-wiki deployment passes none). The library stays
- * billing-agnostic; policies are opaque middleware that run after auth and
- * ownership and may short-circuit (e.g. 402) before the gateway streams.
+ * Like the other mount primitives, it bundles the deployment's auth and any
+ * deployment policies (apps/api passes its Autumn metering policy; a self-hosted
+ * instance passes none). The library stays billing-agnostic; policies are opaque
+ * middleware that run after auth and may short-circuit (e.g. 402) before the
+ * gateway streams.
  */
-export function mountInferenceApp(
-	app: Hono<Env>,
+export function mountInferenceApp<E extends Env = Env>(
+	app: Hono<E>,
 	opts: {
-		auth: MiddlewareHandler;
-		ownership: OwnershipRule;
-		policies?: MiddlewareHandler[];
+		auth: MiddlewareHandler<E>;
+		policies?: MiddlewareHandler<E>[];
 	},
 ): void {
 	const policies = opts.policies ?? [];
-	app.use(
-		API_ROUTES.ai.completions.prefixPattern,
-		opts.auth,
-		createRequireOwnership(opts.ownership),
-		...policies,
-	);
+	app.use(API_ROUTES.ai.completions.prefixPattern, opts.auth, ...policies);
 	app.route('/', inferenceApp);
 }

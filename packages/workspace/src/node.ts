@@ -18,12 +18,12 @@ export {
 	WorkspaceAppError,
 	type WorkspaceAuthClient,
 } from './config/open-epicenter-root.js';
-export {
-	type PeerSyncStatus,
-	RunError,
-} from './daemon/action-errors.js';
+export { RunError } from './daemon/action-errors.js';
 export type { DaemonListSnapshot } from './daemon/app.js';
-export { PeerSnapshot, RunRequest } from './daemon/app.js';
+export {
+	PeerSnapshot,
+	RunRequest,
+} from './daemon/app.js';
 export {
 	type AttachMountInfrastructureOptions,
 	attachMountInfrastructure,
@@ -79,10 +79,7 @@ export {
 	startDaemonServer,
 } from './daemon/server.js';
 export { StartupError } from './daemon/startup-errors.js';
-export type {
-	DaemonRuntime,
-	StartedMount,
-} from './daemon/types.js';
+export type { DaemonRuntime, StartedMount } from './daemon/types.js';
 export {
 	attachYjsLog,
 	type YjsLogAttachment,
@@ -91,6 +88,10 @@ export {
 	attachYjsLogReader,
 	type YjsLogReaderAttachment,
 } from './document/attach-yjs-log-reader.js';
+export {
+	type BunLocalPersistenceOptions,
+	bunLocalPersistence,
+} from './document/bun-local-persistence.js';
 export {
 	type OpenSqliteReaderOptions,
 	openSqliteReader,

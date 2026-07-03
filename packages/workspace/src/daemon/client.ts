@@ -31,9 +31,9 @@ import { socketPathFor } from './paths.js';
 
 /**
  * Tagged-error variants returned by daemon client surfaces. Domain errors
- * (UsageError, RemoteCallFailed, etc.) live alongside these in a merged union so
- * call sites narrow once on `result.error.name`. No class hierarchy, no
- * throwing across the seam.
+ * (UsageError, RuntimeError) live alongside these in a merged union so call
+ * sites narrow once on `result.error.name`. No class hierarchy, no throwing
+ * across the seam.
  *
  * - `Required`: no daemon is running for this directory; user must `daemon up`.
  * - `Timeout`: the per-call AbortSignal fired before the daemon answered.
@@ -185,10 +185,11 @@ export type DaemonClient = ReturnType<typeof daemonClient>;
  */
 export async function getDaemon(
 	epicenterRoot: string,
+	timeoutMs?: number,
 ): Promise<Result<DaemonClient, DaemonError>> {
 	const sock = socketPathFor(epicenterRoot);
 	if (!(await pingDaemon(sock))) {
 		return DaemonError.Required({ epicenterRoot });
 	}
-	return Ok(daemonClient(sock));
+	return Ok(daemonClient(sock, timeoutMs));
 }

@@ -1,13 +1,13 @@
 import { field, InstantString } from '@epicenter/field';
 import {
-	createWorkspace,
 	defineActions,
 	defineMutation,
+	defineQuery,
 	defineTable,
+	defineWorkspace,
 	generateId,
 	type InferTableRow,
 	nullable,
-	satisfiesWorkspace,
 } from '@epicenter/workspace';
 import Type from 'typebox';
 import type { Brand } from 'wellcrafted/brand';
@@ -70,17 +70,18 @@ function normalizeContextSlugs(slugs: readonly string[]): ContextSlug[] {
 	return [...unique];
 }
 
-export function createTodos() {
-	const workspace = createWorkspace({
-		id: TODOS_ID,
-		tables: { todos: todosTable },
-		kv: {},
-	});
-	const { tables } = workspace;
-
-	return satisfiesWorkspace({
-		...workspace,
-		actions: defineActions({
+export const todosWorkspace = defineWorkspace({
+	id: TODOS_ID,
+	name: 'Todos',
+	tables: { todos: todosTable },
+	kv: {},
+	actions({ tables }) {
+		return defineActions({
+			todos_list: defineQuery({
+				description: 'List todos',
+				handler: () =>
+					tables.todos.scan().rows.filter((todo) => todo.deletedAt === null),
+			}),
 			todos_create: defineMutation({
 				description: 'Create a todo',
 				input: Type.Object({
@@ -125,6 +126,6 @@ export function createTodos() {
 					tables.todos.update(input.id, { deletedAt: InstantString.now() });
 				},
 			}),
-		}),
-	});
-}
+		});
+	},
+});

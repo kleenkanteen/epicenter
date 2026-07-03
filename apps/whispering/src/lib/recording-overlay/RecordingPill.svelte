@@ -7,12 +7,12 @@
 	import SquareIcon from '@lucide/svelte/icons/square';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
-	import LevelMeter from '$lib/components/LevelMeter.svelte';
 	import type { DeliveryReach } from '$lib/operations/delivery';
 	import {
 		FAILURE_LABEL,
 		type RecordingOverlayStatus,
 	} from '$lib/recording-overlay/events';
+	import LevelMeter from '$lib/recording-overlay/LevelMeter.svelte';
 	import VadIndicator from '$lib/recording-overlay/VadIndicator.svelte';
 
 	// The floating dictation pill, presentational and platform-free. It renders
@@ -189,17 +189,12 @@
 				{:else}
 					<!-- VAD has no per-utterance cancel, so the slot holds the capture
 					     indicator at the cancel button's width, keeping the cluster
-					     balanced. The same dim-dot -> lit-dot -> spinner the home capture
-					     card shows: the bars track raw level, this mark tracks whether VAD
-					     has latched onto speech (with its detection delay) and then the
-					     previous phrase's transcribe. -->
+					     balanced. The dim-dot -> lit-dot -> spinner mark: the bars track
+					     raw level, this mark tracks whether VAD has latched onto speech
+					     (with its detection delay) and then the previous phrase's
+					     transcribe. -->
 					<div class="flex size-6 items-center justify-center">
-						<VadIndicator
-							signals={recording}
-							dimClass="bg-white/40"
-							litClass="bg-pink-300"
-							spinnerClass="text-white/50"
-						/>
+						<VadIndicator signals={recording} />
 					</div>
 				{/if}
 

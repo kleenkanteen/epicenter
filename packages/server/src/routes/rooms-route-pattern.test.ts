@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
 import { ROOM_ROUTE } from '@epicenter/sync';
 import { Hono } from 'hono';
 
@@ -17,12 +16,10 @@ describe('rooms route pattern', () => {
 	test('room url() round-trips through the route pattern for workspace and child-doc guids', async () => {
 		const app = new Hono().get(ROOM_ROUTE.pattern, (c) =>
 			c.json({
-				ownerId: c.req.param('ownerId'),
 				roomId: c.req.param('roomId'),
 			}),
 		);
 
-		const ownerId = asOwnerId('user-1');
 		const guids = [
 			// Hyphenated workspace root id.
 			'epicenter-fuji',
@@ -31,16 +28,17 @@ describe('rooms route pattern', () => {
 		];
 
 		for (const guid of guids) {
-			const url = ROOM_ROUTE.url('https://x', ownerId, guid);
+			const url = ROOM_ROUTE.url('https://x', guid);
 			const res = await app.request(url);
 
 			expect(res.status).toBe(200);
 			const body = (await res.json()) as {
-				ownerId: string;
 				roomId: string;
 			};
 			expect(body.roomId).toBe(guid);
-			expect(body.ownerId).toBe('user-1');
+			expect(new URL(url).pathname).toBe(
+				`/api/rooms/${encodeURIComponent(guid)}`,
+			);
 		}
 	});
 });

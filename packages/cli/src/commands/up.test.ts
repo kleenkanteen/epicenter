@@ -29,9 +29,9 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { asUserId, type SyncAuthClient } from '@epicenter/auth';
+import type { SyncAuthClient } from '@epicenter/auth';
 import { MachineAuthStorageError } from '@epicenter/auth/node';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import {
 	claimDaemonLease,
 	daemonClient,
@@ -47,14 +47,14 @@ import { runUp } from './up.js';
 const STUB_AUTH = {
 	state: {
 		status: 'signed-in',
-		ownerId: asOwnerId('user-1'),
+		principalId: asPrincipalId('user-1'),
 	},
 	baseURL: 'http://localhost:8787',
 	onStateChange: () => () => {},
 	startSignIn: async () => Ok(undefined),
 	signOut: async () => Ok(undefined),
 	getProfile: async () =>
-		Ok({ id: asUserId('user-1'), email: 'user-1@example.com' }),
+		Ok({ id: asPrincipalId('user-1'), email: 'user-1@example.com' }),
 	fetch: async () => new Response(null, { status: 404 }),
 	openWebSocket: async () => {
 		throw new Error('STUB_AUTH: openWebSocket not implemented');
@@ -158,9 +158,6 @@ function writeRuntimeMount({
 			peers: {
 				list: () => [],
 				subscribe: () => () => {},
-			},
-			dispatch: async () => {
-				throw new Error('fixture does not dispatch');
 			},
 		};
 

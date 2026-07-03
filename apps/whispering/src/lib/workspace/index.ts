@@ -1,5 +1,5 @@
 export {
-	createWhispering,
+	defineWhispering,
 	type Recording,
 	type Replacement,
 	type Transformation,

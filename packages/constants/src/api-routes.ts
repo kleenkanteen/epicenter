@@ -1,5 +1,3 @@
-import type { OwnerId } from '@epicenter/identity';
-
 /**
  * Wire URL paths and Hono route patterns for the Epicenter API.
  *
@@ -16,8 +14,7 @@ import type { OwnerId } from '@epicenter/identity';
  *                      from typed inputs. All path parameters are
  *                      `encodeURIComponent`-encoded.
  *
- * URL values here MUST match what production clients hit today. This
- * module moves declarations; it does not change wire shape.
+ * URL values here are the public API contract.
  *
  * @example
  * ```ts
@@ -27,7 +24,7 @@ import type { OwnerId } from '@epicenter/identity';
  *   .get(API_ROUTES.session.pattern, handler);
  *
  * // Deployment middleware
- * app.use(API_ROUTES.ai.completions.prefixPattern, requireBearerUser, requireOwnership);
+ * app.use(API_ROUTES.ai.completions.prefixPattern, requireBearerPrincipal);
  *
  * // Client fetch
  * const res = await fetch(API_ROUTES.session.url(baseURL));
@@ -38,8 +35,7 @@ const stripTrailing = (s: string) => s.replace(/\/+$/, '');
 
 /**
  * 64-character lowercase-hex sha256. A blob's id IS its content address, so
- * the route param is constrained to a well-formed digest; this also keeps the
- * `:sha256` pattern disjoint from the literal `/usage` subpath.
+ * the route param is constrained to a well-formed digest.
  */
 export const SHA256_HEX_REGEX = '[a-f0-9]{64}';
 
@@ -51,24 +47,18 @@ export const API_ROUTES = {
 	/**
 	 * Content-addressed blob store. POST mints an upload ticket (presigned R2
 	 * PUT); GET on the collection lists; GET/DELETE by `:sha256` read/remove a
-	 * blob. R2 is the only index — there is no database row. See
-	 * `specs/20260623T220000-content-addressed-blob-store.md`.
+	 * blob. R2 is the only index: there is no database row. See
+	 * `docs/adr/0089-the-blob-store-is-a-presigned-s3-kernel-and-the-bucket-is-its-only-index.md`.
 	 */
 	blobs: {
 		list: {
-			pattern: '/api/owners/:ownerId/blobs',
-			url: (baseURL: string, ownerId: OwnerId) =>
-				`${stripTrailing(baseURL)}/api/owners/${encodeURIComponent(ownerId)}/blobs`,
-		},
-		usage: {
-			pattern: '/api/owners/:ownerId/blobs/usage',
-			url: (baseURL: string, ownerId: OwnerId) =>
-				`${stripTrailing(baseURL)}/api/owners/${encodeURIComponent(ownerId)}/blobs/usage`,
+			pattern: '/api/blobs',
+			url: (baseURL: string) => `${stripTrailing(baseURL)}/api/blobs`,
 		},
 		byHash: {
-			pattern: `/api/owners/:ownerId/blobs/:sha256{${SHA256_HEX_REGEX}}`,
-			url: (baseURL: string, ownerId: OwnerId, sha256: string) =>
-				`${stripTrailing(baseURL)}/api/owners/${encodeURIComponent(ownerId)}/blobs/${encodeURIComponent(sha256)}`,
+			pattern: `/api/blobs/:sha256{${SHA256_HEX_REGEX}}`,
+			url: (baseURL: string, sha256: string) =>
+				`${stripTrailing(baseURL)}/api/blobs/${encodeURIComponent(sha256)}`,
 		},
 	},
 	ai: {
@@ -77,14 +67,31 @@ export const API_ROUTES = {
 		 * `/v1` (the de-facto OpenAI path) so any OpenAI-compatible client points
 		 * at `<origin>/v1` and works unchanged. `baseUrl` is what the client engine
 		 * is configured with; it appends `/chat/completions`.
+		 *
+		 * `prefixPattern` is scoped to `/v1/chat/*`, not the whole `/v1/*` tree, so
+		 * the chat auth + metering middleware does not also wrap the sibling
+		 * `/v1/audio/transcriptions` gateway (which carries its own, different
+		 * metering). One Connection (`baseUrl` = `<origin>/v1`) drives both.
 		 */
 		completions: {
 			pattern: '/v1/chat/completions',
-			prefixPattern: '/v1/*',
+			prefixPattern: '/v1/chat/*',
 			url: (baseURL: string) => `${stripTrailing(baseURL)}/v1/chat/completions`,
 			baseUrl: (baseURL: string) => `${stripTrailing(baseURL)}/v1`,
+		},
+		/**
+		 * The OpenAI-compatible speech-to-text gateway (ADR-0050/0056). The STT
+		 * sibling of the chat gateway, on the same `<origin>/v1` Connection base:
+		 * `transcribe()` appends `/audio/transcriptions`. Scoped middleware lives
+		 * under `/v1/audio/*` so its metering never crosses into chat.
+		 */
+		transcriptions: {
+			pattern: '/v1/audio/transcriptions',
+			prefixPattern: '/v1/audio/*',
+			url: (baseURL: string) =>
+				`${stripTrailing(baseURL)}/v1/audio/transcriptions`,
 		},
 	},
 } as const;
 // The billing prefix (`/api/billing`) lives in apps/api/worker/billing/routes.ts:
-// it is hosted-only and self-hosted shared-wiki deployments never mount it.
+// it is hosted-only and the self-hosted single-partition instance never mounts it.

@@ -27,7 +27,7 @@
 		transcript: string;
 		/** Visible rows of the transcript preview before it scrolls/expands. */
 		rows?: number;
-		/** When provided, a delete button is shown below the preview. */
+		/** When provided, a delete button is shown at the end of the audio row. */
 		onDelete?: () => void;
 	} = $props();
 
@@ -49,23 +49,32 @@
 		{rows}
 		disabled={!transcript.trim()}
 	/>
-	{#if audioQuery.data}
-		<audio
-			style:view-transition-name={viewTransition.recording(recordingId).audio}
-			src={audioQuery.data}
-			controls
-			class="h-8 w-full"
-		></audio>
-	{/if}
-	{#if onDelete}
-		<Button
-			class="self-end"
-			variant="ghost-destructive"
-			size="sm"
-			onclick={onDelete}
-		>
-			<TrashIcon class="size-4" />
-			Delete
-		</Button>
+	<!-- Delete is a companion action on the audio row, mirroring the copy button
+	     on the transcript row above: content stretches, its action caps the row.
+	     Icon-only with a tooltip; the confirmation dialog carries the words. -->
+	{#if audioQuery.data || onDelete}
+		<div class="flex w-full items-center gap-2">
+			{#if audioQuery.data}
+				<audio
+					style:view-transition-name={viewTransition.recording(recordingId)
+						.audio}
+					src={audioQuery.data}
+					controls
+					class="h-8 min-w-0 flex-1"
+				></audio>
+			{/if}
+			{#if onDelete}
+				<Button
+					class="ml-auto"
+					variant="ghost-destructive"
+					size="icon-sm"
+					tooltip="Delete recording"
+					aria-label="Delete recording"
+					onclick={onDelete}
+				>
+					<TrashIcon class="size-4" />
+				</Button>
+			{/if}
+		</div>
 	{/if}
 </div>

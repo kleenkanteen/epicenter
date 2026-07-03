@@ -23,7 +23,7 @@ function createSettings() {
 
 	// Initialize SvelteMap with current values for ALL KV keys.
 	// kv.get() always returns a valid value (stored value or defaultValue).
-	for (const key of whispering.settings.keys) {
+	for (const key of whispering.kv.keys) {
 		map.set(key, whispering.kv.get(key));
 	}
 
@@ -60,13 +60,13 @@ function createSettings() {
 		 * Reads straight from the KV schema, so the schema stays the single source
 		 * of defaults; callers never redeclare them.
 		 */
-		getDefault: whispering.settings.getDefault,
+		getDefault: whispering.kv.getDefault,
 
 		/**
-		 * Reset all workspace settings to their default values in a single
-		 * Yjs transaction.
+		 * Reset all workspace settings to their default values in one batch
+		 * (one observer firing, not one per key).
 		 */
-		reset: whispering.settings.reset,
+		reset: whispering.kv.reset,
 	};
 }
 

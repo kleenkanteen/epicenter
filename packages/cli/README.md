@@ -1,6 +1,6 @@
 # @epicenter/cli
 
-> Introspect and invoke `defineQuery` / `defineMutation` actions exposed by the configured mount, locally or on a currently online peer.
+> Introspect and invoke `defineQuery` / `defineMutation` actions exposed by the configured mount.
 
 Each verb is a one-line shell shortcut for one workspace primitive:
 
@@ -10,7 +10,6 @@ Each verb is a one-line shell shortcut for one workspace primitive:
                  +------------+---------------------------------------------+
    Enumerate     | list       | Object.entries(runtime.actions)             |
    Invoke        | run        | local daemon invoke                         |
-   Dispatch      | run --peer | relay dispatch to a live peer               |
    Presence      | peers      | collaboration.peers.list()                  |
                  +------------+---------------------------------------------+
 
@@ -50,7 +49,6 @@ epicenter list -C ~/workspace
 epicenter list entries_update -C ~/workspace
 
 epicenter run entries_update '{"id":"entry_1","tags":["triaged"]}' -C ~/workspace
-epicenter run entries_update '{"id":"entry_1","tags":["triaged"]}' --peer user-1 -C ~/workspace
 
 epicenter peers -C ~/workspace
 ```
@@ -64,9 +62,8 @@ epicenter peers -C ~/workspace
 | Code | `run` | `list`, `peers` |
 | --- | --- | --- |
 | `0` | success | success |
-| `1` | usage error (unknown action, action input that fails the action's schema, bad `--peer` input) or no daemon running | any failure (no daemon, bad arguments) |
-| `2` | runtime error: the local action returned `Err`, or the remote RPC failed | (not used) |
-| `3` | peer not found: `--peer <target>` did not resolve within `--wait` | (not used) |
+| `1` | usage error (unknown action, action input that fails the action's schema) or no daemon running | any failure (no daemon, bad arguments) |
+| `2` | runtime error: the local action returned `Err` | (not used) |
 
 `daemon up` exits `1` on startup failure (already running, bad config, auth) and `0` on clean shutdown. `daemon down`, `ps`, and `logs` exit `0`: a missing daemon or an empty log is reported, not treated as an error.
 
@@ -77,21 +74,21 @@ Error text goes to stderr; machine-readable output (`--format json|jsonl`, table
 `epicenter.config.ts` marks the Epicenter root and declares its mount. One folder is one app is one mount: the default export is a single `Mount`. App packages ship mount factories that return `Mount` values; `Mount.name` is the display label `epicenter list` prints as its header. The folder that holds `epicenter.config.ts` is your Epicenter folder: Epicenter owns its direct children, so the mount's visible markdown projection is a direct child folder.
 
 ```ts
-import { fuji } from "@epicenter/fuji/mount";
+import notes from "./workspaces/notes/mount";
 
-export default fuji();
+export default notes;
 ```
 
-The returned `Mount.name` is `fuji`, so `epicenter list` prints `fuji` as its header regardless of the Epicenter folder name. Actions are addressed by their bare key (`epicenter run entries_update`): the daemon serves one mount, so the key alone is unambiguous.
+The default-exported `Mount.name` is `notes`, so `epicenter list` prints `notes` as its header regardless of the Epicenter folder name. Actions are addressed by their bare key (`epicenter run notes_update`): the daemon serves one mount, so the key alone is unambiguous.
 
 The folder that holds `epicenter.config.ts` is your Epicenter folder. `.epicenter/` and the generated projection are direct children:
 
 ```
 repo/                      unreserved repo root
-└── fuji/                  Epicenter root (folder name is your choice)
+└── my-notes/               Epicenter root (folder name is your choice)
     ├── epicenter.config.ts   tracked, marks the Epicenter root
     ├── .epicenter/           ignored, machine state for this root
-    └── entries/              generated Markdown projection (one folder per table)
+    └── notes/                generated Markdown projection (one folder per table)
 ```
 
 Put `epicenter.config.ts` in a folder dedicated to one app. The marker is the config file, not the folder name. Run several apps by giving each its own folder, each its own root.
@@ -121,11 +118,11 @@ Use scripts for anything beyond one-shot CLI calls:
 
 ```ts
 import { connectDaemonActions } from "@epicenter/workspace/node";
-import type { FujiActions } from "@epicenter/fuji";
+import type { NotesActions } from "./workspaces/notes/actions";
 
-const fuji = await connectDaemonActions<FujiActions>();
+const notes = await connectDaemonActions<NotesActions>();
 
-await fuji.entries_update({ id, tags: ["triaged"] });
+await notes.notes_update({ id, pinned: false });
 ```
 
 Scripts get normal TypeScript control flow. The CLI stays small: list, run, peers, and daemon lifecycle.

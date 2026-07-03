@@ -22,11 +22,10 @@
  * resolver: `Object.entries(actions)` is the iterator, `actions[key]` is
  * the lookup.
  *
- * Local callers use `invokeAction`, which Ok-wraps raw values, preserves
- * existing Results, and catches throws as `Err(cause)`. The dispatch wire
- * boundary (`runInboundDispatch` in `document/dispatch.ts`) calls `invokeAction`
- * and wraps its error into `DispatchError.ActionFailed` before the response
- * crosses the wire.
+ * Callers use `invokeAction`, which Ok-wraps raw values, preserves existing
+ * Results, and catches throws as `Err(cause)`. A cross-device MCP route that
+ * projects these actions (e.g. `apps/local-books mcp`) maps that `Err` to an
+ * `isError` tool result before it crosses the wire.
  *
  * @module
  */
@@ -123,16 +122,14 @@ export type ActionMeta<
 };
 
 /**
- * Wire schema for {@link ActionMeta}. Defines the single source of truth for
- * the metadata-only projection that crosses the wire (presence frame node
- * manifests, daemon `/list` route, etc.). The `input` field is `Type.Object()`
- * with additional properties allowed because the node's local input schema
- * is itself a TypeBox/JSON Schema object; the wire validator only confirms
- * shape, not the inner schema's semantics.
+ * Schema for {@link ActionMeta}. Defines the single source of truth for the
+ * metadata-only projection used by daemon `/list` and AI tool catalog
+ * conversion. The `input` field is `Type.Object()` with additional properties
+ * allowed because the node's local input schema is itself a TypeBox/JSON Schema
+ * object; the validator only confirms shape, not the inner schema's semantics.
  *
  * `Static<typeof ActionMetaSchema>` collapses the parameterized in-process
- * {@link ActionMeta} to its wire form (`input?: object`), which is the shape
- * the receiver actually sees over the WebSocket.
+ * {@link ActionMeta} to its metadata form (`input?: object`).
  */
 export const ActionMetaSchema = Type.Object({
 	type: Type.Enum(['query', 'mutation']),
@@ -145,8 +142,8 @@ export const ActionMetaSchema = Type.Object({
 
 /**
  * Flat snake_case key to `ActionMeta` map. The metadata-only projection of an
- * `ActionRegistry`, suitable for surfaces that cannot carry callable handlers
- * (e.g. the daemon `/list` route).
+ * `ActionRegistry`, suitable for surfaces that cannot carry callable handlers,
+ * such as the daemon `/list` route.
  */
 export type ActionManifest = Record<string, ActionMeta>;
 
@@ -155,8 +152,8 @@ export type ActionManifest = Record<string, ActionMeta>;
  * properties attached. Queries are idempotent reads; mutations write. The
  * `type` discriminant lives on the value, so the type stays a single union
  * rather than three named aliases. The local callable shape IS the handler's
- * signature (sync stays sync, raw stays raw); the RPC boundary normalizes
- * the response to `Result<T, DispatchError>` before it crosses the wire.
+ * signature (sync stays sync, raw stays raw); a cross-device MCP route that
+ * projects the action normalizes the response before it crosses the wire.
  */
 export type Action<
 	TInput extends TSchema | undefined = TSchema | undefined,
@@ -166,10 +163,10 @@ export type Action<
 
 /**
  * Flat snake_case key to `Action` map. The single shape for an in-process
- * action surface: keys are the local address, peer RPC method, daemon
- * argument, CLI flag, and AI tool name. Author with `defineActions({...})`
- * so the helper enforces the key shape at compile time and at construction;
- * consumers iterate with `Object.entries` or index by string.
+ * action surface: keys are the local address, daemon argument, CLI flag, and AI
+ * tool name. Author with `defineActions({...})` so the helper enforces the key
+ * shape at compile time and at construction; consumers iterate with
+ * `Object.entries` or index by string.
  */
 export type ActionRegistry = Record<string, Action>;
 
@@ -246,10 +243,8 @@ type InvalidActionKey<S extends string> =
 
 /**
  * Regex enforcing `^[a-z][a-z0-9_]{0,63}$` at runtime. Used by
- * `defineActions` for the authoring boundary check and by
- * `openCollaboration` for the construction-time defense against `as`
- * casts. Exported so tests and future external validators can share the
- * single source of truth.
+ * `defineActions` for the authoring boundary check. Exported so tests and
+ * future external validators can share the single source of truth.
  */
 export const ACTION_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 
@@ -296,9 +291,8 @@ export function defineActions<T extends ActionRegistry>(
  *
  * Returns the handler with metadata attached. The action callable IS the
  * handler. Local callers see whatever the handler returns (sync if sync,
- * raw if raw, `Result` if explicit). Remote callers go through
- * `collab.dispatch`, which normalizes the response to
- * `Result<T, DispatchError>` before it crosses the wire.
+ * raw if raw, `Result` if explicit). A cross-device MCP route that projects
+ * the action normalizes the response before it crosses the wire.
  */
 /** No input. `TInput` is explicitly `undefined`. */
 export function defineQuery<R>(
@@ -388,7 +382,8 @@ export function toActionMeta({
  * declared `input` schema. This is the one place the schema is enforced at
  * runtime: a value that reaches a handler has already matched the contract the
  * action published. The daemon maps it to a usage error (bad input, not a
- * handler crash); the dispatch boundary folds it into `ActionFailed`.
+ * handler crash); a cross-device MCP route that projects the action surfaces it
+ * as an `isError` tool result.
  */
 export const ActionInputError = defineErrors({
 	InvalidInput: ({
@@ -432,10 +427,9 @@ export function isActionInputError(error: unknown): error is ActionInputError {
  *
  * Otherwise: raw values get `Ok`-wrapped, existing `Result`s pass through, and
  * thrown errors become `Err(cause)` with the raw thrown value under `.error`.
- * The dispatch wire boundary (`runInboundDispatch` in `document/dispatch.ts`)
- * is responsible for wrapping the cause into `DispatchError.ActionFailed`
- * before the response crosses the wire; callers in-process see whatever
- * the handler actually threw or returned.
+ * A cross-device MCP route that projects these actions maps that `Err` to an
+ * `isError` tool result before it crosses the wire; callers in-process see
+ * whatever the handler actually threw or returned.
  *
  * @example
  * ```ts

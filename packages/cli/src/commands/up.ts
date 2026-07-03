@@ -164,7 +164,10 @@ export async function runUp(
 			await started.runtime[Symbol.asyncDispose]();
 		});
 
-		const serverResult = await startDaemonServer({ lease, mount: started });
+		const serverResult = await startDaemonServer({
+			lease,
+			mount: started,
+		});
 		if (serverResult.error) return serverResult;
 		const daemonServer = serverResult.data;
 		stack.defer(() => daemonServer.close());

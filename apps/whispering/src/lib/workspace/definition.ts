@@ -1,13 +1,11 @@
 import { field } from '@epicenter/field';
 import {
-	createWorkspace,
 	defineKv,
 	defineTable,
+	defineWorkspace,
 	type IanaTimeZone,
-	type InferKvValue,
 	type InferTableRow,
 	nullable,
-	satisfiesWorkspace,
 } from '@epicenter/workspace';
 import { type Static, type TProperties, Type } from 'typebox';
 import type { KeyBinding } from '$lib/tauri/commands';
@@ -389,79 +387,36 @@ const shortcuts = {
 	),
 } as const;
 
-type CreateWhisperingOptions = {
-	defaultTranscriptionService: TranscriptionServiceId;
-};
-
-export function createWhispering({
-	defaultTranscriptionService,
-}: CreateWhisperingOptions) {
-	/**
-	 * Whispering KV schemas: ~40 entries for synced preferences. Defined locally
-	 * so the raw schema map is not a module-level export. Callers reach the
-	 * defaults and key list through the `settings` namespace on the returned
-	 * workspace bundle.
-	 */
-	const kvDefinitions = {
-		...sound,
-		...output,
-		...dataRetention,
-		...recording,
-		...defineTranscriptionSettings(defaultTranscriptionService),
-		...transformation,
-		...analytics,
-		...shortcuts,
-	};
-	type SettingKey = keyof typeof kvDefinitions & string;
-
-	const workspace = createWorkspace({
+/**
+ * Define the Whispering workspace model for one platform's default service.
+ *
+ * The KV schema map (~40 entries for synced preferences) stays local so it is
+ * never a module-level export; callers reach the key list, per-key defaults,
+ * and the bulk reset through the workspace's own `kv.keys` / `kv.getDefault` /
+ * `kv.reset` (ADR-0093).
+ */
+export function defineWhispering(
+	defaultTranscriptionService: TranscriptionServiceId,
+) {
+	return defineWorkspace({
 		// Workspace/Y.Doc identity, not an OAuth client id or Tauri bundle id.
 		// This keys local storage and cloud rooms; change only with a data migration.
 		id: 'epicenter-whispering',
+		name: 'Whispering',
 		tables: {
 			recordings,
 			transformations,
 			transformationRuns,
 		},
-		kv: kvDefinitions,
-	});
-
-	const settingKeys = Object.keys(kvDefinitions) as SettingKey[];
-
-	return satisfiesWorkspace({
-		...workspace,
-		/**
-		 * Synced setting metadata for the Whispering workspace.
-		 *
-		 * Owns the KV schema map: callers never see the raw `defineKv` definitions.
-		 * Use `kv.get`/`kv.set`/`kv.observeAll` for live values; reach for `settings`
-		 * for the key list, per-key defaults, and the bulk reset.
-		 */
-		settings: {
-			/** Every synced setting key, in declaration order. */
-			keys: settingKeys,
-			/** Return the default value for a setting key (factory-evaluated). */
-			getDefault<K extends SettingKey>(
-				key: K,
-			): InferKvValue<(typeof kvDefinitions)[K]> {
-				return kvDefinitions[key].defaultValue() as InferKvValue<
-					(typeof kvDefinitions)[K]
-				>;
-			},
-			/**
-			 * Reset every synced workspace setting to its default in a single Yjs
-			 * transaction (one `observeAll` firing, not one per key).
-			 */
-			reset(): void {
-				workspace.ydoc.transact(() => {
-					for (const key of settingKeys) {
-						(workspace.kv.set as (key: string, value: unknown) => void)(
-							key,
-							kvDefinitions[key].defaultValue(),
-						);
-					}
-				});
-			},
+		kv: {
+			...sound,
+			...output,
+			...dataRetention,
+			...recording,
+			...defineTranscriptionSettings(defaultTranscriptionService),
+			...transformation,
+			...analytics,
+			...shortcuts,
 		},
 	});
 }

@@ -65,6 +65,16 @@ import { defineSessionMount } from './define-mount.js';
 const HOSTED_API_URL = 'https://api.epicenter.so';
 
 /**
+ * Resolve the sync base URL a daemon authenticates against: an explicit value
+ * wins, then `EPICENTER_API_URL`, then the hosted API. The one fallback every
+ * daemon room (per-mount and the per-person account room) shares, so they all
+ * target the same deployment their auth does.
+ */
+export function resolveSyncBaseURL(explicit?: string): string {
+	return explicit || process.env.EPICENTER_API_URL || HOSTED_API_URL;
+}
+
+/**
  * Options for {@link attachMountSqlite}. The helper fills the file path
  * (`sqlitePath(ctx.epicenterRoot, guid)`) and the `${ctx.mount}-sqlite` logger;
  * a call site supplies only what is its own.
@@ -180,15 +190,11 @@ function connectMountChildDoc(
 		const collaboration = openCollaboration(ydoc, {
 			url: roomWsUrl({
 				baseURL,
-				ownerId: ctx.session.ownerId,
 				guid,
 				nodeId: ctx.nodeId,
 			}),
 			openWebSocket: ctx.session.openWebSocket,
 			onReconnectSignal: ctx.session.onReconnectSignal,
-			// A body's writers are the layout and the generation worker, never peer
-			// dispatch, so it publishes no action manifest.
-			actions: {},
 			log: createLogger(`${ctx.mount}-worker-sync`),
 		});
 		return {
@@ -255,8 +261,7 @@ export function nodeMountRuntime(): NodeMountRuntime {
 	return {
 		defineSessionMount,
 		attachInfrastructure: attachMountInfrastructure,
-		resolveBaseURL: (explicit) =>
-			explicit || process.env.EPICENTER_API_URL || HOSTED_API_URL,
+		resolveBaseURL: resolveSyncBaseURL,
 		connectChildDoc: connectMountChildDoc,
 	};
 }

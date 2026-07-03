@@ -2,12 +2,10 @@
 	import { Button } from '@epicenter/ui/button';
 	import * as Empty from '@epicenter/ui/empty';
 	import { Spinner } from '@epicenter/ui/spinner';
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 	import ContentEditor from './ContentEditor.svelte';
 	import PathBreadcrumb from './PathBreadcrumb.svelte';
 	import TabBar from './TabBar.svelte';
-
-	const opensidian = requireOpensidian();
 </script>
 
 <div class="flex h-full flex-col">

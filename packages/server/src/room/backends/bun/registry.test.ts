@@ -3,7 +3,7 @@
  *
  * Proves the same {@link createRoomCore} runs behind the in-process Node
  * backend that runs behind the Cloudflare Durable Object: presence, binary
- * sync fan-out, and dispatch relay all behave identically, and the
+ * sync fan-out, and presence behavior are identical, and the
  * `bun:sqlite` update log persists and reloads a room's history. There is no
  * `cloudflare:workers` mock here, by design (ADR-0066): the core is exercised
  * through the Node backend's own surface.
@@ -32,7 +32,7 @@ import { createBunSqliteUpdateLog } from './update-log.js';
 // STUB SOCKET (the ServerWebSocket surface RoomCore actually touches)
 // ────────────────────────────────────────────────────────────────────────────
 
-type SocketData = { roomName: string; userId: string; nodeId: string };
+type SocketData = { roomName: string; principalId: string; nodeId: string };
 
 class StubWs {
 	readyState = 1;
@@ -66,18 +66,11 @@ function nodeIds(frame: PresenceFrame): string[] {
 	return frame.peers.map((p) => p.nodeId);
 }
 
-function jsonFrames(ws: StubWs, type: string): Array<Record<string, unknown>> {
-	return ws
-		.textFrames()
-		.map((t) => JSON.parse(t) as Record<string, unknown>)
-		.filter((f) => f.type === type);
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // HARNESS
 // ────────────────────────────────────────────────────────────────────────────
 
-const ROOM = 'owners/u1/rooms/r1';
+const ROOM = 'principals/u1/rooms/r1';
 let dir: string;
 
 beforeAll(() => {
@@ -110,7 +103,7 @@ function connect(
 	nodeId: string,
 	roomName = ROOM,
 ): StubWs {
-	const ws = new StubWs({ roomName, userId: 'u1', nodeId });
+	const ws = new StubWs({ roomName, principalId: 'u1', nodeId });
 	open(ws);
 	return ws;
 }
@@ -178,53 +171,10 @@ describe('Node backend: binary sync', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
-// HTTP SYNC RPC + DISPATCH
+// TEXT FRAMES
 // ────────────────────────────────────────────────────────────────────────────
 
-describe('Node backend: HTTP sync RPC', () => {
-	test('a malformed sync body resolves to Err(MalformedSyncBody)', async () => {
-		const { rooms } = makeRooms();
-		const { error } = await rooms.get(ROOM).sync(new Uint8Array([10]));
-		expect(error?.name).toBe('MalformedSyncBody');
-	});
-});
-
-describe('Node backend: dispatch relay', () => {
-	test('a request routes inbound to the recipient and the result back', () => {
-		const { open, message } = makeRooms();
-		const caller = connect(open, 'caller');
-		const recipient = connect(open, 'recipient');
-
-		message(
-			caller,
-			JSON.stringify({
-				type: 'dispatch_request',
-				id: 'd1',
-				to: 'recipient',
-				action: 'noop_ping',
-				input: { x: 1 },
-			}),
-		);
-		const inbound = jsonFrames(recipient, 'dispatch_inbound');
-		expect(inbound).toHaveLength(1);
-		expect(inbound[0]).toMatchObject({ id: 'd1', action: 'noop_ping' });
-
-		message(
-			recipient,
-			JSON.stringify({
-				type: 'dispatch_response',
-				id: 'd1',
-				result: { data: 'pong', error: null },
-			}),
-		);
-		const results = jsonFrames(caller, 'dispatch_result');
-		expect(results).toHaveLength(1);
-		expect(results[0]).toMatchObject({
-			id: 'd1',
-			result: { data: 'pong', error: null },
-		});
-	});
-
+describe('Node backend: text frames', () => {
 	test('an unknown text frame closes the socket with 4400', () => {
 		const { open, message } = makeRooms();
 		const caller = connect(open, 'caller');
@@ -247,7 +197,6 @@ describe('bun:sqlite update log', () => {
 		log.append(b);
 		expect(log.entryCount()).toBe(2);
 		expect(log.loadAll()).toEqual([a, b]);
-		expect(log.byteSize()).toBeGreaterThan(0);
 		db.close();
 	});
 

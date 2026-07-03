@@ -234,7 +234,7 @@ describe('createConversation', () => {
 		};
 		const tools: ToolCatalog = {
 			definitions: () => [{ name: 'get_time', kind: 'query' }],
-			resolve: async () => ({ output: 'noon', isError: false }),
+			resolve: async () => ({ content: 'noon', isError: false }),
 		};
 
 		const handle = createConversation({
@@ -286,7 +286,7 @@ describe('createConversation', () => {
 			definitions: () => [{ name: 'get_time', kind: 'query' }],
 			resolve: async (call) => {
 				resolved.push(call);
-				return { output: 'noon', isError: false };
+				return { content: 'noon', isError: false };
 			},
 		};
 
@@ -312,7 +312,7 @@ describe('createConversation', () => {
 			toolName: 'get_time',
 		});
 		expect(toolStep.parts.find((p) => p.type === 'tool-result')).toMatchObject({
-			output: 'noon',
+			content: 'noon',
 			isError: false,
 		});
 		expect(agentMessageText(messages[2]!)).toBe('It is noon.');
@@ -335,7 +335,7 @@ describe('createConversation', () => {
 		};
 		const tools: ToolCatalog = {
 			definitions: () => [{ name: 'loop', kind: 'query' }],
-			resolve: async () => ({ output: 'again', isError: false }),
+			resolve: async () => ({ content: 'again', isError: false }),
 		};
 
 		const handle = createConversation({
@@ -377,7 +377,7 @@ describe('createConversation', () => {
 			definitions: () => [{ name: 'delete_all', kind: 'mutation' }],
 			resolve: async () => {
 				resolveCalled = true;
-				return { output: 'deleted', isError: false };
+				return { content: 'deleted', isError: false };
 			},
 		};
 		const approval: Approval = {

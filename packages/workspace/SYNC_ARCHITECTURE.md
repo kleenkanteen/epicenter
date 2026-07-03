@@ -6,44 +6,25 @@ This document describes the runtime: the one public primitive (`openCollaboratio
 
 ## One primitive: `openCollaboration`
 
-Every document that participates in sync, the workspace doc and every nested content doc, goes through `openCollaboration`. There is no second primitive. The workspace doc passes a real action registry; content docs pass `actions: {}`.
+Every document that participates in sync, the workspace doc and every nested content doc, goes through `openCollaboration`. There is no second primitive. Actions live on the workspace bundle; collaboration is sync and presence only.
 
 ```ts
-import {
-    defineActions,
-    defineMutation,
-    openCollaboration,
-    roomWsUrl,
-} from '@epicenter/workspace';
+import { openCollaboration, roomWsUrl } from '@epicenter/workspace';
 
 const collaboration = openCollaboration(ydoc, {
-    url: roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, nodeId }),
+    url: roomWsUrl({ baseURL, guid: ydoc.guid, nodeId }),
     waitFor: idb.whenLoaded,
     openWebSocket: auth.openWebSocket,
     onReconnectSignal: auth.onStateChange,
-    actions: defineActions({
-        tabs_close: defineMutation({ /* ... */ }),
-    }),
 });
 
-// Local invocation: direct function call against the registry.
-await collaboration.actions.tabs_close({ tabIds: [1, 2] });
-
-// Remote invocation: pick an online peer, dispatch to it over the relay.
+// Online peers (relay-owned presence), each carrying its node id.
 const phone = collaboration.peers
     .list()
     .find((peer) => peer.nodeId === 'phone');
-if (phone) {
-    const { data, error } = await collaboration.dispatch({
-        to: phone.nodeId,
-        action: 'tabs_close',
-        input: { tabIds: [1, 2] },
-        signal: AbortSignal.timeout(5_000),
-    });
-}
 ```
 
-Content docs (rich-text bodies, attachments, anything nested that syncs independently) use the same call with `actions: {}`. Inbound dispatch frames reply `ActionNotFound`; sync and presence are unchanged.
+Content docs (rich-text bodies, attachments, anything nested that syncs independently) use the same call without an empty action registry ritual.
 
 ## The `Collaboration` handle
 
@@ -51,28 +32,26 @@ Content docs (rich-text bodies, attachments, anything nested that syncs independ
 
 | Field             | What it is                                                         |
 | ----------------- | ------------------------------------------------------------------ |
-| `actions`         | Live local action registry; call directly                          |
 | `status`          | Current `SyncStatus` (`offline`/`connecting`/`connected`/`failed`) |
 | `whenConnected`   | Resolves on first successful handshake; rejects on permanent fail  |
 | `whenDisposed`    | Resolves once the supervisor exits and the socket closes           |
 | `onStatusChange`  | Subscribe to status changes; returns unsubscribe                   |
 | `reconnect`       | Manually wake the supervisor (resets backoff)                      |
-| `peers`         | `list()` / `subscribe()` over the server-owned presence channel    |
-| `dispatch`        | Fire a cross-node call over the relay socket                     |
+| `peers`           | `list()` / `subscribe()` over the server-owned presence channel    |
 | `[Symbol.dispose]`| Sugar for `ydoc.destroy()`; cascades through every attachment      |
 
-`peers.list()` returns `Peer[]`, where each peer carries `{ nodeId, connectedAt, actions }`. `actions` is the peer's published `ActionManifest` (the metadata-only projection of its `ActionRegistry`), suitable for rendering UI affordances, validating input against schemas, or feeding an AI tool layer.
+`peers.list()` returns `Peer[]`, where each peer carries `{ nodeId, connectedAt, agentId? }`. The app's callable registry lives on `workspace.actions`; presence never publishes it.
 
-## The wire: one socket, three channels
+## The wire: one socket, two surfaces
 
-`openCollaboration` opens exactly one authenticated WebSocket per `(Y.Doc, relay)` pair. Three channels share that socket:
+`openCollaboration` opens exactly one authenticated WebSocket per `(Y.Doc, relay)` pair. Two surfaces share that socket:
 
 ```
 binary frames   ->  Yjs CRDT sync (STEP1 / STEP2 / UPDATE)
-text frames     ->  presence + dispatch
+text frames     ->  presence (the server-owned peer list)
 ```
 
-Channels are independent: a malformed dispatch frame does not tear down sync. The server NEVER inspects the contents of a Yjs binary frame or a dispatch input; it only routes and persists.
+The server never inspects the contents of a Yjs binary frame; it only routes and persists sync updates.
 
 ### Sync plane (binary)
 
@@ -82,7 +61,7 @@ The server merges every update it sees (Yjs is multi-writer; admission control i
 
 ### Presence plane (server-owned)
 
-The relay tracks live WebSocket connections in a `connections` Map. That map is the source of truth for "who is here." On every membership or manifest change it broadcasts one server-to-client text frame carrying the whole list:
+The relay tracks live WebSocket connections in a `connections` Map. That map is the source of truth for "who is here." On every membership or identity change it broadcasts one server-to-client text frame carrying the whole list:
 
 ```ts
 type PresenceFrame = {
@@ -93,29 +72,29 @@ type PresenceFrame = {
 type Peer = {
     nodeId: string;
     connectedAt: number;
-    actions: ActionManifest;   // Record<string, ActionMeta>
+    agentId?: string;          // set only by a resident agent mount (ADR-0025)
 };
 ```
 
-- The frame is sent to a freshly-upgraded socket, and rebroadcast to every other socket whenever a peer joins, leaves, or republishes its manifest.
+- The frame is sent to a freshly-upgraded socket, and rebroadcast to every other socket whenever a peer joins, leaves, or republishes its identity.
 - `peers` is computed per recipient with the receiver's own install excluded, so the client stores it verbatim.
 - Multi-tab same-install collapses to one row (newest-wins by `connectedAt`); a graceful tab handoff produces no wire-visible transition (300 ms debounce).
 - A close code of `4401` (permanent auth failure) bypasses the debounce: the dropped peer disappears from everyone else's list immediately.
 
 There is no delta protocol. The relay owns the whole truth and ships the whole truth on every change; the client never reassembles `added` / `removed` events.
 
-Nodes publish their own manifest with one client-to-server frame on every (re)connect:
+Nodes publish their presence identity with one client-to-server frame on every (re)connect:
 
 ```ts
 type PresencePublishFrame = {
     type: 'presence_publish';
-    actions: ActionManifest;
+    agentId?: string;
 };
 ```
 
-The relay stores the manifest against the sending socket's connection attachment (so it survives Cloudflare hibernation via `serializeAttachment`) and rebroadcasts presence so peers see the update.
+The relay stores the identity against the sending socket's connection attachment (so it survives Cloudflare hibernation via `serializeAttachment`) and rebroadcasts presence so peers see the update.
 
-`openCollaboration` builds its own manifest from the action registry via `toActionMeta` at construction and publishes it on every successful connect.
+`openCollaboration` never publishes the action registry; the wire carries no action manifest (ADR-0073 deleted the in-room dispatch subsystem, and the compatibility field was removed once deployed readers stopped requiring it).
 
 #### Why server-owned, not awareness
 
@@ -123,107 +102,35 @@ Presence used to ride y-protocols Awareness. Awareness is built for ephemeral pe
 
 Cursor and selection sync, when they arrive, bring Awareness back, used for what it is designed for and kept separate from this presence channel.
 
-### Dispatch plane (text, in-band)
-
-A cross-node call rides text frames on the same socket as presence and sync. The wire is four correlated frames:
-
-```ts
-caller -> relay:     { type: 'dispatch_request',  id, to, action, input }
-relay  -> recipient: { type: 'dispatch_inbound',  id, action, input }
-recipient -> relay:  { type: 'dispatch_response', id, result }
-relay  -> caller:    { type: 'dispatch_result',   id, result }
-```
-
-```ts
-const { data, error } = await collaboration.dispatch({
-    to: 'phone-install-id',
-    action: 'tabs_close',
-    input: { tabIds: [1, 2] },
-    signal: AbortSignal.timeout(5_000),
-});
-```
-
-End to end:
-
-```
-caller                      relay                        recipient
-──────                      ─────                        ─────────
-dispatch_request ─────────▶ look up `to` in connections
-                            │
-                            ├─ no live socket ─▶ dispatch_result { RecipientOffline }
-                            │
-                            └─ dispatch_inbound ──▶ runInboundDispatch:
-                                                      actions[action](input)
-                                                      │
-                            ◀── dispatch_response ────┘
-       dispatch_result ◀──  forward opaquely
-       { Ok(data) }
-       or { Err(...) }
-```
-
-The caller's `signal` (or a ~90 s caller-side ceiling) settles the promise if no result arrives. The relay holds its own internal 60 s timeout so a stuck dispatch eventually answers `RecipientOffline`.
-
-`dispatch` always resolves to `Result<unknown, DispatchError>`:
-
-| Variant            | Produced by | When                                                       |
-| ------------------ | ----------- | ---------------------------------------------------------- |
-| `RecipientOffline` | relay       | No live socket for `to`, or its socket closed mid-handler  |
-| `ActionNotFound`   | recipient   | Recipient has no handler for `action`                      |
-| `ActionFailed`     | recipient   | Recipient handler threw or returned `Err`; `cause` is a string |
-| `Cancelled`        | local       | Caller's `AbortSignal` aborted before the response arrived |
-| `NetworkFailed`    | local       | Dispatch socket disconnected, dropped, or returned a malformed result |
-
-`RecipientOffline`, `ActionNotFound`, and `ActionFailed` arrive in `dispatch_result` frames. `Cancelled` and `NetworkFailed` are produced locally.
-
-Because the relay answers reachability inline (its `connections` Map decides, on the same socket that routes the call), callers that need to tell "addressed an offline install" apart from "the call reached the peer and failed" branch on `RecipientOffline` directly. There is no separate liveness pre-check, and no window where a client cache disagrees with the relay.
-
-`dispatch` returns `Result<unknown, DispatchError>`; the caller narrows the success payload against the shape the target action returns:
-
-```ts
-const { data } = await collaboration.dispatch({
-    to: phone.nodeId,
-    action: 'tabs_close',
-    input: { tabIds: [1, 2] },
-});
-const closed = data as { tabIds: number[] };
-```
-
-With manifests on the presence wire, that narrowing is *runtime-verifiable*: walk `node.actions` and confirm the action key exists before dispatching. The wire payload is the ground truth.
-
-The recipient side is `runInboundDispatch`: the supervisor routes inbound text frames to it, it looks up the action in the local registry, runs it, and emits the `dispatch_response`. A content doc with `actions: {}` always replies `ActionNotFound`.
-
 ## URLs and routing
 
-A cloud document is owned by the authenticated `OwnerId` and addressed by its own `ydoc.guid`. The client builds the URL from `(baseURL, ownerId, guid, nodeId)`:
+A cloud document is partitioned by the authenticated `PrincipalId` and addressed by its own `ydoc.guid`. The client builds the public URL from `(baseURL, guid, nodeId)`:
 
 ```ts
 roomWsUrl({
     baseURL: 'https://api.epicenter.so',
-    ownerId,
     guid: ydoc.guid,
     nodeId,
 });
-// -> wss://api.epicenter.so/api/owners/<ownerId>/rooms/<guid>?nodeId=<id>
+// -> wss://api.epicenter.so/api/rooms/<guid>?nodeId=<id>
 ```
 
-In personal mode `ownerId` equals the signed-in user's id; in shared mode it is
-the literal `'shared'`. The URL shape is uniform across both modes. The relay
-takes the user from the auth token, resolves the expected owner partition for
-the deployment, verifies the URL `:ownerId` matches that partition, and builds
-the internal Durable Object name `owners/${ownerId}/rooms/${room}`. Personal
-deployments resolve one partition per user. Shared-wiki deployments resolve one
-shared partition for admitted users.
+The URL shape is uniform across deployments. The relay takes the principal from
+the auth token and builds the internal Durable Object name
+`principals/${principalId}/rooms/${room}`. Cloud deployments resolve one
+partition per signed-in principal. Self-hosted instance deployments resolve one
+partition for operator-authorized requests.
 
 This is the consumer Google Docs model and the first of three account layers, introduced over time:
 
-- **Layer 1 (this)**: personal content. `owners/${ownerId}` owns the doc, where `ownerId === userId`.
-- **Layer 1.5 (future)**: sharing. A per-document ACL grants other users access; the owner's DO name does not change.
-- **Layer 2 (future)**: shared-drive content. A shared-wiki deployment uses `ownerId === 'shared'` so content survives a departing user.
+- **Layer 1 (this)**: personal content. `principals/${principalId}` owns the doc.
+- **Layer 1.5 (future)**: sharing. A per-document ACL grants other users access; the home DO name does not change.
+- **Layer 2 (future)**: shared-drive content. A self-hosted instance uses `principalId === 'instance'` so content is decoupled from any caller identity.
 - **Layer 3 (future)**: tenancy and billing. An organization groups user accounts for one invoice and admin policy; it never owns a document.
 
-`nodeId` is appended as a query parameter (`?nodeId=`) on every connect, including reconnects. It is a routing label stamped on the socket at upgrade, not an auth principal: the relay authorizes the room from the token, and within that room `nodeId` only decides which socket dispatch is delivered to.
+`nodeId` is appended as a query parameter (`?nodeId=`) on every connect, including reconnects. It is a routing label stamped on the socket at upgrade, not an auth principal: the relay authorizes the room from the token, and within that room `nodeId` decides how presence identifies this install.
 
-`/owners/:ownerId/rooms/:room` is the single cloud sync route shape (personal: `:ownerId` is the user id; shared: `:ownerId === 'shared'`). Browser apps and the workspace daemon both build their URL with `roomWsUrl`.
+`/api/rooms/:room` is the single cloud sync route shape. Browser apps and the workspace daemon both build their URL with `roomWsUrl`.
 
 ## Supervisor lifecycle
 
@@ -282,4 +189,4 @@ cycleController    aborts on reconnect(); kills the current iteration only
 
 ## Mental model in one paragraph
 
-`openCollaboration(ydoc, config)` is the one collaboration primitive: it opens a single WebSocket to the relay, runs the Yjs binary sync protocol, publishes its own action manifest at connect via `presence_publish`, mirrors the relay's server-owned presence channel into `peers` (including each peer's manifest), and runs inbound dispatch frames against the local `actions` registry. Cross-node calls go out through `dispatch(...)`, which rides the same socket as text frames and answers with a typed `Result<unknown, DispatchError>`. The relay is a dumb pipe: it merges Yjs updates (eventually consistent CRDT semantics, no admission control), tracks the live connections Map (source of truth for who is here), and forwards dispatch text frames (it never executes them). Presence is the relay's `connections` Map, not Yjs Awareness; dispatch is in-band text on the sync socket, not HTTP. Content docs use the same primitive with `actions: {}`.
+`openCollaboration(ydoc, config)` is the one collaboration primitive: it opens a single WebSocket to the relay, runs the Yjs binary sync protocol, publishes this node's presence identity via `presence_publish`, and mirrors the relay's server-owned presence channel into `peers` (including each peer's node id and agent id). The relay merges Yjs updates (eventually consistent CRDT semantics, no admission control) and tracks the live connections Map (source of truth for who is here). Presence is the relay's `connections` Map, not Yjs Awareness. Content docs use the same primitive without an action registry.
