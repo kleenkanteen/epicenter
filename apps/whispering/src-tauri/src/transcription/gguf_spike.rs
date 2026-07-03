@@ -21,8 +21,9 @@ static INIT_TRANSCRIBE_CPP: Once = Once::new();
 /// `init_backends_default()` scans the directory of the loaded `libtranscribe`
 /// for its dlopen'd ggml modules. That is exactly our layout on every target:
 /// the bundle stages `libtranscribe` AND its modules into the same directory
-/// beside the executable (Linux `/usr/lib` on the `$ORIGIN/../lib` rpath;
-/// x86_64-Windows the install root via `tauri.windows.conf.json`), and a dev
+/// beside the executable (Linux `/usr/lib/transcribe-libs` on the
+/// `$ORIGIN/../lib/transcribe-libs` rpath; x86_64-Windows the install root
+/// beside the exe via `tauri.windows.conf.json`), and a dev
 /// build loads `libtranscribe` from the sys crate's own output dir where the
 /// modules were just built. So no explicit module path is needed. On the static
 /// targets (macOS Metal, aarch64 Windows) it is a no-op: the backends are already

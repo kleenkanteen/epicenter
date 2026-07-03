@@ -360,14 +360,22 @@ jobs:
           BUNDLE="apps/whispering/src-tauri/target/release/bundle"
           fail=0
 
-          # $1 = human label, $2 = newline-separated listing of package contents
+          # $1 = human label, $2 = newline-separated listing of package contents.
+          # Tauri's linux files mapping copies the transcribe-libs DIRECTORY under
+          # /usr/lib without flattening, so the libs land in /usr/lib/transcribe-libs/
+          # (matching the $ORIGIN/../lib/transcribe-libs rpath baked in build.rs), NOT
+          # flat in /usr/lib. Assert that exact location.
           assert_has() {
             local label="$1" listing="$2"
-            if ! grep -Eq '/usr/lib/libtranscribe\.so' <<<"$listing"; then
-              echo "::error::$label is missing /usr/lib/libtranscribe.so"; fail=1
+            # Diagnostic: show where the runtime libs actually landed, so a path
+            # mismatch shows up in the log instead of being a guess.
+            echo "  [$label] transcribe/ggml entries:"
+            grep -E 'transcribe|ggml' <<<"$listing" | sed 's/^/    /' || echo "    (none)"
+            if ! grep -Eq '/usr/lib/transcribe-libs/libtranscribe\.so' <<<"$listing"; then
+              echo "::error::$label is missing /usr/lib/transcribe-libs/libtranscribe.so"; fail=1
             fi
-            if ! grep -Eq '/usr/lib/libggml-cpu[^/]*\.so' <<<"$listing"; then
-              echo "::error::$label is missing a libggml-cpu*.so backend"; fail=1
+            if ! grep -Eq '/usr/lib/transcribe-libs/libggml-cpu[^/]*\.so' <<<"$listing"; then
+              echo "::error::$label is missing a /usr/lib/transcribe-libs/libggml-cpu*.so backend"; fail=1
             fi
           }
 

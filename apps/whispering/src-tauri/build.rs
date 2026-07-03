@@ -16,9 +16,12 @@
 //! its immediate dependent's, build script). We copy those files into a stable,
 //! git-ignored `transcribe-libs/` folder, then let Tauri place them beside the
 //! executable per platform, matching upstream Handy:
-//!   * Linux: `tauri.conf.json` maps `transcribe-libs -> /usr/lib` for deb / rpm /
-//!     appimage, and the binary installs to `/usr/bin`, so the `$ORIGIN/../lib`
-//!     rpath baked below resolves `libtranscribe`.
+//!   * Linux: `tauri.conf.json` maps the `transcribe-libs` DIRECTORY under
+//!     `/usr/lib`. Tauri's `files` mapping preserves the source directory name,
+//!     so the files land in `/usr/lib/transcribe-libs/` (NOT flat in `/usr/lib`;
+//!     there is no glob/trailing-slash flatten in `files`). The binary installs
+//!     to `/usr/bin`, so the `$ORIGIN/../lib/transcribe-libs` rpath baked below
+//!     resolves `libtranscribe`.
 //!   * Windows: `tauri.windows.conf.json` maps `transcribe-libs -> .` (the install
 //!     root beside `Whispering.exe`); Windows resolves DLLs from the exe dir, so
 //!     no rpath is needed.
@@ -43,11 +46,13 @@ fn bake_transcribe_rpath() {
         return;
     }
 
-    // Installed bundle: `tauri.conf.json` maps `transcribe-libs` into `/usr/lib`
-    // and the binary installs to `/usr/bin`, so `$ORIGIN/../lib` resolves
-    // `libtranscribe`. `$ORIGIN` reaches the linker verbatim (cargo does not
-    // shell-expand). This is the only rpath a shipped build needs.
-    println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/../lib");
+    // Installed bundle: Tauri's `files` mapping copies the `transcribe-libs`
+    // directory under `/usr/lib`, preserving the directory name, so the libs
+    // land in `/usr/lib/transcribe-libs/` (a directory source is NOT flattened),
+    // and the binary installs to `/usr/bin`. `$ORIGIN/../lib/transcribe-libs`
+    // therefore resolves `libtranscribe`. `$ORIGIN` reaches the linker verbatim
+    // (cargo does not shell-expand). This is the only rpath a shipped build needs.
+    println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/../lib/transcribe-libs");
 
     // Dev / `cargo run` (no bundle yet): also point at the sys crate's own build
     // output so `libtranscribe` resolves before there is an installed layout. The
