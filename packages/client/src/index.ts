@@ -1,12 +1,12 @@
 /**
  * `@epicenter/client`: typed HTTP client for the Epicenter server.
  *
- * Owner-scoped data surfaces (`blobs`) over `AuthFetch` from
+ * Principal-scoped data surfaces (`blobs`) over `AuthFetch` from
  * `@epicenter/auth`, which handles OAuth bearer attach, refresh, and 401
  * propagation. This package owns neither auth state nor identity: the caller
- * passes the authed fetch handle and the `ownerId` (read from `auth.state`),
- * so the client never fetches `/api/session` itself. Profile reads live on the
- * auth client (`auth.getProfile()`); see ADR-0067.
+ * passes the authed fetch handle, so the client never fetches `/api/session`
+ * itself. Profile reads live on the auth client (`auth.getProfile()`); see
+ * ADR-0067.
  *
  * Works against any Epicenter deployment (cloud at `epicenter.so` or a
  * self-hosted single-partition instance).
@@ -14,7 +14,6 @@
 
 import type { AuthFetch } from '@epicenter/auth';
 import { API_ROUTES } from '@epicenter/constants/api-routes';
-import type { OwnerId } from '@epicenter/identity';
 import {
 	defineErrors,
 	extractErrorMessage,
@@ -56,23 +55,14 @@ export type EpicenterClientOptions = {
 	 * from `@epicenter/auth`. The client does not own auth lifecycle.
 	 */
 	fetch: AuthFetch;
-	/**
-	 * The signed-in owner partition, read from `auth.state.ownerId`. The client
-	 * is owner-scoped and addresses every route under it, `blobs.url` included; it
-	 * never resolves identity itself.
-	 */
-	ownerId: OwnerId;
 };
 
 // ---------------------------------------------------------------------------
 // Blob types (content-addressed store; mirror the server response shapes)
 // ---------------------------------------------------------------------------
 
-/** One row of the owner's blob listing (`GET /blobs`). */
+/** One row of the current principal's blob listing (`GET /blobs`). */
 export type BlobRow = { sha256: string; size: number; uploaded: string };
-
-/** Total stored bytes for the owner (`GET /blobs/usage`). */
-export type BlobUsage = { totalBytes: number };
 
 /** Result of the client's `blobs.add`. */
 export type AddBlobResult = {
@@ -90,15 +80,12 @@ export type AddBlobResult = {
  * headers the client must echo verbatim (`upload`). Internal to `blobs.add`.
  */
 type BlobTicket =
-	| { status: 'duplicate'; sha256: string; key: string; url: string }
+	| { status: 'duplicate'; url: string }
 	| {
 			status: 'upload';
-			sha256: string;
-			key: string;
 			url: string;
 			uploadUrl: string;
 			requiredHeaders: Record<string, string>;
-			expiresInSeconds: number;
 	  };
 
 /** Failure modes of the Result-returning client surfaces (`blobs.*`). */
@@ -151,13 +138,11 @@ async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
 // ---------------------------------------------------------------------------
 
 /**
- * Build a typed Epicenter client bound to a base URL, an authed fetch, and the
- * signed-in `ownerId`. Every surface is synchronous to construct and addresses
- * routes under that owner; nothing here touches `/api/session`.
+ * Build a typed Epicenter client bound to a base URL and an authed fetch. Every
+ * surface is synchronous to construct; nothing here touches `/api/session`.
  */
 export function createEpicenterClient(opts: EpicenterClientOptions) {
 	const base = opts.baseURL.replace(/\/+$/, '');
-	const { ownerId } = opts;
 
 	// Run one authed request, folding transport failure and non-2xx into a typed
 	// Result so the blob methods never throw.
@@ -218,9 +203,12 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 					});
 				}
 				bytes = await source.arrayBuffer();
+				// `||`, matching the Blob branch below: an empty-string content type
+				// (an override of '' or a bare header) falls through to the default
+				// instead of being pinned into the stored object verbatim.
 				contentType =
-					params.contentType ??
-					source.headers.get('content-type') ??
+					params.contentType ||
+					source.headers.get('content-type') ||
 					'application/octet-stream';
 			} else {
 				bytes = await fileOrUrl.arrayBuffer();
@@ -231,7 +219,7 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 			const sha256 = await sha256Hex(bytes);
 
 			const { data: ticketRes, error: ticketError } = await request(
-				API_ROUTES.blobs.list.url(base, ownerId),
+				API_ROUTES.blobs.list.url(base),
 				{
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
@@ -273,33 +261,72 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 		},
 
 		/**
-		 * Build the content-addressed read URL for a blob under the construction
-		 * owner. Synchronous; the owner partition is the one the client was
-		 * constructed with.
+		 * Build the content-addressed read URL for a blob under the authenticated
+		 * principal. Synchronous; the principal partition comes from auth.
 		 *
 		 * Useful for resolving a manifest entry, an `<img src>`, or a share link.
 		 */
 		url(sha256: string): string {
-			return API_ROUTES.blobs.byHash.url(base, ownerId, sha256);
+			return API_ROUTES.blobs.byHash.url(base, sha256);
 		},
 
 		/**
 		 * Read a blob's bytes. The server answers 302 to a short-lived presigned
-		 * GET; `fetch` follows it, and the cross-origin redirect drops the bearer
-		 * so the presigned URL is hit clean. On success `data` is the bytes
-		 * `Response`.
+		 * GET. A cookie-authed fetch follows the redirect itself and arrives here
+		 * as a 2xx bytes `Response`. A bearer-authed fetch pins
+		 * `redirect: 'manual'` (a bearer must never follow a cross-origin
+		 * redirect), so the 302 surfaces raw; we read `Location` and fetch the
+		 * presigned URL with the plain global `fetch`, so no bearer reaches the
+		 * storage origin. On success `data` is the bytes `Response`.
 		 */
 		async get(sha256: string): Promise<Result<Response, ClientError>> {
-			return request(
-				API_ROUTES.blobs.byHash.url(base, ownerId, sha256),
-				undefined,
-				'GET /blobs/:sha256',
-			);
+			const operation = 'GET /blobs/:sha256';
+			const { data: res, error } = await tryAsync({
+				try: () => opts.fetch(API_ROUTES.blobs.byHash.url(base, sha256)),
+				catch: (cause) => ClientError.TransportFailed({ operation, cause }),
+			});
+			if (error !== null) return Err(error);
+
+			// A fetch that followed the redirect already holds the bytes.
+			if (res.ok) return Ok(res);
+
+			if (res.status >= 300 && res.status < 400) {
+				const location = res.headers.get('location');
+				if (!location) {
+					return ClientError.RequestFailed({
+						operation,
+						status: res.status,
+						detail: 'redirect without a Location header',
+					});
+				}
+				const { data: store, error: storeError } = await tryAsync({
+					try: () => fetch(location),
+					catch: (cause) =>
+						ClientError.TransportFailed({ operation: 'store GET', cause }),
+				});
+				if (storeError !== null) return Err(storeError);
+				if (!store.ok) {
+					const detail = (await store.text().catch(() => '')).slice(0, 200);
+					return ClientError.RequestFailed({
+						operation: 'store GET',
+						status: store.status,
+						detail,
+					});
+				}
+				return Ok(store);
+			}
+
+			const detail = (await res.text().catch(() => '')).slice(0, 200);
+			return ClientError.RequestFailed({
+				operation,
+				status: res.status,
+				detail,
+			});
 		},
 
 		async list(): Promise<Result<BlobRow[], ClientError>> {
 			const { data: res, error: reqError } = await request(
-				API_ROUTES.blobs.list.url(base, ownerId),
+				API_ROUTES.blobs.list.url(base),
 				undefined,
 				'GET /blobs',
 			);
@@ -307,19 +334,9 @@ export function createEpicenterClient(opts: EpicenterClientOptions) {
 			return Ok((await res.json()) as BlobRow[]);
 		},
 
-		async usage(): Promise<Result<BlobUsage, ClientError>> {
-			const { data: res, error: reqError } = await request(
-				API_ROUTES.blobs.usage.url(base, ownerId),
-				undefined,
-				'GET /blobs/usage',
-			);
-			if (reqError !== null) return Err(reqError);
-			return Ok((await res.json()) as BlobUsage);
-		},
-
 		async delete(sha256: string): Promise<Result<void, ClientError>> {
 			const { error: reqError } = await request(
-				API_ROUTES.blobs.byHash.url(base, ownerId, sha256),
+				API_ROUTES.blobs.byHash.url(base, sha256),
 				{ method: 'DELETE' },
 				'DELETE /blobs/:sha256',
 			);

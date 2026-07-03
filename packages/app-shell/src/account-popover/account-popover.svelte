@@ -1,14 +1,14 @@
 <script lang="ts">
-	import type { AuthClient } from '@epicenter/auth';
+	import type { AuthClient, InstanceSetting } from '@epicenter/auth';
 	import { Button } from '@epicenter/ui/button';
 	import { confirmationDialog } from '@epicenter/ui/confirmation-dialog';
 	import * as Popover from '@epicenter/ui/popover';
 	import { toast, toastOnError } from '@epicenter/ui/sonner';
+	import { Spinner } from '@epicenter/ui/spinner';
 	import type { Collaboration, SyncStatus } from '@epicenter/workspace';
 	import Cloud from '@lucide/svelte/icons/cloud';
 	import CloudOff from '@lucide/svelte/icons/cloud-off';
 	import DatabaseZap from '@lucide/svelte/icons/database-zap';
-	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import User from '@lucide/svelte/icons/user';
@@ -19,6 +19,8 @@
 	} from '@tanstack/svelte-query';
 	import { extractErrorMessage } from 'wellcrafted/error';
 	import { mutationOptions, queryOptions } from 'wellcrafted/query';
+	import InstanceSettingsModal from '../instance-settings/instance-settings-modal.svelte';
+	import SignInPanel from '../instance-settings/sign-in-panel.svelte';
 
 	const accountProfileQueryClient = new QueryClient({
 		defaultOptions: {
@@ -56,11 +58,13 @@
 		syncNoun: string;
 		/**
 		 * When set, the account actions that reload the page (sign in, sign out,
-		 * forget device) are disabled and this reason is shown, both as the trigger
-		 * tooltip and as a line inside the popover. The trigger itself stays openable
-		 * so the reason is discoverable (a disabled trigger swallows hover, hiding the
-		 * one message that matters). Lets a host block account changes at an unsafe
-		 * moment, e.g. while a recording is in progress. Omit to leave it enabled.
+		 * forget device, and connecting, retrying, or changing a self-hosted
+		 * instance) are disabled and this reason is shown, as the trigger tooltip, a
+		 * line inside the popover, and a line inside the instance modal while it is
+		 * open. The trigger itself stays openable so the reason is discoverable (a
+		 * disabled trigger swallows hover, hiding the one message that matters). Lets
+		 * a host block account changes at an unsafe moment, e.g. while a recording is
+		 * in progress. Omit to leave it enabled.
 		 */
 		disabledReason?: string;
 		/**
@@ -72,6 +76,19 @@
 		 * every caller to remember.
 		 */
 		onForgetDevice?: () => void | Promise<void>;
+		/**
+		 * Self-host instance connect for the signed-out panel: the shared sign-in
+		 * panel offers a hosted sign-in button plus a "Connect to a self-hosted
+		 * instance" link that opens the settings modal. Required: this popover is
+		 * the app's only auth surface (ADR-0088), so every app injects its
+		 * instance setting here.
+		 */
+		instanceConnect: {
+			/** The app's display name, woven into the modal's description. */
+			appName: string;
+			/** The shared instance setting handle this app injected. */
+			setting: InstanceSetting;
+		};
 	};
 
 	let {
@@ -80,10 +97,16 @@
 		syncNoun,
 		onForgetDevice,
 		disabledReason,
+		instanceConnect,
 	}: AccountPopoverProps = $props();
 
 	let syncStatus = $state<SyncStatus>();
 	let popoverOpen = $state(false);
+	let instanceModalOpen = $state(false);
+	// Set for one close only, when the "configure instance" link hands off to the
+	// root-mounted modal, so the popover's close-autofocus yields to the dialog's
+	// own focus trap instead of fighting focus back to the now-hidden trigger.
+	let handingOffToModal = false;
 	let forgettingDevice = $state(false);
 	const isSignedIn = $derived(auth.state.status === 'signed-in');
 	// A page-reloading account change (sign in/out, forget device) is unsafe right
@@ -91,18 +114,26 @@
 	// (it never reloads), so it stays enabled.
 	const accountLocked = $derived(!!disabledReason);
 	const accountCacheKey = $derived(
-		auth.state.status === 'signed-out' ? null : auth.state.ownerId,
+		auth.state.status === 'signed-out' ? null : auth.state.principalId,
 	);
-	// Identity lives on the auth client: `state` carries the capability id
-	// (`ownerId`), and `getProfile()` reads presentational identity (the email)
-	// on demand. TanStack Query owns the reactive cache here, keyed by owner, and
+	// Which star this account lives on: a configured self-host override names the
+	// box, and the host IS the identity there (the instance session's email is a
+	// canned placeholder, not an account).
+	const selfHostHost = $derived(
+		instanceConnect.setting.isDefault()
+			? undefined
+			: new URL(instanceConnect.setting.read().baseURL).host,
+	);
+	// Identity lives on the auth client: `state` carries the principal partition,
+	// and `getProfile()` reads presentational identity (the email) on demand.
+	// TanStack Query owns the reactive cache here, keyed by account, and
 	// `queryOptions` bridges the Result into its throw-on-error contract.
 	const profile = createQuery(
 		() =>
 			queryOptions({
 				queryKey: ['account-profile', accountCacheKey],
 				queryFn: () => auth.getProfile(),
-				enabled: auth.state.status !== 'signed-out',
+				enabled: auth.state.status !== 'signed-out' && !selfHostHost,
 				staleTime: Infinity,
 			}),
 		() => accountProfileQueryClient,
@@ -121,14 +152,6 @@
 				onError: (error) => {
 					toastOnError(error, 'Failed to sign out');
 				},
-			}),
-		() => accountProfileQueryClient,
-	);
-	const startSignIn = createMutation(
-		() =>
-			mutationOptions({
-				mutationKey: ['account', 'startSignIn'],
-				mutationFn: () => auth.startSignIn(),
 			}),
 		() => accountProfileQueryClient,
 	);
@@ -171,6 +194,12 @@
 		disabledReason ?? getSyncTooltip(syncStatus, isSignedIn),
 	);
 
+	function openInstanceModal() {
+		handingOffToModal = true;
+		popoverOpen = false;
+		instanceModalOpen = true;
+	}
+
 	function forgetDevice() {
 		if (!onForgetDevice) return;
 		popoverOpen = false;
@@ -200,7 +229,7 @@
 		{#snippet child({ props })}
 			<Button {...props} variant="ghost" size="icon-sm" class="relative" {tooltip}>
 				{#if signOut.isPending}
-					<LoaderCircle class="size-4 animate-spin" />
+					<Spinner class="size-4" />
 				{:else if !isSignedIn}
 					<CloudOff class="size-4 text-muted-foreground" />
 				{:else if !syncStatus}
@@ -208,7 +237,7 @@
 				{:else if syncStatus.phase === 'connected'}
 					<Cloud class="size-4" />
 				{:else if syncStatus.phase === 'connecting'}
-					<LoaderCircle class="size-4 animate-spin" />
+					<Spinner class="size-4" />
 				{:else}
 					<CloudOff class="size-4 text-destructive" />
 				{/if}
@@ -220,11 +249,28 @@
 			</Button>
 		{/snippet}
 	</Popover.Trigger>
-	<Popover.Content class="w-80 p-0" align="end">
+	<Popover.Content
+		class="w-80 p-0"
+		align="end"
+		onCloseAutoFocus={(e) => {
+			// The modal is a root-mounted sibling, so it survives this close; let
+			// its focus trap take focus instead of returning it to the hidden
+			// trigger and racing the dialog for it.
+			if (handingOffToModal) {
+				e.preventDefault();
+				handingOffToModal = false;
+			}
+		}}
+	>
 		{#if auth.state.status === 'signed-in'}
 			<div class="p-4 space-y-3">
 				<div class="space-y-1">
-					<p class="text-sm font-medium">{accountLabel}</p>
+					{#if selfHostHost}
+						<p class="text-sm font-medium">{selfHostHost}</p>
+						<p class="text-xs text-muted-foreground">Self-hosted instance</p>
+					{:else}
+						<p class="text-sm font-medium">{accountLabel}</p>
+					{/if}
 				</div>
 				{#if disabledReason}
 					<p class="text-xs text-muted-foreground">{disabledReason}</p>
@@ -275,7 +321,7 @@
 							disabled={forgettingDevice || accountLocked}
 						>
 							{#if forgettingDevice}
-								<LoaderCircle class="size-3.5 animate-spin" />
+								<Spinner class="size-3.5" />
 							{:else}
 								<DatabaseZap class="size-3.5" />
 							{/if}
@@ -285,34 +331,25 @@
 				{/if}
 			</div>
 		{:else}
-			<div class="p-4 space-y-3">
-				<div class="space-y-1">
-					<p class="text-sm font-medium">Sign in</p>
-					<p class="text-xs text-muted-foreground">
-						Sign in to sync your {syncNoun} across devices.
-					</p>
-				</div>
-				{#if disabledReason}
-					<p class="text-xs text-muted-foreground">{disabledReason}</p>
-				{/if}
-				{#if startSignIn.error}
-					<p class="text-xs text-destructive">{startSignIn.error.message}</p>
-				{/if}
-				<Button
-					class="w-full"
-					onclick={() => startSignIn.mutate()}
-					disabled={startSignIn.isPending || accountLocked}
-				>
-					{#if startSignIn.isPending}
-						<LoaderCircle class="size-4 animate-spin" />
-						Signing in…
-					{:else if auth.state.status === 'reauth-required'}
-						Reconnect
-					{:else}
-						Sign in with Epicenter
-					{/if}
-				</Button>
+			<div class="p-4">
+				<SignInPanel
+					{auth}
+					title="Sign in"
+					description={`Sign in to sync your ${syncNoun} across devices.`}
+					{disabledReason}
+					instance={{
+						setting: instanceConnect.setting,
+						onConfigure: openInstanceModal,
+					}}
+				/>
 			</div>
 		{/if}
 	</Popover.Content>
 </Popover.Root>
+
+<InstanceSettingsModal
+	bind:open={instanceModalOpen}
+	appName={instanceConnect.appName}
+	setting={instanceConnect.setting}
+	{disabledReason}
+/>

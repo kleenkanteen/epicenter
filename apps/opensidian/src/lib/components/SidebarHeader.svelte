@@ -4,9 +4,7 @@
 	import FilePlusIcon from '@lucide/svelte/icons/file-plus';
 	import FolderPlusIcon from '@lucide/svelte/icons/folder-plus';
 	import SearchIcon from '@lucide/svelte/icons/search';
-	import { requireOpensidian } from '$lib/session';
-
-	const opensidian = requireOpensidian();
+	import { opensidian } from '$lib/opensidian';
 </script>
 
 <Tooltip.Provider>

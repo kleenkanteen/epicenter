@@ -134,19 +134,19 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0064](0064-the-local-books-mirror-keeps-one-realm-cdc-cursor-table-existence-is-the-per-entity-init-latch.md) | The Local Books mirror keeps one realm CDC cursor; table existence is the per-entity init latch | Accepted |
 | [0065](0065-matter-is-a-standalone-disk-as-truth-tool-its-sqlite-is-a-read-only-query-surface.md) | Matter is a standalone disk-as-truth tool; its SQLite mirror is a first-class read-only query surface under `epicenter matter` | Accepted |
 | [0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md) | Runtime portability is per-concern injection, not a runtime object | Accepted |
-| [0067](0067-auth-owns-the-session-endpoint-the-data-client-is-owner-scoped.md) | Auth owns the `/api/session` endpoint; the data client is owner-scoped and receives `ownerId` at construction | Accepted |
+| [0067](0067-auth-owns-the-session-endpoint-the-data-client-is-owner-scoped.md) | Auth owns the `/api/session` endpoint; the data client is owner-scoped and receives `ownerId` at construction | Accepted (amended by 0092) |
 | [0068](0068-privacy-is-a-deployment-not-a-product-feature.md) | Privacy is a deployment, not a product feature; the hosted app carries zero privacy-configuration surface | Accepted |
 | [0069](0069-epicenter-is-one-runnable-star-plus-services-called-by-url-and-token.md) | Epicenter is one runnable program (the star) plus a la carte services addressed by base URL and token | Accepted |
 | [0070](0070-self-host-adds-no-new-ownership-or-auth-mode.md) | Self-host adds no new ownership or auth mode: single-user is a preset, and only the credential source varies | Superseded by [0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) |
 | [0071](0071-oauth-is-hosted-only-a-custom-instance-requires-a-token.md) | OAuth is hosted-only; a custom instance requires a token | Accepted |
 | [0072](0072-local-books-ships-as-a-standalone-cli-the-daemon-surface-is-deferred.md) | Local Books ships as a standalone CLI; the ADR-0047 daemon surface is deferred behind a verb-core seam | Accepted |
-| [0073](0073-tools-speak-mcp-natively-epicenter-owns-only-the-transport-mcp-lacks.md) | Tools speak MCP natively; Epicenter owns only the transport MCP lacks | Accepted (design; wire reshape and edge shim deferred behind the wedge trigger) |
+| [0073](0073-tools-speak-mcp-natively-epicenter-owns-only-the-transport-mcp-lacks.md) | Tools speak MCP natively; Epicenter owns only the transport MCP lacks | Accepted (historical relay-floor channel layer deleted by ADR-0079/0086) |
 | [0074](0074-the-secret-vault-is-an-owner-scoped-synced-store-encrypted-under-a-server-derived-keyring.md) | The secret vault is an owner-scoped synced store encrypted under a server-derived keyring, not a passphrase vault | Accepted |
-| [0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) | Self-host is a single-partition instance behind one operator-supplied bearer; multi-tenancy is Cloud-only | Accepted |
+| [0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) | Self-host is a single-partition instance behind one operator-supplied bearer; multi-tenancy is Cloud-only | Accepted (amended by 0092) |
 | [0076](0076-the-relational-auth-substrate-is-a-cloud-only-layer-the-instance-composes-neither.md) | The relational-auth substrate (Better Auth + Postgres) is a Cloud-only layer; the instance composes neither | Accepted |
 | [0077](0077-parsed-row-memoization-belongs-to-the-table-the-svelte-adapter-is-a-stateless-view.md) | Parsed-row memoization belongs to the table; the Svelte adapter is a stateless view | Accepted |
-| [0078](0078-inference-is-a-url-addressed-connection-the-relay-floor-carries-only-tools.md) | Inference is a URL-addressed connection reached through the gateway; the relay floor carries only MCP tool routes | Accepted |
-| [0079](0079-cross-device-is-two-planes-epicenter-syncs-the-crdt-the-box-is-reached-directly.md) | Cross-device is two planes: Epicenter syncs the CRDT, the box is reached directly as a URL-addressed connection | Accepted (capability-layer deletion bound to the Whispering-sync milestone) |
+| [0078](0078-inference-is-a-url-addressed-connection-the-relay-floor-carries-only-tools.md) | Inference is a URL-addressed connection reached through a direct endpoint or gateway | Accepted (relay-floor tool carrier superseded by ADR-0079/0086) |
+| [0079](0079-cross-device-is-two-planes-epicenter-syncs-the-crdt-the-box-is-reached-directly.md) | Cross-device is two planes: Epicenter syncs the CRDT, the box is reached directly as a URL-addressed connection | Accepted (capability-layer deletion landed 2026-07-02) |
 | [0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) | The super app is a desktop host; cross-device is remote access to the session, not a per-app capability plane | Accepted (the desktop-host decision is settled; a hosted session broker for turnkey mobile remote is the open product question) |
 | [0081](0081-per-upstream-oauth-concurrency-decides-mirror-topology.md) | Per-upstream OAuth concurrency decides whether a materialized mirror is box-owned (Local Books) or device-local (Gmail), not a property of "cloud-upstream apps" as a category | Proposed |
 | [0082](0082-local-mail-mirror-is-push-free-polling-collapsing-hosted-vs-self-host-to-one-oauth-client-id.md) | Local Mail's mirror is push-free CDC polling; hosted vs self-host collapses to one OAuth Client ID | Proposed |
@@ -154,5 +154,16 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0084](0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md) | Super Chat's tools load as vendored TypeScript via Bun's native dynamic import; its shell is a Bun-hosted local server, not a bundled SPA | Proposed |
 | [0085](0085-a-box-is-a-role-an-addressable-endpoint-plays-not-a-node-type.md) | A box is a role an addressable endpoint plays, not a distinct node type | Accepted |
 | [0086](0086-no-live-consumer-for-network-reachable-capability-reach-opensidian-is-superseded-not-migrated.md) | There is no live consumer for network-reachable capability reach; opensidian's cross-device tools are superseded by the super app, not migrated | Accepted |
+| [0087](0087-honeycrisp-is-the-maintained-notes-product-from-one-isomorphic-workspace-surface.md) | Honeycrisp is the maintained notes product from one isomorphic workspace surface | Proposed |
+| [0088](0088-sign-in-is-an-enhancement-never-a-door.md) | Sign-in is an enhancement, never a door | Accepted |
+| [0089](0089-the-blob-store-is-a-presigned-s3-kernel-and-the-bucket-is-its-only-index.md) | The blob store is a presigned-S3 kernel and the bucket is its only index | Accepted (key prefix amended by 0092) |
+| [0090](0090-the-blob-layer-stays-plaintext-confidentiality-belongs-to-the-encrypting-consumer.md) | The blob layer stays plaintext; confidentiality belongs to the encrypting consumer | Accepted |
+| [0091](0091-blobs-trade-a-file-for-a-durable-content-addressed-url-documents-are-the-only-manifest.md) | Blobs trade a file for a durable content-addressed URL; documents are the only manifest | Accepted (URL shape amended by 0092) |
+| [0092](0092-identity-is-the-partition.md) | Identity is the partition | Accepted |
+| [0093](0093-kv-metadata-belongs-to-the-workspace-kv-namespace.md) | KV metadata belongs to the workspace kv namespace | Accepted |
+| [0094](0094-the-connection-is-the-boot-decision-one-connect-call.md) | The connection is the boot decision: one connect call | Accepted |
+| [0095](0095-websocket-room-auth-uses-route-owned-subprotocol-bearers.md) | WebSocket room auth uses route-owned subprotocol bearers | Accepted |
+| [0096](0096-local-workspace-persistence-is-environment-injected.md) | Local workspace persistence is environment-injected | Accepted |
+| [0097](0097-super-chat-tool-modules-receive-a-host-api.md) | Super Chat tool modules receive a host API | Accepted |
 
 When you add an ADR, add its row here.

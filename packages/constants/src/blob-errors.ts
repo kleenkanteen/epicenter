@@ -1,17 +1,17 @@
 import { defineErrors, type InferErrors } from 'wellcrafted/error';
 
 /**
- * Structured error variants for the `/api/owners/:ownerId/blobs` surface.
+ * Structured error variants for the `/api/blobs` surface.
  *
  * The blob store is content-addressed: the upload is a presigned PUT straight
  * to R2 (the Worker never sees the bytes), and R2 itself is the index, so
  * there is no database row to conflict on. These variants cover only what the
  * Worker decides at ticket-mint and read time. See
- * `specs/20260623T220000-content-addressed-blob-store.md`.
+ * ADR-0089 (the blob store is a presigned-S3 kernel and the bucket is its only index).
  *
- * Mirrors `AssetError`'s contract: defined once in the shared constants
- * package so the server runtime and any blob client SDK reference the same
- * discriminated union; the serialized envelope is `wellcrafted`'s
+ * Defined once in the shared constants package so the server runtime and any
+ * blob client SDK reference the same discriminated union; the serialized
+ * envelope is `wellcrafted`'s
  * `{ data: null, error: { name, message, ...fields } }`; each variant bakes
  * in its own HTTP `status`.
  *
@@ -51,7 +51,7 @@ export const BlobError = defineErrors({
 		size,
 		maxBytes,
 	}),
-	/** No object exists at `owners/<ownerId>/blobs/<sha256>`. */
+	/** No object exists at `principals/<principalId>/blobs/<sha256>`. */
 	NotFound: () => ({
 		message: 'Blob not found.',
 		status: 404 as const,

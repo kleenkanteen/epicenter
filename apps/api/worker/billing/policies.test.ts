@@ -82,10 +82,10 @@ beforeEach(() => {
 function withContext(app: Hono<CloudEnv>) {
 	app.use('*', async (c, next) => {
 		c.set('afterResponseQueue', []);
-		c.set('user', {
+		c.set('principal', {
 			id: 'user_1',
 			email: 'user@example.com',
-		} as CloudEnv['Variables']['user']);
+		} as CloudEnv['Variables']['principal']);
 		await next();
 	});
 	return app;

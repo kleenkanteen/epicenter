@@ -7,9 +7,8 @@
  * schema is also a `UsageError` (a caller mistake, not a handler crash); a
  * handler that returns `Err` or throws surfaces as a `RuntimeError`.
  *
- * Cross-device runs are not a `/run` concern. Reaching another device's actions
- * is an explicitly-exposed MCP route over the relay floor (ADR-0078), served by
- * `/tools` and `/call`; there is no in-room peer dispatch here.
+ * Cross-device runs are not a `/run` concern. There is no in-room peer dispatch
+ * here.
  *
  * Power-user automation (loops, fan-out, conditional runs) lives in vault-style
  * TypeScript scripts that load the workspace library directly. The CLI

@@ -1,10 +1,10 @@
 /**
  * Bearer auth middleware integration tests.
  *
- * Drives `requireBearerUser` through a real Hono app with a real Better Auth
+ * Drives `requireBearerPrincipal` through a real Hono app with a real Better Auth
  * server hosted on Bun.serve. Covers the production paths:
  *
- * - valid token resolves to the calling user on `c.var.user`
+ * - valid token resolves to the calling principal on `c.var.principal`
  * - verification reads the signing keys in-process, with no network hop
  * - a malformed (non-JWT) bearer returns 401 InvalidToken
  * - a token issued for the wrong audience returns 401 InvalidToken
@@ -17,7 +17,7 @@
 
 import { expect, test } from 'bun:test';
 import { oauthProvider } from '@better-auth/oauth-provider';
-import { AuthUser } from '@epicenter/auth';
+import { Principal } from '@epicenter/auth';
 import { JWT_SIGNING_ALG } from '@epicenter/constants/auth';
 import { EPICENTER_OAUTH_SCOPES } from '@epicenter/constants/oauth-clients';
 import { OAuthError } from '@epicenter/constants/oauth-errors';
@@ -34,12 +34,12 @@ import {
 } from '../test-helpers/oauth.js';
 import type { CloudEnv } from '../types.js';
 import {
-	requireBearerUser,
-	requireCookieOrBearerUser,
-	resolveRequestOAuthUser,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
+	resolveRequestOAuthPrincipal,
 } from './require-auth.js';
 
-test('requireBearerUser resolves a valid API-audience token to c.var.user', async () => {
+test('requireBearerPrincipal resolves a valid API-audience token to c.var.principal', async () => {
 	const setup = createMiddlewareTestServer();
 	try {
 		const { accessToken } = await issueOAuthTokens(setup, {
@@ -63,7 +63,7 @@ test('requireBearerUser resolves a valid API-audience token to c.var.user', asyn
 	}
 });
 
-test('requireBearerUser verifies a valid token in-process, with no network hop', async () => {
+test('requireBearerPrincipal verifies a valid token in-process, with no network hop', async () => {
 	const setup = createMiddlewareTestServer();
 	try {
 		const { accessToken } = await issueOAuthTokens(setup, {
@@ -90,7 +90,7 @@ test('requireBearerUser verifies a valid token in-process, with no network hop',
 	}
 });
 
-test('requireBearerUser rejects a malformed (non-JWT) bearer with 401 InvalidToken', async () => {
+test('requireBearerPrincipal rejects a malformed (non-JWT) bearer with 401 InvalidToken', async () => {
 	const setup = createMiddlewareTestServer();
 	try {
 		const response = await setup.app.request('/protected', {
@@ -108,7 +108,7 @@ test('requireBearerUser rejects a malformed (non-JWT) bearer with 401 InvalidTok
 	}
 });
 
-test('requireBearerUser rejects tokens issued for the wrong audience with 401 InvalidToken', async () => {
+test('requireBearerPrincipal rejects tokens issued for the wrong audience with 401 InvalidToken', async () => {
 	const setup = createMiddlewareTestServer();
 	try {
 		const { accessToken } = await issueOAuthTokens(setup, {
@@ -133,7 +133,7 @@ test('requireBearerUser rejects tokens issued for the wrong audience with 401 In
 	}
 });
 
-test('requireBearerUser rejects tokens whose user no longer exists with 401 InvalidToken', async () => {
+test('requireBearerPrincipal rejects tokens whose user no longer exists with 401 InvalidToken', async () => {
 	const setup = createMiddlewareTestServer();
 	try {
 		const { accessToken } = await issueOAuthTokens(setup, {
@@ -155,7 +155,7 @@ test('requireBearerUser rejects tokens whose user no longer exists with 401 Inva
 	}
 });
 
-test('requireBearerUser returns 503 ServerError when the signing keys cannot be read', async () => {
+test('requireBearerPrincipal returns 503 ServerError when the signing keys cannot be read', async () => {
 	const setup = createMiddlewareTestServer();
 	try {
 		const { accessToken } = await issueOAuthTokens(setup, {
@@ -182,8 +182,10 @@ test('requireBearerUser returns 503 ServerError when the signing keys cannot be 
 				} as unknown as CloudEnv['Variables']['auth']);
 				await next();
 			})
-			.get('/protected', requireBearerUser(resolveRequestOAuthUser), (c) =>
-				c.json(c.var.user),
+			.get(
+				'/protected',
+				requireBearerPrincipal(resolveRequestOAuthPrincipal),
+				(c) => c.json(c.var.principal),
 			);
 
 		const response = await app.request('/protected', {
@@ -199,15 +201,15 @@ test('requireBearerUser returns 503 ServerError when the signing keys cannot be 
 	}
 });
 
-test('requireCookieOrBearerUser resolves the user from a session cookie and skips the bearer path', async () => {
-	// The cloud-only cookie path: a present Better Auth session resolves the user
-	// and the injected bearer resolver is never consulted (cookie-first). Stubs
-	// `c.var.auth.api.getSession` (the only auth read) and asserts the bearer
-	// resolver stays untouched.
-	let resolveUserCalls = 0;
+test('requireCookieOrBearerPrincipal resolves the principal from a session cookie and skips the bearer path', async () => {
+	// The cloud-only cookie path: a present Better Auth session resolves the
+	// principal and the injected bearer resolver is never consulted
+	// (cookie-first). Stubs `c.var.auth.api.getSession` (the only auth read) and
+	// asserts the bearer resolver stays untouched.
+	let resolvePrincipalCalls = 0;
 	const sessionUser = { id: 'cookie-user-id', email: 'cookie@example.com' };
-	const cookieOrBearer = requireCookieOrBearerUser(async () => {
-		resolveUserCalls += 1;
+	const cookieOrBearer = requireCookieOrBearerPrincipal(async () => {
+		resolvePrincipalCalls += 1;
 		return OAuthError.InvalidToken();
 	});
 	const app = new Hono<CloudEnv>()
@@ -217,24 +219,26 @@ test('requireCookieOrBearerUser resolves the user from a session cookie and skip
 			} as unknown as CloudEnv['Variables']['auth']);
 			await next();
 		})
-		.get('/protected', cookieOrBearer, (c) => c.json(c.var.user));
+		.get('/protected', cookieOrBearer, (c) => c.json(c.var.principal));
 
 	const response = await app.request('/protected');
 
 	expect(response.status).toBe(200);
 	const body = (await response.json()) as { id: string; email: string };
 	expect(body).toEqual(sessionUser);
-	expect(resolveUserCalls).toBe(0);
+	expect(resolvePrincipalCalls).toBe(0);
 });
 
-test('requireCookieOrBearerUser falls back to the bearer resolver when there is no session', async () => {
+test('requireCookieOrBearerPrincipal falls back to the bearer resolver when there is no session', async () => {
 	// No cookie session -> the resolver the wrapper closed over decides, exactly
 	// the bearer path the cloud and an instance share.
-	const bearerUser = AuthUser.assert({
+	const bearerUser = Principal.assert({
 		id: 'bearer-user-id',
 		email: 'bearer@example.com',
 	});
-	const cookieOrBearer = requireCookieOrBearerUser(async () => Ok(bearerUser));
+	const cookieOrBearer = requireCookieOrBearerPrincipal(async () =>
+		Ok(bearerUser),
+	);
 	const app = new Hono<CloudEnv>()
 		.use('*', async (c, next) => {
 			c.set('auth', {
@@ -242,7 +246,7 @@ test('requireCookieOrBearerUser falls back to the bearer resolver when there is 
 			} as unknown as CloudEnv['Variables']['auth']);
 			await next();
 		})
-		.get('/protected', cookieOrBearer, (c) => c.json(c.var.user));
+		.get('/protected', cookieOrBearer, (c) => c.json(c.var.principal));
 
 	const response = await app.request('/protected', {
 		headers: { authorization: 'Bearer whatever' },
@@ -253,7 +257,7 @@ test('requireCookieOrBearerUser falls back to the bearer resolver when there is 
 	expect(body).toEqual({ id: 'bearer-user-id', email: 'bearer@example.com' });
 });
 
-test('requireBearerUser does not read signing keys for a non-JWT bearer', async () => {
+test('requireBearerPrincipal does not read signing keys for a non-JWT bearer', async () => {
 	// A non-JWT never decodes far enough to need a key, so verification fails
 	// before `jwksFetch` runs: a garbage bearer costs no database read, and the
 	// failure is a 401, not an infrastructure 503.
@@ -271,8 +275,10 @@ test('requireBearerUser does not read signing keys for a non-JWT bearer', async 
 			} as unknown as CloudEnv['Variables']['auth']);
 			await next();
 		})
-		.get('/protected', requireBearerUser(resolveRequestOAuthUser), (c) =>
-			c.json(c.var.user),
+		.get(
+			'/protected',
+			requireBearerPrincipal(resolveRequestOAuthPrincipal),
+			(c) => c.json(c.var.principal),
 		);
 
 	const response = await app.request('/protected', {
@@ -323,8 +329,10 @@ function createMiddlewareTestServer() {
 					c.set('authBaseURL', baseURL);
 					await next();
 				})
-				.get('/protected', requireBearerUser(resolveRequestOAuthUser), (c) =>
-					c.json(c.var.user),
+				.get(
+					'/protected',
+					requireBearerPrincipal(resolveRequestOAuthPrincipal),
+					(c) => c.json(c.var.principal),
 				);
 
 			return { auth, baseURL, db, server, wrongAudience, app };

@@ -19,11 +19,7 @@ import { buildDaemonApp } from './app.js';
 import type { DaemonLease } from './lease.js';
 import { unlinkSocketFile } from './runtime-files.js';
 import { StartupError } from './startup-errors.js';
-import type {
-	DaemonServedAccountRoom,
-	DaemonServedDeviceGateway,
-	DaemonServedMount,
-} from './types.js';
+import type { DaemonServedMount } from './types.js';
 import { bindUnixSocket } from './unix-socket.js';
 
 export type DaemonServerOptions = {
@@ -31,18 +27,6 @@ export type DaemonServerOptions = {
 	lease: DaemonLease;
 	/** Mount served by the unix-socket app. */
 	mount: DaemonServedMount;
-	/**
-	 * The per-person account room, when one is open. Its live presence backs
-	 * `/relay-peers`; omit it (signed out, or it failed to open) and `/relay-peers`
-	 * serves an empty list. The daemon socket still binds either way.
-	 */
-	accountRoom?: DaemonServedAccountRoom;
-	/**
-	 * The live device gateway, when one is open. Its transport backs `/tools` and
-	 * `/call`; omit it and those routes answer a typed Unavailable. The daemon
-	 * socket still binds either way.
-	 */
-	deviceGateway?: DaemonServedDeviceGateway;
 };
 
 function createDaemonServer({
@@ -85,11 +69,9 @@ export type DaemonServer = ReturnType<typeof createDaemonServer>;
 export async function startDaemonServer({
 	lease,
 	mount,
-	accountRoom,
-	deviceGateway,
 }: DaemonServerOptions): Promise<Result<DaemonServer, StartupError>> {
 	const { socketPath } = lease;
-	const app = buildDaemonApp(mount, accountRoom, deviceGateway);
+	const app = buildDaemonApp(mount);
 	const bindResult = trySync({
 		try: () => bindUnixSocket({ socketPath, fetch: app.fetch }),
 		catch: (cause) => StartupError.BindFailed({ cause }),

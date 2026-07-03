@@ -9,7 +9,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { Hono } from 'hono';
-import { instance } from '../ownership.js';
 import type { Env } from '../types.js';
 import { mountInferenceApp } from './inference.js';
 
@@ -51,7 +50,6 @@ function createTestApp() {
 	mountInferenceApp(app, {
 		// Permissive auth for the slice under test.
 		auth: async (_c, next) => next(),
-		ownership: instance(),
 	});
 	return app;
 }

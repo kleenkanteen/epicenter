@@ -6,7 +6,7 @@ A typed interface over Y.js for apps that need to evolve their data schema over 
 
 This is a wrapper around Y.js that handles schema versioning. Local-first apps can't run migration scripts, so data has to evolve gracefully. Old data coexists with new. The Workspace API bakes that into the design: define your schemas once with versions, write a migration function, and everything else is typed.
 
-The pattern: `defineWorkspace({ id, tables, kv, actions })` declares the shared isomorphic model. `definition.create()` builds the unconnected root doc for daemon composition. `definition.connect(connection)` creates the browser runtime with owner-scoped local storage, root sync, wipe, and table child-doc openers. `definition.connect(connection, compose)` lets a runtime add extras and publish its final action registry before collaboration starts. `createWorkspace({ id, tables, kv })` and `satisfiesWorkspace(...)` remain lower-level primitives for internals, tests, and ports that have not moved to definitions yet.
+The pattern: `defineWorkspace({ id, tables, kv, actions })` declares the shared isomorphic model. `definition.create()` builds the unconnected root doc for daemon composition. `definition.connect(connection | null)` creates the runtime with local storage, optional sync, wipe, and table child-doc openers. `definition.connect(connection, compose)` or `definition.connect(connection, { persistence, compose })` lets a runtime add extras and expose its final action registry on the workspace bundle. `createWorkspace({ id, tables, kv })` and `satisfiesWorkspace(...)` remain lower-level primitives for internals, tests, and ports that have not moved to definitions yet.
 
 ```
 +----------------------------------------------------------------+
@@ -18,9 +18,9 @@ The pattern: `defineWorkspace({ id, tables, kv, actions })` declares the shared 
 | defineWorkspace({ id, tables, kv, actions }).connect(...)         |
 |   -> { ydoc, tables, kv, actions, child-doc openers, ... }     |
 | attachIndexedDb / attachYjsLog / attachBroadcastChannel        |
-| attachLocalStorage(ydoc, { server, ownerId })  // scoped IDB + scoped BC |
-| wipeLocalStorage({ server, ownerId })           // delete local data for owner |
-| openCollaboration (sync + presence + relay channel)            |
+| attachLocalStorage(ydoc, { server, principalId })  // scoped IDB + scoped BC |
+| wipeLocalStorage({ server, principalId })           // delete local data      |
+| openCollaboration (sync + presence)                            |
 | attachBunSqliteMaterializer / attachMarkdownExport             |
 +----------------------------------------------------------------+
 | Y.Doc (raw CRDT)                                               |
@@ -54,7 +54,7 @@ const blogWorkspace = defineWorkspace({
   kv: {},
 });
 
-using workspace = blogWorkspace.connect();
+using workspace = blogWorkspace.connect(null);
 workspace.tables.posts.set({ id: '1', title: 'Hello' });
 ```
 
@@ -65,31 +65,36 @@ to open only the root doc or attach browser storage, sync, and runtime extras.
 
 ### Persistence + collaboration
 
-Auth belongs to the app. The browser opener receives the signed-in identity plus
-`nodeId`, then passes that connection into `definition.connect(connection)`.
+Auth belongs to the app. The browser opener reads the persisted auth state
+once through `toConnection`, which projects signed-out to `null` and signed-in
+to the owner's connection plus `nodeId`:
 
 ```typescript
-import type { SignedIn } from '@epicenter/svelte/auth';
+import type { SyncAuthClient } from '@epicenter/auth';
+import { toConnection } from '@epicenter/svelte/auth';
 import type { NodeId } from '@epicenter/workspace';
 
 function openBlog({
-  signedIn,
+  auth,
   nodeId,
 }: {
-  signedIn: SignedIn;
+  auth: SyncAuthClient;
   nodeId: NodeId;
 }) {
-  return blogWorkspace.connect({ ...signedIn, nodeId });
+  return blogWorkspace.connect(toConnection(auth, nodeId));
 }
 ```
 
-`open(connection)` derives owner-scoped local storage and BroadcastChannel keys
-from `server`, `ownerId`, and each doc guid. `wipe()` deletes every database
-under that owner prefix in one call: no explicit guid list to maintain.
+`connect(null)` derives bare browser storage and BroadcastChannel keys from each
+doc guid, unless the caller injects another local persistence environment with
+`connect(null, { persistence })`. `connect(connection)` derives principal-scoped
+keys from `baseURL`, `principalId`, and each doc guid. `wipe()` deletes the
+databases or local log files for the active arm in one call: no explicit guid
+list to maintain.
 
-For content documents (rich-text bodies, attachments) that only need bytes on
-the wire, the opener uses the same collaboration primitive with an empty
-`actions: {}` registry.
+Actions live on the workspace bundle. Collaboration is sync and presence only,
+so content documents (rich-text bodies, attachments) use the same collaboration
+primitive without an empty `actions: {}` registry.
 
 ### Per-row content documents
 
@@ -99,8 +104,8 @@ guid from the workspace id, table name, row id, and field; rows do not store
 those guids. Browser runtimes use `tables.notes.docs.body.open(noteId)` when a
 surface needs the content doc. Daemon projections can derive the same guid,
 read one doc for one row, and destroy it.
-See `apps/fuji/src/lib/workspace/browser.ts` and
-`apps/fuji/src/lib/workspace/mount.ts` for the Fuji pattern.
+See `apps/honeycrisp/src/lib/workspace/browser.ts` for the current browser-side
+child doc pattern. No shipped daemon currently projects rich-text child docs.
 
 ## Design Decisions
 
@@ -125,7 +130,7 @@ Tests live in `*.test.ts` next to the implementation. Use `createWorkspace({ id:
 ## Canonical references
 
 - `apps/whispering/src/lib/whispering/whispering.tauri.ts`: IndexedDB + BroadcastChannel + recording markdown export
-- `apps/fuji/src/lib/workspace/browser.ts`: IndexedDB + sync + server-owned presence
-- `apps/fuji/src/lib/workspace/mount.ts`: daemon materializers and per-row body doc reads
+- `apps/honeycrisp/src/lib/workspace/browser.ts`: IndexedDB + sync + per-row child docs
+- `apps/tab-manager/mount.ts`: daemon materializers for root-table projections
 - `packages/workspace/README.md`: quick start
 - `packages/workspace/SYNC_ARCHITECTURE.md`: multi-node sync design

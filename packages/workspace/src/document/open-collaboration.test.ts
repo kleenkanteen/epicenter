@@ -4,9 +4,9 @@
  * The fake `openWebSocket` resolves immediately with a socket that stays in
  * `CONNECTING` (we never call `onopen`), so the supervisor parks in
  * `attemptConnection`. That means these tests only cover the synchronous
- * setup of `openCollaboration`: the action-key guard and the `Symbol.dispose`
- * sugar. Socket-coupled behavior (presence routing, relay-channel routing,
- * disconnect settling) is intentionally out of scope here and needs a
+ * setup of `openCollaboration`: peer defaults, connect deadlines, and the
+ * `Symbol.dispose` sugar. Socket-coupled behavior (presence routing, binary
+ * sync, disconnect settling) is intentionally out of scope here and needs a
  * different fake.
  *
  * The fake's `close() -> onclose` is what lets `ydoc.destroy()` unpark the
@@ -15,11 +15,6 @@
 
 import { describe, expect, test } from 'bun:test';
 import * as Y from 'yjs';
-import {
-	type ActionRegistry,
-	defineMutation,
-	defineQuery,
-} from '../shared/actions.js';
 import { openCollaboration } from './open-collaboration.js';
 
 const url = 'wss://ignored.invalid/api/rooms/test?nodeId=self';
@@ -43,24 +38,19 @@ function fakeWebSocket(): Promise<WebSocket> {
 	return Promise.resolve(ws as unknown as WebSocket);
 }
 
-function setup<TActions extends ActionRegistry = ActionRegistry>(
-	actions: TActions = {} as TActions,
-) {
+function setup() {
 	const ydoc = new Y.Doc({ guid: 'open-collab-test' });
-	const collaboration = openCollaboration<TActions>(ydoc, {
+	const collaboration = openCollaboration(ydoc, {
 		url,
 		openWebSocket: fakeWebSocket,
 		onReconnectSignal: () => () => {},
-		actions,
 	});
 	return { ydoc, collaboration };
 }
 
 describe('openCollaboration', () => {
 	test('peers.list() returns [] when no remote peers have published liveness', () => {
-		const { ydoc, collaboration } = setup({
-			tabs_list: defineQuery({ handler: () => [] }),
-		});
+		const { ydoc, collaboration } = setup();
 		try {
 			expect(collaboration.peers.list()).toEqual([]);
 		} finally {
@@ -85,7 +75,6 @@ describe('openCollaboration', () => {
 			openWebSocket: fakeWebSocket,
 			onReconnectSignal: () => () => {},
 			connectDeadlineMs: 20,
-			actions: {},
 		});
 		try {
 			await expect(collaboration.whenConnected).rejects.toThrow(
@@ -94,15 +83,5 @@ describe('openCollaboration', () => {
 		} finally {
 			ydoc.destroy();
 		}
-	});
-});
-
-describe('action key validation', () => {
-	test('rejects invalid action keys at the collaboration boundary', () => {
-		expect(() =>
-			setup({
-				'tabs.close': defineMutation({ handler: () => null }),
-			} as unknown as ActionRegistry),
-		).toThrow(/Invalid action key "tabs\.close"/);
 	});
 });

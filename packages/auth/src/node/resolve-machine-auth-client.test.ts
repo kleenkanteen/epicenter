@@ -13,21 +13,21 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { createLogger, memorySink } from 'wellcrafted/logger';
 import { expectErr, expectOk } from 'wellcrafted/testing';
 import type { AuthFetch } from '../auth-contract.js';
-import { asUserId, type PersistedAuth } from '../auth-types.js';
+import type { PersistedAuth } from '../auth-types.js';
 import {
 	readConfiguredToken,
 	resolveMachineAuthClient,
 } from './resolve-machine-auth-client.js';
 
 const BASE_URL = 'http://localhost:8788';
-const TOKEN = 'dev:owner-1';
+const TOKEN = 'dev:principal-1';
 
-function sessionBody(ownerId = 'owner-1') {
-	return { user: { id: ownerId, email: `${ownerId}@example.com` }, ownerId };
+function sessionBody(principalId = 'principal-1') {
+	return { principalId, email: `${principalId}@example.com` };
 }
 
 function json(value: unknown, status = 200) {
@@ -157,7 +157,7 @@ describe('resolveMachineAuthClient', () => {
 		// The /api/session confirmation is awaited, so state is already settled.
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 		expect(calls[0]?.url).toBe(`${BASE_URL}/api/session`);
 		expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
@@ -214,8 +214,7 @@ describe('resolveMachineAuthClient', () => {
 				refreshToken: 'r',
 				accessTokenExpiresAt: 1_700_000_600_000,
 			},
-			userId: asUserId('owner-1'),
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 		const fetch: AuthFetch = async () => json(sessionBody());
 
@@ -226,7 +225,7 @@ describe('resolveMachineAuthClient', () => {
 		// The OAuth client seeds state synchronously from the cached cell.
 		expect(auth.state).toEqual({
 			status: 'signed-in',
-			ownerId: asOwnerId('owner-1'),
+			principalId: asPrincipalId('principal-1'),
 		});
 	});
 });

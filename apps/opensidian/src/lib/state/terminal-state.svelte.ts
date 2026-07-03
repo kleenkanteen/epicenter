@@ -21,7 +21,7 @@ type TerminalEntry =
  *
  * Follows the same factory pattern as `files-state.svelte.ts`: a factory
  * function creates all `$state` and exposes a public API via a returned
- * object with getters. The session exposes it at
+ * object with getters. The `$lib/opensidian` singleton exposes it at
  * `opensidian.state.terminal`.
  *
  * Manages:
@@ -33,7 +33,7 @@ type TerminalEntry =
  * @example
  * ```svelte
  * <script>
- *   const opensidian = requireOpensidian();
+ *   import { opensidian } from '$lib/opensidian';
  *   opensidian.state.terminal.open // reactive boolean
  * </script>
  * ```
@@ -56,9 +56,9 @@ export function createTerminalState({
 	let running = $state(false);
 
 	// ── Custom commands ──────────────────────────────────────────────
-	// Registered once for the signed-in session via bash.registerCommand().
-	// Uses registerCommand() instead of the constructor's customCommands
-	// option to avoid a circular dependency from workspace construction to files state.
+	// Registered once at boot via bash.registerCommand(). Uses
+	// registerCommand() instead of the constructor's customCommands option to
+	// avoid a circular dependency from workspace construction to files state.
 
 	workspace.bash.registerCommand(
 		defineCommand('open', async (args) => {

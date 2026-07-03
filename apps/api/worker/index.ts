@@ -1,16 +1,16 @@
 /**
  * Epicenter Cloud Worker entry.
  *
- * Composes `@epicenter/server` with the `personal` ownership rule and
- * layers cloud-only billing, admin, and dashboard surfaces on top.
+ * Composes `@epicenter/server` with the cloud principal resolver and layers
+ * cloud-only billing, admin, and dashboard surfaces on top.
  * The self-hosted single-partition instance lives in a sibling apps/* folder
- * and composes the same library with `instance()` and no Autumn policies
+ * and composes the same library with `instance` and no Autumn policies
  * (ADR-0075).
  *
  * Read top to bottom for the full URL surface of cloud. Each `mount*`
- * call bundles the auth + ownership + policies + route mount for one
+ * call bundles auth + policies + route mount for one
  * reusable surface; the deployment passes only the deployment-controlled
- * knobs (ownership rule, optional cloud policies, auth choice for AI).
+ * knobs (optional cloud policies, auth choice for AI).
  */
 
 import { PRODUCTION_API_URL } from '@epicenter/constants/apps';
@@ -26,11 +26,10 @@ import {
 	mountRoomsApp,
 	mountSessionApp,
 	mountTranscriptionApp,
-	personal,
 	Room,
-	requireBearerUser,
-	requireCookieOrBearerUser,
-	resolveRequestOAuthUser,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
+	resolveRequestOAuthPrincipal,
 	type ServerBindings,
 } from '@epicenter/server';
 import { describeRoute } from 'hono-openapi';
@@ -45,8 +44,6 @@ import { buildEpicenterTrustedOrigins } from './trusted-origins.js';
 // binding the library reads. A missing or mistyped binding fails here,
 // not deep inside library files compiled in this program.
 ({}) as Cloudflare.Env satisfies ServerBindings;
-
-const ownership = personal();
 
 const app = createServerApp<CloudEnv>({
 	// The one runtime-specific portable concern: bind this Worker's Durable Object
@@ -70,12 +67,14 @@ const app = createServerApp<CloudEnv>({
 	},
 });
 
-// The cloud resolves a request to its user by verifying an OAuth bearer against
-// JWKS (`resolveRequestOAuthUser` reads `c.var.auth` + `c.var.db`, both present
-// below). Each owner-scoped wrapper closes over that one resolver; an instance
+// The cloud resolves a request to its principal by verifying an OAuth bearer against
+// JWKS (`resolveRequestOAuthPrincipal` reads `c.var.auth` + `c.var.db`, both present
+// below). Each protected wrapper closes over that one resolver; an instance
 // closes over its env-token resolver instead (ADR-0075).
-const cookieOrBearer = requireCookieOrBearerUser(resolveRequestOAuthUser);
-const bearer = requireBearerUser(resolveRequestOAuthUser);
+const cookieOrBearer = requireCookieOrBearerPrincipal(
+	resolveRequestOAuthPrincipal,
+);
+const bearer = requireBearerPrincipal(resolveRequestOAuthPrincipal);
 
 // Public health endpoint at root.
 app.get('/', (c) =>
@@ -94,41 +93,36 @@ mountCloudDb(app, {
 });
 
 // Cloud-only relational-auth layer: per-request Better Auth on `c.var.auth`
-// plus the auth surface (sign-in, consent, OAuth metadata). Epicenter cloud
-// serves app.epicenter.so and api.epicenter.so, which share a session via a
-// cookie scoped to the registrable domain (host-only on localhost regardless).
-// Mounted before the owner-scoped surfaces so `c.var.auth` is set when their
+// plus the auth surface (sign-in, consent, OAuth metadata). Session cookies are
+// host-only to api.epicenter.so and consumed only by the dashboard the API
+// serves itself; every other client is a bearer client (ADR-0079).
+// Mounted before the principal-scoped surfaces so `c.var.auth` is set when their
 // cookie-or-bearer wrappers run. The single-partition instance composes none of
 // this (ADR-0075). The Cloud-only auth secrets are read at this Worker's own edge
 // from its deploy-gated bindings (`c.env as Cloudflare.Env`), never the portable
 // `ServerBindings` (ADR-0076/0066).
 mountCloudAuth(app, {
-	cookieDomain: '.epicenter.so',
 	resolveAuthSecrets: (c) => c.env as Cloudflare.Env,
 });
 
-// Owner-partitioned reusable surfaces. Each primitive owns its own
-// ownership wiring; the deployment passes its auth choice, the rule, and any
-// deployment policies.
-mountSessionApp(app, { ownership, auth: cookieOrBearer });
+// Principal-partitioned reusable surfaces.
+mountSessionApp(app, { auth: cookieOrBearer });
 // Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver, not
 // a prebuilt wrapper.
-mountRoomsApp(app, { ownership, resolveUser: resolveRequestOAuthUser });
+mountRoomsApp(app, { resolveBearerPrincipal: resolveRequestOAuthPrincipal });
 // Content-addressed blob store (supersedes the retired assets surface). v1 is
 // unmetered (no Autumn policy): Autumn's check() denies by default with no plan
 // attached, so deferred quota means not calling it. A `syncBlobStorageWithAutumn`
 // policy slots in here when storage is billed.
-mountBlobsApp(app, { ownership, auth: cookieOrBearer });
+mountBlobsApp(app, { auth: cookieOrBearer });
 mountInferenceApp(app, {
 	auth: bearer,
-	ownership,
 	policies: [chargeOpenAiCreditsWithAutumn],
 });
 // OpenAI-compatible STT gateway (OpenAI whisper-1, house key). Metered by audio
 // duration, settled after the call (per-minute); see chargeOpenAiTranscriptionCredits.
 mountTranscriptionApp(app, {
 	auth: bearer,
-	ownership,
 	policies: [chargeOpenAiTranscriptionCredits],
 });
 

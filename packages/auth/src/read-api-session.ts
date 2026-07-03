@@ -7,7 +7,7 @@ import {
 import { Ok, type Result, tryAsync } from 'wellcrafted/result';
 import type { AuthFetch } from './auth-contract.js';
 import { AuthError } from './auth-errors.js';
-import { ApiSessionResponse, type AuthUser } from './auth-types.js';
+import { ApiSessionResponse, type Principal } from './auth-types.js';
 
 /**
  * The neutral outcome of one bearer `/api/session` read. The variants name the
@@ -83,7 +83,7 @@ export async function readApiSession({
 }
 
 /**
- * Read `/api/session` as an {@link AuthUser} for the bearer clients' `getProfile`.
+ * Read `/api/session` as an {@link Principal} for the bearer clients' `getProfile`.
  *
  * `fetch` is the client's own auth-attaching fetch: it owns the Authorization
  * header (it sets the bearer for the Epicenter origin and strips it elsewhere),
@@ -96,12 +96,12 @@ export async function readApiSession({
 export async function getProfileVia(
 	fetch: AuthFetch,
 	baseURL: string,
-): Promise<Result<AuthUser, AuthError>> {
+): Promise<Result<Principal, AuthError>> {
 	const { data: session, error } = await readApiSession({
 		baseURL,
 		fetch,
 		token: '',
 	});
 	if (error) return AuthError.ProfileUnavailable({ cause: error });
-	return Ok(session.user);
+	return Ok({ id: session.principalId, email: session.email });
 }

@@ -10,7 +10,7 @@
  *
  * Composition lives elsewhere:
  *  - `apps/vocab/vocab.browser.ts`
- *      → `openVocabBrowser({ signedIn, nodeId })`
+ *      → `openVocabBrowser({ auth, nodeId })`
  */
 
 import { conversationsTable } from '@epicenter/chat';

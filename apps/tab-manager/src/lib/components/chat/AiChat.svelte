@@ -3,10 +3,11 @@
 		AgentChatThread,
 		ConversationSwitcher,
 	} from '@epicenter/app-shell/agent-chat';
-	import { requireTabManager } from '$lib/session.svelte';
+	import { tabManagerBoot } from '$lib/session.svelte';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
 
-	const tabManager = requireTabManager();
+	const tabManager = tabManagerBoot.tabManager;
+	const auth = tabManagerBoot.auth;
 	const aiChat = $derived(tabManager.state.aiChat);
 	const active = $derived(aiChat.active);
 
@@ -40,6 +41,7 @@
 			connections={inferenceConnections}
 			resolveToolTitle={(toolName) => actionTitles[toolName]?.title}
 			onAlwaysAllow={alwaysAllowPendingToolCall}
+			onSignIn={() => auth.startSignIn()}
 		/>
 	{/if}
 </div>
