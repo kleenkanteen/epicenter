@@ -26,13 +26,13 @@
  * (deleted spec 20260623T220000 decision 10, recoverable via git history; kernel is ADR-0089); the old asset-table sync is retired.
  */
 
-import { AiChatError } from '@epicenter/constants/ai-chat-errors';
 import {
 	MODELS_BY_ID,
 	type ServableModel,
 } from '@epicenter/constants/ai-providers';
 import type { PrincipalId } from '@epicenter/identity';
 import { Err, Ok, type Result } from 'wellcrafted/result';
+import { AiChatError } from './ai-chat-errors.js';
 import { createAutumnClient, tryAutumn } from './autumn.js';
 import {
 	type CheckoutPlanId,

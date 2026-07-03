@@ -16,7 +16,6 @@
 		"./oauth-seed": "./src/oauth-seed.ts",
 		"./vite": "./src/vite.ts",
 		"./versions": "./src/versions.ts",
-		"./ai-chat-errors": "./src/ai-chat-errors.ts",
 		"./ai-providers": "./src/ai-providers.ts",
 		"./api-routes": "./src/api-routes.ts",
 		"./oauth-routes": "./src/oauth-routes.ts"
