@@ -10,6 +10,17 @@
  * gateway (ADR-0050) owns routing, so a model the backend cannot serve is a
  * runtime gateway error, not a compile error here. This catalog is the single
  * source of which ids we sell and what each costs.
+ *
+ * This is the build-time SEED of a layered catalog (ADR-0104): a typed `as const`
+ * so `ServableModel` keeps its literal narrowing, bundled at compile time, offline,
+ * present at first paint. Hosted models are authored here, never discovered: unlike
+ * a custom endpoint (someone else's box, discovered via `/v1/models`, ADR-0060), we
+ * own this list, and `/v1/models` cannot carry the product half (label, credits,
+ * default) anyway. A runtime OVERLAY that spreads more entries on top is deliberately
+ * NOT built: it is deferred until the catalog changes faster than clients ship, and
+ * grafts on then with no rework (add a served projection of this const plus a merge,
+ * seed-wins-on-price). Keep this a typed const, not a raw `.json` (a JSON import
+ * would widen ids to `string` and lose the union).
  */
 
 /**
