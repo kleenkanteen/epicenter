@@ -30,7 +30,7 @@ import {
 } from '@epicenter/client';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { type } from 'arktype';
-import { Err, Ok, type Result } from 'wellcrafted/result';
+import type { Result } from 'wellcrafted/result';
 
 /**
  * A reactive persisted-state handle: localStorage (web) or chrome.storage
@@ -174,20 +174,19 @@ export function createInferenceConnections({
 
 		/** Re-discover an already-added connection's models and update its cached
 		 * list, for when a user pulled a new model at the endpoint after connecting.
-		 * Best effort: on failure the previously discovered ids stand, so a transient
-		 * outage never empties the group. Connect-time `add` still owns first
-		 * discovery; this is the one path that refreshes a stale list in place. */
-		async refresh(
-			baseUrl: string,
-		): Promise<Result<string[], ListModelsError>> {
+		 * Best effort by design: on failure the previously discovered ids stand, so a
+		 * transient outage never empties the group, and nothing is returned because the
+		 * caller has nothing to surface (unlike `discover`, whose error builds the
+		 * connect-form hint). Connect-time `add` still owns first discovery; this is the
+		 * one path that refreshes a stale list in place. */
+		async refresh(baseUrl: string): Promise<void> {
 			const connection = stored.current.find((c) => c.baseUrl === baseUrl);
-			if (!connection) return Ok([]);
+			if (!connection) return;
 			const { data, error } = await listModels(resolveConnection(connection));
-			if (error) return Err(error);
+			if (error) return;
 			stored.current = stored.current.map((c) =>
 				c.baseUrl === baseUrl ? { ...c, models: data } : c,
 			);
-			return Ok(data);
 		},
 
 		/**
