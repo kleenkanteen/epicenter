@@ -12,8 +12,6 @@ import {
 } from './device-stream';
 import type { DeviceAcquisitionOutcome, DeviceIdentifier } from './devices';
 
-export type VadState = 'IDLE' | 'LISTENING' | 'SPEECH_DETECTED';
-
 const VadRecorderError = defineErrors({
 	AlreadyActive: () => ({
 		message: 'Stop the current session before starting a new one.',

@@ -1,14 +1,14 @@
+import type {
+	Device,
+	DeviceAcquisitionOutcome,
+	DeviceIdentifier,
+} from '@epicenter/recorder';
 import {
 	defineErrors,
 	extractErrorMessage,
 	type InferErrors,
 } from 'wellcrafted/error';
 import type { Result } from 'wellcrafted/result';
-import type {
-	Device,
-	DeviceAcquisitionOutcome,
-	DeviceIdentifier,
-} from './devices';
 
 /**
  * Recorder lifecycle state. A plain union: the states are never validated at
@@ -83,10 +83,9 @@ export type RecordingCallbacks = {
 	 * Sink for live mic loudness (raw RMS, ~0 silent to ~0.3 loud speech),
 	 * called continuously while recording so the caller can draw a meter.
 	 *
-	 * The browser recorder taps its MediaStream to drive this. A native recorder
-	 * may reach the same meter another way (e.g. emitting the level straight to
-	 * an overlay window), so its `startRecording` simply does not accept
-	 * callbacks.
+	 * The browser recorder taps its MediaStream to drive this. The CPAL recorder
+	 * reaches the same meter another way (emitting the level straight to the
+	 * overlay window), so its `startRecording` simply does not accept callbacks.
 	 */
 	onLevel: (level: number) => void;
 };
@@ -103,10 +102,10 @@ export type NavigatorRecordingParams = BaseRecordingParams & {
  * encoded audio to disk: the handle is the canonical reference for
  * transcribe/upload/delete and JS never touches the bytes itself.
  *
- * This is the plain, portable shape of the artifact. A native implementation
- * (such as Whispering's tauri-specta CPAL recorder) produces a struct that is
- * structurally identical to this type, so its result satisfies
- * {@link RecorderStopResult} without the package depending on any app bindings.
+ * This is the plain shape of the artifact. The tauri-specta CPAL recorder
+ * produces a struct that is structurally identical to this type, so its result
+ * satisfies {@link RecorderStopResult} without this contract importing the
+ * generated bindings.
  */
 export type RecordingArtifact = {
 	id: string;

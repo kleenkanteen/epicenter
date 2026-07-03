@@ -1,8 +1,3 @@
-import type {
-	RecorderError,
-	RecordingCallbacks,
-	RecordingSession,
-} from '@epicenter/recorder';
 import { nanoid } from 'nanoid/non-secure';
 import { defineErrors, extractErrorMessage } from 'wellcrafted/error';
 import { defineKeys } from 'wellcrafted/query';
@@ -11,6 +6,11 @@ import { manualRecorderConfig } from '#platform/manual-recorder-config';
 import { ManualRecorderLive } from '#platform/recorder';
 import type { WhisperingRecordingState } from '$lib/constants/audio';
 import { defineQuery } from '$lib/rpc/client';
+import type {
+	RecorderError,
+	RecordingCallbacks,
+	RecordingSession,
+} from '$lib/services/recorder/contract';
 
 const ManualRecorderError = defineErrors({
 	EnumerateDevicesFailed: ({ cause }: { cause: unknown }) => ({

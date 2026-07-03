@@ -4,14 +4,13 @@
 	"private": true,
 	"type": "module",
 	"sideEffects": false,
-	"description": "Portable browser audio capture and voice-activity detection: stream acquisition, MediaRecorder, and Silero VAD.",
+	"description": "Browser microphone capture and voice-activity detection: stream acquisition, device helpers, and Silero VAD.",
 	"keywords": [
 		"audio",
 		"recorder",
 		"microphone",
 		"voice-activity-detection",
 		"VAD",
-		"MediaRecorder",
 		"epicenter"
 	],
 	"exports": {

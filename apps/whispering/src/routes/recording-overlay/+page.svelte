@@ -10,7 +10,7 @@
 		type RecordingOverlayAction,
 		type RecordingOverlayStatus,
 	} from '$lib/recording-overlay/events';
-	import { foldMicLevel } from '@epicenter/recorder';
+	import { foldMicLevel } from '$lib/recording-overlay/level';
 	import RecordingPill from '$lib/recording-overlay/RecordingPill.svelte';
 
 	// Tauri adapter for the recording pill. The overlay lives in its own webview,

@@ -1,11 +1,13 @@
 # @epicenter/recorder
 
-Portable browser audio capture and voice-activity detection. The reusable core
-of Whispering's recording stack, with no app glue: no settings store, no tables,
-no transcription, no UI. It hands back a `Blob` plus level and speech callbacks.
+Browser microphone capture and voice-activity detection, with no app glue: no
+settings store, no tables, no transcription, no UI. It hands back a `Blob` plus
+level and speech callbacks.
 
-The native Tauri/CPAL recorder is intentionally not here; it stays in the app
-behind that app's own platform seam. This package is the browser-portable half.
+Manual recording products (start/stop lifecycles, artifact shapes, native
+recorders) are intentionally not here; an app builds those on top of this
+package's stream acquisition. This package is the browser-portable audio
+toolkit.
 
 ## Public API
 
@@ -17,33 +19,20 @@ import {
   cleanupRecordingStream,
   DeviceStreamError,
 
-  // Manual recorder (MediaRecorder)
-  createBrowserRecorder,
-
   // Voice activity detection (Silero v5 via @ricky0123/vad-web)
   createVadRecorder,
 
-  // Level meter smoothing
-  foldMicLevel,
-
-  // Contract + helpers
+  // Device vocabulary
   asDeviceIdentifier,
 } from '@epicenter/recorder';
 ```
 
-Types: `RecorderService`, `RecordingSession`, `RecorderStopResult`
-(`artifact | blob`), `RecordingArtifact`, `RecorderError`, `RecordingState`,
-`BaseRecordingParams`, `Device`, `DeviceIdentifier`, `DeviceAcquisitionOutcome`,
-`VadState`, `VadRecorder`, `VadRecorderError`.
+Types: `Device`, `DeviceIdentifier`, `DeviceAcquisitionOutcome`,
+`VadRecorder`, `VadRecorderError`, `StartActiveListeningOptions`.
 
 The core is callback and `Result` based, with no framework reactivity. A Svelte
 app that wants reactive state wraps the core in its own thin runes layer (see
 Whispering's `vad-recorder.svelte.ts`).
-
-`RecorderStopResult` keeps the `artifact | blob` union so a native recorder and
-the browser recorder satisfy one contract. The browser recorder always returns
-`blob`; browser-only callers can narrow to it. `RecordingArtifact` is the plain,
-portable shape a native recorder's result satisfies structurally.
 
 ## VAD runtime assets (required)
 

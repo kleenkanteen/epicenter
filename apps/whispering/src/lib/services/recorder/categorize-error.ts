@@ -1,4 +1,4 @@
-import { RecorderError } from '@epicenter/recorder';
+import { RecorderError } from '$lib/services/recorder/contract';
 import type { IpcRecorderError } from '$lib/tauri/commands';
 
 /**
