@@ -24,9 +24,9 @@ async function appDataPath(...segments: string[]) {
 export const PATHS = {
 	/**
 	 * Filesystem storage for recording audio blobs: `recordings/{id}.{ext}`.
-	 * The models folder is not here: Rust owns it end to end (see
-	 * `src-tauri/src/transcription/model_folder.rs`), so JS never resolves a
-	 * model path.
+	 * Local models are not here: Rust owns them end to end in the shared Hugging
+	 * Face cache (see `src-tauri/src/transcription/catalog.rs`), so JS never
+	 * resolves a model path.
 	 */
 	DB: {
 		/** `recordings/` directory containing audio files. */
