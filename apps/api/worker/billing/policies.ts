@@ -41,14 +41,11 @@
  * The library remains billing-agnostic; everything here is cloud-only.
  */
 
-import {
-	AiChatError,
-	AiChatErrorStatus,
-} from '@epicenter/constants/ai-chat-errors';
 import type { CloudEnv } from '@epicenter/server';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { AiChatError, AiChatErrorStatus } from './ai-chat-errors.js';
 import type { BillingError } from './errors.js';
 import { createBillingService } from './service.js';
 
