@@ -76,7 +76,7 @@ bun run src/bin.ts query "SELECT subject, sender FROM messages ORDER BY internal
 
 Triage messages. Each verb is a Gmail label change that the mirror folds in
 after Gmail accepts it. Output is human-readable; add `--json` for the typed
-`ModifyMessageLabelsOutcome` that MCP and a future HTTP adapter share.
+`ModifyMessageLabelsOutcome` that MCP and the `app` HTTP API share.
 
 ```sh
 bun run src/bin.ts archive <id...>
@@ -150,7 +150,7 @@ Tools:
 - `LOCAL_MAIL_PORT`: fallback for pinning the `app` server port; prefer
   `--port <n>` for normal use.
 - `LOCAL_MAIL_DEV` / `LOCAL_MAIL_TOKEN`: dev-mode `app`; the Vite proxy injects
-  the fixed bearer. `bearerAuth` is never disabled in any mode.
+  the fixed bearer. The bearer gate is never disabled in any mode.
 - `LOCAL_MAIL_NO_OPEN`: fallback for making `app` print the launch URL without
   opening a browser; prefer `--no-open` for normal use.
 

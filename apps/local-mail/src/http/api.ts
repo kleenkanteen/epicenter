@@ -57,7 +57,7 @@ const MessageQuery = type({
 	'offset?': 'string',
 });
 
-export type ApiDeps = {
+type ApiDeps = {
 	rt: LocalMailRuntime;
 	syncDeps: SyncDeps;
 	readOnly: boolean;
