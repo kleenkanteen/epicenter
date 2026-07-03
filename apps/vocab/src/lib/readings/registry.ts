@@ -45,10 +45,14 @@ export type ReadingProvider = {
  * To add a language: write a `ReadingProvider` (a small romanizer plus a script
  * test) and add it here. Committed short list, all deterministic, pure-JS, and
  * free of any runtime dictionary download: Chinese, Japanese kana, and Cyrillic
- * are shipped; Korean and Greek are the remaining one-entry adds. Japanese kanji
- * (kuroshiro + kuromoji, ~12MB dict) is deferred. An AI-annotation provider for
- * under-specifying scripts is a deliberately refused, earned-later entry: it
- * would be the only provider needing a network call, so it is added only if an
+ * are shipped. Korean and Greek were evaluated as cheap adds and deferred: no
+ * lightweight package clears the "a wrong reading is worse than none" bar
+ * (Korean RR needs cross-syllable assimilation the small packages get wrong;
+ * Greek γ is unreliable in every phonetic library tried). Japanese kanji
+ * (kuroshiro + kuromoji, ~12MB dict) is deferred as the heavy case. See ADR-0104
+ * for the per-script reasoning. An AI-annotation provider for under-specifying
+ * scripts is a deliberately refused, earned-later entry: it would be the only
+ * provider needing a network call, so it is added only if an
  * Arabic/Hebrew/Thai/Hindi audience becomes real.
  */
 export const readingProviders: ReadingProvider[] = [
