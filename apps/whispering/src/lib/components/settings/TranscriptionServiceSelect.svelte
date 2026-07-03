@@ -19,7 +19,7 @@
 		disabled = false,
 		hideLabel = false,
 		description,
-		recommendedServiceId = tauri ? 'parakeet' : 'OpenAI',
+		recommendedServiceId = tauri ? 'local' : 'OpenAI',
 	}: {
 		id?: string;
 		label?: string;

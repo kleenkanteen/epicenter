@@ -105,17 +105,14 @@ export const commands = {
 };
 
 export type {
+	CatalogError,
 	CommandBinding,
 	DictationCapability,
 	DownloadProgress,
-	Engine,
 	Key,
 	KeyBinding,
 	LocalModelState,
-	ModelEntry,
-	ModelFileDownload,
-	ModelFolderError,
-	ModelImportError,
+	ModelInfo,
 	ModelStateEvent,
 	ModelStatus,
 	Modifier,

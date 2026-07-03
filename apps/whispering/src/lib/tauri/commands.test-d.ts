@@ -144,8 +144,7 @@ type _TranscriptionSpecShape = Expect<
 	Equal<
 		TranscriptionSpec,
 		{
-			engine: 'whispercpp' | 'parakeet' | 'moonshine';
-			modelName: string;
+			modelId: string;
 			language?: string | null;
 			initialPrompt?: string | null;
 		}

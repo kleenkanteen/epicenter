@@ -106,7 +106,7 @@ describe('resolveCompletionState', () => {
 });
 
 describe('describePolishDestination', () => {
-	const onDevice = { onDevice: true, name: 'Parakeet' } as const;
+	const onDevice = { onDevice: true, name: 'Local Model' } as const;
 	const cloud = { onDevice: false, name: 'OpenAI' } as const;
 	const selfHosted = {
 		onDevice: false,
@@ -148,6 +148,16 @@ describe('describePolishDestination', () => {
 		).toBe(
 			'Audio is sent to OpenAI, then Polish keeps transcript text on this device.',
 		);
+	});
+
+	test('on-device audio and loopback override keeps audio and text on device', () => {
+		expect(
+			describePolishDestination(onDevice, 'OpenAI', {
+				target: { baseUrl: 'http://localhost:1234/v1', apiKey: undefined },
+				canRun: true,
+				textStaysOnDevice: true,
+			}),
+		).toBe('Audio and transcript text both stay on this device.');
 	});
 
 	test('cloud audio and cloud Polish names both providers', () => {

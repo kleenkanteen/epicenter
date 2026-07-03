@@ -61,14 +61,14 @@ type LocalProvider = {
 	location: 'local';
 	label: string;
 	description: string;
-	capabilities: Capabilities;
 	/**
-	 * The device config key holding the engine's selected model: a folder
-	 * entry name inside the engine's models folder, never a path.
+	 * The device config key holding the selected model's catalog id
+	 * (`"{repoId}@{revision}/{filename}"`), never a path. Rust owns the catalog
+	 * and resolves the id to a shared-HF-cache path at load time. No static
+	 * `capabilities` here: local capability is per-GGUF, read from the Rust
+	 * `ModelInfo` (honest asymmetry vs. provider-wide cloud capability).
 	 */
 	modelConfigKey: DeviceConfigKey;
-	/** Whether the engine's model is a single file or a directory. */
-	modelKind: 'file' | 'directory';
 };
 
 type SelfHostedProvider = {
@@ -250,30 +250,11 @@ export const PROVIDERS = {
 		],
 	},
 
-	whispercpp: {
+	local: {
 		location: 'local',
-		label: 'Whisper C++',
-		description: 'Fast local transcription with no internet required',
-		capabilities: { supportsPrompt: true, supportsLanguage: true },
-		modelConfigKey: 'transcription.whispercpp.model',
-		modelKind: 'file',
-	},
-	parakeet: {
-		location: 'local',
-		label: 'Parakeet',
-		description:
-			'Recommended fast local transcription with automatic language detection',
-		capabilities: { supportsPrompt: false, supportsLanguage: false },
-		modelConfigKey: 'transcription.parakeet.model',
-		modelKind: 'directory',
-	},
-	moonshine: {
-		location: 'local',
-		label: 'Moonshine',
-		description: 'Small English-only local transcription',
-		capabilities: { supportsPrompt: false, supportsLanguage: false },
-		modelConfigKey: 'transcription.moonshine.model',
-		modelKind: 'directory',
+		label: 'Local',
+		description: 'Private on-device transcription, no internet required',
+		modelConfigKey: 'transcription.local.selectedModel',
 	},
 
 	speaches: {

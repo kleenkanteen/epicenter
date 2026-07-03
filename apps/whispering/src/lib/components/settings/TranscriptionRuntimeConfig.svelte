@@ -16,15 +16,11 @@
 		LOCAL_MODEL_UNLOAD_POLICY_OPTIONS,
 		type LocalModelUnloadPolicy,
 	} from '$lib/constants/local-model-unload-policy';
-	import {
-		MOONSHINE_MODELS,
-		PARAKEET_MODELS,
-		WHISPER_MODELS,
-	} from '$lib/constants/local-models';
 	import { describeTranscriptionDestinationFromConfig } from '$lib/operations/transcription-target';
 	import { TRANSCRIPTION_PROVIDERS } from '$lib/services/transcription/provider-ui';
 	import { PROVIDERS } from '$lib/services/transcription/providers';
 	import { deviceConfig } from '$lib/state/device-config.svelte';
+	import { localModels } from '$lib/state/local-models.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { createCopyFn } from '$lib/utils/createCopyFn';
 	import { tauri } from '#platform/tauri';
@@ -52,9 +48,23 @@
 		}),
 	);
 
-	const currentServiceCapabilities = $derived(
-		PROVIDERS[settings.get('transcription.service')].capabilities,
-	);
+	// Cloud/self-hosted capability is provider-wide (static). Local capability is
+	// per-GGUF, read from the selected model's Rust `ModelInfo`; nothing selected
+	// yet defaults permissive (Whisper-class), and the runtime independently
+	// ignores a prompt a model does not accept.
+	const currentServiceCapabilities = $derived.by(() => {
+		const service = settings.get('transcription.service');
+		if (service === 'local') {
+			const model = localModels.find(
+				deviceConfig.get(PROVIDERS.local.modelConfigKey),
+			);
+			return {
+				supportsPrompt: model?.supportsPrompt ?? true,
+				supportsLanguage: model?.supportsLanguage ?? true,
+			};
+		}
+		return PROVIDERS[service].capabilities;
+	});
 
 	const selectedTranscriptionProvider = $derived(
 		TRANSCRIPTION_PROVIDERS.find(
@@ -313,95 +323,12 @@
 				</Field.Description>
 			</Field.Field>
 		</div>
-	{:else if settings.get('transcription.service') === 'whispercpp'}
+	{:else if settings.get('transcription.service') === 'local'}
 		<div class="space-y-4">
 			<LocalModelSelector
-				models={WHISPER_MODELS}
-				title="Whisper Model"
-				description="Download a pre-built model or add your own to the models folder. Models run locally for private, offline transcription."
-				bind:value={() => deviceConfig.get('transcription.whispercpp.model'),
-					(v) => deviceConfig.set('transcription.whispercpp.model', v)}
-			>
-				{#snippet footer()}
-					<Field.Description>
-						Pre-built models are downloaded from
-						<Link
-							href="https://huggingface.co/ggerganov/whisper.cpp"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							Hugging Face
-						</Link>
-						into the models folder. Quantized models (q5_0, q8_0) offer
-						smaller sizes with minimal quality loss.
-					</Field.Description>
-				{/snippet}
-			</LocalModelSelector>
-		</div>
-	{:else if settings.get('transcription.service') === 'parakeet'}
-		<div class="space-y-4">
-			<LocalModelSelector
-				models={PARAKEET_MODELS}
-				title="Parakeet Model"
-				description="Parakeet is the recommended fast local model. It runs on this device, downloads once, and automatically detects supported spoken languages."
-				bind:value={() => deviceConfig.get('transcription.parakeet.model'),
-				(v) => deviceConfig.set('transcription.parakeet.model', v)}
-			>
-				{#snippet footer()}
-					<Field.Description>
-						Pre-built models are downloaded from
-						<Link
-							href="https://github.com/EpicenterHQ/epicenter/releases/tag/models/parakeet-tdt-0.6b-v3-int8"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							GitHub releases
-						</Link>
-						into the models folder. Parakeet models from
-						<Link
-							href="https://github.com/NVIDIA/NeMo"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							NVIDIA NeMo
-						</Link>
-						are directories containing ONNX files.
-					</Field.Description>
-				{/snippet}
-			</LocalModelSelector>
-		</div>
-	{:else if settings.get('transcription.service') === 'moonshine'}
-		<div class="space-y-4">
-			<LocalModelSelector
-				models={MOONSHINE_MODELS}
-				title="Moonshine Model"
-				description="Moonshine is an efficient ONNX model by UsefulSensors. English-only with fast inference and small model sizes (~30 MB)."
-				bind:value={() => deviceConfig.get('transcription.moonshine.model'),
-				(v) => deviceConfig.set('transcription.moonshine.model', v)}
-			>
-				{#snippet footer()}
-					<Field.Description>
-						Pre-built models are downloaded from
-						<Link
-							href="https://huggingface.co/UsefulSensors/moonshine"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							Hugging Face
-						</Link>
-						into the models folder. Your own Moonshine directory must be
-						named
-						<code class="rounded bg-muted px-1 py-0.5 font-mono"
-							>moonshine-&#123;variant&#125;-&#123;lang&#125;</code
-						>
-						(e.g.
-						<code class="rounded bg-muted px-1 py-0.5 font-mono"
-							>moonshine-tiny-en</code
-						>); the variant (tiny/base) tells Whispering the model
-						architecture.
-					</Field.Description>
-				{/snippet}
-			</LocalModelSelector>
+				bind:value={() => deviceConfig.get('transcription.local.selectedModel'),
+					(v) => deviceConfig.set('transcription.local.selectedModel', v)}
+			/>
 		</div>
 	{/if}
 
@@ -471,10 +398,7 @@
 			</Select.Root>
 			{#if !currentServiceCapabilities.supportsLanguage}
 				<Field.Description>
-					{settings.get('transcription.service') ===
-					'moonshine'
-						? 'Moonshine uses English-only models.'
-						: 'Parakeet detects the spoken language automatically.'}
+					This model detects the spoken language automatically.
 				</Field.Description>
 			{:else}
 				<Field.Description>
