@@ -15,7 +15,6 @@
 		"./oauth-clients": "./src/oauth-clients.ts",
 		"./oauth-seed": "./src/oauth-seed.ts",
 		"./vite": "./src/vite.ts",
-		"./versions": "./src/versions.ts",
 		"./ai-providers": "./src/ai-providers.ts",
 		"./api-routes": "./src/api-routes.ts",
 		"./oauth-routes": "./src/oauth-routes.ts"
