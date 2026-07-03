@@ -244,7 +244,13 @@ export async function runCli(argv: string[]): Promise<number> {
 			return runRecategorize(args);
 		case 'app': {
 			const { runApp } = await import('./app.ts');
-			return runApp(args, { noOpen: args.noOpen, port: args.port });
+			return runApp({
+				dataDir: args.dataDir,
+				environment: args.environment,
+				realm: args.realm,
+				noOpen: args.noOpen,
+				port: args.port,
+			});
 		}
 		case 'demo':
 			return runDemo(args);
