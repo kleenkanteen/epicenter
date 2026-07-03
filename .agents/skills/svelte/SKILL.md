@@ -1,6 +1,6 @@
 ---
 name: svelte
-description: Svelte 5 component and state-module patterns for Epicenter apps. Use when editing `.svelte`, `.svelte.ts`, or Svelte UI state code involving runes, `$props`, snippets, keyed lifecycles, `{#await}`, TanStack Query, SvelteMap, shadcn-svelte, or workspace observers.
+description: Svelte 5 component and state-module patterns for Epicenter apps. Use when editing `.svelte`, `.svelte.ts`, or Svelte UI state code involving runes, `$props`, snippets, keyed lifecycles, `{#await}`, TanStack Query, `SvelteMap`/`SvelteSet`, `createSubscriber`, `$state.raw`, shadcn-svelte, or workspace observers.
 ---
 
 # Svelte Guidelines
@@ -49,7 +49,7 @@ Use this skill when you need to:
 
 ## Svelte 5 Baseline
 
-- Use `$state` for reactive values that the component mutates. Use `$state.raw` for large reassigned objects or handles that should not be deep-proxied.
+- Use `$state` for reactive values the component mutates in place. Use `$state.raw` for values that are only ever reassigned wholesale (large arrays, replace-only persisted stores, opaque handles): it stores by reference with no deep proxy, does not freeze, and reacts only to reassignment, so an in-place property write mutates the object without triggering reactivity or persistence (not an error, but not reactive either). Reach for it when the deep proxy buys reactivity you never use, and when stable value identity matters (for example a store whose value is JSON-serialized or compared by reference). Exemplar: `createPersistedState` in `packages/svelte-utils`.
 - Prefer `$derived` for computed state. Treat `$effect` as a browser-only escape hatch for DOM integration, analytics, subscriptions, and external systems. A returned cleanup runs before the effect re-runs and when the component is destroyed.
 - Props can change. Values derived from `$props()` should usually be `$derived`, not one-time initialization.
 - Treat props as parent-owned by default. Use callback props for commands and `$bindable` only for intentional two-way APIs such as UI wrappers, `bind:value`, `bind:open`, and `bind:ref`.
@@ -64,6 +64,8 @@ Use this skill when you need to:
 - Inline shallow property aliases and single-use script helpers (a `function`, `$derived`, or one-off `const` used once in the template). Keep one extracted only when it computes, narrows, or stabilizes something useful, or when a justifying comment plus a semantic name makes the template read better. Read [component and UI patterns](references/component-ui-patterns.md).
 - Map finite unions with a `satisfies Record` lookup, not nested ternaries or `$derived.by()` switches.
 - Use `SvelteMap` for ID-keyed collections where `get`, `has`, `size`, or iteration should update reactively. Values inside a `SvelteMap` are not deep-proxied, so store reactive row objects or replace values when nested data changes. Convert maps to stable arrays with `$derived` before passing them to table-like consumers.
+- Use `SvelteSet` for an id set whose membership (`has`, `size`, iteration) is read in a reactive or template context: `add`/`delete` then drive the UI directly, replacing `$state<string[]>` plus spread/filter reassignment. Reach for `SvelteMap` instead the moment the set needs to carry per-key data (a timestamp, a last error). Use a plain `Set`/`Map` (not the reactive class) when the collection is read only in imperative code, such as a subscription's listener bag: a reactive wrapper read outside any effect is cost with no reader (exemplar: the plain `listeners` set in `createPersistedState`).
+- Bridge an external event source (a Y.Doc `update`, `chrome.storage`, `window` events, an auth store) into reactivity with `createSubscriber` from `svelte/reactivity`, not a hand-rolled `$state` plus `$effect` plus listener set: reads inside an effect become reactive and the subscription is ref-counted to effect usage (start on first subscriber, cleanup at zero). Exemplars: `from-kv`, `auth`, `from-table` in `packages/svelte-utils`. Keep a manual listener set only when the same source also serves imperative `.get()`/`.watch()` consumers whose liveness cannot ride on effect ref-counting (again `createPersistedState`).
 - For new reusable DOM behavior on elements, prefer `{@attach}` attachments over new `use:` actions. Keep `use:` for existing code or libraries that only expose actions.
 - Create TanStack Query mutations in `.svelte` files and call `mutation.mutate(...)` directly from template handlers unless the action earns a semantic helper. Read [mutations and workspace inputs](references/mutations-and-workspace-inputs.md).
 - For workspace string fields, prefer commit-on-blur over writing a CRDT transaction on every keystroke.
