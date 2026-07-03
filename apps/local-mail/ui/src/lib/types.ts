@@ -8,7 +8,9 @@ import type { api } from './api';
 
 export type MailboxStatus = Awaited<ReturnType<typeof api.status>>;
 
-export type MailLabel = Awaited<ReturnType<typeof api.labels>>['labels'][number];
+export type MailLabel = Awaited<
+	ReturnType<typeof api.labels>
+>['labels'][number];
 
 export type MessageSummary = Awaited<
 	ReturnType<typeof api.messages>

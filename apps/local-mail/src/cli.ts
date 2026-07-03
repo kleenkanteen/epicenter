@@ -167,7 +167,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
 			case '--port': {
 				const value = Number(takeValue());
 				if (!Number.isInteger(value) || value < 0) {
-					throw new Error(`--port must be a non-negative integer, got "${value}"`);
+					throw new Error(
+						`--port must be a non-negative integer, got "${value}"`,
+					);
 				}
 				args.port = value;
 				break;
