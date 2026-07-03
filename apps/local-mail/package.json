@@ -11,12 +11,18 @@
 		"cdc",
 		"email"
 	],
+	"exports": {
+		"./http/api": "./src/http/api.ts"
+	},
 	"scripts": {
 		"test": "bun test",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@hono/standard-validator": "catalog:",
 		"@modelcontextprotocol/sdk": "catalog:",
+		"arktype": "catalog:",
+		"hono": "catalog:",
 		"oauth4webapi": "catalog:",
 		"typebox": "catalog:",
 		"wellcrafted": "catalog:"

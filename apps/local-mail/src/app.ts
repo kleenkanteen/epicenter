@@ -1,10 +1,8 @@
 import { Database } from 'bun:sqlite';
-import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { resolveAndModifyMessageLabels } from './modify.ts';
+import { createApiApp, mintToken } from './http/api.ts';
 import { openLocalMailRuntime, openSyncSession } from './runtime.ts';
-import { readMailStatus } from './status.ts';
 import { syncMailbox } from './sync.ts';
 
 /**
@@ -24,19 +22,13 @@ import { syncMailbox } from './sync.ts';
  *   a fixed `LOCAL_MAIL_TOKEN` bearer and rewrites Host, so the same checks run
  *   against a developer's real mailbox.
  *
- * Writes go through the exact Phase 3 core the CLI and MCP use
- * (`resolveAndModifyMessageLabels`); no per-intent routes exist.
+ * Routing, the bearer gate, and request validation live in the Hono app
+ * (`http/api.ts`); this module owns the loopback host primitive, static SPA
+ * serving, and the process lifecycle, dispatching `/api/*` to `api.fetch`.
  */
 
 const DEV = process.env.LOCAL_MAIL_DEV === '1';
 const SYNC_INTERVAL_MS = 30_000;
-/** Bound online guessing by another local user against the exchange endpoint. */
-const MAX_FAILED_EXCHANGES = 25;
-
-/** 256 bits of CSPRNG, base64url: well past the spec's 128-bit floor. */
-function mintToken(): string {
-	return randomBytes(32).toString('base64url');
-}
 
 type LockHandle = { db: Database; release(): void };
 
@@ -66,16 +58,6 @@ function acquireAccountLock(dir: string): LockHandle | null {
 			db.close();
 		},
 	};
-}
-
-function json(body: unknown, status = 200): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: {
-			'content-type': 'application/json',
-			'referrer-policy': 'no-referrer',
-		},
-	});
 }
 
 /**
@@ -130,7 +112,7 @@ export async function runApp(options: {
 }): Promise<number> {
 	const { data: runtime, error: runtimeError } = await openLocalMailRuntime();
 	// Narrow on `runtime` itself, not just the error: the value is captured in
-	// the fetch/handleApi closures below, where only a truthiness guard on the
+	// the fetch/loop/SIGINT closures below, where only a truthiness guard on the
 	// const survives.
 	if (runtimeError || !runtime) {
 		console.error(
@@ -166,11 +148,10 @@ export async function runApp(options: {
 	// closures below, so capture them here where the narrowing holds.
 	const rt = runtime;
 	const sess = session;
-	const { db } = sess.deps;
 	const readOnly = rt.config.readOnly;
 
 	// The valid-bearer set. Dev pre-seeds the fixed proxy token; prod fills it
-	// only through the bootstrap exchange.
+	// only through the bootstrap exchange handled inside the Hono app.
 	const sessionBearers = new Set<string>();
 	let bootstrapToken: string | null = null;
 	if (DEV) {
@@ -187,121 +168,24 @@ export async function runApp(options: {
 	} else {
 		bootstrapToken = mintToken();
 	}
-	let failedExchanges = 0;
 
 	const uiDist = join(import.meta.dir, '..', 'ui', 'dist');
 	const gate = createSyncGate();
 	const controller = new AbortController();
 
-	function bearerOf(req: Request): string | null {
-		const header = req.headers.get('authorization');
-		if (!header?.startsWith('Bearer ')) return null;
-		return header.slice('Bearer '.length);
-	}
-
-	async function handleApi(req: Request, url: URL): Promise<Response> {
-		const { pathname } = url;
-
-		// The one unauthenticated mutation: exchange the bootstrap for a bearer.
-		if (pathname === '/api/session' && req.method === 'POST') {
-			if (bootstrapToken === null) {
-				return json({ error: 'No bootstrap token is outstanding.' }, 401);
-			}
-			if (failedExchanges >= MAX_FAILED_EXCHANGES) {
-				return json({ error: 'Too many exchange attempts.' }, 429);
-			}
-			const body = (await req.json().catch(() => null)) as {
-				token?: string;
-			} | null;
-			if (!body?.token || body.token !== bootstrapToken) {
-				failedExchanges += 1;
-				return json({ error: 'Invalid bootstrap token.' }, 401);
-			}
-			const bearer = mintToken();
-			sessionBearers.add(bearer);
-			bootstrapToken = null; // single use: invalidate at exchange
-			return json({ token: bearer });
-		}
-
-		const bearer = bearerOf(req);
-		if (!bearer || !sessionBearers.has(bearer)) {
-			return json({ error: 'Unauthorized. Restart local-mail app.' }, 401);
-		}
-
-		if (pathname === '/api/status' && req.method === 'GET') {
-			const status = await readMailStatus(rt);
-			return json({
-				accountEmail: status.accountEmail,
-				connected: status.connected,
-				mirror: status.mirror,
-				historyId: status.historyId,
-				lastSyncedAt: status.lastSyncedAt,
-				lastFullPullAt: status.lastFullPullAt,
-				rows: status.rows,
-				readOnly,
-			});
-		}
-
-		if (pathname === '/api/labels' && req.method === 'GET') {
-			return json({ labels: db.listLabels() });
-		}
-
-		if (pathname === '/api/messages' && req.method === 'GET') {
-			const limit = Math.min(Number(url.searchParams.get('limit')) || 100, 200);
-			const offset = Math.max(Number(url.searchParams.get('offset')) || 0, 0);
-			const labelId = url.searchParams.get('label') ?? undefined;
-			const search = url.searchParams.get('q')?.trim() || undefined;
-			return json({
-				messages: db.listMessages({ labelId, search, limit, offset }),
-			});
-		}
-
-		const detailMatch = pathname.match(/^\/api\/messages\/([^/]+)$/);
-		if (detailMatch && req.method === 'GET') {
-			const detail = db.getMessageDetail(
-				decodeURIComponent(detailMatch[1] as string),
-			);
-			if (!detail) return json({ error: 'Message not found.' }, 404);
-			return json(detail);
-		}
-
-		if (pathname === '/api/sync' && req.method === 'POST') {
-			const outcome = await gate(() =>
-				syncMailbox(sess.deps, { forceFull: false }),
-			);
-			return json(outcome);
-		}
-
-		if (pathname === '/api/messages/modify' && req.method === 'POST') {
-			const body = (await req.json().catch(() => null)) as {
-				ids?: string[];
-				addLabels?: string[];
-				removeLabels?: string[];
-			} | null;
-			if (!body || !Array.isArray(body.ids)) {
-				return json(
-					{ error: 'Body must be { ids, addLabels, removeLabels }.' },
-					400,
-				);
-			}
-			const { data, error } = await resolveAndModifyMessageLabels({
-				deps: sess.deps,
-				ids: body.ids,
-				addLabels: body.addLabels ?? [],
-				removeLabels: body.removeLabels ?? [],
-				readOnly,
-			});
-			if (error) return json({ error: error.message }, 400);
-			return json(data);
-		}
-
-		return json({ error: 'Not found.' }, 404);
-	}
+	const api = createApiApp({
+		rt,
+		syncDeps: sess.deps,
+		readOnly,
+		gate,
+		sessionBearers,
+		bootstrapToken,
+	});
 
 	const server = Bun.serve({
 		hostname: '127.0.0.1',
 		port: options.port ?? (Number(process.env.LOCAL_MAIL_PORT) || 0),
-		async fetch(req) {
+		fetch(req) {
 			const url = new URL(req.url);
 
 			// Host check first: the DNS-rebinding kill switch. Every request must
@@ -312,7 +196,7 @@ export async function runApp(options: {
 				return new Response('Forbidden', { status: 403 });
 			}
 
-			if (url.pathname.startsWith('/api/')) return handleApi(req, url);
+			if (url.pathname.startsWith('/api/')) return api.fetch(req);
 			return serveStatic(uiDist, url.pathname);
 		},
 	});
@@ -333,6 +217,7 @@ export async function runApp(options: {
 		console.error(`local-mail app (dev API) listening on ${origin}`);
 		console.error('Run the SPA with: bun run --cwd apps/local-mail/ui dev');
 	} else {
+		const noOpen = options.noOpen || process.env.LOCAL_MAIL_NO_OPEN === '1';
 		const launchUrl = `${origin}/#token=${bootstrapToken}`;
 		console.log(launchUrl);
 		if (!existsSync(uiDist)) {
@@ -340,10 +225,8 @@ export async function runApp(options: {
 				`Note: ${uiDist} does not exist yet. Build the SPA with "bun run --cwd apps/local-mail/ui build".`,
 			);
 		}
-		// `--no-open` (or `LOCAL_MAIL_NO_OPEN=1`) prints the URL without launching
-		// a browser: for headless hosts, CI, and "copy the URL into the browser I
-		// want" workflows.
-		const noOpen = options.noOpen || process.env.LOCAL_MAIL_NO_OPEN === '1';
+		// `--no-open` prints the URL without launching a browser; the env fallback
+		// supports headless hosts, CI, and "copy the URL into the browser I want" workflows.
 		if (!noOpen) {
 			Bun.spawn(['open', launchUrl]).exited.catch(() => {});
 		}

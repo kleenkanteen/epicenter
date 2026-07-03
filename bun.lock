@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "epicenter",
@@ -181,7 +180,10 @@
       "name": "@epicenter/local-mail",
       "version": "0.0.1",
       "dependencies": {
+        "@hono/standard-validator": "catalog:",
         "@modelcontextprotocol/sdk": "catalog:",
+        "arktype": "catalog:",
+        "hono": "catalog:",
         "oauth4webapi": "catalog:",
         "typebox": "catalog:",
         "wellcrafted": "catalog:",
@@ -196,8 +198,10 @@
       "version": "0.0.1",
       "dependencies": {
         "@tanstack/svelte-query": "catalog:",
+        "hono": "catalog:",
       },
       "devDependencies": {
+        "@epicenter/local-mail": "workspace:*",
         "@epicenter/ui": "workspace:*",
         "@lucide/svelte": "catalog:",
         "@sveltejs/adapter-static": "catalog:",
