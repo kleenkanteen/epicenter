@@ -28,6 +28,7 @@ const config: AppConfig = {
 	pageSize: 100,
 	credentialsPath: '/tmp/local-mail-gmail-client-test/credentials.json',
 	account: null,
+	readOnly: false,
 };
 
 const tokens: TokenManager = {

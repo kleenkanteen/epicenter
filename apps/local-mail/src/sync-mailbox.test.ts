@@ -99,6 +99,7 @@ const config: AppConfig = {
 	pageSize: 100,
 	credentialsPath: '/tmp/local-mail-test/credentials.json',
 	account: null,
+	readOnly: false,
 };
 
 describe('syncMailbox: FULL pull', () => {

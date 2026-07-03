@@ -250,6 +250,15 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 	const patchMessageLabelsStmt = db.query(
 		`UPDATE messages SET raw = ?, synced_at = ? WHERE id = ?`,
 	);
+	const findLabelByIdOrExactNameStmt = db.query<
+		{ id: string; name: string | null },
+		[string, string, string]
+	>(
+		`SELECT id, name FROM labels
+		 WHERE id = ? OR name = ?
+		 ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, id
+		 LIMIT 1`,
+	);
 	const upsertLabelStmt = db.query(
 		`INSERT INTO labels (id, raw, synced_at)
 		 VALUES (?, ?, ?)
@@ -320,7 +329,11 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 		 * Returns false when the row is absent and does not touch `_meta`: a fold
 		 * is not a sync pass and must not move staleness or history cursors.
 		 */
-		patchMessageLabels(messageId: string, labelIds: string[], syncedAt: string) {
+		patchMessageLabels(
+			messageId: string,
+			labelIds: string[],
+			syncedAt: string,
+		) {
 			let patched = false;
 			const tx = db.transaction(() => {
 				patched = patchMessageLabelsRow(messageId, labelIds, syncedAt);
@@ -334,6 +347,12 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 				messages: liveMessageCountStmt.get()?.n ?? 0,
 				labels: labelCountStmt.get()?.n ?? 0,
 			};
+		},
+
+		findLabelByIdOrExactName(
+			label: string,
+		): { id: string; name: string | null } | null {
+			return findLabelByIdOrExactNameStmt.get(label, label, label) ?? null;
 		},
 
 		/** Live messages, newest first, for post-pass reporting. */

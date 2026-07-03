@@ -33,6 +33,7 @@ function config(overrides: Partial<AppConfig>): AppConfig {
 		pageSize: 100,
 		credentialsPath: '/tmp/local-mail-oauth-test/credentials.json',
 		account: null,
+		readOnly: false,
 		...overrides,
 	};
 }

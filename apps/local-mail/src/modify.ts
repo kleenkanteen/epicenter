@@ -27,6 +27,14 @@ export type ModifyMessageLabelsError = InferErrors<
 	typeof ModifyMessageLabelsError
 >;
 
+export const ResolveLabelIdsError = defineErrors({
+	UnknownLabel: ({ label }: { label: string }) => ({
+		message: `Unknown Gmail label "${label}". Create it in Gmail, sync labels, or pass the label id.`,
+		label,
+	}),
+});
+export type ResolveLabelIdsError = InferErrors<typeof ResolveLabelIdsError>;
+
 type ErrorSummary = {
 	name: string;
 	message: string;
@@ -56,7 +64,10 @@ export type ModifyMessageLabelsInput = {
 	removeLabelIds: string[];
 };
 
-function summarizeError(error: { name: string; message: string }): ErrorSummary {
+function summarizeError(error: {
+	name: string;
+	message: string;
+}): ErrorSummary {
 	return { name: error.name, message: error.message };
 }
 
@@ -80,7 +91,9 @@ function isReadOnlyGrant(error: GmailClientError): boolean {
 }
 
 function isPerIdError(error: GmailClientError): boolean {
-	return error.name === 'Http' && (error.status === 400 || error.status === 404);
+	return (
+		error.name === 'Http' && (error.status === 400 || error.status === 404)
+	);
 }
 
 function abortSummary(error: GmailClientError): ErrorSummary {
@@ -108,6 +121,38 @@ function tryFoldMessageLabels({
 	}
 }
 
+type ResolveLabelIdsDeps = {
+	client: GmailClient;
+	db: MailDb;
+	now: () => number;
+};
+
+export async function resolveLabelIds({
+	deps,
+	labels,
+}: {
+	deps: ResolveLabelIdsDeps;
+	labels: string[];
+}): Promise<Result<string[], ResolveLabelIdsError | GmailClientError>> {
+	const resolved: string[] = [];
+	let refreshed = false;
+
+	for (const label of labels) {
+		let row = deps.db.findLabelByIdOrExactName(label);
+		if (!row && !refreshed) {
+			const { data, error } = await deps.client.listLabels();
+			if (error) return { data: null, error };
+			deps.db.ingestLabels(data, new Date(deps.now()).toISOString());
+			refreshed = true;
+			row = deps.db.findLabelByIdOrExactName(label);
+		}
+		if (!row) return ResolveLabelIdsError.UnknownLabel({ label });
+		resolved.push(row.id);
+	}
+
+	return Ok(resolved);
+}
+
 export async function modifyMessageLabels({
 	deps,
 	input,
@@ -120,12 +165,7 @@ export async function modifyMessageLabels({
 	 * allowed. The core owns this invariant, not the CLI or MCP surface.
 	 */
 	readOnly: boolean;
-}): Promise<
-	Result<
-		ModifyMessageLabelsOutcome,
-		ModifyMessageLabelsError
-	>
-> {
+}): Promise<Result<ModifyMessageLabelsOutcome, ModifyMessageLabelsError>> {
 	if (readOnly) return ModifyMessageLabelsError.ReadOnly();
 	if (input.ids.length === 0) return ModifyMessageLabelsError.NoMessageIds();
 	if (input.ids.length > 100) {

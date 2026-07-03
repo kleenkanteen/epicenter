@@ -20,8 +20,9 @@ import type { Result } from 'wellcrafted/result';
 import { type MailDb, openMailDb, SCHEMA_VERSION } from './db.ts';
 import { GmailApiError, type GmailClient } from './gmail-client.ts';
 import {
-	modifyMessageLabels,
 	type ModifyMessageLabelsInput,
+	modifyMessageLabels,
+	resolveLabelIds,
 } from './modify.ts';
 import type { GmailLabel, GmailMessage, HistoryPage } from './schema.ts';
 
@@ -61,9 +62,7 @@ function message(id: string, over: Partial<GmailMessage> = {}): GmailMessage {
 function messageRaw(db: MailDb, id: string): string | null {
 	return (
 		db.raw
-			.query<{ raw: string }, [string]>(
-				`SELECT raw FROM messages WHERE id = ?`,
-			)
+			.query<{ raw: string }, [string]>(`SELECT raw FROM messages WHERE id = ?`)
 			.get(id)?.raw ?? null
 	);
 }
@@ -87,20 +86,31 @@ function tableNames(db: MailDb): string[] {
 
 function createFakeGmailClient(
 	results: Map<string, FakeModifyResult>,
+	labels: GmailLabel[] = [],
 ): GmailClient & {
-	modifyCalls: { id: string; addLabelIds: string[]; removeLabelIds: string[] }[];
+	modifyCalls: {
+		id: string;
+		addLabelIds: string[];
+		removeLabelIds: string[];
+	}[];
+	listLabelsCalls: number;
 } {
 	const modifyCalls: {
 		id: string;
 		addLabelIds: string[];
 		removeLabelIds: string[];
 	}[] = [];
+	let listLabelsCalls = 0;
 	return {
 		modifyCalls,
+		get listLabelsCalls() {
+			return listLabelsCalls;
+		},
 		async modifyMessage(id, body) {
 			modifyCalls.push({ id, ...body });
 			const result = results.get(id);
-			if (!result) return GmailApiError.Http({ status: 404, body: 'not found' });
+			if (!result)
+				return GmailApiError.Http({ status: 404, body: 'not found' });
 			return result.error
 				? { data: null, error: result.error }
 				: { data: result.data, error: null };
@@ -115,7 +125,8 @@ function createFakeGmailClient(
 			return { data: { historyId: '1' }, error: null };
 		},
 		async listLabels(): Promise<{ data: GmailLabel[]; error: null }> {
-			return { data: [], error: null };
+			listLabelsCalls += 1;
+			return { data: labels, error: null };
 		},
 		async getProfile() {
 			return { data: { historyId: '1' }, error: null };
@@ -150,6 +161,65 @@ describe('modifyMessageLabels', () => {
 		});
 
 		expect(result.error?.name).toBe('ReadOnly');
+		expect(client.modifyCalls).toHaveLength(0);
+		cleanup();
+	});
+
+	test('empty add and remove label sets refuse before any Gmail client call', async () => {
+		const { db, cleanup } = tempDb();
+		const client = createFakeGmailClient(
+			new Map([['m1', { data: message('m1', { labelIds: ['INBOX'] }) }]]),
+		);
+
+		const result = await modifyMessageLabels({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			input: { ids: ['m1'], addLabelIds: [], removeLabelIds: [] },
+			readOnly: false,
+		});
+
+		expect(result.error?.name).toBe('EmptyLabelMutation');
+		expect(client.modifyCalls).toHaveLength(0);
+		cleanup();
+	});
+
+	test('resolveLabelIds reads mirrored labels before one fresh labels.list miss', async () => {
+		const { db, cleanup } = tempDb();
+		db.ingestLabels([{ id: 'Label_work', name: 'Work', type: 'user' }], 's1');
+		const client = createFakeGmailClient(new Map(), [
+			{ id: 'Label_work', name: 'Work', type: 'user' },
+			{ id: 'Label_personal', name: 'Personal', type: 'user' },
+		]);
+
+		const mirrored = await resolveLabelIds({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			labels: ['Work'],
+		});
+		const fresh = await resolveLabelIds({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			labels: ['Personal'],
+		});
+
+		expect(expectOk(mirrored)).toEqual(['Label_work']);
+		expect(expectOk(fresh)).toEqual(['Label_personal']);
+		expect(client.listLabelsCalls).toBe(1);
+		expect(client.modifyCalls).toHaveLength(0);
+		cleanup();
+	});
+
+	test('resolveLabelIds names unknown labels after one fresh labels.list and no modify calls', async () => {
+		const { db, cleanup } = tempDb();
+		const client = createFakeGmailClient(new Map(), [
+			{ id: 'Label_work', name: 'Work', type: 'user' },
+		]);
+
+		const result = await resolveLabelIds({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			labels: ['Missing'],
+		});
+
+		expect(result.error?.name).toBe('UnknownLabel');
+		expect(result.error?.message).toContain('"Missing"');
+		expect(client.listLabelsCalls).toBe(1);
 		expect(client.modifyCalls).toHaveLength(0);
 		cleanup();
 	});
@@ -373,8 +443,7 @@ describe('modifyMessageLabels', () => {
 				[
 					'missing',
 					{
-						error: GmailApiError.Http({ status: 404, body: 'not found' })
-							.error,
+						error: GmailApiError.Http({ status: 404, body: 'not found' }).error,
 					},
 				],
 				['ok-2', { data: message('ok-2', { labelIds: ['INBOX'] }) }],

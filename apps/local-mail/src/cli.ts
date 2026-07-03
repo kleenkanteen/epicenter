@@ -1,6 +1,6 @@
 import { loadConfig } from './config.ts';
 import type { MailDb } from './db.ts';
-import { runMcpServer } from './mcp.ts';
+import { modifyMessageLabels, resolveLabelIds } from './modify.ts';
 import { redeemRefreshToken, runAuthorizationFlow } from './oauth.ts';
 import { queryMail } from './query.ts';
 import { openLocalMailRuntime, openSyncSession } from './runtime.ts';
@@ -16,6 +16,12 @@ export type ParsedArgs = {
 	watch: boolean;
 	watchIntervalMs?: number;
 	clientId?: string;
+	addLabels: string[];
+	removeLabels: string[];
+	read: boolean;
+	unread: boolean;
+	archive: boolean;
+	unarchive: boolean;
 	help: boolean;
 	version: boolean;
 };
@@ -30,6 +36,7 @@ Usage:
   local-mail sync [--full] [--watch [intervalMs]]
   local-mail status
   local-mail query "<sql>"
+  local-mail modify <id...> [--read|--unread|--archive|--unarchive] [--add <label>...] [--remove <label>...]
   local-mail mcp
 
 Commands:
@@ -40,12 +47,19 @@ Commands:
   sync         Refresh the local mirror. Use --watch to keep polling.
   status       Show connection state, cursor, and row counts.
   query        Run a read-only SQL query over the local mirror.
+  modify       Apply Gmail label changes, then fold Gmail's response into the mirror.
   mcp          Serve query/status/sync tools to an agent over stdio.
 
 Options:
   --client-id <id>      Override GMAIL_CLIENT_ID for connect.
   --full                Force a full pull on the first sync pass.
   --watch [intervalMs]  Keep syncing on a loop. Default: 30000.
+  --read                Mark messages read by removing UNREAD.
+  --unread              Mark messages unread by adding UNREAD.
+  --archive             Archive messages by removing INBOX.
+  --unarchive           Move messages to the inbox by adding INBOX.
+  --add <label>         Add a Gmail label by exact name or id. Repeatable.
+  --remove <label>      Remove a Gmail label by exact name or id. Repeatable.
   -h, --help            Show this help.
   -v, --version         Show version.
 
@@ -54,6 +68,7 @@ Environment:
   LOCAL_MAIL_ACCOUNT                      Account override when multiple are connected.
   LOCAL_MAIL_DIR                          Where the local copy lives.
   LOCAL_MAIL_TOKEN_FILE                   Override the credentials file path.
+  LOCAL_MAIL_READ_ONLY                    Disable Gmail mutations.
 `;
 
 function parseWatchInterval(input: string): number {
@@ -72,6 +87,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		positionals: [],
 		full: false,
 		watch: false,
+		addLabels: [],
+		removeLabels: [],
+		read: false,
+		unread: false,
+		archive: false,
+		unarchive: false,
 		help: false,
 		version: false,
 	};
@@ -115,6 +136,24 @@ export function parseArgs(argv: string[]): ParsedArgs {
 				}
 				break;
 			}
+			case '--read':
+				args.read = true;
+				break;
+			case '--unread':
+				args.unread = true;
+				break;
+			case '--archive':
+				args.archive = true;
+				break;
+			case '--unarchive':
+				args.unarchive = true;
+				break;
+			case '--add':
+				args.addLabels.push(takeValue());
+				break;
+			case '--remove':
+				args.removeLabels.push(takeValue());
+				break;
 			case '-h':
 			case '--help':
 				args.help = true;
@@ -245,6 +284,81 @@ async function runSync(args: ParsedArgs): Promise<number> {
 	return lastPassFailed ? 1 : 0;
 }
 
+async function runModify(args: ParsedArgs): Promise<number> {
+	if (args.positionals.length === 0) {
+		console.error(
+			'Usage: local-mail modify <id...> [--read|--unread|--archive|--unarchive] [--add <label>...] [--remove <label>...]',
+		);
+		return 1;
+	}
+
+	const addLabels = [...args.addLabels];
+	const removeLabels = [...args.removeLabels];
+	if (args.unread) addLabels.push('UNREAD');
+	if (args.unarchive) addLabels.push('INBOX');
+	if (args.read) removeLabels.push('UNREAD');
+	if (args.archive) removeLabels.push('INBOX');
+
+	const { data: runtime, error: runtimeError } = await openLocalMailRuntime();
+	if (runtimeError) {
+		console.error(runtimeError.message);
+		return 1;
+	}
+	const { data: session, error: sessionError } = await openSyncSession(runtime);
+	if (sessionError) {
+		console.error(sessionError.message);
+		return 1;
+	}
+
+	try {
+		if (runtime.config.readOnly) {
+			const { error } = await modifyMessageLabels({
+				deps: session.deps,
+				input: {
+					ids: args.positionals,
+					addLabelIds: addLabels,
+					removeLabelIds: removeLabels,
+				},
+				readOnly: true,
+			});
+			if (error) {
+				console.error(error.message);
+				return 1;
+			}
+			return 0;
+		}
+
+		const labels = [...addLabels, ...removeLabels];
+		const { data: resolvedLabels, error: labelError } = await resolveLabelIds({
+			deps: session.deps,
+			labels,
+		});
+		if (labelError) {
+			console.error(labelError.message);
+			return 1;
+		}
+
+		const { data, error } = await modifyMessageLabels({
+			deps: session.deps,
+			input: {
+				ids: args.positionals,
+				addLabelIds: resolvedLabels.slice(0, addLabels.length),
+				removeLabelIds: resolvedLabels.slice(addLabels.length),
+			},
+			readOnly: runtime.config.readOnly,
+		});
+		if (error) {
+			console.error(error.message);
+			return 1;
+		}
+
+		console.log(JSON.stringify(data, null, 2));
+		return data.aborted ? 1 : 0;
+	} finally {
+		session.close();
+	}
+}
+
 async function runQuery(args: ParsedArgs): Promise<number> {
 	const sql = args.positionals[0];
 	if (!sql) {
@@ -304,8 +418,12 @@ export async function runCli(argv: string[]): Promise<number> {
 			return runStatus();
 		case 'query':
 			return runQuery(args);
-		case 'mcp':
+		case 'modify':
+			return runModify(args);
+		case 'mcp': {
+			const { runMcpServer } = await import('./mcp.ts');
 			return runMcpServer();
+		}
 		default:
 			console.error(`Unknown command: ${args.command}\n`);
 			console.log(HELP);
