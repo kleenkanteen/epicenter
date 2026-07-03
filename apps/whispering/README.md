@@ -521,22 +521,33 @@ Change the recording shortcut to whatever feels natural:
 
 ## How is my data stored?
 
-Whispering stores as much data as possible locally on your device, including recordings and text transcriptions. This approach ensures maximum privacy and data security. Here's an overview of how data is handled:
+Whispering stores as much data as possible locally on your device, including recordings and text transcriptions. The privacy boundary depends on two separate choices: where audio is transcribed, and where Polish sends transcript text. Here's an overview of how data is handled:
 
 1. **Local Storage**: Voice recordings and transcriptions are stored in IndexedDB, which is used as blob storage and a place to store all of your data like text and transcriptions.
 
-2. **Transcription Service**: The only data sent elsewhere is your recording to an external transcription service. If you choose one. You have the following options:
+2. **Transcription Service**: If you choose a cloud or self-hosted transcription service, your recording is sent to that service. If you choose a local transcription engine, audio stays on your device. You have the following options:
    - External services like OpenAI, Groq, or ElevenLabs (with your own API keys)
-   - A local transcription service such as Speaches, which keeps everything on-device
+   - Self-hosted transcription through Speaches
+   - Local transcription engines like Whisper C++, Parakeet, or Moonshine, which keep audio on-device
 
-3. **Transformation Service (Optional)**: Whispering includes configurable transformation settings that allow you to pipe transcription output into custom transformation flows. These flows can leverage:
-   - External Large Language Models (LLMs) like OpenAI's GPT-4, Anthropic's Claude, Google's Gemini, or Groq's Llama models
-   - Hosted LLMs within your custom workflows for advanced text processing
-   - Simple find-and-replace operations for basic text modifications
+3. **Polish and Recipes**: Polish is the meaning-preserving cleanup pass that can run after transcription. Recipes are manual text transformations. Both use the selected completion provider when they need AI.
+   - Cloud completion providers send transcript text to services like OpenAI, Anthropic, Google, Groq, or OpenRouter.
+   - Custom completion can point at a local OpenAI-compatible server, such as Ollama or LM Studio. With a local server and no API key, Polish transcript text stays on your device.
 
-   When using AI-powered transformations, your transcribed text is sent to your chosen LLM provider using your own API key. All transformation configurations, including prompts and step sequences, are stored locally in your settings.
+   Local transcription does not automatically make Polish local. Audio can stay on-device while transcript text is still sent to a cloud completion provider. The Dictation settings page shows the current boundary.
 
-You can change both the transcription and transformation services in the settings to ensure maximum local functionality and privacy.
+You can change both the transcription and completion providers in settings to control which parts of the pipeline stay local.
+
+### Local Polish with Ollama or LM Studio
+
+Local Polish already works through the Custom completion provider. Run an OpenAI-compatible local server yourself, choose **Custom (OpenAI-compatible)** as the completion provider, paste the server URL, leave the API key empty unless your server requires one, and type the model name you want to use.
+
+Common local URLs:
+
+- Ollama: `http://localhost:11434/v1`
+- LM Studio: `http://localhost:1234/v1`
+
+Whispering does not start or discover local completion servers. It only sends Polish and Recipe requests to the endpoint you configure.
 
 ## Frequently Asked Questions
 
@@ -552,7 +563,7 @@ Svelte 5 + Tauri. The app is tiny (~22MB), starts instantly, and uses minimal re
 
 ### Can I use it offline?
 
-Yes, use the Speaches provider for local transcription. No internet, no API keys, completely private.
+Yes, use a local transcription engine such as Whisper C++, Parakeet, or Moonshine. No internet, no API keys, completely private.
 
 ### How much does it actually cost?
 

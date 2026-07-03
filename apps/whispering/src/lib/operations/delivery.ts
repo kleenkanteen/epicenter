@@ -1,8 +1,13 @@
 import { goto } from '$app/navigation';
 import { WHISPERING_RECORDINGS_PATHNAME } from '$lib/constants/urls';
 import type { DeliveryOutcome } from '$lib/operations/delivery-reach';
+import {
+	clipboardSink,
+	createCursorSink,
+	ledgerSink,
+	type Sink,
+} from '$lib/operations/sink';
 import type { Notice } from '$lib/report';
-import { services } from '$lib/services';
 import { settings } from '$lib/state/settings.svelte';
 
 // The reach types live in their own `delivery-reach` module next to their ADR
@@ -18,7 +23,7 @@ export type {
  * one place lets delivery and the tap-hold capability derive from the same
  * source instead of hardcoding the scope names.
  */
-const OUTPUT_SCOPES = ['transcription', 'transformation'] as const;
+const OUTPUT_SCOPES = ['transcription', 'recipe'] as const;
 type OutputScope = (typeof OUTPUT_SCOPES)[number];
 
 /**
@@ -44,13 +49,17 @@ const TRANSCRIPTION_SUCCESS_COPY = {
 } as const satisfies Record<TranscriptionSource, string>;
 
 /** A delivery result: the structured outcome plus a human notice for toasts. */
-export type DeliveryResult = { outcome: DeliveryOutcome; notice: Notice };
+export type DeliveryResult = {
+	outcome: DeliveryOutcome;
+	notice: Notice;
+};
 
 /**
- * Delivers transcript to the user according to their text output preferences
- * (copy to clipboard, write to cursor, simulate enter). Returns the structured
- * outcome plus a human notice; it does not toast. The dictation path reads the
- * outcome to drive the pill; file import and row actions show the notice.
+ * Delivers transcript to the user according to their transcription output
+ * preferences. Clipboard remains the cursor fallback and optional tee. Returns
+ * the structured outcome plus a human notice; it does not toast. The dictation
+ * path reads the outcome to drive the pill; file import and row actions show
+ * the notice.
  */
 export async function deliverTranscriptionResult({
 	text,
@@ -59,46 +68,60 @@ export async function deliverTranscriptionResult({
 	text: string;
 	source?: TranscriptionSource;
 }): Promise<DeliveryResult> {
-	return deliverResult({
+	return deliverToSink({
 		text,
 		successCopy: TRANSCRIPTION_SUCCESS_COPY[source],
-		settingsScope: 'transcription',
+		sink: resolveSettingsSink('transcription'),
 		// A transcription always belongs to a recording, so its history is reachable.
 		linkedRecording: true,
 	});
 }
 
 /**
- * Delivers transformed text to the user according to their text output
+ * Delivers a Recipe's output to the user according to their text output
  * preferences. Returns the structured outcome plus a human notice. `recordingId`
  * is the run's link to a recording, or null for ad-hoc runs (clipboard,
  * selection): only a recording-anchored run offers a "go to recordings" action,
  * since an ad-hoc run has no history to open.
  */
-export async function deliverTransformationResult({
+export async function deliverRecipeResult({
 	text,
 	recordingId,
 }: {
 	text: string;
 	recordingId: string | null;
 }): Promise<DeliveryResult> {
-	return deliverResult({
+	return deliverToSink({
 		text,
-		successCopy: '🔄 Transformation complete',
-		settingsScope: 'transformation',
+		successCopy: '🔄 Recipe complete',
+		sink: resolveSettingsSink('recipe'),
 		linkedRecording: recordingId !== null,
 	});
 }
 
-async function deliverResult({
+function resolveSettingsSink(settingsScope: OutputScope): Sink {
+	const cursorRequested = settings.get(`output.${settingsScope}.cursor`);
+	const clipboardRequested = settings.get(`output.${settingsScope}.clipboard`);
+
+	return cursorRequested
+		? createCursorSink({
+				keepOnClipboard: clipboardRequested,
+				pressEnter: settings.get(`output.${settingsScope}.enter`),
+			})
+		: clipboardRequested
+			? clipboardSink
+			: ledgerSink;
+}
+
+async function deliverToSink({
 	text,
 	successCopy,
-	settingsScope,
+	sink,
 	linkedRecording,
 }: {
 	text: string;
 	successCopy: string;
-	settingsScope: OutputScope;
+	sink: Sink;
 	linkedRecording: boolean;
 }): Promise<DeliveryResult> {
 	const recordingsAction = linkedRecording
@@ -108,71 +131,17 @@ async function deliverResult({
 			}
 		: undefined;
 
-	const clipboardRequested = settings.get(`output.${settingsScope}.clipboard`);
-	const cursorRequested = settings.get(`output.${settingsScope}.cursor`);
+	const reach = await sink.deliver(text);
 
-	// No cursor write requested: the clipboard is the only configured sink, so
-	// copy the transcript there (or it reaches history when nothing is configured).
-	// Best-effort: a clipboard write effectively never fails, and the transcript is
-	// in history regardless, so its error does not change the reach.
-	if (!cursorRequested) {
-		if (clipboardRequested) await services.text.copyToClipboard(text);
-		return {
-			outcome: { reach: 'output' },
-			notice: {
-				title: `${successCopy}!`,
-				description: text,
-				action: recordingsAction,
-			},
-		};
-	}
+	const title =
+		sink.kind === 'cursor'
+			? reach === 'output'
+				? `${successCopy} and written to cursor!`
+				: `${successCopy}, copied to clipboard (couldn't write to cursor)`
+			: `${successCopy}!`;
 
-	// Cursor write requested. The clipboard is `write_text`'s paste transport;
-	// `keepOnClipboard` tells it what the clipboard should hold afterward, so it
-	// owns the staging that delivery used to pre-copy: when clipboard output is on
-	// it leaves the transcript there; when off it borrows and restores the user's
-	// clipboard (full-fidelity on macOS — see write_text's docstring in src-tauri).
-	// `write_text` decides from the Accessibility grant whether it can paste and
-	// reports where the transcript landed: `pasted` at the cursor (clean), or
-	// `leftOnClipboard` when it could not paste.
-	const { data: writeOutcome, error: writeError } =
-		await services.text.writeToCursor(text, clipboardRequested);
-
-	if (writeError) {
-		// The write failed outright (rare). Ensure the transcript is at least on the
-		// clipboard, and report the reduced reach.
-		await services.text.copyToClipboard(text);
-		return {
-			outcome: { reach: 'clipboard' },
-			notice: {
-				title: `${successCopy}, copied to clipboard (couldn't write to cursor)`,
-				description: text,
-				action: recordingsAction,
-			},
-		};
-	}
-
-	if (
-		writeOutcome === 'pasted' &&
-		settings.get(`output.${settingsScope}.enter`)
-	) {
-		// The Enter keystroke is a nicety on top of a successful write; a failure
-		// here does not change the delivery outcome.
-		await services.text.simulateEnterKeystroke();
-	}
-
-	// A clean `pasted` reached the configured output; a `leftOnClipboard` fallback
-	// is a reduced (but recoverable) reach — see DeliveryReach and ADR-0039/0040.
-	const reach = writeOutcome === 'pasted' ? 'output' : 'clipboard';
 	return {
 		outcome: { reach },
-		notice: {
-			title:
-				reach === 'output'
-					? `${successCopy} and written to cursor!`
-					: `${successCopy}, copied to clipboard (couldn't write to cursor)`,
-			description: text,
-			action: recordingsAction,
-		},
+		notice: { title, description: text, action: recordingsAction },
 	};
 }

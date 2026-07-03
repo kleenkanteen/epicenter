@@ -10,17 +10,22 @@
 	import { auth } from '$platform/auth';
 	import { dictation } from '$lib/state/dictation.svelte';
 	import { vocab } from '$lib/vocab';
+	import TermsPanel from './TermsPanel.svelte';
 
 	let {
 		conversations,
 		activeConversationId,
 		onCreate,
 		onSwitch,
+		onPractice,
+		generating,
 	}: {
 		conversations: ConversationHandle[];
 		activeConversationId: ConversationId | null;
 		onCreate: () => void;
 		onSwitch: (conversationId: ConversationId) => void;
+		onPractice: (termTexts: string[]) => void;
+		generating: boolean;
 	} = $props();
 </script>
 
@@ -83,6 +88,8 @@
 				</Sidebar.Menu>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
+
+		<TermsPanel {onPractice} {generating} />
 	</Sidebar.Content>
 
 	<Sidebar.Rail />

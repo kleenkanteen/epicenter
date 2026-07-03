@@ -35,6 +35,11 @@ export type AppConfig = {
 	/** Absolute path to the `0600` `credentials.json` holding the account's OAuth tokens. */
 	credentialsPath: string;
 	account: string | null;
+	/**
+	 * Disable Gmail mutations while keeping local reads and mirror refreshes
+	 * available. `LOCAL_MAIL_READ_ONLY`.
+	 */
+	readOnly: boolean;
 };
 
 const DEFAULT_API_BASE = 'https://gmail.googleapis.com';
@@ -44,6 +49,12 @@ const DEFAULT_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 function env(name: string): string | undefined {
 	const value = process.env[name];
 	return value && value.length > 0 ? value : undefined;
+}
+
+function envFlag(name: string): boolean | undefined {
+	const value = env(name);
+	if (value === undefined) return undefined;
+	return !['0', 'false', 'no', 'off'].includes(value.toLowerCase());
 }
 
 export function loadConfig(): AppConfig {
@@ -66,5 +77,6 @@ export function loadConfig(): AppConfig {
 		credentialsPath:
 			env('LOCAL_MAIL_TOKEN_FILE') ?? credentialsFilePath(dataDir),
 		account: env('LOCAL_MAIL_ACCOUNT') ?? null,
+		readOnly: envFlag('LOCAL_MAIL_READ_ONLY') ?? false,
 	};
 }

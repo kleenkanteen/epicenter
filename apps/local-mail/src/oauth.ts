@@ -88,7 +88,7 @@ type AuthorizationFlowOptions = {
 	timeoutMs?: number;
 };
 
-const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
 /** Hand-built server metadata; Google's OAuth endpoints are known constants. */
 function authServer(config: AppConfig): oauth.AuthorizationServer {
@@ -122,7 +122,7 @@ function buildAuthorizeUrl(
 	const url = new URL(config.authorizeUrl);
 	url.searchParams.set('client_id', config.clientId ?? '');
 	url.searchParams.set('response_type', 'code');
-	url.searchParams.set('scope', GMAIL_READONLY_SCOPE);
+	url.searchParams.set('scope', GMAIL_MODIFY_SCOPE);
 	url.searchParams.set('redirect_uri', redirectUri);
 	url.searchParams.set('state', state);
 	url.searchParams.set('code_challenge', codeChallenge);

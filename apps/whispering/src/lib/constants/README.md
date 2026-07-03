@@ -27,7 +27,6 @@ constants/
 ├── local-model-unload-policy.ts  # Memory unload-policy setting (mirrored in Rust)
 ├── sounds.ts               # Sound effect names
 ├── transcription.ts        # Transcription service registry
-├── transformations.ts      # Transformation step types
 └── urls.ts                 # App route pathnames
 ```
 

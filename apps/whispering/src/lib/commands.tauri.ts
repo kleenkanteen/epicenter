@@ -1,17 +1,17 @@
 import type { SatisfiedCommand, ShortcutEventState } from '$lib/commands';
-import { openTransformationPicker } from '$lib/operations/transformation-picker';
+import { openRecipePicker } from '$lib/operations/recipe-picker';
 
 /**
  * Desktop-only commands, spread into the registry by the `#platform/commands`
  * seam on Tauri builds. Keeping the picker here (rather than in the shared
  * `commands.ts`) is what stops a browser build from importing the Tauri-only
- * picker window and from offering a shortcut that can only error on the web.
+ * selection capture and from offering a shortcut that can only error on the web.
  */
 export const platformCommands = [
 	{
-		id: 'openTransformationPicker',
-		title: 'Open transformation picker',
-		category: 'Transformation',
+		id: 'openRecipePicker',
+		title: 'Open recipe picker',
+		category: 'Recipe',
 		reach: 'global',
 		// Fire on release, not press: the global accelerator carries a Cmd/Ctrl+Shift
 		// chord, and capturing on press synthesizes Cmd/Ctrl+C while that chord is
@@ -21,8 +21,7 @@ export const platformCommands = [
 		// in-app shortcut would never fire. The handler guard runs once, on release.
 		on: ['Pressed', 'Released'],
 		run: (state?: ShortcutEventState) => {
-			if (state === 'Released' || state === undefined)
-				openTransformationPicker();
+			if (state === 'Released' || state === undefined) openRecipePicker();
 		},
 	},
 ] as const satisfies SatisfiedCommand[];

@@ -6,8 +6,8 @@ import { revealMainWindow } from '$lib/main-window';
 
 /**
  * Bring the main window to the front when an auxiliary window asks for it (the
- * recording overlay pill, the transformation picker's "Manage transformations").
- * Reveals first (show + unminimize + focus) so a minimized main window actually
+ * recording overlay pill). Reveals first (show + unminimize + focus) so a
+ * minimized main window actually
  * surfaces, then routes if the request carried a path. Desktop only.
  */
 export function attachMainWindowReveal() {

@@ -1,8 +1,5 @@
 export {
 	defineWhispering,
+	type Recipe,
 	type Recording,
-	type Replacement,
-	type Transformation,
-	type TransformationPrompt,
-	type TransformationRun,
 } from './definition';

@@ -13,7 +13,6 @@
 	import {
 		TranscriptionRuntimeConfig,
 		TranscriptionSelector,
-		TransformationSelector,
 	} from '$lib/components/settings';
 	import ManualDeviceSelector from '$lib/components/settings/selectors/ManualDeviceSelector.svelte';
 	import VadDeviceSelector from '$lib/components/settings/selectors/VadDeviceSelector.svelte';
@@ -37,7 +36,6 @@
 	import { captureSurface } from '$lib/state/capture-surface.svelte';
 	import { dictationCapability } from '$lib/state/dictation-capability.svelte';
 	import { recordings } from '$lib/state/recordings.svelte';
-	import { settings } from '$lib/state/settings.svelte';
 	import {
 		getRecordingShortcutLabels,
 		type RecordingShortcutMode,
@@ -48,20 +46,12 @@
 	import CaptureBehaviorPopover from './_components/CaptureBehaviorPopover.svelte';
 	import CapturePipeline from './_components/CapturePipeline.svelte';
 	import ManualRecordingAction from './_components/ManualRecordingAction.svelte';
+	import PolishPipelineControl from './_components/PolishPipelineControl.svelte';
 	import RecordingResult from './_components/RecordingResult.svelte';
 	import VadRecordingAction from './_components/VadRecordingAction.svelte';
 
 	const latestRecording = $derived(recordings.sorted[0]);
 	const transcriptionReadiness = $derived(getTranscriptionReadiness());
-	// The selected transformation's pipeline glyph morphs into that
-	// transformation's row on the /transformations list, so name it with the same
-	// id the row carries. Only the home pipeline opts in; the config topbar leaves
-	// its selector unnamed so it never collides with the rows on /transformations.
-	const transformationViewTransitionName = $derived(
-		viewTransition.transformation(
-			settings.get('transformation.selectedId') ?? null,
-		),
-	);
 	// The verb fragments the hint drops around each key, per mode. `here` and
 	// `anywhere` annotate the in-app and global keys with their reach; `fresh` is the
 	// bare prompt shown when nothing is bound at all.
@@ -324,9 +314,7 @@
 								variant="pipeline"
 								iconViewTransitionName={viewTransition.pipeline.transcription}
 							/>
-							<TransformationSelector
-								iconViewTransitionName={transformationViewTransitionName}
-							/>
+							<PolishPipelineControl />
 							<CaptureBehaviorPopover />
 						</CapturePipeline>
 					{/snippet}
@@ -344,9 +332,7 @@
 								variant="pipeline"
 								iconViewTransitionName={viewTransition.pipeline.transcription}
 							/>
-							<TransformationSelector
-								iconViewTransitionName={transformationViewTransitionName}
-							/>
+							<PolishPipelineControl />
 							<CaptureBehaviorPopover />
 						</CapturePipeline>
 					{/snippet}
@@ -379,9 +365,7 @@
 						variant="pipeline"
 						iconViewTransitionName={viewTransition.pipeline.transcription}
 					/>
-					<TransformationSelector
-						iconViewTransitionName={transformationViewTransitionName}
-					/>
+					<PolishPipelineControl />
 				</CapturePipeline>
 			</div>
 		{/if}
@@ -389,7 +373,7 @@
 		{#if latestRecording}
 			<RecordingResult
 				recordingId={latestRecording.id}
-				transcript={latestRecording.transcript}
+				transcript={latestRecording.polishedTranscript ?? latestRecording.transcript}
 				rows={1}
 				onDelete={() => {
 					confirmationDialog.open({
