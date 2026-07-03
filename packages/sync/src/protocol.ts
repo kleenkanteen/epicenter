@@ -10,16 +10,19 @@
  * framing. Wire-format versioning, if ever needed, rides the WebSocket
  * subprotocol (`MAIN_SUBPROTOCOL`), not an in-band discriminator.
  *
- * Presence and relay-channel frames ride WebSocket *text* frames, not this
- * channel.
+ * Presence frames ride WebSocket *text* frames, not this channel.
  *
  * All sync payloads use Yjs V2 encoding for ~40% smaller wire size.
  * State vectors are version-independent (same format for V1 and V2).
  *
  * Pure encoder/decoder functions: protocol only, no transport logic.
+ *
+ * Encoders return `Uint8Array<ArrayBuffer>`: lib0 always copies into a fresh
+ * plain buffer, and transports rely on the narrow type (`WebSocket.send`'s
+ * DOM typing rejects `ArrayBufferLike`-backed views). Don't widen these
+ * return annotations back to bare `Uint8Array`.
  */
 
-import * as decoding from 'lib0/decoding';
 import * as encoding from 'lib0/encoding';
 import * as Y from 'yjs';
 
@@ -59,7 +62,11 @@ export type SyncMessageType =
  * @param options.doc - The Yjs document to get the state vector from
  * @returns Encoded message ready to send over WebSocket
  */
-export function encodeSyncStep1({ doc }: { doc: Y.Doc }): Uint8Array {
+export function encodeSyncStep1({
+	doc,
+}: {
+	doc: Y.Doc;
+}): Uint8Array<ArrayBuffer> {
 	return encoding.encode((encoder) => {
 		encoding.writeVarUint(encoder, SYNC_MESSAGE_TYPE.STEP1);
 		encoding.writeVarUint8Array(encoder, Y.encodeStateVector(doc));
@@ -80,7 +87,7 @@ export function encodeSyncUpdate({
 	update,
 }: {
 	update: Uint8Array;
-}): Uint8Array {
+}): Uint8Array<ArrayBuffer> {
 	return encoding.encode((encoder) => {
 		encoding.writeVarUint(encoder, SYNC_MESSAGE_TYPE.UPDATE);
 		encoding.writeVarUint8Array(encoder, update);
@@ -115,7 +122,7 @@ export function handleSyncPayload({
 	payload: Uint8Array;
 	doc: Y.Doc;
 	origin: unknown;
-}): Uint8Array | null {
+}): Uint8Array<ArrayBuffer> | null {
 	switch (syncType) {
 		case SYNC_MESSAGE_TYPE.STEP1: {
 			const diff = Y.encodeStateAsUpdateV2(doc, payload);
@@ -132,74 +139,4 @@ export function handleSyncPayload({
 		default:
 			return null;
 	}
-}
-
-// ============================================================================
-// HTTP Sync Request Encoding (binary frame format for POST body)
-// ============================================================================
-
-/**
- * Encode a single-round-trip HTTP sync request body.
- *
- * Collapses the WebSocket 3-message handshake (step1 -> step2 -> step2) into
- * one HTTP POST/response. The client bundles its state vector and an optional
- * update together:
- *
- *   Client POST: [stateVector, update?]
- *   Server response: V2 diff the client is missing (or 204 if already in sync)
- *
- * The state vector tells the server "what I already have." The update (if
- * present) pushes local changes the server is missing. The server applies the
- * update, then diffs against the client's state vector to produce the response.
- *
- * Wire format: two length-prefixed frames (lib0 varint encoding).
- *   Frame 1: stateVector (always present)
- *   Frame 2: update (zero-length Uint8Array when absent)
- *
- * @param stateVector - Client's Yjs state vector (tells server what client has)
- * @param update - Optional V2 Yjs update to push to the server
- * @returns Encoded binary request body
- */
-export function encodeSyncRequest(
-	stateVector: Uint8Array,
-	update?: Uint8Array,
-): Uint8Array {
-	return encoding.encode((encoder) => {
-		encoding.writeVarUint8Array(encoder, stateVector);
-		encoding.writeVarUint8Array(encoder, update ?? new Uint8Array(0));
-	});
-}
-
-/**
- * Decode a single-round-trip HTTP sync request body.
- *
- * Parses the two length-prefixed frames from {@link encodeSyncRequest}.
- * The update field will be an empty Uint8Array (byteLength === 0) if
- * the client had nothing to push.
- *
- * @param data - Raw sync request body bytes
- * @returns Parsed state vector and update
- * @throws Error if data is malformed or truncated
- */
-export function decodeSyncRequest(data: Uint8Array): {
-	stateVector: Uint8Array;
-	update: Uint8Array;
-} {
-	const decoder = decoding.createDecoder(data);
-	const stateVector = decoding.readVarUint8Array(decoder);
-	const update = decoding.readVarUint8Array(decoder);
-	return { stateVector, update };
-}
-
-// ============================================================================
-// State Vector Utilities
-// ============================================================================
-
-/** Compare two state vectors for byte-level equality. */
-export function stateVectorsEqual(a: Uint8Array, b: Uint8Array): boolean {
-	if (a.byteLength !== b.byteLength) return false;
-	for (let i = 0; i < a.byteLength; i++) {
-		if (a[i] !== b[i]) return false;
-	}
-	return true;
 }

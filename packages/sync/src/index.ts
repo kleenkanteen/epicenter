@@ -5,14 +5,15 @@
  *
  * The binary WebSocket channel carries a single message family: Yjs
  * document sync. A binary frame is a sync frame, with no top-level
- * message-type discriminator. Presence and relay-channel frames ride text
- * frames.
+ * message-type discriminator. Presence frames ride text frames.
  */
 
 // WebSocket subprotocol auth (shared client/server constants + helpers)
 export {
 	BEARER_SUBPROTOCOL_PREFIX,
+	isOpenWebSocketDenial,
 	MAIN_SUBPROTOCOL,
+	type OpenWebSocketDenial,
 	parseSubprotocols,
 } from './auth-subprotocol';
 // Transport origin sentinels (shared across all sync layers)
@@ -21,15 +22,12 @@ export {
 	isTransportOrigin,
 	SYNC_ORIGIN,
 } from './origins';
-// Protocol (encode/decode for WS messages and HTTP sync requests)
+// Protocol (encode/decode for WS sync messages)
 export {
-	decodeSyncRequest,
-	encodeSyncRequest,
 	encodeSyncStep1,
 	encodeSyncUpdate,
 	handleSyncPayload,
 	SYNC_MESSAGE_TYPE,
 	type SyncMessageType,
-	stateVectorsEqual,
 } from './protocol';
 export { ROOM_ROUTE } from './room-route';

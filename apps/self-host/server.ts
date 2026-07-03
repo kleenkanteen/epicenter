@@ -18,9 +18,8 @@
  * Durable Object edge does, which is exactly right for one homelab, one family, or
  * one small team and the price of owning your own data on your own machine.
  *
- * There is ONE shape, not a mode (ADR-0075). Ownership is `instance()`: every
- * request resolves to the pinned `owners/instance` partition, independent of who
- * presents the bearer. Authentication is one operator-supplied static bearer
+ * There is ONE shape, not a mode (ADR-0075). Every request resolves to the pinned
+ * `principals/instance` partition. Authentication is one operator-supplied static bearer
  * (`INSTANCE_TOKEN`), constant-time compared. "Solo" and "shared" are not
  * configurations: they are only how many people you hand the one token to. No
  * OAuth, no sessions, no allowlist, no mode, no first-boot minting. Multi-tenant
@@ -50,13 +49,12 @@ import {
 	createBunRooms,
 	createEnvTokenResolver,
 	createServerApp,
-	instance,
 	mountBlobsApp,
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
 	rateLimit,
-	requireBearerUser,
+	requireBearerPrincipal,
 	ServerBindings,
 } from '@epicenter/server/bun';
 import { type } from 'arktype';
@@ -111,13 +109,13 @@ export function startSelfHostServer(): void {
 	}
 
 	// The bearer gate. A strong `INSTANCE_TOKEN` builds the env-token resolver
-	// (constant-time compare -> the named instance principal); a missing or weak
-	// token fails boot above. Every owner-scoped surface closes its bearer wrapper
+	// (constant-time compare -> the instance principal); a missing or weak
+	// token fails boot above. Every protected surface closes its bearer wrapper
 	// over that one resolver, the same total gate the cloud builds from its OAuth
 	// resolver (ADR-0075).
 	const token = requireStrongInstanceToken(env.INSTANCE_TOKEN);
-	const resolveUser = createEnvTokenResolver(token);
-	const auth = requireBearerUser(resolveUser);
+	const resolveBearerPrincipal = createEnvTokenResolver(token);
+	const auth = requireBearerPrincipal(resolveBearerPrincipal);
 
 	const port = Number(env.PORT ?? 8787);
 	// The auth origin must match where the process actually listens. Default to
@@ -129,7 +127,6 @@ export function startSelfHostServer(): void {
 	mkdirSync(dataDir, { recursive: true });
 	const bunRooms = createBunRooms({ dir: dataDir });
 
-	const ownership = instance();
 	const app = createServerApp({
 		// The instance composes no Postgres (no Better Auth), so it never calls
 		// `mountCloudDb` and `createServerApp` stays on the portable `Env`: `c.var.db`
@@ -150,9 +147,9 @@ export function startSelfHostServer(): void {
 	// No `mountCloudAuth`: the instance composes no Better Auth and no sessions. The
 	// operator bearer (`auth` above) is the only gate, so every surface is
 	// bearer-authenticated (ADR-0075).
-	mountSessionApp(app, { ownership, auth });
+	mountSessionApp(app, { auth });
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
-	mountRoomsApp(app, { ownership, resolveUser });
+	mountRoomsApp(app, { resolveBearerPrincipal });
 	// Inference spends the operator's house key on every request. Cap the burn
 	// rate so a leaked or overused bearer cannot run the provider bill up
 	// unbounded between invoices. This is the in-process backstop; the real
@@ -160,14 +157,13 @@ export function startSelfHostServer(): void {
 	// Tune to your group's size, or drop the policy to leave it uncapped.
 	mountInferenceApp(app, {
 		auth,
-		ownership,
 		policies: [rateLimit({ requests: 120, windowSeconds: 60 })],
 	});
 	// Content-addressed media store over any S3, mounted by default; it answers 503
 	// until `BLOBS_S3_*` is set (the same honest opt-out as inference's house key).
 	// Storage is the operator's own bucket, so there is no house key to burn and no
 	// rate-limit policy here.
-	mountBlobsApp(app, { ownership, auth });
+	mountBlobsApp(app, { auth });
 
 	const server = Bun.serve({
 		port,
@@ -180,7 +176,7 @@ export function startSelfHostServer(): void {
 
 	console.log(
 		`apps/self-host instance (Bun) listening on ${origin} ` +
-			`(rooms in ${dataDir}, partition owners/instance). Hand INSTANCE_TOKEN to ` +
+			`(rooms in ${dataDir}, partition principals/instance). Hand INSTANCE_TOKEN to ` +
 			'whoever should have access.',
 	);
 }

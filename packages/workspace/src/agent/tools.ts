@@ -1,9 +1,8 @@
 /**
  * The loop's view of its tools, kept tool-agnostic: the loop knows how to offer
- * tools to the model and how to run one, never where a tool lives.
- * `createLocalToolCatalog` fills a {@link ToolCatalog} from the local action
- * registry; cross-device tools arrive over MCP (the relay floor), not peer
- * dispatch (ADR-0047). Either way the loop does not change.
+ * tools to the model and how to run one, never where a tool lives. A
+ * {@link ToolCatalog} can be local actions, stdio MCP, or another host-specific
+ * adapter; the loop does not change.
  */
 import type { JsonValue } from 'wellcrafted/json';
 
@@ -28,8 +27,16 @@ export type AgentToolCall = {
 	input: JsonValue;
 };
 
-/** The outcome of running a tool: a JSON value, flagged when it is an error. */
-export type AgentToolOutcome = { output: JsonValue; isError: boolean };
+/**
+ * The outcome of running a tool. `content` is the model-facing text that gets
+ * re-read in the next prompt; `details` is optional structured JSON for a UI
+ * renderer (tables, reports, previews) that should not have to parse prose.
+ */
+export type AgentToolOutcome = {
+	content: string;
+	details?: JsonValue;
+	isError: boolean;
+};
 
 /**
  * The tool surface the loop is handed. `definitions` is the live catalog the
@@ -45,7 +52,7 @@ export type ToolCatalog = {
 export const NO_TOOLS: ToolCatalog = {
 	definitions: () => [],
 	resolve: async (call) => ({
-		output: `No tool named ${call.toolName} is available.`,
+		content: `No tool named ${call.toolName} is available.`,
 		isError: true,
 	}),
 };

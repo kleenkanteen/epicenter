@@ -398,7 +398,7 @@ D3 (V0.5 GATE) RESOLVED 2026-06-17 by R (option (i)): the daemon now answers onl
             the loop unit (hosts only designated rows; opens/closes on re-designation)
             plus the mount coordinator (cloud-default row not hosted). Browser kickoff-
             skip unchanged. workspace 552 + server ai 13 + zhongwen typecheck green
-            (5 server requireBearerUser failures are pre-existing, not mine).
+            (5 server requireBearerPrincipal failures are pre-existing, not mine).
 2026-06-17  V0.5 DONE (5a2631569): real Gemini inference behind the ChatStream.
             Zhongwen's mount resolves a Gemini adapter from GEMINI_API_KEY and
             drives it with the same chat() call routes/ai.ts makes (D2 option b),

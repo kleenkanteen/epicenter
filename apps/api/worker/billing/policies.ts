@@ -36,7 +36,7 @@
  * The content-addressed blob store is unmetered in v1 (no storage policy here):
  * Autumn `check()` denies by default with no plan attached, so deferred quota
  * means not calling it. A `syncBlobStorageWithAutumn` policy slots in when blob
- * storage is billed (spec 20260623T220000, decision 10).
+ * storage is billed (deleted spec 20260623T220000 decision 10, recoverable via git history; kernel is ADR-0089).
  *
  * The library remains billing-agnostic; everything here is cloud-only.
  */
@@ -56,9 +56,12 @@ function billingFor(c: Context<CloudEnv>) {
 	// Billing is cloud-only: `AUTUMN_SECRET_KEY` lives on this deployment's own
 	// `Cloudflare.Env`, not the library's portable `ServerBindings` (ADR-0066),
 	// so read it through the same edge cast the runtime-port resolvers use.
+	if (c.var.principal.email === undefined) {
+		throw new Error('Billing requires a principal email.');
+	}
 	return createBillingService(c.env as Cloudflare.Env, {
-		userId: c.var.user.id,
-		userEmail: c.var.user.email,
+		principalId: c.var.principal.id,
+		principalEmail: c.var.principal.email,
 	});
 }
 

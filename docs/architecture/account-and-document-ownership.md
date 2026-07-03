@@ -1,22 +1,22 @@
-# Account and Document Ownership
+# Account and Document Scope
 
-This is the canonical reference for who owns a document in Epicenter, how cloud
-sync is addressed, and where "organization" fits. For the narrative behind the
+This is the canonical reference for which principal scopes a document in Epicenter,
+how cloud sync is addressed, and where "organization" fits. For the narrative behind the
 decision, see `docs/articles/20260522T170000-documents-belong-to-you-not-a-workspace.md`.
 
 ## The core rule
 
-A document is owned by a user, addressed by the user's identity. There is no
-container between the user and the document.
+A document is scoped to an authenticated principal. There is no container between
+that principal and the document.
 
 ```
-owner   = the user (in personal mode) or the deployment (in shared mode)
-document = a Y.Doc, identified by its guid
+principal = a Better Auth user in Cloud, or the literal "instance" on self-host
+document  = a Y.Doc, identified by its guid
 ```
 
-The token says who you are. For your own documents, that is the entire
-authorization story. There is no membership lookup, because you cannot fail to
-be yourself.
+The token says which principal the request represents. For documents under that
+principal, that is the entire authorization story. There is no membership lookup,
+because the route does not echo or select another principal.
 
 ## Three layers, introduced over time
 
@@ -30,12 +30,13 @@ LAYER 3  Tenancy / billing       acme.com, 40 seats, admin console     Google Wo
 LAYER 2  Shared-drive content    docs OWNED BY an org, so they         Google Shared Drives
            survive a departing employee                                (enterprise, future)
               |  alongside
-LAYER 1  Personal content        owners/<ownerId> owns the doc;        consumer Google Docs
-           an ACL grants other users access                             (TODAY)
+LAYER 1  Principal content       principals/<principalId> scopes        consumer Google Docs
+           the doc; sharing is not built yet                             (TODAY)
 ```
 
-Layer 1 is what ships today: your documents are yours. Layer 1.5 is per-document
-sharing through an access list, additive, not yet built. Layer 2 is org-owned
+Layer 1 is what ships today: documents sit under the resolved principal. Layer
+1.5 is per-document sharing through an access list, additive, not yet built.
+Layer 2 is org-owned
 content for the enterprise case where work must outlive an employee. Layer 3 is
 the billing and administration grouping for enterprise seats.
 
@@ -54,25 +55,26 @@ per-document access list. Google Workspace is a separate product: a domain, an
 admin console, per-seat billing, administering a set of user accounts. It never
 owns a document.
 
-Epicenter follows Google. Content ownership is Layer 1. Tenancy and billing are
+Epicenter follows Google. Content scope is Layer 1. Tenancy and billing are
 Layer 3. They never merge.
 
 ## Cloud sync addressing
 
-A cloud doc syncs through one route, keyed by the owning user and the doc's
-guid.
+A cloud doc syncs through one route, keyed by the authenticated principal and
+the doc's guid.
 
 ```
-route     /api/owners/:ownerId/rooms/:room   (both modes)
-DO name   owners/${ownerId}/rooms/${room}    (room = ydoc.guid)
-builder   roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, nodeId })
+route     /api/rooms/:room                          (all deployments)
+DO name   principals/${principalId}/rooms/${room}    (room = ydoc.guid)
+builder   roomWsUrl({ baseURL, guid: ydoc.guid, nodeId })
 ```
 
-The DO partition is `owners/<ownerId>` in both modes. In personal mode
-`ownerId === user.id`, derived from the authenticated user's id. In shared mode
-`ownerId === 'shared'`, so every admitted user on the deployment shares the
-same partition. The room id is the Y.Doc's guid: the document already carries
-its own identity, so nothing else is composed into the name.
+The DO partition is `principals/<principalId>` in every deployment. In Cloud,
+the principal is derived from the authenticated user. On a self-hosted
+instance, `principalId === 'instance'`, so every operator-authorized request on
+the deployment shares the same partition. The room id is the Y.Doc's guid: the
+document already carries its own identity, so nothing else is
+composed into the name.
 
 Browser apps and the daemon use the same route and the same builder. They sync
 the same document by using the same guid.
@@ -97,17 +99,17 @@ bug.
 
 ## Why personal docs need no membership check
 
-Authorization for a Layer 1 document is identity, not membership. The route's
-auth middleware confirms the caller is a valid user; the DO name is derived from
-that same identity. A user reaching their own `owners/${ownerId}/rooms/*` space
-(where `ownerId === user.id` in personal mode) is, by construction, authorized.
-A membership query here would have exactly one possible denial: the system is
-broken.
+Authorization for a Layer 1 document is principal resolution, not membership.
+The auth middleware confirms the caller is a valid principal; the DO name is
+derived from that same principal. A request reaching
+`principals/${principalId}/rooms/*` is, by construction, scoped to the principal
+that auth resolved. A membership query here would have exactly one possible
+denial: the system is broken.
 
-Layer 1.5 sharing changes this only for documents shared *to* you: the owner's
-DO name stays `owners/${ownerId}/rooms/${room}`, and an ACL table grants
-other users access. The auth check becomes "is the caller the owner, or in the
-ACL". Your own documents still need no lookup.
+Layer 1.5 sharing changes this only for documents shared *to* you: the source
+principal's DO name stays `principals/${principalId}/rooms/${room}`, and an ACL
+table grants other principals access. The auth check becomes "is the caller the
+source principal, or in the ACL". Your own documents still need no lookup.
 
 ## Billing
 
@@ -120,6 +122,6 @@ require content to be owned by anything other than the user.
 
 - `docs/articles/20260522T170000-documents-belong-to-you-not-a-workspace.md` - the narrative
 - `specs/20260522T160000-revert-cloud-workspace-sync-layer.md` - the spec that reverted the code to this model
-- `packages/workspace/SYNC_ARCHITECTURE.md` - the sync transport, presence, and dispatch surfaces
+- `packages/workspace/SYNC_ARCHITECTURE.md` - the sync transport and presence surfaces
 - `docs/trust-model.md` - the trust model: the relay reads plaintext, so
   privacy is a topology choice (who runs the anchor) rather than an encryption layer

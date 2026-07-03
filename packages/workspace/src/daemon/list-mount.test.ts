@@ -130,7 +130,7 @@ describe('/peers route', () => {
 			makeMount({
 				mount: 'notes',
 				actions: {},
-				peers: [{ nodeId: 'laptop', connectedAt: 1, actions: {} }],
+				peers: [{ nodeId: 'laptop', connectedAt: 1 }],
 			}),
 		).request('/peers', { method: 'POST' });
 

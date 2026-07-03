@@ -2,9 +2,9 @@
  * One-scenario smoke test for the runtime port. Same backend, either runtime.
  *
  * Point it at a base URL and it runs ONE end-to-end scenario against the live
- * HTTP server: read the session, open a room, and exercise the full
- * content-addressed blob lifecycle (ticket -> presigned PUT -> read back ->
- * usage). Every step prints a single PASS/FAIL/SKIP line, so the same
+ * HTTP server: read the session, verify the room HTTP refusal, and exercise the
+ * full content-addressed blob lifecycle (ticket -> presigned PUT -> read back).
+ * Every step prints a single PASS/FAIL/SKIP line, so the same
  * invocation against the Bun process (:8788) and the wrangler process (:8787)
  * produces a diffable transcript of runtime parity.
  *
@@ -14,10 +14,9 @@
  * Auth is the one thing the scenario cannot get over plain HTTP (email/password
  * is disabled and Google is interactive), so it relies on the server running
  * with the dev resolver injected: boot it via `bun run dev:bun:devauth`
- * (server.dev.ts), which resolves `Authorization: Bearer dev:<userId>` to a
- * synthetic user on localhost. The smoke just sends that header. In personal
- * mode the resolved id is the owner partition directly, so no user is seeded and
- * the script needs no database access of its own.
+ * (server.dev.ts), which resolves `Authorization: Bearer dev:<principalId>` to a
+ * synthetic principal on localhost. The smoke just sends that header, so no user
+ * is seeded and the script needs no database access of its own.
  *
  * Requirements to run:
  *   - BASE_URL reachable, and booted WITH the dev resolver (`dev:bun:devauth`).
@@ -30,7 +29,6 @@
 
 import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { API_BUN_DEV_PORT } from '@epicenter/constants/apps';
-import { asOwnerId } from '@epicenter/identity';
 
 const BASE_URL = (
 	process.argv[2] ??
@@ -38,12 +36,11 @@ const BASE_URL = (
 	`http://localhost:${API_BUN_DEV_PORT}`
 ).replace(/\/+$/, '');
 
-// The dev resolver synthesizes the user from this id; personal-mode ownership
-// makes it the owner partition too. Random per run so repeated smokes never
-// collide on room or blob state.
-const userId = `smoke-${randHex(4)}`;
+// The dev resolver synthesizes the principal from this id. Random per run so
+// repeated smokes never collide on room or blob state.
+const principalId = `smoke-${randHex(4)}`;
 const authHeaders: Record<string, string> = {
-	authorization: `Bearer dev:${userId}`,
+	authorization: `Bearer dev:${principalId}`,
 };
 
 // ── tiny step reporter ──────────────────────────────────────────────────────
@@ -87,31 +84,39 @@ async function main() {
 		return summarize();
 	}
 
-	// 2. Session: resolves the owner partition from the bearer.
-	let ownerId = '';
+	// 2. Session: resolves the principal from the bearer.
+	let resolvedPrincipalId = '';
 	{
 		const res = await fetch(API_ROUTES.session.url(BASE_URL), {
 			headers: authHeaders,
 		});
 		if (res.ok) {
-			ownerId = ((await res.json()) as { ownerId: string }).ownerId;
-			record('PASS', 'session', `${res.status} ownerId=${ownerId}`);
+			resolvedPrincipalId = ((await res.json()) as { principalId: string })
+				.principalId;
+			record(
+				'PASS',
+				'session',
+				`${res.status} principalId=${resolvedPrincipalId}`,
+			);
 		} else {
 			record('FAIL', 'session', `${res.status} ${await res.text()}`);
 			return summarize();
 		}
 	}
 
-	// 3. Room: bearer-only surface. GET creates-on-first-touch and reads the doc.
+	// 3. Room: bearer-only surface. A plain GET is intentionally rejected because
+	// rooms are WebSocket-only.
 	{
 		const roomId = `smoke-${randHex(4)}`;
-		const url = `${BASE_URL}/api/owners/${encodeURIComponent(ownerId)}/rooms/${roomId}?nodeId=smoke`;
+		const url = `${BASE_URL}/api/rooms/${encodeURIComponent(roomId)}?nodeId=smoke`;
 		const res = await fetch(url, { headers: authHeaders });
-		const buf = await res.arrayBuffer();
+		const body = await res.text();
 		record(
-			res.ok ? 'PASS' : 'FAIL',
-			'room open+read',
-			`${res.status} doc=${buf.byteLength}B`,
+			res.status === 426 && body === 'Rooms are WebSocket-only'
+				? 'PASS'
+				: 'FAIL',
+			'room websocket-only',
+			`${res.status} ${body}`,
 		);
 	}
 
@@ -120,8 +125,7 @@ async function main() {
 		`epicenter blob smoke ${new Date().toISOString()} ${randHex(4)}\n`,
 	);
 	const sha256 = await sha256Hex(payload);
-	const owner = asOwnerId(ownerId);
-	const ticketRes = await fetch(API_ROUTES.blobs.list.url(BASE_URL, owner), {
+	const ticketRes = await fetch(API_ROUTES.blobs.list.url(BASE_URL), {
 		method: 'POST',
 		headers: { ...authHeaders, 'content-type': 'application/json' },
 		body: JSON.stringify({
@@ -175,10 +179,10 @@ async function main() {
 		}
 
 		// Read back: 302 -> presigned GET -> compare bytes.
-		const readRes = await fetch(
-			API_ROUTES.blobs.byHash.url(BASE_URL, owner, sha256),
-			{ headers: authHeaders, redirect: 'manual' },
-		);
+		const readRes = await fetch(API_ROUTES.blobs.byHash.url(BASE_URL, sha256), {
+			headers: authHeaders,
+			redirect: 'manual',
+		});
 		const presigned = readRes.headers.get('location');
 		if (readRes.status === 302 && presigned) {
 			const objRes = await fetch(presigned);
@@ -195,23 +199,8 @@ async function main() {
 			record('FAIL', 'blob read back', `expected 302, got ${readRes.status}`);
 		}
 
-		// Usage.
-		const usageRes = await fetch(API_ROUTES.blobs.usage.url(BASE_URL, owner), {
-			headers: authHeaders,
-		});
-		if (usageRes.ok) {
-			const { totalBytes } = (await usageRes.json()) as { totalBytes: number };
-			record(
-				'PASS',
-				'blob usage',
-				`${usageRes.status} totalBytes=${totalBytes}`,
-			);
-		} else {
-			record('FAIL', 'blob usage', `${usageRes.status}`);
-		}
-
 		// Cleanup the uploaded object (idempotent).
-		await fetch(API_ROUTES.blobs.byHash.url(BASE_URL, owner, sha256), {
+		await fetch(API_ROUTES.blobs.byHash.url(BASE_URL, sha256), {
 			method: 'DELETE',
 			headers: authHeaders,
 		});

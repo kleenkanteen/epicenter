@@ -122,16 +122,14 @@ export type ActionMeta<
 };
 
 /**
- * Wire schema for {@link ActionMeta}. Defines the single source of truth for
- * the metadata-only projection that crosses the wire (presence frame node
- * manifests, daemon `/list` route, etc.). The `input` field is `Type.Object()`
- * with additional properties allowed because the node's local input schema
- * is itself a TypeBox/JSON Schema object; the wire validator only confirms
- * shape, not the inner schema's semantics.
+ * Schema for {@link ActionMeta}. Defines the single source of truth for the
+ * metadata-only projection used by daemon `/list` and AI tool catalog
+ * conversion. The `input` field is `Type.Object()` with additional properties
+ * allowed because the node's local input schema is itself a TypeBox/JSON Schema
+ * object; the validator only confirms shape, not the inner schema's semantics.
  *
  * `Static<typeof ActionMetaSchema>` collapses the parameterized in-process
- * {@link ActionMeta} to its wire form (`input?: object`), which is the shape
- * the receiver actually sees over the WebSocket.
+ * {@link ActionMeta} to its metadata form (`input?: object`).
  */
 export const ActionMetaSchema = Type.Object({
 	type: Type.Enum(['query', 'mutation']),
@@ -144,8 +142,8 @@ export const ActionMetaSchema = Type.Object({
 
 /**
  * Flat snake_case key to `ActionMeta` map. The metadata-only projection of an
- * `ActionRegistry`, suitable for surfaces that cannot carry callable handlers
- * (e.g. the daemon `/list` route).
+ * `ActionRegistry`, suitable for surfaces that cannot carry callable handlers,
+ * such as the daemon `/list` route.
  */
 export type ActionManifest = Record<string, ActionMeta>;
 
@@ -165,10 +163,10 @@ export type Action<
 
 /**
  * Flat snake_case key to `Action` map. The single shape for an in-process
- * action surface: keys are the local address, peer RPC method, daemon
- * argument, CLI flag, and AI tool name. Author with `defineActions({...})`
- * so the helper enforces the key shape at compile time and at construction;
- * consumers iterate with `Object.entries` or index by string.
+ * action surface: keys are the local address, daemon argument, CLI flag, and AI
+ * tool name. Author with `defineActions({...})` so the helper enforces the key
+ * shape at compile time and at construction; consumers iterate with
+ * `Object.entries` or index by string.
  */
 export type ActionRegistry = Record<string, Action>;
 
@@ -245,10 +243,8 @@ type InvalidActionKey<S extends string> =
 
 /**
  * Regex enforcing `^[a-z][a-z0-9_]{0,63}$` at runtime. Used by
- * `defineActions` for the authoring boundary check and by
- * `openCollaboration` for the construction-time defense against `as`
- * casts. Exported so tests and future external validators can share the
- * single source of truth.
+ * `defineActions` for the authoring boundary check. Exported so tests and
+ * future external validators can share the single source of truth.
  */
 export const ACTION_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 

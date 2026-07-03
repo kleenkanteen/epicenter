@@ -4,10 +4,9 @@
 	import * as Collapsible from '@epicenter/ui/collapsible';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import FileTextIcon from '@lucide/svelte/icons/file-text';
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 	import type { FileGroup } from '$lib/state/sidebar-search-state.svelte';
 
-	const opensidian = requireOpensidian();
 	let {
 		group,
 		defaultOpen,

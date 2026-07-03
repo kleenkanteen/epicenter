@@ -17,8 +17,8 @@ shapes, see `docs/adr/`.
   or you run it (self-host). Distinct from a **service you call** (inference,
   blob URLs): a service is addressed by `{baseUrl, token?}`, sees only the one
   payload you hand it, and is never part of the star's topology. "Single-user /
-  sovereign" is a preset over the star's two seams (partition + credential
-  source), not a mode (ADR-0070).
+  sovereign" is a preset over the star's credential source and principal
+  resolver, not a mode (ADR-0070, amended by ADR-0092).
 - **Anchor**: the always-on node that *holds* a workspace's Y.Doc so a sleeping
   device can catch up. Who runs the anchor is the whole privacy question (ADR-0068):
   user-run gives topology privacy, Epicenter-run is trusted plaintext. Privacy moves
@@ -52,27 +52,17 @@ shapes, see `docs/adr/`.
 - **Deployable vs library**: one library, `packages/server`, consumed by two
   deployables: `apps/api` (hosted personal cloud) and `apps/self-host` (the
   community single-partition instance reference, not Epicenter-operated; ADR-0075).
-- **`personal()` / `instance()`**: the `packages/server` ownership seam, exactly
-  two topologies split on partition cardinality (ADR-0075). `apps/api` uses
-  `personal()` (N partitions keyed per user, Cloud-only); `apps/self-host` uses
-  `instance()` (one partition pinned to `owners/instance` behind one operator
-  bearer). There is no admission-gated `shared` topology; per-person named tokens
-  are a deliberately-unbuilt seam behind the same verifier and the same constant
-  partition. Billing is hosted-only and lives in `apps/api/worker/billing/`.
-- **Three cross-device layers**: every cross-device feature is one of three jobs, kept
-  separate. *Inference* (the chat brain) streams tokens from an OpenAI-compatible endpoint
-  (ADR-0050), over the inference seam, not the device relay. *Sync* (convergent state)
-  carries document history over the relay; each device's tool list is dial-fetched and
-  cached, and which devices are online is server-owned presence (no synced roster or trust
-  ledger). *Invoke* (the agent's hands) is the chat acting as an MCP host calling MCP
-  servers that live on a person's own devices, reached through a transport seam
-  (`ToolCatalog` / `PeerTransport`) so the loop never sees the transport.
-- **Invoke transport**: every client reaches a device's tools over the relay floor, a typed
-  channel multiplexed on the per-user account-room WebSocket the device already holds
-  (ADR-0004). A browser is first-class because it uses the same floor with no app. The relay
-  stamps an unforgeable `source` and routes by nodeId; a route is admitted only on owner
-  identity plus an explicit `relay: 'exposed'` opt-in. Confidentiality is not the
-  transport's job; privacy is which relay you run (self-host, ADR-0068).
+- **Principal**: the authenticated identity Epicenter uses as the partition key
+  (ADR-0092). Cloud resolves many principals from Better Auth users; a
+  self-hosted instance resolves every valid operator bearer to the literal
+  `instance` principal. Durable namespaces use `principals/<principalId>/...`.
+  Billing is hosted-only and lives in `apps/api/worker/billing/`.
+- **Cross-device planes**: cross-device work splits by owner. *Inference* (the
+  chat brain) streams tokens from an OpenAI-compatible endpoint (ADR-0050),
+  over the inference seam. *Sync* (convergent state) carries document history
+  over the relay, and server-owned presence reports which workspace peers are
+  online. *Invoke* (the agent's hands) is local to the host that owns the tool
+  process, unless a future product re-earns a direct URL-addressed box surface.
 
 ## Workspace API
 
@@ -80,6 +70,8 @@ shapes, see `docs/adr/`.
   key-value store.
 - **`satisfiesWorkspace`**: the bundle-conformance helper (renamed from the older
   `defineWorkspaceBundle`).
+- **Actions and collaboration**: actions live on the workspace bundle;
+  collaboration is sync and presence only.
 - **`scan()`**: the single bulk table read. Returns three buckets, conforming,
   nonconforming, and newer-writer, plus point probes. The valid-only read family
   (`getAllValid`, `getAllInvalid`, `getAll`, `conformance`, `filter`) was deleted.
@@ -138,8 +130,8 @@ shapes, see `docs/adr/`.
   Discovery walks up to the nearest one. One root, one daemon.
 - **Daemon**: the long-lived foreground process started by `epicenter daemon up`.
   It opens the root's mount and exposes it over a Unix socket as a callable peer.
-- **Mesh peer**: a device whose daemon is online and reachable. `run --peer <id>`
-  dispatches RPC to a remote peer; `peers` lists connected peers (presence).
+- **Peer**: a device currently connected to the same workspace room. `peers`
+  lists connected peers from server-owned presence.
 - **Mandatory-daemon commands**: `run`, `list`, `peers`. They require a live local
   daemon (`getDaemon` returns `Required` otherwise); there is no cold-path
   fallback (see `docs/adr/`).

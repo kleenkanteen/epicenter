@@ -12,7 +12,7 @@ function stubCatalog(label: string, names: string[]): ToolCatalog {
 		definitions: (): AgentToolDefinition[] =>
 			names.map((name) => ({ name, kind: 'query' })),
 		resolve: async (call): Promise<AgentToolOutcome> => ({
-			output: `${label}:${call.toolName}`,
+			content: `${label}:${call.toolName}`,
 			isError: false,
 		}),
 	};
@@ -39,7 +39,7 @@ describe('namespaceToolCatalog', () => {
 		);
 		expect(await catalog.resolve(call('dev_books__customers'), signal)).toEqual(
 			{
-				output: 'a:customers',
+				content: 'a:customers',
 				isError: false,
 			},
 		);
@@ -61,7 +61,7 @@ describe('namespaceToolCatalog', () => {
 		);
 		expect(catalog.definitions()[0]?.name).toBe('p__weird__name');
 		expect(await catalog.resolve(call('p__weird__name'), signal)).toEqual({
-			output: 'a:weird__name',
+			content: 'a:weird__name',
 			isError: false,
 		});
 	});
@@ -79,7 +79,7 @@ describe('namespaceToolCatalog', () => {
 		).toEqual(['alpha_books__customers', 'beta_books__customers']);
 		expect(await merged.resolve(call('beta_books__customers'), signal)).toEqual(
 			{
-				output: 'beta:customers',
+				content: 'beta:customers',
 				isError: false,
 			},
 		);

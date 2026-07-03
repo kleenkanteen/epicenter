@@ -19,7 +19,7 @@ DATA_DIR=/var/lib/epicenter \
 bun apps/self-host/server.ts
 ```
 
-Then paste the same token into the client's instance setting (`{ baseURL, token }`), once. Every request from that client arrives as `Authorization: Bearer <token>` and authenticates against `owners/instance`. Hand the token to one person or to your whole group; the command is identical either way.
+Then paste the same token into the client's instance setting (`{ baseURL, token }`), once. Every request from that client arrives as `Authorization: Bearer <token>` and authenticates against `principals/instance`. Hand the token to one person or to your whole group; the command is identical either way.
 
 Boot fails closed if `INSTANCE_TOKEN` is missing or too weak, and the error names `gen-token`. The box never mints or stores a token: you own the secret, which is exactly what lets the same instance run on Cloudflare too. To rotate, generate a new token, restart with it, and redistribute it; there is no per-person revocation (see [Offboarding](#offboarding-and-rotation)).
 
@@ -28,6 +28,19 @@ Boot fails closed if `INSTANCE_TOKEN` is missing or too weak, and the error name
 ### Use TLS
 
 A static bearer over plaintext HTTP is total compromise: anyone who sees one request can capture the token and replay it forever. Terminate TLS in front of the box (Caddy, nginx, a Cloudflare Tunnel) and serve the instance over HTTPS. A homelab on a trusted LAN behind its own boundary is your call, but the moment the box is reachable over the open internet, plain `http://` hands out the keys.
+
+### Redact WebSocket protocol headers
+
+Sync room WebSockets carry the instance bearer in `Sec-WebSocket-Protocol`
+during the upgrade. The server strips that token from the protocol it echoes
+back, but any reverse proxy in front of the instance can still log the incoming
+header. Caddy access logs, for example, redact `Authorization` and `Cookie` but
+not `Sec-WebSocket-Protocol` by default.
+
+If you enable access logs, either omit request headers from the log or redact
+`Sec-WebSocket-Protocol` explicitly. Treat a captured value the same way you
+would treat a leaked `Authorization` bearer: rotate `INSTANCE_TOKEN`, restart
+the instance, and redistribute the new token.
 
 ## Running on Cloudflare
 
@@ -47,7 +60,7 @@ bun run --cwd apps/self-host deploy
 
 ## What this isn't
 
-This is not Epicenter Cloud. There are no Autumn billing routes, no dashboard SPA, and no SLA, support contract, or paid hosting from Epicenter. There is also no per-user partitioning: every valid token reaches the one `owners/instance` partition. Multi-tenancy, where everyone signs in and gets their own private namespace, is Epicenter Cloud's only. An enterprise that wants on-prem runs one instance (shared), or one instance per person or team.
+This is not Epicenter Cloud. There are no Autumn billing routes, no dashboard SPA, and no SLA, support contract, or paid hosting from Epicenter. There is also no per-user partitioning: every valid token reaches the one `principals/instance` partition. Multi-tenancy, where everyone signs in and gets their own private namespace, is Epicenter Cloud's only. An enterprise that wants on-prem runs one instance (shared), or one instance per person or team.
 
 Community-supported. Issues filed against this folder are accepted as community contributions.
 
@@ -68,17 +81,16 @@ SPA, no `mountCloudAuth`. Bun reads the token once at boot and runs the entropy
 gate there:
 
 ```ts
-const token = assertStrongToken(env.INSTANCE_TOKEN);     // fail closed if weak
-const resolveUser = createEnvTokenResolver(token);       // one bearer
-const auth = requireBearerUser(resolveUser);             // every surface
+const token = assertStrongToken(env.INSTANCE_TOKEN);            // fail closed if weak
+const resolveBearerPrincipal = createEnvTokenResolver(token);   // one bearer
+const auth = requireBearerPrincipal(resolveBearerPrincipal);    // every surface
 const app = createServerApp({
-  runtime: bun({ rooms }),                               // no db leg, no Postgres
+  runtime: bun({ rooms }),                                      // no db leg, no Postgres
   identity: { resolveOrigin, resolveTrustedOrigins },
 });
-mountSessionApp(app, { ownership: instance(), auth });
-mountRoomsApp(app, { ownership: instance(), resolveUser }); // WS-aware, takes the resolver
+mountSessionApp(app, { auth });
+mountRoomsApp(app, { resolveBearerPrincipal });                 // WS-aware, takes the resolver
 mountInferenceApp(app, {
-  ownership: instance(),
   auth,
   policies: [rateLimit({ requests: 120, windowSeconds: 60 })], // burn-rate floor
 });
@@ -88,13 +100,12 @@ Cloudflare reads the per-request secret at the edge instead, running the same
 entropy gate per request (a Worker has no boot phase):
 
 ```ts
-const resolveUser = (c) =>
+const resolveBearerPrincipal: ResolveBearerPrincipal = (c, bearer) =>
   createEnvTokenResolver(
     assertStrongToken((c.env as Cloudflare.Env).INSTANCE_TOKEN),
-  )(c);
-const auth = requireBearerUser(resolveUser);
-// ...createServerApp({ runtime, identity }), instance() ownership,
-// same session + rooms + inference mounts
+  )(c, bearer);
+const auth = requireBearerPrincipal(resolveBearerPrincipal);
+// ...createServerApp({ runtime, identity }), same session + rooms + inference mounts
 ```
 
 Deliberately absent: `mountBillingApi`, any OAuth provider, a launch-time mode selector, an admission allowlist, and first-boot token minting. The shape is the contract.
@@ -109,5 +120,6 @@ The escape, when that pain is real, is named per-person tokens: a hashed token r
 
 - [ADR-0075](../../docs/adr/0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) for why an instance is one partition behind one bearer
 - [ADR-0076](../../docs/adr/0076-the-relational-auth-substrate-is-a-cloud-only-layer-the-instance-composes-neither.md) for why the instance composes no Better Auth and no Postgres
+- [ADR-0095](../../docs/adr/0095-websocket-room-auth-uses-route-owned-subprotocol-bearers.md) for why sync WebSockets carry the bearer as a route-owned subprotocol
 - `apps/api` for the hosted personal cloud variant (OAuth, per-user partitions, billing)
 - `packages/server` for the shared library both deployables compose

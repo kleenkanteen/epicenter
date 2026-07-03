@@ -1,15 +1,16 @@
 /**
- * Fail when a living doc cites a repo-rooted file path that no longer exists.
+ * Fail when a living doc cites a repo-rooted file path that is not tracked.
  *
  * Stale `apps/...`/`packages/...` references accrue after every refactor that
  * moves or deletes files (the worker collapse, the dashboard removal, app
  * restructures). They are invisible to typecheck and lint because they live in
  * Markdown, so they rot silently until someone clicks a dead link. This walks
- * every backtick-wrapped file path in the canonical docs and checks it resolves.
+ * every backtick-wrapped file path in the canonical docs and checks it resolves
+ * to a tracked file.
  *
  * Scope is deliberately narrow to stay false-positive free:
- *   - Only backtick-wrapped tokens ending in a real source/doc extension are
- *     treated as file claims (prose dir mentions and `@scope/pkg` names are not).
+ *   - Only backtick-wrapped tokens with a filename extension are treated as
+ *     file claims (prose dir mentions and `@scope/pkg` names are not).
  *   - An optional `:42` / `:42:7` / `:42-50` line suffix is allowed and ignored.
  *   - A token containing a `...` path ellipsis is skipped: it is a pattern.
  *
@@ -26,7 +27,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Resolve the repo root so paths resolve regardless of the invoking cwd.
@@ -37,30 +38,42 @@ const root = execFileSync('git', ['rev-parse', '--show-toplevel'], {
 // `git ls-files` is the load-bearing choice: it yields tracked files only, so
 // node_modules, dist, and every .gitignored output are skipped for free, which
 // `Bun.Glob` (no .gitignore awareness) cannot do. `-z` survives odd filenames.
-const tracked = execFileSync('git', ['ls-files', '-z', '*.md'], {
+const tracked = execFileSync('git', ['ls-files', '-z'], {
 	cwd: root,
 	encoding: 'utf8',
 })
 	.split('\0')
 	.filter(Boolean);
+const trackedFiles = new Set(tracked);
 
-const EXCLUDED_DIRS = ['specs', 'docs/articles', '.agents', '.claude'];
+const EXCLUDED_DOC_DIRS = ['specs', 'docs/articles', '.agents', '.claude'];
+const REPO_ROOT_DIRS = [
+	'apps',
+	'packages',
+	'docs',
+	'specs',
+	'scripts',
+	'examples',
+	'playground',
+];
+
 const isExcludedDoc = (file: string) =>
 	file === 'CHANGELOG.md' ||
 	file.endsWith('/CHANGELOG.md') ||
-	EXCLUDED_DIRS.some(
+	EXCLUDED_DOC_DIRS.some(
 		(dir) => file.startsWith(`${dir}/`) || file.includes(`/${dir}/`),
 	);
 
 const FILE_TOKEN =
-	/`([A-Za-z0-9._/-]+\.(?:ts|tsx|svelte|md|json|jsonc|js|mjs|cjs|rs|toml|ya?ml))(?::\d+(?::\d+)?(?:-\d+)?)?`/g;
-const REPO_ROOTED = /^(apps|packages|docs|specs|scripts|examples|playground)\//;
+	/`([A-Za-z0-9._/-]+\.[A-Za-z0-9]+)(?::\d+(?::\d+)?(?:-\d+)?)?`/g;
 // `\b.*?-->` lets a marker carry a trailing reason, e.g.
 // `<!-- doc-path-check: ignore-file (frozen historical record) -->`.
 const IGNORE_FILE = /<!--\s*doc-path-check:\s*ignore-file\b.*?-->/;
 const IGNORE_NEXT_LINE = /<!--\s*doc-path-check:\s*ignore-next-line\b.*?-->/;
 
-const docs = tracked.filter((file) => !isExcludedDoc(file));
+const docs = tracked.filter(
+	(file) => file.endsWith('.md') && !isExcludedDoc(file),
+);
 const violations: { file: string; line: number; path: string }[] = [];
 
 for (const file of docs) {
@@ -74,8 +87,13 @@ for (const file of docs) {
 		for (const match of line.matchAll(FILE_TOKEN)) {
 			const path = match[1];
 			if (path === undefined) continue;
-			if (!REPO_ROOTED.test(path) || path.includes('...')) continue;
-			if (!existsSync(join(root, path))) {
+			if (
+				path.includes('...') ||
+				!REPO_ROOT_DIRS.some((dir) => path.startsWith(`${dir}/`))
+			) {
+				continue;
+			}
+			if (!trackedFiles.has(path)) {
 				violations.push({ file, line: i + 1, path });
 			}
 		}

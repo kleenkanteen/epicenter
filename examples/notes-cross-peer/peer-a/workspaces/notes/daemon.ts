@@ -12,7 +12,6 @@ export default defineSessionMount({
 	open: ({ session, nodeId }) =>
 		openNotes({
 			nodeId,
-			ownerId: session.ownerId,
 			openWebSocket: session.openWebSocket,
 			onReconnectSignal: session.onReconnectSignal,
 		}),

@@ -49,7 +49,7 @@ export function namespaceToolCatalog(
 		): Promise<AgentToolOutcome> {
 			if (!call.toolName.startsWith(qualified)) {
 				return Promise.resolve({
-					output: `No tool named ${call.toolName} is available.`,
+					content: `No tool named ${call.toolName} is available.`,
 					isError: true,
 				});
 			}
