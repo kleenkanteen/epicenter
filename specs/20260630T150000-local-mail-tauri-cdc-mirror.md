@@ -96,7 +96,7 @@ This answers open question 4 (backfill chunking: not needed, confirmed no artifi
 
 - **Phase 0** (throwaway probe) and **Phase 1** (mail.db schema, backfill, incremental poll loop; no UI, no writes) shipped at commit `c924831744` on branch `email`.
 - **Phase 2** (mirror correctness fixes, connect flow, stdio MCP) lives in `specs/20260701T140000-local-mail-phase-2-engine.md`.
-- **Phase 3** (write-through) stays scoped here; this file is its only home. Scope: archive/label actions hit Gmail first (`messages.modify`, including the `UNREAD` label for read state), the mirror folds the accepted response back in, plus reconciliation on the next poll pass. Human-actionable state must round-trip through Gmail (ADR-0098), which is why the UI is gated on this phase.
+- **Phase 3** (write-through) was re-homed as `specs/20260702T211500-local-mail-phase-3-write-through.md`: archive/label actions hit Gmail first (`messages.modify`, including the `UNREAD` label for read state), the mirror folds the accepted response back in, and the next poll pass reconciles. Human-actionable state must round-trip through Gmail (ADR-0098), which is why the UI is gated on this phase.
 - **Phase 4** (UI) was re-homed as `specs/20260701T141500-local-mail-up-bun-served-shell.md` and no longer assumes a Tauri shell: `local-mail up` serves the SPA from a Bun process, the browser tab is the v1 app, and Tauri comes later as optional glass over the same URL. The Appendix below stays its layout reference.
 
 ## References

@@ -30,6 +30,7 @@ function config(overrides: Partial<AppConfig>): AppConfig {
 		pageSize: 100,
 		credentialsPath: '/tmp/local-mail-token-manager-test/credentials.json',
 		account: null,
+		readOnly: false,
 		...overrides,
 	};
 }

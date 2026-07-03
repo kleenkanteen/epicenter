@@ -40,6 +40,7 @@ function config(dataDir: string): AppConfig {
 		pageSize: 100,
 		credentialsPath: join(dataDir, 'credentials.json'),
 		account: null,
+		readOnly: false,
 	};
 }
 

@@ -67,6 +67,10 @@ export type GmailClient = {
 		Result<{ ids: string[]; nextPageToken?: string }, GmailClientError>
 	>;
 	getMessage(id: string): Promise<Result<GmailMessage, GmailClientError>>;
+	modifyMessage(
+		id: string,
+		body: { addLabelIds: string[]; removeLabelIds: string[] },
+	): Promise<Result<GmailMessage, GmailClientError>>;
 	listHistory(
 		startHistoryId: string,
 		pageToken?: string,
@@ -146,7 +150,15 @@ export function createGmailClient(deps: GmailClientDeps): GmailClient {
 
 	async function request(
 		path: string,
-		params: Record<string, string> = {},
+		{
+			params = {},
+			method = 'GET',
+			body: requestBody,
+		}: {
+			params?: Record<string, string>;
+			method?: 'GET' | 'POST';
+			body?: unknown;
+		} = {},
 	): Promise<Result<unknown, GmailClientError>> {
 		const url = new URL(`${config.apiBase}/gmail/v1/users/me/${path}`);
 		for (const [key, value] of Object.entries(params)) {
@@ -163,10 +175,17 @@ export function createGmailClient(deps: GmailClientDeps): GmailClient {
 			let response: Response;
 			try {
 				response = await fetch(url.toString(), {
+					method,
 					headers: {
 						Authorization: `Bearer ${token.data}`,
 						Accept: 'application/json',
+						...(requestBody === undefined
+							? {}
+							: { 'Content-Type': 'application/json' }),
 					},
+					...(requestBody === undefined
+						? {}
+						: { body: JSON.stringify(requestBody) }),
 				});
 			} catch (cause) {
 				if (attempt < MAX_RETRIES) {
@@ -231,8 +250,10 @@ export function createGmailClient(deps: GmailClientDeps): GmailClient {
 	return {
 		async listMessageIds(pageToken) {
 			const { data, error } = await request('messages', {
-				maxResults: String(config.pageSize),
-				...(pageToken ? { pageToken } : {}),
+				params: {
+					maxResults: String(config.pageSize),
+					...(pageToken ? { pageToken } : {}),
+				},
 			});
 			if (error) return { data: null, error };
 			const parsed = checkedResult(
@@ -249,16 +270,27 @@ export function createGmailClient(deps: GmailClientDeps): GmailClient {
 
 		async getMessage(id) {
 			const { data, error } = await request(`messages/${id}`, {
-				format: 'full',
+				params: { format: 'full' },
 			});
 			if (error) return { data: null, error };
 			return checkedResult(GmailMessageSchema, data, 'messages.get');
 		},
 
+		async modifyMessage(id, body) {
+			const { data, error } = await request(`messages/${id}/modify`, {
+				method: 'POST',
+				body,
+			});
+			if (error) return { data: null, error };
+			return checkedResult(GmailMessageSchema, data, 'messages.modify');
+		},
+
 		async listHistory(startHistoryId, pageToken) {
 			const { data, error } = await request('history', {
-				startHistoryId,
-				...(pageToken ? { pageToken } : {}),
+				params: {
+					startHistoryId,
+					...(pageToken ? { pageToken } : {}),
+				},
 			});
 			if (error) return { data: null, error };
 			return checkedResult(HistoryPageSchema, data, 'history.list');

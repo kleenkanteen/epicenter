@@ -87,7 +87,12 @@ describe('createSuperChatServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			for (const path of ['/', '/api/tools', '/ws', '/nope']) {
+			for (const path of [
+				'/',
+				'/api/session',
+				'/api/session/stream',
+				'/nope',
+			]) {
 				const bare = await fetch(server.url.origin + path);
 				expect(bare.status).toBe(401);
 				const wrong = await fetch(`${server.url.origin}${path}?token=wrong`);
@@ -114,14 +119,24 @@ describe('createSuperChatServer', () => {
 			expect(page.headers.get('cache-control')).toBe('no-store');
 
 			// Subsequent fetches carry it as a bearer header.
-			const tools = await fetch(`${server.url.origin}/api/tools`, {
+			const session = await fetch(`${server.url.origin}/api/session`, {
 				headers: { authorization: `Bearer ${TOKEN}` },
 			});
-			expect(tools.status).toBe(200);
-			const body = (await tools.json()) as {
+			expect(session.status).toBe(200);
+			const body = (await session.json()) as {
 				tools: Array<{ name: string; kind: string }>;
+				snapshot: { messages: unknown[] };
 			};
 			expect(body.tools.map((t) => t.name)).toContain('todos__todos_create');
+			expect(body.snapshot.messages).toEqual([]);
+
+			const oldTools = await fetch(`${server.url.origin}/api/tools`, {
+				headers: { authorization: `Bearer ${TOKEN}` },
+			});
+			expect(oldTools.status).toBe(404);
+
+			const oldWs = await fetch(`${server.url.origin}/ws?token=${TOKEN}`);
+			expect(oldWs.status).toBe(404);
 		} finally {
 			await server.stop(true);
 		}
@@ -135,7 +150,7 @@ describe('createSuperChatServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const url = `${server.url.origin.replace('http', 'ws')}/ws?token=${TOKEN}`;
+			const url = `${server.url.origin.replace('http', 'ws')}/api/session/stream?token=${TOKEN}`;
 			const ws = new WebSocket(url);
 			const answered = new Promise<ServerEvent>((resolve, reject) => {
 				ws.addEventListener('message', (event) => {
@@ -177,7 +192,7 @@ describe('createSuperChatServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const url = `${server.url.origin.replace('http', 'ws')}/ws?token=${TOKEN}`;
+			const url = `${server.url.origin.replace('http', 'ws')}/api/session/stream?token=${TOKEN}`;
 			const watcher = new WebSocket(url);
 			const driver = new WebSocket(url);
 			const settledAt = (ws: WebSocket) =>
@@ -229,7 +244,9 @@ describe('createSuperChatServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const ws = new WebSocket(`${server.url.origin.replace('http', 'ws')}/ws`);
+			const ws = new WebSocket(
+				`${server.url.origin.replace('http', 'ws')}/api/session/stream`,
+			);
 			const outcome = await new Promise<'open' | 'refused'>((resolve) => {
 				ws.addEventListener('open', () => resolve('open'));
 				ws.addEventListener('error', () => resolve('refused'));
@@ -470,18 +487,22 @@ describe('sidecar end-to-end smoke', () => {
 			expect(served.status).toBe(200);
 			expect(await served.text()).toBe(page);
 
-			// The API behind the bearer exposes the composed catalog.
-			const tools = await fetch(`${origin}/api/tools`, {
+			// The API behind the bearer exposes the composed catalog and snapshot.
+			const session = await fetch(`${origin}/api/session`, {
 				headers: { authorization: `Bearer ${TOKEN}` },
 			});
-			expect(tools.status).toBe(200);
-			const catalog = (await tools.json()) as {
+			expect(session.status).toBe(200);
+			const catalog = (await session.json()) as {
 				tools: Array<{ name: string }>;
+				snapshot: { messages: unknown[] };
 			};
 			expect(catalog.tools.map((t) => t.name)).toContain('todos__todos_list');
+			expect(catalog.snapshot.messages).toEqual([]);
 
 			// One WebSocket turn: send, then await the settled snapshot.
-			const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=${TOKEN}`);
+			const ws = new WebSocket(
+				`ws://127.0.0.1:${port}/api/session/stream?token=${TOKEN}`,
+			);
 			const settled = new Promise<ServerEvent>((resolve, reject) => {
 				const timer = setTimeout(
 					() => reject(new Error('the turn never settled')),

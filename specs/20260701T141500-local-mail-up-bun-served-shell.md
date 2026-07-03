@@ -105,7 +105,10 @@ local-mail up
   |       GET  /api/threads          list (from messages GROUP BY thread_id)
   |       GET  /api/threads/:id      messages in thread (raw JSON projected)
   |       POST /api/sync             request one poll pass ("refresh now")
-  |       (Phase D lands: POST /api/messages/:id/read|archive -> write-through cores)
+  |       (Phase D lands: POST /api/messages/modify {ids, addLabels, removeLabels}
+  |             -> resolveAndModifyMessageLabels; NOT per-intent routes. The UI's
+  |             archive/mark-read buttons desugar to add/remove client-side, so
+  |             CLI, MCP, and HTTP share one ModifyMessageLabelsOutcome contract)
   |-- syncGate: a single in-process promise chain; runSyncLoop and POST /api/sync
   |             both enqueue onto it, so at most one syncMailbox pass runs at a
   |             time. POST /api/sync coalesces onto the in-flight pass.
@@ -225,7 +228,7 @@ Known unknown to resolve early in Phase C: fragment-token handling timing versus
 
 Depends on engine Phase 3 write-through (`gmail.modify` re-consent is one command once `connect` exists).
 
-- [ ] **D.1** Mark-read and archive from the UI, minimum, through the same write-through cores the CLI/MCP mutation verbs use; label edits follow.
+- [ ] **D.1** Mark-read and archive from the UI, minimum, through one `POST /api/messages/modify` adapter over `resolveAndModifyMessageLabels` (the same core the CLI verbs and the MCP `modify_labels` tool use). The route takes `{ ids, addLabels, removeLabels }` and returns `ModifyMessageLabelsOutcome`; the UI desugars the button intents to add/remove sets client-side. One route, not per-intent routes, so per-id failures stay structured data the UI can render ("3 archived, 1 failed"). Label edits follow on the same route.
 
 ### Distribution wave (former Phase A; not a v1 gate)
 

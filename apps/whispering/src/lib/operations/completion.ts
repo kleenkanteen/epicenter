@@ -1,33 +1,26 @@
 import { CompleteError, complete, resolveConnection } from '@epicenter/client';
 import type { Result } from 'wellcrafted/result';
 import { customFetch } from '#platform/http';
-import { INFERENCE } from '$lib/constants/inference';
+import {
+	type CompletionState,
+	resolveCompletionStateFromConfig,
+} from '$lib/operations/completion-target';
 import { deviceConfig } from '$lib/state/device-config.svelte';
 import { settings } from '$lib/state/settings.svelte';
 
 /**
- * Resolve the single global completion target: the OpenAI-compatible base URL
- * (an endpoint override in deviceConfig beats the provider's canonical default)
- * and the optional Bearer key, both read at use (ADR 0012) from the global
- * `completion.*` setting and deviceConfig. Null when there is no base URL to talk
- * to (Custom with no endpoint configured), the one genuinely un-runnable state.
+ * Resolve the single global completion state: what to call (`target`), whether
+ * Polish can run (`canRun`), and whether transcript text stays on this device
+ * (`textStaysOnDevice`). All three are derived together from the global
+ * `completion.*` setting and deviceConfig, read at use (ADR 0012) so nothing goes
+ * stale. `target` is null when there is no base URL to talk to (Custom with no
+ * endpoint configured), the one genuinely un-runnable state.
  */
-function resolveCompletionTarget(): {
-	baseUrl: string;
-	apiKey: string | undefined;
-} | null {
-	const provider = settings.get('completion.provider');
-	const { apiKeyConfigKey, endpointConfigKey, defaultBaseUrl } =
-		INFERENCE[provider];
-	const override = endpointConfigKey
-		? deviceConfig.get(endpointConfigKey).trim()
-		: '';
-	const baseUrl = override || defaultBaseUrl;
-	if (!baseUrl) return null;
-	return {
-		baseUrl,
-		apiKey: deviceConfig.get(apiKeyConfigKey).trim() || undefined,
-	};
+export function resolveCompletionState(): CompletionState {
+	return resolveCompletionStateFromConfig({
+		provider: settings.get('completion.provider'),
+		getDeviceConfig: deviceConfig.get,
+	});
 }
 
 /**
@@ -51,7 +44,7 @@ export function completeWithGlobalDefault({
 	userPrompt: string;
 	signal?: AbortSignal;
 }): Promise<Result<string, CompleteError>> {
-	const target = resolveCompletionTarget();
+	const { target } = resolveCompletionState();
 	if (!target) {
 		const provider = settings.get('completion.provider');
 		return Promise.resolve(
@@ -73,25 +66,5 @@ export function completeWithGlobalDefault({
 			userPrompt,
 			signal,
 		},
-	);
-}
-
-/**
- * Whether the selected completion provider can serve a request right now: the
- * Polish gate ("on by default only when it will actually work") reads this so the
- * AI pass is skipped silently on a fresh, unconfigured install instead of failing
- * a request. A configured key is capability; so is a configured endpoint override
- * with no key, the keyless local case (Custom pointed at Ollama or LM Studio,
- * where a cloud key is neither needed nor wanted). A canonical cloud provider with
- * no key would 401, so it is not capable. Read at use, like the completion call.
- */
-export function hasCompletionCapability(): boolean {
-	const target = resolveCompletionTarget();
-	if (!target) return false;
-	if (target.apiKey) return true;
-	const { endpointConfigKey } = INFERENCE[settings.get('completion.provider')];
-	return (
-		endpointConfigKey !== null &&
-		deviceConfig.get(endpointConfigKey).trim().length > 0
 	);
 }
