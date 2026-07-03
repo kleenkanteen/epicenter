@@ -48,7 +48,7 @@ export type ModifyMessageLabelsOutcome = {
 	aborted: ErrorSummary | null;
 };
 
-type ModifyMessageLabelsDeps = {
+type ModifyDeps = {
 	client: GmailClient;
 	db: MailDb;
 	now: () => number;
@@ -59,13 +59,6 @@ export type ModifyMessageLabelsInput = {
 	addLabelIds: string[];
 	removeLabelIds: string[];
 };
-
-function summarizeError(error: {
-	name: string;
-	message: string;
-}): ErrorSummary {
-	return { name: error.name, message: error.message };
-}
 
 function isPerIdError(error: GmailClientError): boolean {
 	return (
@@ -91,17 +84,11 @@ function tryFoldMessageLabels({
 	}
 }
 
-type ResolveLabelIdsDeps = {
-	client: GmailClient;
-	db: MailDb;
-	now: () => number;
-};
-
 export async function resolveLabelIds({
 	deps,
 	labels,
 }: {
-	deps: ResolveLabelIdsDeps;
+	deps: ModifyDeps;
 	labels: string[];
 }): Promise<Result<string[], ResolveLabelIdsError | GmailClientError>> {
 	const resolved: string[] = [];
@@ -128,7 +115,7 @@ export async function modifyMessageLabels({
 	input,
 	readOnly,
 }: {
-	deps: ModifyMessageLabelsDeps;
+	deps: ModifyDeps;
 	input: ModifyMessageLabelsInput;
 	/**
 	 * Required so every adapter decides explicitly whether Gmail writes are
@@ -154,12 +141,14 @@ export async function modifyMessageLabels({
 			removeLabelIds: input.removeLabelIds,
 		});
 		if (error) {
-			const summary = summarizeError(error);
-			if (isPerIdError(error)) {
-				results.push({ id, labelIds: null, folded: false, error: summary });
-				continue;
-			}
+			const summary: ErrorSummary = {
+				name: error.name,
+				message: error.message,
+			};
 			results.push({ id, labelIds: null, folded: false, error: summary });
+			// A 400/404 is about this id alone; a token, throttle, or network
+			// error is systemic, so stop attempting the rest.
+			if (isPerIdError(error)) continue;
 			return Ok({ results, aborted: summary });
 		}
 
@@ -185,4 +174,53 @@ export async function modifyMessageLabels({
 	}
 
 	return Ok({ results, aborted: null });
+}
+
+/**
+ * The adapter path both the CLI `modify` verb and the MCP `modify_labels` tool
+ * take: resolve label names to Gmail ids, then run the core. The core refuses
+ * read-only mode before touching the network, so name resolution (which can
+ * hit `labels.list`) is skipped entirely in that mode.
+ */
+export async function resolveAndModifyMessageLabels({
+	deps,
+	ids,
+	addLabels,
+	removeLabels,
+	readOnly,
+}: {
+	deps: ModifyDeps;
+	ids: string[];
+	addLabels: string[];
+	removeLabels: string[];
+	readOnly: boolean;
+}): Promise<
+	Result<
+		ModifyMessageLabelsOutcome,
+		ModifyMessageLabelsError | ResolveLabelIdsError | GmailClientError
+	>
+> {
+	if (readOnly) {
+		return modifyMessageLabels({
+			deps,
+			input: { ids, addLabelIds: addLabels, removeLabelIds: removeLabels },
+			readOnly: true,
+		});
+	}
+
+	const { data: resolved, error } = await resolveLabelIds({
+		deps,
+		labels: [...addLabels, ...removeLabels],
+	});
+	if (error) return { data: null, error };
+
+	return modifyMessageLabels({
+		deps,
+		input: {
+			ids,
+			addLabelIds: resolved.slice(0, addLabels.length),
+			removeLabelIds: resolved.slice(addLabels.length),
+		},
+		readOnly: false,
+	});
 }

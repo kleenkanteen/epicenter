@@ -1,6 +1,6 @@
 import { loadConfig } from './config.ts';
 import type { MailDb } from './db.ts';
-import { modifyMessageLabels, resolveLabelIds } from './modify.ts';
+import { resolveAndModifyMessageLabels } from './modify.ts';
 import { redeemRefreshToken, runAuthorizationFlow } from './oauth.ts';
 import { queryMail } from './query.ts';
 import { openLocalMailRuntime, openSyncSession } from './runtime.ts';
@@ -311,47 +311,17 @@ async function runModify(args: ParsedArgs): Promise<number> {
 	}
 
 	try {
-		if (runtime.config.readOnly) {
-			const { error } = await modifyMessageLabels({
-				deps: session.deps,
-				input: {
-					ids: args.positionals,
-					addLabelIds: addLabels,
-					removeLabelIds: removeLabels,
-				},
-				readOnly: true,
-			});
-			if (error) {
-				console.error(error.message);
-				return 1;
-			}
-			return 0;
-		}
-
-		const labels = [...addLabels, ...removeLabels];
-		const { data: resolvedLabels, error: labelError } = await resolveLabelIds({
+		const { data, error } = await resolveAndModifyMessageLabels({
 			deps: session.deps,
-			labels,
-		});
-		if (labelError) {
-			console.error(labelError.message);
-			return 1;
-		}
-
-		const { data, error } = await modifyMessageLabels({
-			deps: session.deps,
-			input: {
-				ids: args.positionals,
-				addLabelIds: resolvedLabels.slice(0, addLabels.length),
-				removeLabelIds: resolvedLabels.slice(addLabels.length),
-			},
+			ids: args.positionals,
+			addLabels,
+			removeLabels,
 			readOnly: runtime.config.readOnly,
 		});
 		if (error) {
 			console.error(error.message);
 			return 1;
 		}
-
 		console.log(JSON.stringify(data, null, 2));
 		return data.aborted ? 1 : 0;
 	} finally {

@@ -43,7 +43,7 @@ import {
 import { type Static, type TObject, Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { Err, Ok, type Result } from 'wellcrafted/result';
-import { modifyMessageLabels, resolveLabelIds } from './modify.ts';
+import { resolveAndModifyMessageLabels } from './modify.ts';
 import { queryMail } from './query.ts';
 import {
 	type LocalMailRuntime,
@@ -172,37 +172,15 @@ const TOOLS: ToolDescriptor[] = [
 			const { data: session, error } = await openSyncSession(ctx);
 			if (error) return Err(error);
 			try {
-				const addLabels = args.addLabelIds ?? [];
-				const removeLabels = args.removeLabelIds ?? [];
-				if (ctx.config.readOnly) {
-					return await modifyMessageLabels({
+				const { data, error: modifyError } =
+					await resolveAndModifyMessageLabels({
 						deps: session.deps,
-						input: {
-							ids: args.ids,
-							addLabelIds: addLabels,
-							removeLabelIds: removeLabels,
-						},
-						readOnly: true,
-					});
-				}
-
-				const { data: resolvedLabels, error: labelError } =
-					await resolveLabelIds({
-						deps: session.deps,
-						labels: [...addLabels, ...removeLabels],
-					});
-				if (labelError) return Err(labelError);
-
-				const { data, error } = await modifyMessageLabels({
-					deps: session.deps,
-					input: {
 						ids: args.ids,
-						addLabelIds: resolvedLabels.slice(0, addLabels.length),
-						removeLabelIds: resolvedLabels.slice(addLabels.length),
-					},
-					readOnly: ctx.config.readOnly,
-				});
-				if (error) return Err(error);
+						addLabels: args.addLabelIds ?? [],
+						removeLabels: args.removeLabelIds ?? [],
+						readOnly: ctx.config.readOnly,
+					});
+				if (modifyError) return Err(modifyError);
 				if (
 					data.aborted ||
 					data.results.some((result) => result.error !== null)
