@@ -11,6 +11,8 @@
  * - Declared card fields render by name and omit non-card fields.
  * - Missing group values land in the trailing Unassigned column.
  * - Drop writes validate bucket values and clear Unassigned with undefined.
+ * - Drop writes refuse payloads that name no card on the board and skip no-op
+ *   same-column drops.
  */
 
 import { expect, test } from 'bun:test';
@@ -172,11 +174,23 @@ test('boardColumnsFor defaults to up to three non-group fields when card is omit
 	]);
 });
 
+/** The board as rendered, holding `alpha.md` in the `todo` bucket, as a drop reads it. */
+function todoBoard(model: Contract) {
+	return boardColumnsFor({
+		conformance: classifyRows(model.fields, [
+			row('alpha.md', { title: 'Alpha', status: 'todo' }),
+		]),
+		fields: model.fields,
+		projection: board,
+	});
+}
+
 test('boardDropEditFor writes valid bucket values through the group field', () => {
 	const model = contract();
 
 	expect(
 		boardDropEditFor({
+			columns: todoBoard(model),
 			fileName: 'alpha.md',
 			groupByField: field(model, 'status'),
 			columnValue: 'done',
@@ -191,6 +205,7 @@ test('boardDropEditFor writes valid bucket values through the group field', () =
 test('boardDropEditFor clears the group field for the unassigned bucket', () => {
 	const model = contract();
 	const edit = boardDropEditFor({
+		columns: todoBoard(model),
 		fileName: 'alpha.md',
 		groupByField: field(model, 'status'),
 		columnValue: null,
@@ -208,9 +223,51 @@ test('boardDropEditFor refuses buckets that fail the group field check', () => {
 	expect(canWriteBoardColumn(status, 'blocked')).toBe(false);
 	expect(
 		boardDropEditFor({
+			columns: todoBoard(model),
 			fileName: 'alpha.md',
 			groupByField: status,
 			columnValue: 'blocked',
+		}),
+	).toBeNull();
+});
+
+test('boardDropEditFor refuses a payload that names no card on the board', () => {
+	const model = contract();
+	const status = field(model, 'status');
+	const columns = todoBoard(model);
+
+	// A stray drag payload (an off-board file name, or plain text picked up by the
+	// text/plain fallback) must not write, or a drop could create a file the board
+	// never rendered.
+	expect(
+		boardDropEditFor({
+			columns,
+			fileName: 'ghost.md',
+			groupByField: status,
+			columnValue: 'done',
+		}),
+	).toBeNull();
+	expect(
+		boardDropEditFor({
+			columns,
+			fileName: 'some dragged sentence',
+			groupByField: status,
+			columnValue: 'done',
+		}),
+	).toBeNull();
+});
+
+test('boardDropEditFor skips a drop onto the column the card already sits in', () => {
+	const model = contract();
+
+	// `alpha.md` is already in the `todo` bucket, so releasing it back on `todo` is a
+	// no-op: no redundant same-value write.
+	expect(
+		boardDropEditFor({
+			columns: todoBoard(model),
+			fileName: 'alpha.md',
+			groupByField: field(model, 'status'),
+			columnValue: 'todo',
 		}),
 	).toBeNull();
 });

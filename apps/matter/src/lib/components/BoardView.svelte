@@ -51,6 +51,10 @@
 		);
 	}
 
+	// The card MIME scopes drops to board cards; the `text/plain` copy is a fallback for
+	// drag harnesses that only round-trip the standard type (the Playwright e2e). Reading an
+	// arbitrary payload is safe because `boardDropEditFor` refuses any name that is not a card
+	// currently in `columns`, so the fallback cannot write to an off-board file.
 	function dragStart(event: DragEvent, fileName: string): void {
 		event.dataTransfer?.setData(BOARD_CARD_MIME, fileName);
 		event.dataTransfer?.setData('text/plain', fileName);
@@ -68,7 +72,7 @@
 			event.dataTransfer?.getData(BOARD_CARD_MIME) ||
 			event.dataTransfer?.getData('text/plain');
 		if (!fileName || groupByField === undefined) return;
-		const edit = boardDropEditFor({ fileName, groupByField, columnValue });
+		const edit = boardDropEditFor({ columns, fileName, groupByField, columnValue });
 		if (!edit) return;
 		event.preventDefault();
 		void table.saveField(edit.fileName, edit.key, edit.value);
