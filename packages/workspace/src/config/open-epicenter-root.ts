@@ -182,7 +182,7 @@ function buildMountSession(
 ): MountSession | null {
 	if (auth === null || auth.state.status === 'signed-out') return null;
 	return {
-		ownerId: auth.state.ownerId,
+		principalId: auth.state.principalId,
 		// `auth.openWebSocket` / `auth.fetch` / `auth.onStateChange` are
 		// closure-based on the auth client and do not read `this`, so passing the
 		// method reference directly is safe (no `.bind(auth)` needed).

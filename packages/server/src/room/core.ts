@@ -19,8 +19,7 @@
  *
  *   binary WS frames  -> standard y-protocols SYNC.
  *   text WS frames    -> the server-owned presence channel (`presence` /
- *                        `presence_publish`), plus relay-channel frames the
- *                        core delegates whole to the channel router.
+ *                        `presence_publish`).
  *
  * ## Presence
  *
@@ -31,12 +30,11 @@
  *
  * ## Adapter contract
  *
- * Backends drive `RoomCore` through six entry points:
+ * Backends drive `RoomCore` through these entry points:
  *
  *   - `addConnection(socket, connection)`     on accept
  *   - `removeConnection(socket, code)`         on close
  *   - `handleMessage(socket, message)`         on inbound frame
- *   - `sync(body)` / `getDoc()`                for HTTP RPC
  *   - `compact()`                              after idle
  *
  * `connectionCount` is exposed as a query so the backend can schedule
@@ -44,12 +42,10 @@
  */
 
 import {
-	decodeSyncRequest,
 	encodeSyncStep1,
 	encodeSyncUpdate,
 	handleSyncPayload,
 	type SyncMessageType,
-	stateVectorsEqual,
 } from '@epicenter/sync';
 import {
 	checkPresencePublishFrame,
@@ -58,11 +54,10 @@ import {
 } from '@epicenter/workspace/document/presence';
 import * as decoding from 'lib0/decoding';
 import { createLogger } from 'wellcrafted/logger';
-import { Err, Ok, trySync } from 'wellcrafted/result';
+import { trySync } from 'wellcrafted/result';
 import * as Y from 'yjs';
 import { MAX_PAYLOAD_BYTES } from '../constants.js';
 import type { Connection } from '../types.js';
-import { createChannelRouter } from './channel-router.js';
 import { RoomError, type RoomSocket, type RoomUpdateLog } from './contracts.js';
 
 const log = createLogger('server/room/core');
@@ -236,9 +231,7 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 			seen.set(attachment.nodeId, {
 				nodeId: attachment.nodeId,
 				connectedAt: attachment.connectedAt,
-				actions: attachment.actions,
 				agentId: attachment.agentId,
-				exposedRoutes: attachment.exposedRoutes,
 			});
 		}
 		return Array.from(seen.values()).sort((a, b) =>
@@ -312,40 +305,12 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 	}
 
 	/**
-	 * Resolve a recipient `nodeId` to the most-recently-connected open
-	 * socket, if any. `Map` iteration is insertion order, so the LAST
-	 * matching socket in a forward scan is the newest.
-	 */
-	function pickRecipient(nodeId: string): RoomSocket | null {
-		let newest: RoomSocket | null = null;
-		for (const [ws, data] of connections) {
-			if (data.nodeId === nodeId && ws.readyState === WS_READY_OPEN) {
-				newest = ws;
-			}
-		}
-		return newest;
-	}
-
-	/**
-	 * The relay-channel router: forwards `channel_*` frames between a caller socket
-	 * and a target device's socket over this same room. A SEPARATE module that
-	 * imports no sync, MCP, or action code; the core reaches it through one
-	 * delegation in `handleTextFrame` and one teardown in `removeConnection`.
-	 * `findDevice` is `pickRecipient` (this room is one user's fleet); `ownerOf`
-	 * is the socket's authenticated `userId`, the relay's only routing authority.
-	 */
-	const channelRouter = createChannelRouter({
-		findDevice: pickRecipient,
-		ownerOf: (socket) => connections.get(socket)?.userId,
-	});
-
-	/**
-	 * Node -> relay: publish this socket's action manifest and optional agent
-	 * designation. The relay stores both against the connection attachment,
-	 * persists them via `serializeAttachment` when the runtime supports
-	 * hibernation, and rebroadcasts presence so peers see the update. A malformed
-	 * payload is dropped silently: the relay never trusts client input but never
-	 * tears down a sync socket for one bad manifest publish either.
+	 * Node -> relay: publish this socket's presence identity (optional agent
+	 * designation). The relay stores it against the
+	 * connection attachment, persists them via `serializeAttachment` when the
+	 * runtime supports hibernation, and rebroadcasts presence so peers see the
+	 * update. A malformed payload is dropped silently: the relay never trusts
+	 * client input but never tears down a sync socket for one bad publish either.
 	 */
 	function handlePresencePublish(socket: RoomSocket, frame: unknown): void {
 		if (!checkPresencePublishFrame.Check(frame)) return;
@@ -353,9 +318,7 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 		if (!existing) return;
 		const updated: Connection = {
 			...existing,
-			actions: frame.actions,
 			agentId: frame.agentId,
-			exposedRoutes: frame.exposedRoutes,
 		};
 		connections.set(socket, updated);
 		socket.serializeAttachment?.(updated);
@@ -364,10 +327,9 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 
 	/**
 	 * Route a client -> relay text frame. The only recognized type is
-	 * `presence_publish`; relay-channel frames are delegated whole to the channel
-	 * router above. The TypeBox-compiled validator inside the handler narrows the
-	 * frame; this dispatcher only owns the `type` switch and the protocol-error
-	 * close path.
+	 * `presence_publish`. The TypeBox-compiled validator inside the handler
+	 * narrows the frame; this dispatcher only owns the `type` switch and the
+	 * protocol-error close path.
 	 *
 	 * Unparseable JSON or an unknown frame type is a genuine protocol desync and
 	 * closes the socket with `4400 protocol-error`. A recognized frame with
@@ -391,14 +353,6 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 			parsed = JSON.parse(message);
 		} catch {
 			ws.close(4400, 'protocol-error');
-			return;
-		}
-
-		// Relay-channel frames are delegated WHOLE to the separate channel router,
-		// never handled as cases beside presence: the channel layer stays a distinct
-		// module from sync and presence, sharing only this socket.
-		if (channelRouter.owns(parsed)) {
-			channelRouter.handleFrame(ws, parsed);
 			return;
 		}
 
@@ -438,9 +392,9 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 		 *   responsible for the runtime-specific accept (hibernation API
 		 *   or `Bun.serve` upgrade) before calling this.
 		 * @param connection - The connection attachment URL-stamped at
-		 *   upgrade. `nodeId` is the relay routing address; `userId`
-		 *   is the auth principal; `connectedAt` and `actions` are mirrored
-		 *   on the wire so receivers can render node affordances.
+		 *   upgrade. `nodeId` is the presence participant identity;
+		 *   `principalId` is the auth principal; `connectedAt` and `agentId`
+		 *   are mirrored on the wire so receivers can render node affordances.
 		 */
 		addConnection(socket: RoomSocket, connection: Connection): void {
 			connections.set(socket, connection);
@@ -462,8 +416,6 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 		/**
 		 * Drop a closed socket and run the disconnect-time flow.
 		 *
-		 * - Resets every relay channel this socket was a party to, so a
-		 *   half-open channel never lingers after the caller or target drops.
 		 * - Removes the socket from `connections`.
 		 * - If this was the LAST socket for the client, schedules the
 		 *   debounced presence rebroadcast (or fires it immediately on
@@ -476,10 +428,6 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 		removeConnection(socket: RoomSocket, code: number): void {
 			const data = connections.get(socket);
 			if (!data) return;
-
-			// Reset every relay channel this socket was a party to, so a half-open
-			// channel never lingers after the caller or target drops.
-			channelRouter.onClose(socket);
 
 			connections.delete(socket);
 
@@ -497,7 +445,7 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 		 * Handle one inbound WebSocket message.
 		 *
 		 * Routes on the message envelope:
-		 * - text frames: presence and relay-channel frames.
+		 * - text frames: presence frames.
 		 * - binary frames: standard y-protocols SYNC.
 		 *
 		 * Oversized messages close the socket with `1009 Message too
@@ -561,58 +509,6 @@ export function createRoomCore({ updateLog }: { updateLog: RoomUpdateLog }) {
 				return;
 			}
 			if (reply) socket.send(reply);
-		},
-
-		/**
-		 * HTTP sync RPC.
-		 *
-		 * Binary body format:
-		 * `[length-prefixed stateVector][length-prefixed update]`
-		 * (encoded via `encodeSyncRequest` from `@epicenter/sync`).
-		 *
-		 * Applies the client update to the live doc and returns the
-		 * binary diff the client is missing (or `null` if already in
-		 * sync) wrapped in `Ok`. Returns `Err(MalformedSyncBody)` when
-		 * the untrusted body fails to decode so the route can answer 400
-		 * instead of 500.
-		 */
-		sync(body: Uint8Array) {
-			const { data: clientSV, error } = trySync({
-				try: () => {
-					const { stateVector, update } = decodeSyncRequest(body);
-					if (update.byteLength > 0) {
-						Y.applyUpdateV2(doc, update, 'http');
-					}
-					return stateVector;
-				},
-				catch: (cause) => RoomError.MalformedSyncBody({ cause }),
-			});
-			if (error) return Err(error);
-
-			const serverSV = Y.encodeStateVector(doc);
-			const diff = stateVectorsEqual(serverSV, clientSV)
-				? null
-				: Y.encodeStateAsUpdateV2(doc, clientSV);
-
-			return Ok({
-				diff,
-				storageBytes: updateLog.byteSize(),
-			});
-		},
-
-		/**
-		 * Snapshot bootstrap.
-		 *
-		 * Returns the full doc state via `Y.encodeStateAsUpdateV2`.
-		 * Clients apply this with `Y.applyUpdateV2` to hydrate their
-		 * local doc before opening a WebSocket, reducing the initial
-		 * sync payload.
-		 */
-		getDoc(): { data: Uint8Array; storageBytes: number } {
-			return {
-				data: Y.encodeStateAsUpdateV2(doc),
-				storageBytes: updateLog.byteSize(),
-			};
 		},
 
 		/**

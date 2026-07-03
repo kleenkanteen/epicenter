@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import type { AuthFetch } from './auth-contract.js';
 import { readApiSession } from './read-api-session.js';
 
@@ -18,22 +18,22 @@ describe('readApiSession', () => {
 		const fetch: AuthFetch = async (input, init) => {
 			calls.push({ url: String(input), init });
 			return json({
-				user: { id: 'owner-1', email: 'owner-1@example.com' },
-				ownerId: 'owner-1',
+				principalId: 'principal-1',
+				email: 'principal-1@example.com',
 			});
 		};
 		const { data, error } = await readApiSession({
 			baseURL,
-			token: 'dev:owner-1',
+			token: 'dev:principal-1',
 			fetch,
 		});
 		expect(error).toBeNull();
-		expect(data?.ownerId).toBe(asOwnerId('owner-1'));
-		expect(data?.user.email).toBe('owner-1@example.com');
+		expect(data?.principalId).toBe(asPrincipalId('principal-1'));
+		expect(data?.email).toBe('principal-1@example.com');
 		expect(calls[0]?.url).toBe(`${baseURL}/api/session`);
 		expect(calls[0]?.init?.credentials).toBe('omit');
 		expect(new Headers(calls[0]?.init?.headers).get('authorization')).toBe(
-			'Bearer dev:owner-1',
+			'Bearer dev:principal-1',
 		);
 	});
 

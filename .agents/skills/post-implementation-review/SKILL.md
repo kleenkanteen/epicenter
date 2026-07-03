@@ -1,6 +1,6 @@
 ---
 name: post-implementation-review
-description: "Hub for the broad second-read pass after an implementation: list every touched file as an ASCII tree, mentally inline helpers, audit dead paths and stale imports, name invariant owners, sanity-check API shape and naming. Delegates to focused skills (collapse-pass, cohesive-clean-breaks, greenfield-clean-breaks, refactoring, code-audit, one-sentence-test, approachability-audit, testing, typescript, svelte, yjs). Use after finishing an implementation, before handoff, or when the user says 'review what you just did', 'second pass', 'final sweep'."
+description: "Hub for the broad second-read pass after an implementation: list every touched file as an ASCII tree, mentally inline helpers, audit dead paths and stale imports, name invariant owners, sanity-check API shape and naming. Delegates to focused simplification, clean-break, first-read, testing, TypeScript, Svelte, and Yjs skills as needed. Use after finishing an implementation, before final response, or when the user says 'review what you just did', 'second pass', 'final sweep'."
 metadata:
   author: epicenter
   version: '1.0'
@@ -57,6 +57,7 @@ Load only the skills that match the touched surface:
 collapse-pass            continuous deletion of unearned indirection
 cohesive-clean-breaks    public API, package boundary, config, lifecycle, naming, or ownership change
 greenfield-clean-breaks  compatibility refusal and ideal-shape review
+fresh-context-review     independent adversarial review of a concrete diff or design
 asymmetric-wins          refuse a feature to collapse a disproportionate code family
 refactoring              caller counts, inlining, dead exports, stale imports, straggler sweep
 approachability-audit    too many hops, misleading names, clever types, first-read confusion
@@ -67,6 +68,10 @@ typescript               type organization, inference, runtime schema, type test
 svelte                   Svelte components, stores, runes, query usage, UI state
 yjs                      CRDT documents, shared types, transactions, conflict behavior
 ```
+
+Use [fresh-context-review](../fresh-context-review/SKILL.md) after the local
+second read when an independent challenge could catch ownership, lifecycle, or
+type-shape mistakes.
 
 ## Review Order
 

@@ -181,6 +181,41 @@ const permissions = {
 	},
 };
 
+// keyring -------------------------------------------------------------
+const KeyringError = defineErrors({
+	ReadFailed: ({ cause }: { cause: unknown }) => ({
+		message: `Failed to read from the OS keyring: ${extractErrorMessage(cause)}`,
+		cause,
+	}),
+	WriteFailed: ({ cause }: { cause: unknown }) => ({
+		message: `Failed to write to the OS keyring: ${extractErrorMessage(cause)}`,
+		cause,
+	}),
+});
+
+const keyring = {
+	/**
+	 * Read the secret stored under an app-owned keyring account, or `null` when
+	 * absent. Rust owns the OS credential-store service name and account
+	 * allowlist.
+	 */
+	async read(account: string) {
+		const { data, error } = await commands.keyringRead(account);
+		if (error !== null) return KeyringError.ReadFailed({ cause: error });
+		return Ok(data);
+	},
+
+	/**
+	 * Write `value` under an app-owned keyring account, or delete the entry when
+	 * `value` is `null`.
+	 */
+	async write(account: string, value: string | null) {
+		const { error } = await commands.keyringWrite(account, value);
+		if (error !== null) return KeyringError.WriteFailed({ cause: error });
+		return Ok(undefined);
+	},
+};
+
 // tray --------------------------------------------------------------
 const TrayError = defineErrors({
 	SetIcon: ({ cause }: { cause: unknown }) => ({
@@ -473,6 +508,7 @@ const opener = {
 export const tauriOnly = {
 	fs,
 	permissions,
+	keyring,
 	tray,
 	keyboard,
 	autostart,

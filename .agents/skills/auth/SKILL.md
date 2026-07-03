@@ -1,6 +1,6 @@
 ---
 name: auth
-description: 'Epicenter auth packages: `@epicenter/auth` and the Svelte wrapper at `@epicenter/svelte/auth`, OAuth sessions, identity state, auth-owned fetch/WebSocket, and workspace lifecycle binding. Use when editing Epicenter auth clients, session state, hosted sign-in, or auth/workspace integration.'
+description: 'Epicenter auth packages: `@epicenter/auth` and the Svelte wrapper at `@epicenter/svelte/auth`, OAuth sessions, identity state, auth-owned fetch/WebSocket, and workspace boot selection. Use when editing Epicenter auth clients, session state, hosted sign-in, or auth/workspace integration.'
 metadata:
   author: epicenter
   version: '6.0'
@@ -81,10 +81,12 @@ The public surface lives in one package plus a Svelte subpath:
   gate, authenticated fetch, and WebSocket opening. Also exports the Node
   machine-auth surface for CLI and daemons.
 - `@epicenter/svelte/auth`: Svelte 5 wrapper (in the `@epicenter/svelte`
-  package, which also owns `createSession` / `SignedIn`). Mirrors `auth.state`
-  through `createSubscriber` so templates and `$derived` reads are reactive.
-- `createSession` / `SignedIn` from `@epicenter/svelte`: workspace lifecycle
-  binding over an `AuthClient`.
+  package, which also exports `toConnection`, `reloadOnOwnerChange`,
+  `createSession`, and `SignedIn`). Mirrors `auth.state` through
+  `createSubscriber` so templates and `$derived` reads are reactive.
+- `toConnection` from `@epicenter/svelte/auth`: the boot-time projection a
+  workspace `connect()` call consumes (`ConnectionConfig` signed in, `null`
+  signed out).
 
 The API server composes Better Auth like this:
 
@@ -93,7 +95,6 @@ Hono app
   -> CORS
   -> per-request DB
   -> createAuth({ db, env, baseURL })
-  -> singleCredential
   -> /auth/* Better Auth handler
   -> /api/session (mountSessionApp: cookie-or-bearer + ownership)
   -> protected resources (bearer + ownership)
@@ -206,17 +207,17 @@ The grant is a nested object; identity is split out:
 ```txt
 PersistedAuth
   grant: { accessToken, refreshToken, accessTokenExpiresAt }  -> online-only server access
-  userId   -> stored explicitly so the shared daemon can read it
+  userId   -> stored explicitly so the instance daemon can read it
   ownerId  -> local storage partition selection
 ```
 
 The grant lets the app call the server and is useless offline on its own.
-`userId` / `ownerId` remain useful offline: they select
-this user's local workspace data. `userId` is stored explicitly rather than
-synthesised from `ownerId` so the shared daemon can read it when
-`ownerId === SHARED_OWNER_ID` (in shared mode `ownerId` is the literal shared id
-and is structurally not a `UserId`). Profile data is intentionally absent;
-application surfaces fetch it when they display it.
+`userId` / `ownerId` remain useful offline: they select this user's local
+workspace data. `userId` is stored explicitly rather than synthesised from
+`ownerId` so the instance daemon can read it when `ownerId ===
+INSTANCE_OWNER_ID`; on an instance, `ownerId` is the literal pinned id and is
+structurally not a `UserId`. Profile data is intentionally absent; application
+surfaces fetch it when they display it.
 
 The app can boot from a cached `PersistedAuth` without calling the network.
 Refresh failure must preserve the cached `ownerId` so local workspace data can
@@ -352,9 +353,12 @@ const collaboration = openCollaboration(workspace.ydoc, {
 
 Browsers cannot attach `Authorization` headers to `new WebSocket()`, so auth
 carries the bearer token as a WebSocket subprotocol
-(`BEARER_SUBPROTOCOL_PREFIX`). The API's `singleCredential` middleware
-normalizes that subprotocol into `Authorization` and rejects requests that
-carry multiple credentials.
+(`BEARER_SUBPROTOCOL_PREFIX`). The rooms route extracts that credential itself
+on upgrade (an explicit `Authorization` header wins; else exactly one
+`bearer.<token>` entry) and feeds the bare token to the deployment's
+`ResolveBearerPrincipal`. Nothing rewrites `c.req.raw`: Bun's `server.upgrade`
+only accepts the runtime-minted request. The backends echo only the `epicenter`
+subprotocol on every 101 (accept and reject), so the token never round-trips.
 
 ## Stateless access tokens and revocation windows
 
@@ -395,70 +399,41 @@ stateless JWT access token  ->  cannot revoke before exp
    Never flatten a JWKS-fetch failure into a 401, or a transient server fault
    makes clients discard and refresh a good token and pause network auth.
 
-## Workspace Binding
+## Workspace Boot Selection
 
-Workspace construction reads identity from `createSession` and gives lower
-layers callbacks for data they need at their own boundary. The build callback
-receives a `SignedIn` value (copied verbatim from
-`packages/svelte-utils/src/session.svelte.ts`):
+Workspace apps read identity once at boot with one call.
+`toConnection(auth, nodeId)` projects the auth snapshot: signed out returns
+`null` (bare local IndexedDB storage), signed in returns the owner's
+`ConnectionConfig` (owner-scoped storage plus relay sync).
+`reloadOnOwnerChange(auth)` reloads the page when the owner changes, so the
+next boot re-projects. `AccountPopover` is the account surface; do not gate
+the app shell on sign-in.
 
-```ts
-export type SignedIn = {
-	server: string;
-	baseURL: string;
-	ownerId: OwnerId;
-	openWebSocket: AuthClient['openWebSocket'];
-	onReconnectSignal: AuthClient['onStateChange'];
-};
-```
-
-Use it against the real `createSession`:
+Use it in the browser opener:
 
 ```ts
-import { createSession, type SignedIn } from '@epicenter/svelte/auth';
+import type { SyncAuthClient } from '@epicenter/auth';
+import { toConnection } from '@epicenter/svelte/auth';
+import type { NodeId } from '@epicenter/workspace';
 
-export const session = createSession({
+export function openMyAppBrowser({
 	auth,
-	build: (signedIn: SignedIn) => {
-		const workspace = createWorkspace({
-			id: workspaceId,
-			tables,
-			kv,
-		});
-		const idb = attachLocalStorage(workspace.ydoc, {
-			server: signedIn.server,
-			ownerId: signedIn.ownerId,
-		});
-		const collaboration = openCollaboration(workspace.ydoc, {
-			url: roomWsUrl({
-				baseURL: signedIn.baseURL,
-				ownerId: signedIn.ownerId,
-				guid: workspace.ydoc.guid,
-				nodeId,
-			}),
-			waitFor: idb.whenLoaded,
-			openWebSocket: signedIn.openWebSocket,
-			onReconnectSignal: signedIn.onReconnectSignal,
-		});
-		return {
-			workspace,
-			[Symbol.dispose]() {
-				collaboration[Symbol.dispose]();
-				idb[Symbol.dispose]();
-			},
-		};
-	},
-});
+	nodeId,
+}: {
+	auth: SyncAuthClient;
+	nodeId: NodeId;
+}) {
+	return myAppWorkspace.connect(toConnection(auth, nodeId));
+}
 ```
 
-`server` is the API host alone (local-storage partition names); `baseURL` is
-the full origin (`roomWsUrl` wants the scheme for the `wss://` upgrade).
+Inside the connection, `server` is the API host alone (local-storage
+partition names); `baseURL` is the full origin (`roomWsUrl` wants the scheme
+for the `wss://` upgrade).
 
-`createSession` owns workspace lifecycle. A sign-out disposes the payload. A
-`reauth-required` transition keeps the existing payload mounted (OAuth sessions
-publish a signed-out gap before a different owner mounts, so two consecutive
-identity-bearing states are always the same owner). `session.current` is the
-nullable payload; `session.require()` throws when signed-out.
+`createSession` no longer owns workspace lifecycle in workspace apps. It
+survives only for auxiliary signed-in-only resources whose whole existence is
+tied to identity.
 
 Local workspace data must not be wiped just because network auth failed. Wiping
 Yjs or local storage is a separate destructive user action.
@@ -489,22 +464,19 @@ The deployment seam lives in `packages/server/src/ownership.ts`:
 
 ```ts
 export type OwnershipRule =
-	| { kind: 'personal' }
-	| { kind: 'shared'; admit: Admit };
+	| { kind: 'perUser' }
+	| { kind: 'instance' };
 
-export const personal = (): OwnershipRule => ({ kind: 'personal' });
-export const shared = (opts: { admit: Admit }): OwnershipRule => ({
-	kind: 'shared',
-	admit: opts.admit,
-});
+export const perUser: OwnershipRule = { kind: 'perUser' };
+export const instance: OwnershipRule = { kind: 'instance' };
 ```
 
-`resolveOwnerPartition(rule, c)` is the single switch on `rule.kind`. Personal
-mode returns the user's id branded as `OwnerId` (`ownerId === userId`). Shared
-mode runs the admission predicate and returns the literal `SHARED_OWNER_ID`, or
-`RequestGuardError.NotAdmitted` (403) for rejected users. `createRequireOwnership`
-sets `c.var.ownerId` and, on routes with a `:ownerId` segment, rejects a URL
-mismatch with `OwnerMismatch` (403).
+`resolveOwnerPartition(rule, c)` is the single switch on `rule.kind`. `perUser`
+returns the user's id branded as `OwnerId` (`ownerId === userId`). `instance`
+returns the literal `INSTANCE_OWNER_ID`; there is no admission predicate, since
+the operator bearer already gated the request (ADR-0075).
+`createRequireOwnership` sets `c.var.ownerId` and, on routes with a `:ownerId`
+segment, rejects a URL mismatch with `OwnerMismatch` (403).
 
 Note: the same-origin dashboard SPA (`apps/api/ui`) uses
 `createSameOriginCookieAuth`, not PKCE. Served same-origin by the API, it already
@@ -531,11 +503,12 @@ mode flag on it.
 - Do not let `accessTokenExpiresAt` decide local identity state. It is a
   transport refresh hint only; the resource server is the source of truth for
   token validity.
-- Do not send both cookies and bearer tokens to resource routes.
-  `singleCredential` rejects ambiguity before Better Auth sees it.
+- Do not send both cookies and bearer tokens to resource routes. The two
+  credentials are read by disjoint paths (`requireCookieOrBearerPrincipal`
+  cookie-first, `requireBearerPrincipal` bearer-only) and never merge.
 - Do not hide persistence failures in storage adapters. If `set` cannot save
   the refreshed cell, the failure must propagate, not silently look saved.
 - Do not import `requireSignedIn`, `InferSignedIn`, `openFuji`,
   `encryptionKeys`, `EncryptionKeys`, `keyring`, or `Keyring`. They do not
-  exist in Epicenter workspace auth. Workspace binding goes through
-  `createSession` / `SignedIn`.
+  exist in Epicenter workspace auth. Workspace boot selection goes through
+  one call: `connect(toConnection(auth, nodeId))`.

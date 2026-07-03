@@ -1,7 +1,6 @@
 import { createMutation } from '@tanstack/svelte-query';
 import { MANUAL_RECORDING_BUTTON } from '$lib/constants/audio';
 import {
-	cancelRecording,
 	startManualRecording,
 	stopManualRecording,
 } from '$lib/operations/recording';
@@ -76,10 +75,6 @@ export function createManualRecordingController(): RecordingActionController {
 		toggle() {
 			if (isRecording) stopMutation.mutate();
 			else startMutation.mutate();
-		},
-		cancel() {
-			// Self-reports failures and plays the discard sound; fire-and-forget.
-			void cancelRecording();
 		},
 	};
 }

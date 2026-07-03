@@ -1,34 +1,20 @@
-import { OwnerId } from '@epicenter/identity';
+import { PrincipalId } from '@epicenter/identity';
 import { type } from 'arktype';
-import type { Brand } from 'wellcrafted/brand';
 
 /**
- * A signed-in account identifier. Issued by Better Auth, opaque to clients.
- * In personal mode, the bytes happen to equal the owner id; on an instance
- * they do not. The brand prevents accidental cross-assignment.
+ * The authenticated principal projected for Epicenter clients.
  *
- * The validator is declared first; the type is derived from it via `.infer`
- * so schema and type stay in lockstep under one PascalCase name. Use
- * {@link UserId} directly inside schemas (`id: UserId`); at trusted call
- * sites that receive a known `string`, brand it with {@link asUserId}.
+ * Better Auth still owns its `user` table and session model. This projection is
+ * the Epicenter principal used by the workspace partition. Hosted Cloud
+ * principals include `email`; the self-hosted instance principal does not.
  */
-export const UserId = type('string').as<string & Brand<'UserId'>>();
-export type UserId = typeof UserId.infer;
-/**
- * Syntactic sugar for `value as UserId`. The function body is a single typed
- * cast; the constrained `string` parameter is what earns it over a raw `as`
- * (callers can't accidentally widen to `unknown`). The only place in the
- * codebase where `as UserId` appears.
- */
-export const asUserId = (value: string): UserId => value as UserId;
-
-export const AuthUser = type({
+export const Principal = type({
 	'+': 'delete',
-	id: UserId,
-	email: 'string',
+	id: PrincipalId,
+	'email?': 'string',
 });
 
-export type AuthUser = typeof AuthUser.infer;
+export type Principal = typeof Principal.infer;
 
 /**
  * OAuth token grant. Persisted under `PersistedAuth.grant`.
@@ -65,21 +51,14 @@ export type OAuthTokenGrant = typeof OAuthTokenGrant.infer;
  * Profile data is intentionally absent; application surfaces fetch it when
  * they display it.
  *
- * `userId` and `ownerId` are persisted separately from the OAuth grant because
- * they remain useful offline. The grant lets the app call the server; the ids
- * let the app select this user's local workspace data.
- *
- * `userId` is stored explicitly (rather than synthesised from `ownerId`) so
- * the daemon can read it directly on an instance, where `ownerId` is the
- * literal `INSTANCE_OWNER_ID` and is structurally not a `UserId`. Deployment
- * shape (personal vs instance) is not stored here; it is a property of the
- * server. See {@link OwnerId} for the rare derivation a consumer might need.
+ * The grant is server-access material. The principal id is the offline-useful
+ * partition key, so local workspace boot can still pick the right storage when
+ * the network is unavailable.
  */
 export const PersistedAuth = type({
 	'+': 'delete',
 	grant: OAuthTokenGrant,
-	userId: UserId,
-	ownerId: OwnerId,
+	principalId: PrincipalId,
 });
 
 export type PersistedAuth = typeof PersistedAuth.infer;
@@ -89,21 +68,13 @@ export type PersistedAuth = typeof PersistedAuth.infer;
  * API and every Epicenter auth client (browser, extension, CLI machine,
  * daemon).
  *
- * Flat by design: `user` is the Better Auth profile slice displayed in
- * account UI; `ownerId` is the partition key clients use to key local
- * storage and server-side identifiers. Future presentational owner facts
- * (display name, avatar, quota) live in dedicated endpoints rather than the
- * session boot manifest.
- *
- * Deployment shape (personal vs shared) is not carried on the wire; the server
- * is configured with it at construction. Carrying it twice created a
- * consistency burden with no consumer. See {@link OwnerId} for the rare
- * derivation a consumer might need.
+ * The session endpoint exposes Epicenter's resource-server projection, not
+ * Better Auth's internal session shape.
  */
 export const ApiSessionResponse = type({
 	'+': 'delete',
-	user: AuthUser,
-	ownerId: OwnerId,
+	principalId: PrincipalId,
+	'email?': 'string',
 });
 
 export type ApiSessionResponse = typeof ApiSessionResponse.infer;

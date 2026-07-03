@@ -23,7 +23,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { expectErr, expectOk } from 'wellcrafted/testing';
 
 import {
@@ -62,7 +62,7 @@ function signedIn(): WorkspaceAuthClient {
 	return {
 		state: {
 			status: 'signed-in',
-			ownerId: asOwnerId('test-user'),
+			principalId: asPrincipalId('test-user'),
 		},
 		openWebSocket: () => Promise.resolve({} as WebSocket),
 		fetch: () => Promise.resolve(new Response()),

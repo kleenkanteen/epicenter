@@ -22,11 +22,6 @@ export {
 	createConversation,
 } from './loop.js';
 export {
-	createMcpGatewayCatalog,
-	type McpGatewayCatalog,
-	type McpGatewayCatalogOptions,
-} from './mcp-gateway-catalog.js';
-export {
 	type AgentMessage,
 	type AgentMessagePart,
 	type AgentMessageRole,

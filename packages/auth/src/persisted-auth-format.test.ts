@@ -6,7 +6,7 @@
  * encode their fields in a specific order under specific names. Any change
  * that:
  *   - reorders the top-level keys (JSON.stringify follows insertion order)
- *   - renames a field (`userId` -> `userID`)
+ *   - renames a field (`principalId` -> `principalID`)
  *   - adds a required field (cells written before the change fail to parse)
  *
  * breaks every existing cell. These tests pin the byte-level format so any
@@ -26,11 +26,10 @@ const FIXTURE = {
 		refreshToken: 'r',
 		accessTokenExpiresAt: 1_700_000_000_000,
 	},
-	userId: 'alice',
-	ownerId: 'alice',
+	principalId: 'alice',
 };
 
-const PINNED_JSON = `{"grant":{"accessToken":"a","refreshToken":"r","accessTokenExpiresAt":1700000000000},"userId":"alice","ownerId":"alice"}`;
+const PINNED_JSON = `{"grant":{"accessToken":"a","refreshToken":"r","accessTokenExpiresAt":1700000000000},"principalId":"alice"}`;
 
 test('PersistedAuth.assert round-trips the on-disk fixture byte-identical', () => {
 	const parsed = PersistedAuth.assert(FIXTURE);
@@ -42,7 +41,7 @@ test('PersistedAuth rejects a cell missing any required field', () => {
 	// `x: string` rejects undefined. Verified manually; do not switch to a
 	// strip pattern (e.g. delete broken.x) which would defeat the type-narrow
 	// loop.
-	const required = ['grant', 'userId', 'ownerId'] as const;
+	const required = ['grant', 'principalId'] as const;
 	for (const field of required) {
 		const broken = { ...FIXTURE, [field]: undefined };
 		expect(

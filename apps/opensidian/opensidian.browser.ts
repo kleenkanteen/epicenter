@@ -1,27 +1,31 @@
 /**
- * Opensidian browser composition.
+ * Opensidian browser composition: the one boot call (ADR-0088/ADR-0094).
  *
- * Single source of truth for "how Opensidian mounts in a browser." The shared
- * workspace definition owns root wiring and child-doc opening, while this file
- * adds browser-only filesystem, search, shell, and action surfaces:
+ * `toConnection` reads `auth.state` once: signed out projects to `null` (bare
+ * guid-named IndexedDB, cross-tab channel, no relay), signed in projects to
+ * the principal's connection (principal-scoped storage plus relay). `compose` adds
+ * browser-only filesystem, search, shell, and action surfaces on top of
+ * whichever root wiring the connection chose:
  *
  *  1. workspace root doc (tables + KV)
- *  2. local storage + cloud sync for root
- *  3. runtime storage + sync around per-file content child docs
+ *  2. local storage (+ cloud sync when signed in) for root
+ *  3. runtime storage (+ sync when signed in) around per-file content child docs
  *  4. filesystem, sqlite index, bash, and action registry
  *
- * The bundle's `wipe()` drops every owner-scoped IDB database;
- * `Symbol.dispose` tears down the root and cached child Y.Docs without touching
- * local storage.
+ * The bundle's `wipe()` drops every principal-scoped IDB database (or the bare
+ * guid family when signed out); `Symbol.dispose` tears down the root and
+ * cached child Y.Docs without touching local storage.
  */
 
+import type { SyncAuthClient } from '@epicenter/auth';
 import {
 	attachYjsFileSystem,
 	createSqliteIndex,
 	type FileId,
 } from '@epicenter/filesystem';
-import type { SignedIn } from '@epicenter/svelte/auth';
+import { toConnection } from '@epicenter/svelte/auth';
 import {
+	type ComposeContext,
 	defineActions,
 	defineMutation,
 	defineQuery,
@@ -33,13 +37,13 @@ import { Ok } from 'wellcrafted/result';
 import { opensidianWorkspace } from './opensidian.js';
 
 export function openOpensidianBrowser({
-	signedIn,
+	auth,
 	nodeId,
 }: {
-	signedIn: SignedIn;
+	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	return opensidianWorkspace.connect({ ...signedIn, nodeId }, (workspace) => {
+	function compose(workspace: ComposeContext<typeof opensidianWorkspace>) {
 		const { ydoc, tables } = workspace;
 		// The runtime bumps `files.updatedAt` on local body edits (declared via
 		// `touch` on the files table), so these openers read/write the content
@@ -209,7 +213,9 @@ export function openOpensidianBrowser({
 				sqliteIndex[Symbol.dispose]();
 			},
 		};
-	});
+	}
+
+	return opensidianWorkspace.connect(toConnection(auth, nodeId), compose);
 }
 
 export type OpensidianBrowser = ReturnType<typeof openOpensidianBrowser>;

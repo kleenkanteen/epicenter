@@ -1,5 +1,5 @@
 /**
- * @epicenter/server/bun — the Bun host surface.
+ * @epicenter/server/bun: the Bun host surface.
  *
  * Same library, second runtime (ADR-0066). A Bun entry composes its server from
  * here (`createServerApp` + the `mount*` surface) and serves it with `Bun.serve`.
@@ -21,20 +21,17 @@
  */
 
 // The single-partition instance's bearer resolver (self-host; ADR-0075): the
-// `ResolveUser` a Bun instance injects (`createEnvTokenResolver(token)`, paired with
-// `instance()`). The pure generator + boot entropy gate (`generateInstanceToken` /
+// `ResolveBearerPrincipal` a Bun instance injects (`createEnvTokenResolver(token)`).
+// The pure generator + boot entropy gate (`generateInstanceToken` /
 // `assertStrongToken`) live in `@epicenter/auth`.
-export {
-	createEnvTokenResolver,
-	INSTANCE_PRINCIPAL,
-} from './auth/instance-token.js';
+export { createEnvTokenResolver } from './auth/instance-token.js';
 export { createDb, type Db } from './db/create-db.js';
 // An opt-in burn-rate cap for the inference `policies` seam (ADR-0076).
 export { rateLimit } from './middleware/rate-limit.js';
 export {
-	requireBearerUser,
-	requireCookieOrBearerUser,
-	resolveRequestOAuthUser,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
+	resolveRequestOAuthPrincipal,
 } from './middleware/require-auth.js';
 // The cloud-only relational layer (Better Auth on `c.var.auth` + the auth surface,
 // and the Postgres lifecycle). A cloud-on-Bun entry calls `mountCloudAuth` +
@@ -43,8 +40,7 @@ export {
 // merged into the cloud Bun host's boot validation.
 export { CloudAuthBindings, mountCloudAuth } from './mount-cloud-auth.js';
 export { mountCloudDb } from './mount-cloud-db.js';
-export { doName } from './owner.js';
-export { instance, type OwnershipRule, personal } from './ownership.js';
+export { doName } from './principal.js';
 // The Bun room backend: an in-process Rooms map + bun:sqlite update log,
 // plus the Bun `websocket` handler and `bindServer` the entry wires. Its `.rooms`
 // is what a Bun entry passes as `createServerApp`'s `resolveRooms`.
@@ -60,5 +56,5 @@ export { createServerApp, type Identity } from './server-app.js';
 // process config and any secrets it re-requires).
 export { ServerBindings } from './server-bindings.js';
 // Public Hono context types: the portable `Env`, the cloud's `CloudEnv`, and the
-// `ResolveUser<E>` seam the dev Bun entry closes its wrapper over for the smoke.
-export type { CloudEnv, Env, ResolveUser } from './types.js';
+// `ResolveBearerPrincipal<E>` seam the dev Bun entry closes its wrapper over for the smoke.
+export type { CloudEnv, Env, ResolveBearerPrincipal } from './types.js';

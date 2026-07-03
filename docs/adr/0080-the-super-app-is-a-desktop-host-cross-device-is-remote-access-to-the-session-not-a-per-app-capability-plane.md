@@ -6,6 +6,7 @@
 
 ## Context
 
+<!-- doc-path-check: ignore-next-line -->
 The super app is an Epicenter chat that discovers and invokes the headless actions of your other apps so it can dispatch on your behalf. Grounding it against the code (an 11-agent investigation that hunted dispatch, invoke, `defineActions`, MCP-over-the-wire, the relay floor, and jsrepo) surfaced three facts. First, the discover-and-invoke machine already ships and is purely in-process: `createLocalToolCatalog(registry)` projects any action registry into agent tools, `composeToolCatalogs([...])` merges N of them, and `apps/opensidian/src/lib/session.ts` already feeds the merged surface to one transport-blind agent loop. Second, the super app composes verbs, never another app's SQLite, which is each app's private per-runtime derived cache. Third, the hard parts of making the super app cross-device (a per-app `/mcp` endpoint over the user's overlay, a synced directory of per-box endpoints, per-box headless identity, a browser and mobile WASM materializer, build-time bundling of app code into a mobile binary) exist for one purpose: to make N apps individually reachable from M devices, chiefly a phone.
 
 ADR-0079 answered "reach a tool on your box from your phone" with a per-app capability plane. The super app does not need that. It runs where the apps and data already are, so the only thing that must cross a device boundary is the user's view of the one running session. That is a single product refusal that collapses the entire per-app cross-device apparatus.

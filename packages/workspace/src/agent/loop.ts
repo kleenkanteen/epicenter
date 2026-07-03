@@ -277,7 +277,7 @@ export function createConversation(
 			const decision = definition ? approval.decide(call, definition) : 'auto';
 
 			if (decision === 'deny') {
-				appendToolResult(assistant, call, 'Denied by policy.', true);
+				appendToolResult(assistant, call, 'Denied by policy.', undefined, true);
 				notify();
 				continue;
 			}
@@ -285,7 +285,13 @@ export function createConversation(
 				const approved = await approval.request(call, definition);
 				if (signal.aborted) return;
 				if (!approved) {
-					appendToolResult(assistant, call, 'Denied by the user.', true);
+					appendToolResult(
+						assistant,
+						call,
+						'Denied by the user.',
+						undefined,
+						true,
+					);
 					notify();
 					continue;
 				}
@@ -293,7 +299,13 @@ export function createConversation(
 
 			const outcome = await tools.resolve(call, signal);
 			if (signal.aborted) return;
-			appendToolResult(assistant, call, outcome.output, outcome.isError);
+			appendToolResult(
+				assistant,
+				call,
+				outcome.content,
+				outcome.details,
+				outcome.isError,
+			);
 			notify();
 		}
 	}
@@ -411,14 +423,16 @@ function appendText(message: AgentMessage, delta: string): void {
 function appendToolResult(
 	message: AgentMessage,
 	call: AgentToolCall,
-	output: JsonValue,
+	content: string,
+	details: JsonValue | undefined,
 	isError: boolean,
 ): void {
 	message.parts.push({
 		type: 'tool-result',
 		toolCallId: call.toolCallId,
 		toolName: call.toolName,
-		output,
+		content,
+		...(details !== undefined && { details }),
 		isError,
 	});
 }

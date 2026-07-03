@@ -1,32 +1,54 @@
-import { createWebStoragePersistedAuthStorage } from '@epicenter/auth';
-import { createTauriDeepLinkOAuthLauncher } from '@epicenter/auth/oauth-launchers/tauri';
+import { loadPersistedAuthStorage } from '@epicenter/auth';
 import {
 	EPICENTER_WHISPERING_OAUTH_CLIENT_ID,
 	EPICENTER_WHISPERING_TAURI_OAUTH_REDIRECT_URI,
 } from '@epicenter/constants/oauth-clients';
 import { APP_URLS } from '@epicenter/constants/vite';
-import { createAppAuthClient } from '@epicenter/svelte/auth';
+import { createHostedDeepLinkAuth } from '@epicenter/svelte/auth/tauri';
+import { createLogger } from 'wellcrafted/logger';
 import { instanceSetting } from '$lib/instance';
+// This file is the Tauri impl, so it imports the non-null capability bag
+// directly from the Tauri marker rather than through the `#platform/tauri`
+// seam (which resolves to `null` under the web condition).
+import { tauriOnly } from '$lib/tauri.tauri';
 import type { PlatformAuth } from './types';
 
-// One choke point: the persisted instance picks hosted OAuth vs a self-host
-// token (ADR-0071). The deep-link launcher is built once from the hosted
-// constants, never the instance base URL, because OAuth runs only against the
-// hosted star.
-export const auth: PlatformAuth = createAppAuthClient(instanceSetting.read(), {
+const log = createLogger('whispering/platform/auth');
+
+const KEYRING_ACCOUNT = 'auth-grant';
+
+/**
+ * Tolerant like the `localStorage` adapter's `get`: a keychain read failure
+ * (locked keychain, platform error) reads as signed-out rather than crashing
+ * app boot. The next sign-in re-establishes the grant.
+ */
+async function readGrant(): Promise<string | null> {
+	const { data, error } = await tauriOnly.keyring.read(KEYRING_ACCOUNT);
+	if (error !== null) {
+		log.warn(error);
+		return null;
+	}
+	return data;
+}
+
+/**
+ * Strict like the `localStorage` adapter's `set`: a grant that could not be
+ * persisted must fail the sign-in or refresh that produced it, not silently
+ * look saved.
+ */
+async function writeGrant(serialized: string | null): Promise<void> {
+	const { error } = await tauriOnly.keyring.write(KEYRING_ACCOUNT, serialized);
+	if (error !== null) throw error;
+}
+
+export const auth: PlatformAuth = createHostedDeepLinkAuth({
+	instanceSetting,
 	clientId: EPICENTER_WHISPERING_OAUTH_CLIENT_ID,
-	persistedAuthStorage: createWebStoragePersistedAuthStorage({
-		key: 'whispering.auth.persisted',
-		storage: window.localStorage,
-	}),
-	launcher: createTauriDeepLinkOAuthLauncher({
-		issuer: `${APP_URLS.API}/auth`,
-		clientId: EPICENTER_WHISPERING_OAUTH_CLIENT_ID,
-		resource: APP_URLS.API,
-		redirectUri: EPICENTER_WHISPERING_TAURI_OAUTH_REDIRECT_URI,
-		// Deep-link callbacks can cold-start the app; localStorage (not
-		// sessionStorage) keeps the PKCE transaction alive across the launch.
-		storage: window.localStorage,
+	redirectUri: EPICENTER_WHISPERING_TAURI_OAUTH_REDIRECT_URI,
+	api: APP_URLS.API,
+	persistedAuthStorage: await loadPersistedAuthStorage({
+		read: readGrant,
+		write: writeGrant,
 	}),
 });
 

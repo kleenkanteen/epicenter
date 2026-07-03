@@ -10,10 +10,9 @@
 	import RegexIcon from '@lucide/svelte/icons/regex';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 	import SearchResultGroup from './SearchResultGroup.svelte';
 
-	const opensidian = requireOpensidian();
 	let searchInputRef = $state<HTMLInputElement | null>(null);
 	let searchFocused = $state(false);
 

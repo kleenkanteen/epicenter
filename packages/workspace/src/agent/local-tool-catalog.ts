@@ -2,10 +2,9 @@
  * The {@link ToolCatalog} of this client's own in-process actions (ADR-0047).
  *
  * Every tool is a local `defineActions` entry, resolved in-process through
- * `invokeAction` with no relay. Cross-device tools are a separate catalog: a
- * peer's explicitly-exposed MCP routes are auto-mounted over the relay floor
- * (`createMcpGatewayCatalog`) and composed beside this one (`composeToolCatalogs`).
- * Keeping the two apart means the local surface never depends on a socket.
+ * `invokeAction`. Other tool sources compose beside this one through
+ * `composeToolCatalogs`; keeping the two apart means the local surface never
+ * depends on a socket.
  */
 import { extractErrorMessage } from 'wellcrafted/error';
 import type { JsonValue } from 'wellcrafted/json';
@@ -39,15 +38,20 @@ export function createLocalToolCatalog(
 		const action = localActions[call.toolName];
 		if (!action) {
 			return {
-				output: `No local tool named "${call.toolName}".`,
+				content: `No local tool named "${call.toolName}".`,
 				isError: true,
 			};
 		}
 		const { data, error } = await invokeAction(action, call.input);
 		if (error !== null) {
-			return { output: extractErrorMessage(error), isError: true };
+			return { content: extractErrorMessage(error), isError: true };
 		}
-		return { output: (data ?? null) as JsonValue, isError: false };
+		const details = (data ?? null) as JsonValue;
+		return {
+			content: typeof details === 'string' ? details : JSON.stringify(details),
+			details,
+			isError: false,
+		};
 	}
 
 	return { definitions, resolve };

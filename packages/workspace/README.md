@@ -42,10 +42,12 @@ satisfiesWorkspace()
 ```
 
 The app-facing path is `defineWorkspace({ id, tables, kv, actions }).connect(...)`.
-`open()` returns only the root document for daemon composition. `open(connection)`
-adds owner-scoped browser storage, root sync, wipe, and table child-doc openers.
-`open(connection, compose)` lets a runtime add extras and publish its final action
-registry before collaboration starts.
+`open()` returns only the root document for daemon composition. The connection
+is the boot decision: `connect(null)` adds bare browser storage, wipe, and
+table child-doc openers with no relay; `connect(connection)` adds principal-scoped
+browser storage, root sync, wipe, and table child-doc openers.
+`connect(connection, compose)` lets a runtime add extras and expose its final
+action registry on the workspace bundle.
 
 ## Quick Start: local-only workspace
 
@@ -53,7 +55,7 @@ The recipe below ships a workspace with no auth, no cloud
 sync. It is the right shape for a single-user desktop notes app, an
 offline CLI, a test fixture, or any consumer whose data stays on the
 device. Cloud-synced workspaces swap `attachIndexedDb` + `attachBroadcastChannel`
-for the owner-scoped `attachLocalStorage` composite; see
+for the principal-scoped `attachLocalStorage` composite; see
 [Local-only vs cloud-synced](#local-only-vs-cloud-synced).
 
 ```bash
@@ -63,8 +65,6 @@ bun add @epicenter/workspace @epicenter/field
 ```typescript
 import { field } from '@epicenter/field';
 import {
-	attachBroadcastChannel,
-	attachIndexedDb,
 	defineTable,
 	defineWorkspace,
 } from '@epicenter/workspace';
@@ -83,24 +83,14 @@ const blogWorkspace = defineWorkspace({
 });
 
 export function openBlog() {
-	const workspace = blogWorkspace.connect();
-	const idb = attachIndexedDb(workspace.ydoc);
-	// Cross-tab broadcast keyed by ydoc.guid. Skip this line for a Tauri
-	// or Electron app that only ever runs one window.
-	attachBroadcastChannel(workspace.ydoc);
-
-	return {
-		...workspace,
-		idb,
-		batch: (fn: () => void) => workspace.ydoc.transact(fn),
-	};
+	return blogWorkspace.connect(null);
 }
 
 // Singleton style: open once at module scope, use everywhere.
 export const blog = openBlog();
 
 async function quickStart() {
-	await blog.idb.whenLoaded;
+	await blog.storage.whenLoaded;
 
 	blog.tables.posts.set({
 		id: 'welcome',
@@ -121,13 +111,13 @@ void quickStart;
 That example uses the current public API end to end:
 
 - `defineTable(...)` with a real schema
-- a direct `openBlog()` builder function that calls `blogWorkspace.connect()`
+- a direct `openBlog()` builder function that calls `blogWorkspace.connect(null)`
 - `defineWorkspace(...)` for the shared contract and `open()` for the live root
 - direct property access via `blog.tables.posts`
 - `set`, `get`, `update`, `delete`, `scan`, and `observe`
 
-The quick start is local-first: it persists to IndexedDB and works offline.
-Sync is one more line in the builder: add `openCollaboration`. See [Sync](#sync).
+The quick start is local-first: it persists to browser storage and works
+offline. Sync is the credentialed arm of the same call. See [Sync](#sync).
 
 Singleton apps (one workspace per app) call a builder like `openBlog()` once at
 module scope. Browser child documents are declared on tables and opened through
@@ -142,7 +132,7 @@ Every exported function in this package falls into one of three verbs. The prefi
 | Verb | Side effect | Input | Output | Examples |
 |---|---|---|---|---|
 | `define*` | **None**: pure data or type contract | Schemas, defaults, typed bundle values | Plain config object or same value back | `defineTable`, `defineKv`, `defineMutation`, `defineQuery`, `defineWorkspace` |
-| `create*` | **Constructs**: bundles, models, registries, or pure definitions | Definitions, options | Disposable bundle or pure value | `createWorkspace` (root bundle: ydoc + tables + kv + empty actions + dispose), `createFuji` (app model), `createDisposableCache` (refcounted per-row cache) |
+| `create*` | **Constructs**: bundles, models, registries, or pure definitions | Definitions, options | Disposable bundle or pure value | `createWorkspace` (root bundle: ydoc + tables + kv + empty actions + dispose), `createDisposableCache` (refcounted per-row cache) |
 | `attach*` | **Mutates a Y.Doc**: binds a slot, registers `ydoc.on('destroy')` | An existing `Y.Doc` + config (workspace materializers take the bundle from `createWorkspace`) | Typed handle, non-idempotent, hold the reference | `attachRichText`, `attachPlainText`, `attachRecords`, `attachTimeline`, `attachIndexedDb`, `attachLocalStorage`, `attachYjsLog`, `attachBroadcastChannel`, `attachMarkdownExport`, `attachBunSqliteMaterializer` |
 | `open*` | **Opens a runtime over a Y.Doc or a local resource**: returns a typed handle with its own teardown. The Y.Doc-bound case (`openCollaboration`) registers `ydoc.on('destroy')` like `attach*` does; the resource case (`openSqliteReader`) takes no Y.Doc and returns a `[Symbol.dispose]()` handle. | Y.Doc + config, or resource config | Typed runtime handle | `openCollaboration`, `openSqliteReader`, `openWorkspaceSqlite` |
 
@@ -155,7 +145,7 @@ refcounting, and the `gcTime` grace period between last dispose and teardown.
 
 Both shapes ship from this package, and the workspace factory is the same for each.
 
-`createWorkspace({ id, tables, kv })` constructs the root Y.Doc, materializes the table and KV stores onto it, and registers cascade disposal. Local-only docs attach `attachIndexedDb`; cloud-synced docs attach the owner-scoped `attachLocalStorage` composite and `openCollaboration`. The relay is trusted and reads plaintext, so there is no client-side encryption to configure.
+`createWorkspace({ id, tables, kv })` constructs the root Y.Doc, materializes the table and KV stores onto it, and registers cascade disposal. Local-only docs attach `attachIndexedDb`; cloud-synced docs attach the principal-scoped `attachLocalStorage` composite and `openCollaboration`. The relay is trusted and reads plaintext, so there is no client-side encryption to configure.
 
 Apps usually export one pure definition next to their schema. That definition is
 the durable contract: workspace id, tables, KV defaults, action registry, and any
@@ -193,64 +183,60 @@ export const myAppWorkspace = defineWorkspace({
 });
 ```
 
-Minimal cloud browser workspace: pass the signed-in connection into the
-definition opener.
+Minimal browser workspace: pick the local or signed-in preset once at boot.
 
 ```typescript
 import {
 	createNodeId,
 	type NodeId,
 } from '@epicenter/workspace';
-import { createSession, type SignedIn } from '@epicenter/svelte/auth';
+import type { SyncAuthClient } from '@epicenter/auth';
+import { toConnection } from '@epicenter/svelte/auth';
 import { auth } from '$lib/auth';
 import { myAppWorkspace } from '$lib/workspace';
 
 export function openMyAppBrowser({
-	signedIn,
+	auth,
 	nodeId,
 }: {
-	signedIn: SignedIn;
+	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	return myAppWorkspace.connect({ ...signedIn, nodeId });
+	return myAppWorkspace.connect(toConnection(auth, nodeId));
 }
 
-export const session = createSession({
+export const myApp = openMyAppBrowser({
 	auth,
-	build: (signedIn) =>
-		openMyAppBrowser({
-			signedIn,
-			nodeId: createNodeId({ storage: localStorage }),
-		}),
+	nodeId: createNodeId({ storage: localStorage }),
 });
 ```
 
-`open(connection)` pairs owner-scoped IndexedDB with a BroadcastChannel, opens
-root collaboration, wires `wipe()`, and gives each table handle a `.docs`
-namespace of row child-doc openers such as
-`workspace.tables.items.docs.body.open(itemId)`. Two tabs of the same owner share
-both persisted state and live updates, while two different owners on the same
+`connect(null)` uses bare IndexedDB storage under the doc guid and does not
+open relay sync. `connect(connection)` pairs principal-scoped IndexedDB with a
+BroadcastChannel, opens root collaboration, wires `wipe()`, and gives each
+table handle a `.docs` namespace of row child-doc openers such as
+`workspace.tables.items.docs.body.open(itemId)`. Two tabs of the same principal share
+both persisted state and live updates, while two different principals on the same
 browser profile never see each other's data.
 
 `openCollaboration` remains the lower-level sync primitive behind this opener.
 It wraps the sync supervisor, mirrors the relay's server-owned presence channel
-as `collaboration.peers`, and exposes a raw `textPort` that the relay-channel
-floor rides to carry cross-device MCP tool calls over the same socket. See
-[SYNC_ARCHITECTURE.md](./SYNC_ARCHITECTURE.md) for the full model.
+as `collaboration.peers`. See [SYNC_ARCHITECTURE.md](./SYNC_ARCHITECTURE.md)
+for the full model.
 
 The `id` you pass to `defineWorkspace(...)` becomes `workspace.ydoc.guid` when
 you call `.connect(...)`. Namespace it to your app (e.g. `epicenter.my-app`) to
 avoid collisions when multiple apps share the same IndexedDB origin. Cloud sync
-targets the single uniform shape `/api/owners/:ownerId/rooms/:roomId` in both
-modes: build the URL with
-`roomWsUrl({ baseURL, ownerId, guid: workspace.ydoc.guid, nodeId })`. A cloud
-doc is owned by the authenticated `OwnerId`, so the server resolves the Durable
-Object name `owners/${ownerId}/rooms/${room}` from the auth token (personal:
-`ownerId === userId`; shared: `ownerId === 'shared'`), with no workspace lookup.
+targets the single uniform shape `/api/rooms/:roomId` in per-user cloud and
+self-hosted instance deployments: build the URL with
+`roomWsUrl({ baseURL, guid: workspace.ydoc.guid, nodeId })`. A cloud doc is
+owned by the authenticated `PrincipalId`, so the server resolves the Durable
+Object name `principals/${principalId}/rooms/${room}` from the auth token, with
+no workspace lookup.
 
 For production-shaped browser wiring, see
-`apps/fuji/src/lib/workspace/browser.ts`. For auth session transitions, see
-`apps/fuji/src/lib/session.ts`.
+`apps/honeycrisp/src/lib/workspace/browser.ts`. For the boot-time doc selection, see
+`apps/honeycrisp/src/lib/honeycrisp.ts`.
 
 ## Core Philosophy
 
@@ -272,7 +258,7 @@ That split is not cosmetic. It lets you share definitions across modules, infer 
 ### Inline composition is the extension system
 
 There is no builder chain. Runtime-specific extras are composed inline in
-`open(connection, compose)`, after owner-scoped local storage and before
+`open(connection, compose)`, after principal-scoped local storage and before
 collaboration starts:
 
 ```typescript
@@ -298,16 +284,15 @@ function openBlog(connection: ConnectionConfig) {
 }
 ```
 
-Daemon and test paths can use `open()` to compose root-only infrastructure:
+Daemon and test paths can use `create()` to compose root-only infrastructure:
 
 ```typescript
 function openBlogDaemon() {
-	const workspace = blogWorkspace.connect();
+	const workspace = blogWorkspace.create();
 	const collaboration = openCollaboration(workspace.ydoc, {
 		url,
 		openWebSocket,
 		onReconnectSignal,
-		actions: {},
 	});
 	return { ...workspace, collaboration };
 }
@@ -407,12 +392,12 @@ Yjs supports multiple providers simultaneously. A phone can connect to desktop, 
 
 1. Define tables and KV entries with `defineTable` and `defineKv`.
 2. Export a `defineWorkspace({ id, tables, kv, actions })` value beside the schema.
-3. For singleton apps: call `definition.connect()` once at module scope. For cloud
+3. For singleton apps: call `definition.connect(null)` once at module scope. For cloud
    browser apps: call `definition.connect(connection)`. For browser child documents:
    declare them with `table.docs(...)` and call `tables.<table>.docs.<field>.open(rowId)`.
    For one-shot Node operations: derive the same child-doc guid and read the room directly.
 4. Await the right readiness signal before reading persisted state. There are two shapes here, and the choice is load-bearing:
-   - **One subsystem to wait on.** Expose the subsystem (`idb`, `persistence`, ...) on the bundle root and let consumers reach through: `await bundle.idb.whenLoaded`. Do not alias `whenLoaded`/`whenReady` flat at the bundle root just to save a `.idb`; the alias lies about composition.
+   - **One subsystem to wait on.** Expose the subsystem (`storage`, `persistence`, ...) on the bundle root and let consumers reach through: `await bundle.storage.whenLoaded`. Do not alias `whenLoaded`/`whenReady` flat at the bundle root just to save `.storage`; the alias lies about composition.
    - **Two or more subsystems to compose into one barrier.** Then `whenReady` earns its place: `whenReady: Promise.all([persistence.whenLoaded, unlock.whenChecked, sync.whenConnected])`. Because the field is typed `Promise<unknown>`, `Promise.all([...])` is assignable directly. Consumers `await bundle.whenReady`. The CLI's `run` command, migrations, `@epicenter/filesystem` ops, the sqlite-index materializer, and `{#await}` gates in editors all consume this aggregate.
 
 5. Read and write through `bundle.tables`, `bundle.kv`, and `bundle.collaboration.peers`, and (for per-row content docs) whatever you exposed in the returned bundle.
@@ -487,7 +472,7 @@ Actions are callable functions with metadata.
 
 - `defineQuery(...)` creates a read action
 - `defineMutation(...)` creates a write action
-- Include isomorphic actions in `defineWorkspace({ actions })`. Runtime-specific actions belong in `open(connection, compose)`, where the final registry is published before collaboration starts. `defineActions` enforces snake_case ASCII keys at compile time and runtime; consumers index by string or iterate with `Object.entries`.
+- Include isomorphic actions in `defineWorkspace({ actions })`. Runtime-specific actions belong in `open(connection, compose)`, where the final registry is exposed on the workspace bundle. `defineActions` enforces snake_case ASCII keys at compile time and runtime; consumers index by string or iterate with `Object.entries`.
 
 Handlers close over `tables`, `kv`, and anything else the builder has in scope through normal JavaScript closure. They do not receive a framework context object.
 
@@ -525,9 +510,8 @@ Each `.open(rowId)` returns a disposable handle. Multiple consumers can open the
 same row and share one underlying Y.Doc safely; the workspace-owned cache handles
 construction, refcounting, and `gcTime`-delayed teardown.
 
-Reference implementations: `apps/opensidian/opensidian.browser.ts`,
-`apps/fuji/src/lib/workspace/browser.ts`, `apps/fuji/src/lib/workspace/mount.ts`,
-and `apps/honeycrisp/honeycrisp.browser.ts`.
+Reference implementations: `apps/opensidian/opensidian.browser.ts` and
+`apps/honeycrisp/src/lib/workspace/browser.ts`.
 
 ## Schema definition
 
@@ -638,9 +622,9 @@ const unsubscribe = workspace.collaboration.peers.subscribe((peers) => {
 });
 ```
 
-Each entry is a `Peer` (`{ nodeId, connectedAt, actions }`);
-the local install is excluded. Product-level data (display name, cursor,
-capability list) lives in app-owned tables, not on the presence wire. See
+Each entry is a `Peer` (`{ nodeId, connectedAt, agentId? }`);
+the local install is excluded. Product-level data (display name, cursor, capability list)
+lives in app-owned tables, not on the presence wire. See
 [SYNC_ARCHITECTURE.md](./SYNC_ARCHITECTURE.md) for the full model.
 
 Cursor and selection sync (genuine ephemeral peer-to-peer state) is future
@@ -855,15 +839,15 @@ import { attachYjsLog } from '@epicenter/workspace/node';
 
 ### Persistence
 
-Browser apps use `attachIndexedDb(ydoc)` for unauthenticated docs, or `attachLocalStorage(ydoc, { server, ownerId })` for an authenticated workspace that needs owner-scoped persistence plus cross-tab pairing. Bun/Node daemons use `attachYjsLog(ydoc, { filePath })`. All bind to the Y.Doc and tear down on `ydoc.destroy()`.
+Browser apps use `attachIndexedDb(ydoc)` for unauthenticated docs, or `attachLocalStorage(ydoc, { server, principalId })` for an authenticated workspace that needs principal-scoped persistence plus cross-tab pairing. Bun/Node daemons use `attachYjsLog(ydoc, { filePath })`. All bind to the Y.Doc and tear down on `ydoc.destroy()`.
 
 | Primitive | Runtime | Barrier | Other | Purpose |
 |---|---|---|---|---|
 | `attachIndexedDb(ydoc)` | browser | `whenLoaded`, `whenDisposed` | `clearLocal()` | Local Yjs persistence via `y-indexeddb` |
-| `attachLocalStorage(ydoc, { server, ownerId })` | browser | `whenLoaded`, `whenDisposed` | paired BroadcastChannel | Owner-scoped IDB plus cross-tab pairing |
+| `attachLocalStorage(ydoc, { server, principalId })` | browser | `whenLoaded`, `whenDisposed` | paired BroadcastChannel | Principal-scoped IDB plus cross-tab pairing |
 | `attachYjsLog(ydoc, { filePath })` | Bun/Node | `whenDisposed` (sync replay; no `whenLoaded` needed) | `clearLocal()` | Append-log SQLite file the daemon writes |
 
-For authenticated apps, call `await wipeLocalStorage({ server, ownerId })` after disposing the bundle to delete every owner-scoped IDB database on the current browser profile (sign-out, "delete my local data", account switch).
+For authenticated apps, call `await wipeLocalStorage({ server, principalId })` after disposing the bundle to delete every principal-scoped IDB database on the current browser profile (sign-out, "delete my local data", account switch).
 
 `attachBunSqliteMaterializer` and `attachMarkdownExport` are not persistence: they project workspace rows into queryable SQLite tables or `.md` files. They are read surfaces, not write surfaces. Projection actions such as `sqlite_rebuild`, `sqlite_search`, and `markdown_rebuild` maintain or query the projection; app data mutations stay in app-defined actions. See the materializer subsections below.
 
@@ -898,13 +882,12 @@ void openNotes;
 
 ### Sync
 
-One primitive wraps the WebSocket transport: `openCollaboration`. The workspace document passes a real `actions` registry; content documents that only need bytes-on-the-wire pass `actions: {}`. Compose it with `attachBroadcastChannel(ydoc)` for unauthenticated local-only documents. Authenticated browser workspaces use `attachLocalStorage(ydoc, { server, ownerId })`, which pairs owner-scoped IDB with an owner-scoped BroadcastChannel in one call.
+One primitive wraps the WebSocket transport: `openCollaboration`. Actions live on the workspace bundle; collaboration is sync and presence only. Compose it with `attachBroadcastChannel(ydoc)` for unauthenticated local-only documents. Authenticated browser workspaces use `attachLocalStorage(ydoc, { server, principalId })`, which pairs principal-scoped IDB with a principal-scoped BroadcastChannel in one call.
 
 ```typescript
 import { field } from '@epicenter/field';
 import {
-	attachBroadcastChannel,
-	attachIndexedDb,
+	attachLocalStorage,
 	createNodeId,
 	createWorkspace,
 	defineTable,
@@ -912,7 +895,7 @@ import {
 	roomWsUrl,
 } from '@epicenter/workspace';
 import type { AuthClient } from '@epicenter/auth';
-import type { OwnerId } from '@epicenter/identity';
+import type { PrincipalId } from '@epicenter/identity';
 
 const tabs = defineTable({
 	id: field.string(),
@@ -920,11 +903,11 @@ const tabs = defineTable({
 });
 
 function openTabs({
-	ownerId,
+	principalId,
 	openWebSocket,
 	onReconnectSignal,
 }: {
-	ownerId: OwnerId;
+	principalId: PrincipalId;
 	openWebSocket: AuthClient['openWebSocket'];
 	onReconnectSignal: AuthClient['onStateChange'];
 }) {
@@ -933,20 +916,21 @@ function openTabs({
 		tables: { tabs },
 		kv: {},
 	});
-	const idb = attachIndexedDb(workspace.ydoc);
-	attachBroadcastChannel(workspace.ydoc);
+	const baseURL = 'https://api.epicenter.so';
+	const idb = attachLocalStorage(workspace.ydoc, {
+		server: new URL(baseURL).host,
+		principalId,
+	});
 	const nodeId = createNodeId({ storage: localStorage });
 	const collaboration = openCollaboration(workspace.ydoc, {
 		url: roomWsUrl({
-			baseURL: 'https://api.epicenter.so',
-			ownerId,
+			baseURL,
 			guid: workspace.ydoc.guid,
 			nodeId,
 		}),
 		waitFor: idb.whenLoaded,
 		openWebSocket,
 		onReconnectSignal,
-		actions: {},
 	});
 
 	return { ...workspace, idb, collaboration };
@@ -1333,7 +1317,7 @@ Two composition shapes, one builder contract.
 │     kv: {},                                               │
 │     actions: ({ tables }) => defineActions({ ... }),      │
 │ });                                                       │
-│ export const workspace = appWorkspace.connect();             │
+│ export const workspace = appWorkspace.connect(null);         │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -1351,15 +1335,15 @@ const filesWorkspace = defineWorkspace({
 	kv: {},
 });
 
-declare const connection: ConnectionConfig;
+declare const connection: ConnectionConfig | null;
 const workspace = filesWorkspace.connect(connection);
 
 using handle = workspace.tables.files.docs.content.open('file-1');
 await handle.whenLoaded;
 ```
 
-The table declaration names the child-doc shape. The connected opener owns the
-live cache, local storage, sync, and owner-scoped wipe.
+The table declaration names the child-doc shape. The connected preset owns the
+live cache, local storage, optional sync, and wipe.
 
 ### `batch(fn)`
 
@@ -1378,14 +1362,14 @@ Yjs transactions do not roll back on throw. They batch notifications; they are n
 
 | API | What it means |
 | --- | --- |
-| `bundle.idb.whenLoaded` (or `bundle.sqlite.whenLoaded`) | Direct subsystem readiness; the default form |
+| `bundle.storage.whenLoaded` (or `bundle.sqlite.whenLoaded`) | Direct subsystem readiness; the default form |
 | `bundle.whenReady` | Optional aggregate: only when the bundle composes 2+ subsystem signals into `Promise.all([...])` |
-| `bundle.idb.clearLocal()` (or `bundle.sqlite.clearLocal()`) | Wipes persisted local state for that attachment |
+| `bundle.storage.clearLocal()` (or `bundle.sqlite.clearLocal()`) | Wipes persisted local state for that attachment |
 | `bundle[Symbol.dispose]()` | Singleton teardown: your builder calls `ydoc.destroy()` |
 | `handle[Symbol.dispose]()` | Cache handle: decrements refcount; last dispose arms `gcTime` |
 | `cache[Symbol.dispose]()` | Flushes every cached entry immediately |
 
-Disposal preserves data: it releases the handle. To wipe persisted local state, call `clearLocal()` on the persistence attachment (`bundle.idb` or `bundle.sqlite`) directly.
+Disposal preserves data: it releases the handle. To wipe persisted local state, call `clearLocal()` on the persistence attachment (`bundle.storage` or `bundle.sqlite`) directly.
 
 ### Cleanup lifecycle (cache)
 
@@ -1417,7 +1401,7 @@ Disposal preserves data: it releases the handle. To wipe persisted local state, 
 
 ```ts
 cache[Symbol.dispose]();
-await handle.idb.whenDisposed;
+await handle.storage.whenDisposed;
 ```
 
 ## Client vs Server
@@ -1426,7 +1410,7 @@ await handle.idb.whenDisposed;
 
 What the package does give you is the raw material a server adapter needs:
 
-- `bundle.collaboration.actions` (the typed `ActionRegistry` from `openCollaboration`)
+- `bundle.actions` (the typed `ActionRegistry` owned by the workspace bundle)
 - `defineActions(actions)` to author a flat snake_case registry
 - `toActionMeta(action)` to project an action to its wire-safe metadata
 - iterate with `Object.entries(actions)`
@@ -1471,11 +1455,11 @@ Everything below is a *convention*: the builder is free to expose more or less. 
 - `ydoc`
 - `tables`
 - `kv`
-- `idb` (or `sqlite`)
+- `storage` (or `sqlite`)
 - `collaboration` (from `openCollaboration`)
 - `actions`
 - `batch(fn)`
-- `whenReady` (only when composed from 2+ subsystem signals; otherwise consumers await `idb.whenLoaded` directly)
+- `whenReady` (only when composed from 2+ subsystem signals; otherwise consumers await `storage.whenLoaded` directly)
 - `[Symbol.dispose]()`
 
 ### Document content attachments
@@ -1572,12 +1556,10 @@ import {
 } from '@epicenter/workspace';
 ```
 
-`openCollaboration` returns a `Collaboration`. Online peers (relay-owned presence, with each peer's `nodeId`, `connectedAt`, and published `actions` manifest):
+`openCollaboration` returns a `Collaboration`. Online peers are relay-owned presence rows with each peer's `nodeId`, `connectedAt`, and optional `agentId`. Actions live on the workspace bundle, not the collaboration handle:
 
 - `collaboration.peers.list()`: `Peer[]`, the local install excluded
 - `collaboration.peers.subscribe(fn)`: returns an unsubscribe function
-
-Cross-device tool calls do not ride this handle; they travel as MCP over the relay-channel floor (ADR-0073), which builds on the collaboration's raw `textPort` to multiplex blind byte channels over the same socket.
 
 ### Introspection
 

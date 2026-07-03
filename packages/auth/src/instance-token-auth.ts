@@ -2,7 +2,12 @@ import { BEARER_SUBPROTOCOL_PREFIX } from '@epicenter/sync';
 import { defineErrors } from 'wellcrafted/error';
 import { createLogger, type Logger } from 'wellcrafted/logger';
 import { Ok, type Result } from 'wellcrafted/result';
-import type { AuthFetch, AuthState, SyncAuthClient } from './auth-contract.js';
+import type {
+	AuthConnectionState,
+	AuthFetch,
+	AuthState,
+	SyncAuthClient,
+} from './auth-contract.js';
 import { AuthError } from './auth-errors.js';
 import { getProfileVia, readApiSession } from './read-api-session.js';
 
@@ -13,7 +18,7 @@ type AuthFetchInput = Request | string | URL;
  *
  * `baseURL` is the self-hosted star's origin (optionally with a path prefix);
  * `token` is the operator-supplied bearer (the self-host `INSTANCE_TOKEN`, or the
- * quarantined dev `dev:<userId>` resolver's token). `fetch`, `WebSocket`, and
+ * quarantined dev `dev:<principalId>` resolver's token). `fetch`, `WebSocket`, and
  * `log` exist so tests can drive the client without a DOM.
  */
 export type CreateInstanceTokenAuthConfig = {
@@ -66,14 +71,15 @@ const InstanceTokenAuthError = defineErrors({
  *     a custom inference backend or any third party can never leak the token.
  *   - identity is resolved by reading `/api/session` once at construction (via
  *     the shared {@link readApiSession}); a 200 installs `signed-in` with the
- *     response's `ownerId`, a rejected token stays `signed-out`. `startSignIn`
- *     re-runs that check so a UI can retry a connection that was offline at boot.
+ *     response's principal id, a rejected token stays `signed-out`.
+ *     `startSignIn` re-runs that check so a UI can retry a connection that was
+ *     offline at boot.
  *   - `signOut` is local-only: it drops to `signed-out` without a server call,
  *     because there is no grant to revoke. Forgetting the instance itself
  *     (reverting to hosted) is an app-level concern.
  *
  * It returns a {@link SyncAuthClient} (it carries the bearer subprotocol the
- * rooms route requires), so it is a drop-in for `createSession` / cloud sync.
+ * rooms route requires), so it is a drop-in for principal-scoped cloud sync.
  */
 export function createInstanceTokenAuth({
 	baseURL,
@@ -85,10 +91,27 @@ export function createInstanceTokenAuth({
 	const epicenterOrigin = new URL(baseURL).origin;
 	let state: AuthState = { status: 'signed-out' };
 	const listeners = new Set<(state: AuthState) => void>();
+	// The boot bearer check verifies against a remote star, so it can be in flight
+	// or fail for a reason `AuthState` cannot carry (a failure keeps `signed-out`).
+	// `connection` runs alongside `state` on its own listener set so a UI can tell
+	// "still connecting" from "unreachable" from "rejected token".
+	let connectionState: AuthConnectionState = { status: 'pending' };
+	const connectionListeners = new Set<(state: AuthConnectionState) => void>();
 
 	function setState(next: AuthState) {
 		state = next;
 		for (const listener of listeners) {
+			try {
+				listener(next);
+			} catch (cause) {
+				log.error(InstanceTokenAuthError.SubscriberThrew({ cause }));
+			}
+		}
+	}
+
+	function setConnection(next: AuthConnectionState) {
+		connectionState = next;
+		for (const listener of connectionListeners) {
 			try {
 				listener(next);
 			} catch (cause) {
@@ -114,7 +137,7 @@ export function createInstanceTokenAuth({
 
 	/**
 	 * Verify the configured token against `/api/session` and reflect the result
-	 * into state. A 200 installs `signed-in` with the response's `ownerId`; a
+	 * into state. A 200 installs `signed-in` with the response's principal id; a
 	 * rejected token (`Rejected`) drops to `signed-out`. A network or parse
 	 * failure returns the error and leaves the current state, so a transient
 	 * outage does not look like a bad token.
@@ -123,16 +146,26 @@ export function createInstanceTokenAuth({
 	 * only reflects its outcome onto state and the `AuthClient` error contract.
 	 */
 	async function confirmSession(): Promise<Result<undefined, AuthError>> {
+		setConnection({ status: 'pending' });
 		const { data: session, error } = await readApiSession({
 			baseURL,
 			token,
 			fetch: fetchImpl,
 		});
 		if (error) {
+			// `Rejected` (401/403) is a bad token; anything else (offline, wrong
+			// origin, non-Epicenter response) reads as unreachable. Only a rejected
+			// token is a durable "signed-out"; a transient outage leaves state alone
+			// so it does not look like a bad credential.
 			if (error.name === 'Rejected') setState({ status: 'signed-out' });
+			setConnection({
+				status: 'failed',
+				reason: error.name === 'Rejected' ? 'rejected' : 'unreachable',
+			});
 			return AuthError.StartSignInFailed({ cause: error });
 		}
-		setState({ status: 'signed-in', ownerId: session.ownerId });
+		setState({ status: 'signed-in', principalId: session.principalId });
+		setConnection({ status: 'connected' });
 		return Ok(undefined);
 	}
 
@@ -171,6 +204,7 @@ export function createInstanceTokenAuth({
 			state.status === 'signed-in'
 		) {
 			setState({ status: 'signed-out' });
+			setConnection({ status: 'failed', reason: 'rejected' });
 		}
 		return response;
 	}
@@ -195,6 +229,17 @@ export function createInstanceTokenAuth({
 		},
 		fetch: authedFetch,
 		getProfile: () => getProfileVia(authedFetch, baseURL),
+		connection: {
+			get state() {
+				return connectionState;
+			},
+			onChange(fn) {
+				connectionListeners.add(fn);
+				return () => {
+					connectionListeners.delete(fn);
+				};
+			},
+		},
 		async openWebSocket(url, protocols = []) {
 			// The room URL is always built from `baseURL`, so the bearer is always
 			// addressed to its own origin; attach it unconditionally.
@@ -205,6 +250,7 @@ export function createInstanceTokenAuth({
 		},
 		[Symbol.dispose]() {
 			listeners.clear();
+			connectionListeners.clear();
 		},
 	};
 }

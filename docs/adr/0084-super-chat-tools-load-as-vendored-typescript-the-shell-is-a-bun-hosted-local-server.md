@@ -1,6 +1,6 @@
 # 0084. Super Chat's tools load as vendored TypeScript via Bun's native dynamic import; its shell is a Bun-hosted local server, not a bundled SPA
 
-- **Status:** Proposed (the loading mechanism and shell-packaging shape are settled; third-party delivery via jsrepo is named but not built, and the packaging shape is not yet prototyped)
+- **Status:** Proposed (the loading mechanism and shell-packaging shape are settled; third-party delivery via jsrepo is named but not built. The shell shape is prototyped in `apps/super-chat`: loopback bind, per-launch token over stdin, bearer-or-query gate on every request, single stdout port announcement. `bun build --compile` packaging and the Tauri sidecar wiring remain unbuilt)
 - **Date:** 2026-06-30
 - **Relates:** [ADR-0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (the super app is a desktop host composing local surfaces; this settles how it loads them and how its shell is packaged), [ADR-0073](0073-tools-speak-mcp-natively-epicenter-owns-only-the-transport-mcp-lacks.md) (MCP is for foreign hosts), [ADR-0081](0081-per-upstream-oauth-concurrency-decides-mirror-topology.md) (the one remaining reason an app needs MCP: an upstream forces box-only ownership), [ADR-0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md) (names the `bun build --compile` self-host binary plus Tauri sidecar shape this decision realizes)
 
