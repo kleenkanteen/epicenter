@@ -21,12 +21,14 @@
 		PARAKEET_MODELS,
 		WHISPER_MODELS,
 	} from '$lib/constants/local-models';
+	import { describeTranscriptionDestinationFromConfig } from '$lib/operations/transcription-target';
 	import { TRANSCRIPTION_PROVIDERS } from '$lib/services/transcription/provider-ui';
 	import { PROVIDERS } from '$lib/services/transcription/providers';
 	import { deviceConfig } from '$lib/state/device-config.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { createCopyFn } from '$lib/utils/createCopyFn';
 	import { tauri } from '#platform/tauri';
+	import AdvancedDisclosure from './AdvancedDisclosure.svelte';
 	import LocalModelSelector from './LocalModelSelector.svelte';
 	import ProviderConfigFields from './ProviderConfigFields.svelte';
 	import TranscriptionServiceSelect from './TranscriptionServiceSelect.svelte';
@@ -35,16 +37,20 @@
 		id = 'selected-transcription-service',
 		label = 'Transcription Service',
 		description,
-		showAdvanced = true,
 		class: className,
 	}: {
 		id?: string;
 		label?: string;
 		description?: string | Snippet;
-		/** When false, hide the advanced fields (unload policy, language, prompt). */
-		showAdvanced?: boolean;
 		class?: string;
 	} = $props();
+
+	const destination = $derived(
+		describeTranscriptionDestinationFromConfig({
+			service: settings.get('transcription.service'),
+			getDeviceConfig: deviceConfig.get,
+		}),
+	);
 
 	const currentServiceCapabilities = $derived(
 		PROVIDERS[settings.get('transcription.service')].capabilities,
@@ -94,6 +100,8 @@
 			(selected) =>
 				settings.set('transcription.service', selected)}
 	/>
+
+	<p class="text-muted-foreground text-sm">{destination.summary}</p>
 
 	{#if isSelectedServiceUnavailable && selectedTranscriptionProvider}
 		<Alert.Root variant="warning">
@@ -397,12 +405,19 @@
 		</div>
 	{/if}
 
-	{#if showAdvanced && !isSelectedServiceUnavailable}
-		{#if isLocalEngine}
-			<Field.Field>
-				<Field.Label for="local-model-unload-policy">
-					Unload Model When Idle
-				</Field.Label>
+	{#if !isSelectedServiceUnavailable}
+		<AdvancedDisclosure>
+			<Field.Group>{@render advancedFields()}</Field.Group>
+		</AdvancedDisclosure>
+	{/if}
+</Field.Group>
+
+{#snippet advancedFields()}
+	{#if isLocalEngine}
+		<Field.Field>
+			<Field.Label for="local-model-unload-policy">
+				Unload Model When Idle
+			</Field.Label>
 				<Select.Root
 					type="single"
 					bind:value={
@@ -484,5 +499,4 @@
 					: 'This transcription service does not support prompts.'}
 			</Field.Description>
 		</Field.Field>
-	{/if}
-</Field.Group>
+{/snippet}

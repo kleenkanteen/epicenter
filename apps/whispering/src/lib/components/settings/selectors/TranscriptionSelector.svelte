@@ -375,7 +375,7 @@
 				<Command.Item
 					value="settings"
 					onSelect={() => {
-						goto('/settings/transcription');
+						goto('/settings/processing');
 						combobox.closeAndFocusTrigger();
 					}}
 					class="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground"
