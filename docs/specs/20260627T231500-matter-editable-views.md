@@ -49,7 +49,10 @@ the shape wrong and then locks the guess into user config.
 - Read: `query_mirror(root, sql, limit?) -> { columns, rows }` (`src-tauri/src/mirror.rs`). `buildStemQuery` emits `SELECT "stem"` only; `runQuery` maps rows to stems. `createTableQuery` owns interactive `where`/`match`/`toggleSort` -> `orderedStems`, debounced 200ms.
 - Rows reach the grid as in-memory CLASSIFIED rows: `TableGrid` renders `view.conformance` cells, looked up by stem in the order `orderedStems` gives. Frontmatter values live ONLY in these in-memory rows, never in the mirror result.
 - Field rendering: `FIELD_COMPONENTS[kind]` renders AND edits one existing cell. There is no read-only renderer and no create/draft mode.
-- View routing: `?table=X` picks the table, `?view` picks a vault-wide panel `'sql'|'db'`. Absent -> grid.
+- Route axes are split. `?table=X` picks the table. `?view=Y` picks a
+  table-scoped projection from that table's `contract.views`; absent `?view`
+  means grid. `?panel=sql|db` picks a vault-wide panel that eclipses the table
+  pane. During implementation, rename `VaultView` to `VaultPanel`.
 - Path safety: `write_entry`/`read_entry` reject `file_name` containing a separator or `..` (`safe_file_name` in `src-tauri/src/entry.rs`, landed with the e2e harness wave).
 
 ## Design
@@ -59,16 +62,17 @@ the shape wrong and then locks the guess into user config.
 ```
 order/filter: mirror -> orderedStems (existing createTableQuery)
 rows:         in-memory classified rows (view.conformance), looked up by stem
-render:       per view.type, reusing field EDITORS for in-place edit of existing rows,
-              plus a new read-only renderer for card display
+render:       per view.type, grouping board rows with groupRowsByField over the
+              in-memory rows, plus a new read-only renderer for card display
 save:         gesture -> saveField(`${stem}.md`, column, value)  // identical to grid
 settle:       optimistic from in-memory write (NOT the mirror; mirror is debounced)
 ```
 
 Crucial correction from review: the board groups and settles off the **in-memory
-rows**, because the mirror only returns stems and its re-query is debounced ~200ms. A
-view that re-grouped from the mirror would visibly snap a dragged card back. The mirror
-is used only to order/filter the stem list.
+rows** with `groupRowsByField`, because the mirror only returns stems and its
+re-query is debounced ~200ms. A view that re-grouped from SQLite/mirror rows
+would visibly snap a dragged card back. The mirror is used only to order/filter
+the stem list.
 
 ### `matter.json` gains a `views` array (typed tables only)
 
@@ -109,26 +113,37 @@ reads `views`.
 
 - In-place edit of an EXISTING row's cell (board card expanded): reuse the current
   editors via `FIELD_COMPONENTS` + `saveField`. No change.
-- Read-only card display (`card` fields on a board card): NEW `<FieldValue cell>`
-  component (one small renderer that formats a value per kind, no controls). The
-  current widgets are editors; they cannot be reused read-only.
+- Read-only card display (`card` fields on a board card): NEW `<FieldValue
+  {kind} {value}>` component, or equivalent props object `{ kind, value }`.
+  It formats a value per kind and owns no controls. It does not take a `Cell`;
+  board cards already have the row's raw frontmatter value and the field kind.
+  The current widgets are editors; they cannot be reused read-only.
 
 ### Per-table view routing
 
-Resolve `?table=X&view=Y` against the ACTIVE table's `contract.views` (not a single
-global list). Keep `?view=sql|db` as vault-wide panels. Unknown/absent view -> grid.
-The switcher row is rebuilt per active table from its `contract.views` (by
-`title ?? id`).
+Resolve `?table=X&view=Y` against the ACTIVE typed table's `contract.views` (not
+a single global list). Unknown or absent `?view` means grid. The switcher row is
+rebuilt per active typed table from its `contract.views` (by `title ?? id`).
+
+Refuse one overloaded `?view` param for both vault panels and table projections.
+`?view` is the projection axis. `?panel=sql|db` is the vault-wide panel axis.
+This avoids collisions with board ids such as `sql` or `db`, keeps route helpers
+honest, and leaves future calendar projections on the same table-scoped axis as
+grid and board.
 
 ## Waves
 
 - Wave 0 (done): harden `write_entry`/`read_entry` against traversal. Rust unit test.
 - Wave 1 (done, board-only): `view.ts` + `Contract.views`, parsed in
   `validateContract`, untyped tables unaffected. Bun unit tests. No UI.
-- Wave 2: `<FieldValue>` read-only renderer + per-table `?table&view` routing +
-  switcher. Grid stays default and UNCHANGED.
-- Wave 3: board view on in-memory rows, optimistic, `saveField` on drag. The first
-  user-visible editable view and the proof point for the whole doctrine.
+- Wave 2: route param split (`?view` for table projections, `?panel=sql|db` for
+  vault panels), pure surface resolver, switcher sourced from the active typed
+  table's `contract.views`, `<FieldValue {kind} {value}>`, and a read-only board
+  renderer grouped from in-memory rows with `groupRowsByField`. Grid stays
+  default and UNCHANGED. No calendar or form implementation enters this wave.
+- Wave 3: add drag/write to the board through `saveField`, with optimistic
+  settle. This is the first user-visible editable view and the proof point for
+  the whole doctrine.
 
 Each wave ships alone. Nothing beyond Wave 3 is scheduled by this spec; later views
 are new specs under the ADR-0098 doctrine.
@@ -143,6 +158,10 @@ manual Tauri smoke.
 
 - Wave 1: bun unit on `parseViews` (valid/invalid/degrade, untyped-table ignore) and
   `groupRowsByField`. Done.
+- Wave 2 acceptance (manual + harness): select a board view on Pipeline -> cards
+  render in columns from the in-memory classified rows; selecting `?panel=sql`
+  or `?panel=db` opens the vault-wide panel without occupying the table
+  projection namespace; an unknown or absent `?view` renders grid.
 - Wave 3 acceptance (manual + harness): drag a card on Pipeline -> `status:` in that
   file changes on disk -> reopen preserves it; a bucket value outside the `status`
   enum is rejected with no write; a malformed `views` entry drops that view and
