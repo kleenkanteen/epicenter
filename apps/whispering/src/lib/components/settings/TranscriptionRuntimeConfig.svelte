@@ -11,7 +11,10 @@
 	import { Textarea } from '@epicenter/ui/textarea';
 	import type { Snippet } from 'svelte';
 	import CopyablePre from '$lib/components/copyable/CopyablePre.svelte';
-	import { SUPPORTED_LANGUAGES_OPTIONS } from '$lib/constants/languages';
+	import {
+		SUPPORTED_LANGUAGES_OPTIONS,
+		type SupportedLanguage,
+	} from '$lib/constants/languages';
 	import {
 		LOCAL_MODEL_UNLOAD_POLICY_OPTIONS,
 		type LocalModelUnloadPolicy,
@@ -384,7 +387,7 @@
 			<Select.Root
 				type="single"
 				bind:value={() => settings.get('transcription.language'),
-					(v) => settings.set('transcription.language', v)}
+					(v) => settings.set('transcription.language', v as SupportedLanguage)}
 				disabled={!currentServiceCapabilities.supportsLanguage}
 			>
 				<Select.Trigger id="spoken-language" class="w-full">

@@ -12,10 +12,7 @@ import {
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import { customFetch } from '#platform/http';
 import { tauri } from '#platform/tauri';
-import {
-	SUPPORTED_LANGUAGES,
-	type SupportedLanguage,
-} from '$lib/constants/languages';
+import type { SupportedLanguage } from '$lib/constants/languages';
 import { analytics } from '$lib/operations/analytics';
 import { report } from '$lib/report';
 import { services } from '$lib/services';
@@ -161,16 +158,6 @@ const UPLOAD_DISPATCH = {
 			}),
 	},
 } satisfies Record<UploadProviderId, UploadDispatch>;
-
-function getSpokenLanguage(): SupportedLanguage {
-	const language = settings.get('transcription.language');
-	for (const supportedLanguage of SUPPORTED_LANGUAGES) {
-		if (supportedLanguage === language) {
-			return supportedLanguage;
-		}
-	}
-	return 'auto';
-}
 
 /**
  * Materialize the bytes to upload for a cloud transcription. The recording
@@ -344,8 +331,8 @@ async function transcribeLocally(
 
 	// Read-at-use: the per-call spec is built right here, where it is consumed,
 	// so there is no ambient config to go stale. `auto` language and an empty
-	// prompt map to null (the wire's "unset"). The Dictionary terms fold into the
-	// prompt so local recognition spells them the user's way.
+	// prompt map to the wire's "unset" (an omitted optional field). The Dictionary
+	// terms fold into the prompt so local recognition spells them the user's way.
 	const language = settings.get('transcription.language');
 	const prompt = withDictionaryTerms(
 		settings.get('transcription.prompt'),
@@ -353,8 +340,8 @@ async function transcribeLocally(
 	);
 	return commands.transcribeRecording(recordingId, {
 		modelId,
-		language: language === 'auto' ? null : language,
-		initialPrompt: prompt || null,
+		language: language === 'auto' ? undefined : language,
+		initialPrompt: prompt || undefined,
 	});
 }
 
@@ -371,7 +358,7 @@ async function transcribeViaUpload(
 	// and the server answers 401, surfaced as a RequestFailed carrying that detail.
 	// The Dictionary terms fold into the prompt so cloud recognition spells them
 	// the user's way.
-	const spokenLanguage = getSpokenLanguage();
+	const spokenLanguage = settings.get('transcription.language');
 	const prompt = withDictionaryTerms(
 		settings.get('transcription.prompt'),
 		settings.get('dictionary'),
