@@ -72,10 +72,13 @@ const base =
 const client = hc<ApiApp>(base, { fetch: authedFetch });
 
 async function toError(res: Response): Promise<Error> {
+	// Every `/api` error is the wellcrafted envelope `{ data: null, error: { name,
+	// message, status } }` (see `src/http/api-errors.ts`), so the human string is
+	// `error.message`.
 	const body = (await res.json().catch(() => null)) as {
-		error?: string;
+		error?: { message?: string } | null;
 	} | null;
-	return new Error(body?.error ?? `Request failed (${res.status}).`);
+	return new Error(body?.error?.message ?? `Request failed (${res.status}).`);
 }
 
 // Request shapes derived from the hono client, so they cannot drift from the

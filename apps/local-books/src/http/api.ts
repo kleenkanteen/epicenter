@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { sValidator } from '@hono/standard-validator';
 import { type } from 'arktype';
 import { Hono } from 'hono';
+import { ApiError } from './api-errors.ts';
 import type { OpenQbClient } from '../books/qb-access.ts';
 import { queryBooks } from '../books/query.ts';
 import {
@@ -136,22 +137,26 @@ export function createApiApp(deps: ApiDeps) {
 				? header.slice('Bearer '.length)
 				: null;
 			if (!bearer || !sessionBearers.has(bearer)) {
-				return c.json({ error: 'Unauthorized. Restart local-books app.' }, 401);
+				const err = ApiError.Unauthorized();
+				return c.json(err, err.error.status);
 			}
 			return next();
 		})
 		// The one unauthenticated mutation: exchange the bootstrap for a bearer.
 		.post('/api/session', sValidator('json', SessionBody), (c) => {
 			if (bootstrapToken === null) {
-				return c.json({ error: 'No bootstrap token is outstanding.' }, 401);
+				const err = ApiError.NoBootstrapToken();
+				return c.json(err, err.error.status);
 			}
 			if (failedExchanges >= MAX_FAILED_EXCHANGES) {
-				return c.json({ error: 'Too many exchange attempts.' }, 429);
+				const err = ApiError.TooManyExchanges();
+				return c.json(err, err.error.status);
 			}
 			const { token } = c.req.valid('json');
 			if (token !== bootstrapToken) {
 				failedExchanges += 1;
-				return c.json({ error: 'Invalid bootstrap token.' }, 401);
+				const err = ApiError.InvalidBootstrapToken();
+				return c.json(err, err.error.status);
 			}
 			const bearer = mintToken();
 			sessionBearers.add(bearer);
@@ -171,7 +176,8 @@ export function createApiApp(deps: ApiDeps) {
 			// The registry is the SQL-identifier boundary: a name it does not know
 			// never reaches a table string.
 			if (!isKnownEntity(entity)) {
-				return c.json({ error: `Unknown entity "${entity}".` }, 400);
+				const err = ApiError.UnknownEntity({ entity });
+				return c.json(err, err.error.status);
 			}
 			const { limit, offset } = c.req.valid('query');
 			return c.json(
@@ -186,25 +192,35 @@ export function createApiApp(deps: ApiDeps) {
 		.get('/api/entities/:entity/:id', (c) => {
 			const entity = c.req.param('entity');
 			if (!isKnownEntity(entity)) {
-				return c.json({ error: `Unknown entity "${entity}".` }, 400);
+				const err = ApiError.UnknownEntity({ entity });
+				return c.json(err, err.error.status);
 			}
 			const detail = getEntityRow({
 				dbPath,
 				def: entityDef(entity),
 				id: c.req.param('id'),
 			});
-			if (!detail) return c.json({ error: 'Row not found.' }, 404);
+			if (!detail) {
+				const err = ApiError.RowNotFound();
+				return c.json(err, err.error.status);
+			}
 			return c.json(detail);
 		})
 		.post('/api/query', sValidator('json', QueryBody), (c) => {
 			const { sql } = c.req.valid('json');
 			const { data, error } = queryBooks({ dbPath, sql });
-			if (error) return c.json({ error: error.message }, 400);
+			if (error) {
+				const err = ApiError.QueryFailed({ message: error.message });
+				return c.json(err, err.error.status);
+			}
 			return c.json(data);
 		})
 		.post('/api/sync', async (c) => {
 			const result = await gate(syncNow);
-			if ('failed' in result) return c.json({ error: result.failed }, 502);
+			if ('failed' in result) {
+				const err = ApiError.SyncFailed({ message: result.failed });
+				return c.json(err, err.error.status);
+			}
 			return c.json(result.outcome);
 		})
 		.post('/api/report', sValidator('json', ReportBody), async (c) => {
@@ -212,7 +228,10 @@ export function createApiApp(deps: ApiDeps) {
 				openQb,
 				input: c.req.valid('json'),
 			});
-			if (error) return c.json({ error: error.message }, 502);
+			if (error) {
+				const err = ApiError.ReportFailed({ message: error.message });
+				return c.json(err, err.error.status);
+			}
 			return c.json(data);
 		})
 		.post(
@@ -235,12 +254,19 @@ export function createApiApp(deps: ApiDeps) {
 							: error.name === 'NotInMirror'
 								? 404
 								: 400;
-					return c.json({ error: error.message }, status);
+					const err = ApiError.RecategorizeFailed({
+						message: error.message,
+						status,
+					});
+					return c.json(err, err.error.status);
 				}
 				return c.json(data);
 			},
 		)
-		.notFound((c) => c.json({ error: 'Not found.' }, 404));
+		.notFound((c) => {
+			const err = ApiError.NotFound();
+			return c.json(err, err.error.status);
+		});
 
 	return app;
 }
