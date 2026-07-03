@@ -38,28 +38,11 @@
 		id = 'selected-transcription-service',
 		label = 'Transcription Service',
 		description,
-		showAdvanced = true,
-		showDestination = false,
-		collapseAdvanced = false,
 		class: className,
 	}: {
 		id?: string;
 		label?: string;
 		description?: string | Snippet;
-		/** When false, hide the advanced fields (unload policy, language, prompt). */
-		showAdvanced?: boolean;
-		/**
-		 * When true, show the resolved-locality line (where audio goes) under the
-		 * service select. On for the Processing surface; off for the home-page
-		 * onboarding usage, which has its own readiness copy.
-		 */
-		showDestination?: boolean;
-		/**
-		 * When true, tuck the advanced fields behind an "Advanced" disclosure
-		 * instead of rendering them inline, so the Audio row stays as compact as the
-		 * Text row on the Processing surface. Only applies when `showAdvanced`.
-		 */
-		collapseAdvanced?: boolean;
 		class?: string;
 	} = $props();
 
@@ -119,9 +102,7 @@
 				settings.set('transcription.service', selected)}
 	/>
 
-	{#if showDestination}
-		<p class="text-muted-foreground text-sm">{destination.summary}</p>
-	{/if}
+	<p class="text-muted-foreground text-sm">{destination.summary}</p>
 
 	{#if isSelectedServiceUnavailable && selectedTranscriptionProvider}
 		<Alert.Root variant="warning">
@@ -425,22 +406,18 @@
 		</div>
 	{/if}
 
-	{#if showAdvanced && !isSelectedServiceUnavailable}
-		{#if collapseAdvanced}
-			<Collapsible.Root>
-				<Collapsible.Trigger
-					class="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm [&[data-state=open]>svg]:rotate-180"
-				>
-					<ChevronDownIcon class="size-4 transition-transform" />
-					Advanced
-				</Collapsible.Trigger>
-				<Collapsible.Content class="pt-3">
-					<Field.Group>{@render advancedFields()}</Field.Group>
-				</Collapsible.Content>
-			</Collapsible.Root>
-		{:else}
-			{@render advancedFields()}
-		{/if}
+	{#if !isSelectedServiceUnavailable}
+		<Collapsible.Root>
+			<Collapsible.Trigger
+				class="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm [&[data-state=open]>svg]:rotate-180"
+			>
+				<ChevronDownIcon class="size-4 transition-transform" />
+				Advanced
+			</Collapsible.Trigger>
+			<Collapsible.Content class="pt-3">
+				<Field.Group>{@render advancedFields()}</Field.Group>
+			</Collapsible.Content>
+		</Collapsible.Root>
 	{/if}
 </Field.Group>
 

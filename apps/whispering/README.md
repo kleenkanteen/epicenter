@@ -791,7 +791,7 @@ Local engines (whisper.cpp, Parakeet, Moonshine) are implemented in Rust behind 
    - `PROVIDER_ICONS` in `src/lib/services/transcription/provider-ui.ts`: add your SVG icon.
    - `PROVIDER_FIELDS` in `src/lib/components/settings/ProviderConfigFields.svelte`: declare the API key (and optional endpoint) fields with their labels, placeholders, and docs links. This is where provider-specific copy lives, like where to find the API key.
 
-That's the whole integration. The transcription settings page, the quick-pick selector, the configuration warning badge, and the dispatcher need no edits; they all render and resolve through the registry entry. Only self-hosted and local providers get bespoke sections in `src/routes/(app)/(config)/settings/transcription/+page.svelte`, because their setup instructions are the product copy.
+That's the whole integration. The Privacy & Processing surface, the quick-pick selector, the configuration warning badge, and the dispatcher need no edits; they all render and resolve through the registry entry. Only self-hosted and local providers get bespoke sections in `src/lib/components/settings/TranscriptionRuntimeConfig.svelte`, because their setup instructions are the product copy.
 
 ##### Adding an AI Transformation Adapter
 

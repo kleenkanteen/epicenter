@@ -127,8 +127,6 @@ export function describePolishDestination(
 	completionProvider: InferenceProviderId,
 	state: CompletionState,
 ): string {
-	const completionLabel = INFERENCE[completionProvider].label;
-
 	if (!state.target || !state.canRun) {
 		if (audio.onDevice) {
 			return 'Audio stays on this device. Polish is not ready, so transcripts ship raw.';
@@ -142,13 +140,22 @@ export function describePolishDestination(
 		return 'Audio and transcript text both stay on this device.';
 	}
 
+	// Text leaves this device below. Name the resolved host for Custom (whose
+	// label names an API shape, not a destination), mirroring
+	// `describeCompletionReadiness` so every surface names the same place. A
+	// canonical provider names itself.
+	const textDestination =
+		completionProvider === 'Custom'
+			? hostFromBaseUrl(state.target.baseUrl)
+			: INFERENCE[completionProvider].label;
+
 	if (audio.onDevice) {
-		return `Audio is transcribed on-device, but Polish sends transcript text to ${completionLabel}.`;
+		return `Audio is transcribed on-device, but Polish sends transcript text to ${textDestination}.`;
 	}
 
 	if (textStaysOnDevice) {
 		return `Audio is sent to ${audio.name}, then Polish keeps transcript text on this device.`;
 	}
 
-	return `Audio is sent to ${audio.name}, and Polish sends transcript text to ${completionLabel}.`;
+	return `Audio is sent to ${audio.name}, and Polish sends transcript text to ${textDestination}.`;
 }

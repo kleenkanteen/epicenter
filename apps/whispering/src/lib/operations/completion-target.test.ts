@@ -195,7 +195,10 @@ describe('describePolishDestination', () => {
 		);
 	});
 
-	test('keyless Custom remote endpoint does not claim transcript text stays on device', () => {
+	test('remote Custom names the resolved host, matching describeCompletionReadiness', () => {
+		// Custom's label is an API shape, not a destination, so the pipeline
+		// sentence must name the resolved host, exactly as the Processing surface
+		// does. Both surfaces resolve the same fact, so they never disagree.
 		expect(
 			describePolishDestination(onDevice, 'Custom', {
 				target: { baseUrl: 'https://completion.example/v1', apiKey: undefined },
@@ -203,7 +206,7 @@ describe('describePolishDestination', () => {
 				textStaysOnDevice: false,
 			}),
 		).toBe(
-			'Audio is transcribed on-device, but Polish sends transcript text to Custom (OpenAI-compatible).',
+			'Audio is transcribed on-device, but Polish sends transcript text to completion.example.',
 		);
 	});
 });
