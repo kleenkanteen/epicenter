@@ -1,6 +1,8 @@
 mod config;
 mod error;
 mod events;
+#[allow(dead_code)]
+mod gguf_spike;
 mod model_cache;
 mod model_folder;
 mod model_import;
