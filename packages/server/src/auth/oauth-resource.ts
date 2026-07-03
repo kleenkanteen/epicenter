@@ -1,4 +1,4 @@
-import type { OAuthError } from '@epicenter/constants/oauth-errors';
+import type { OAuthError } from './oauth-errors.js';
 import type { Context } from 'hono';
 
 /**

@@ -28,7 +28,7 @@
  */
 
 import { API_ROUTES, SHA256_HEX_REGEX } from '@epicenter/constants/api-routes';
-import { BlobError } from '@epicenter/constants/blob-errors';
+import { BlobError } from './blob-errors.js';
 import { sValidator } from '@hono/standard-validator';
 import { type } from 'arktype';
 import { Hono, type MiddlewareHandler } from 'hono';

@@ -30,8 +30,8 @@
  * `Request` cannot be upgraded.
  */
 
-import { OAuthError } from '@epicenter/constants/oauth-errors';
-import { RequestGuardError } from '@epicenter/constants/request-guard-errors';
+import { OAuthError } from '../auth/oauth-errors.js';
+import { RequestGuardError } from '../middleware/request-guard-errors.js';
 import {
 	BEARER_SUBPROTOCOL_PREFIX,
 	MAIN_SUBPROTOCOL,

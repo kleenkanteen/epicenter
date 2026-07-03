@@ -21,7 +21,7 @@
  */
 
 import { Principal } from '@epicenter/auth';
-import { OAuthError } from '@epicenter/constants/oauth-errors';
+import { OAuthError } from '../auth/oauth-errors.js';
 import { verifyJwsAccessToken } from 'better-auth/oauth2';
 import { eq } from 'drizzle-orm';
 import type { Context, MiddlewareHandler } from 'hono';

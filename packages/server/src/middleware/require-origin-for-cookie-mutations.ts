@@ -1,4 +1,4 @@
-import { RequestGuardError } from '@epicenter/constants/request-guard-errors';
+import { RequestGuardError } from './request-guard-errors.js';
 import { createMiddleware } from 'hono/factory';
 import { parseBearer } from '../auth/parse-bearer.js';
 import type { Env } from '../types.js';

@@ -9,7 +9,7 @@
  */
 
 import { expect, test } from 'bun:test';
-import { OAuthError } from '@epicenter/constants/oauth-errors';
+import { OAuthError } from './oauth-errors.js';
 import { Hono } from 'hono';
 import { createOAuthUnauthorizedResourceResponse } from './oauth-resource.js';
 

@@ -6,7 +6,7 @@
  */
 
 import type { Principal } from '@epicenter/auth';
-import type { OAuthError } from '@epicenter/constants/oauth-errors';
+import type { OAuthError } from './auth/oauth-errors.js';
 import type { PrincipalId } from '@epicenter/identity';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Context } from 'hono';
