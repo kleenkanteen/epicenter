@@ -193,11 +193,6 @@ describe('describePolishDestination', () => {
 	test('on-device audio ships raw instead of claiming Polish sends text when not ready', () => {
 		expect(
 			describePolishDestination(onDevice, 'Google', {
-||||||| parent of 3f46ca407f (feat(whispering): make transcribe-cpp GGUF the only local transcription runtime)
-			describePolishDestination('parakeet', 'Google', {
-=======
-			describePolishDestination('local', 'Google', {
->>>>>>> 3f46ca407f (feat(whispering): make transcribe-cpp GGUF the only local transcription runtime)
 				target: {
 					baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
 					apiKey: undefined,
@@ -215,13 +210,7 @@ describe('describePolishDestination', () => {
 		// sentence must name the resolved host, exactly as the Processing surface
 		// does. Both surfaces resolve the same fact, so they never disagree.
 		expect(
-<<<<<<< HEAD
 			describePolishDestination(onDevice, 'Custom', {
-||||||| parent of 3f46ca407f (feat(whispering): make transcribe-cpp GGUF the only local transcription runtime)
-			describePolishDestination('parakeet', 'Custom', {
-=======
-			describePolishDestination('local', 'Custom', {
->>>>>>> 3f46ca407f (feat(whispering): make transcribe-cpp GGUF the only local transcription runtime)
 				target: { baseUrl: 'https://completion.example/v1', apiKey: undefined },
 				canRun: true,
 				textStaysOnDevice: false,
