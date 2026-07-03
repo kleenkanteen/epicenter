@@ -1,7 +1,5 @@
-import {
-	asDeviceIdentifier,
-	type NavigatorRecordingParams,
-} from '$lib/services/recorder/types';
+import { asDeviceIdentifier } from '@epicenter/recorder';
+import type { NavigatorRecordingParams } from '$lib/services/recorder/contract';
 import { deviceConfig } from '$lib/state/device-config.svelte';
 
 const MANUAL_DEVICE_ID_KEY = 'recording.navigator.deviceId';

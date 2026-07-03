@@ -165,6 +165,9 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0095](0095-websocket-room-auth-uses-route-owned-subprotocol-bearers.md) | WebSocket room auth uses route-owned subprotocol bearers | Accepted |
 | [0096](0096-local-workspace-persistence-is-environment-injected.md) | Local workspace persistence is environment-injected | Accepted |
 | [0097](0097-super-chat-tool-modules-receive-a-host-api.md) | Super Chat tool modules receive a host API | Accepted |
-| [0098](0098-native-typed-row-projection-views-are-earned-serially-board-is-first.md) | Native typed-row projection views are earned serially; board is first | Accepted |
+| [0098](0098-local-mail-state-round-trips-through-gmail.md) | Every Local Mail concept a human acts on round-trips through Gmail API state | Accepted |
+| [0099](0099-replace-transformations-with-a-dictionary-polish-and-a-portable-recipe-library.md) | Replace Transformations with a Dictionary, an always-on Polish, and a portable Recipe library | Accepted |
+| [0100](0100-ai-credits-are-product-units-and-the-charge-shape-follows-when-cost-is-known.md) | AI credits are product-priced units; the charge shape follows whether cost is known before the call | Accepted |
+| [0101](0101-native-typed-row-projection-views-are-earned-serially-board-is-first.md) | Native typed-row projection views are earned serially; board is first | Accepted |
 
 When you add an ADR, add its row here.

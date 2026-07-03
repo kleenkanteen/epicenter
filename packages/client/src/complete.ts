@@ -36,6 +36,13 @@ type CompleteOptions = {
 	model: string;
 	systemPrompt: string;
 	userPrompt: string;
+	/**
+	 * Aborts the in-flight request when it fires. A completion is one request, so
+	 * the signal is a per-call option (it sits next to `model` and the prompts),
+	 * not a property of the connection; it is forwarded into the underlying
+	 * request so the HTTP call is genuinely cancelled, not just abandoned.
+	 */
+	signal?: AbortSignal;
 };
 
 export const CompleteError = defineErrors({
@@ -72,7 +79,7 @@ export type CompleteError = InferErrors<typeof CompleteError>;
  */
 export async function complete(
 	{ fetch, baseURL }: ResolvedConnection,
-	{ model, systemPrompt, userPrompt }: CompleteOptions,
+	{ model, systemPrompt, userPrompt, signal }: CompleteOptions,
 ): Promise<Result<string, CompleteError>> {
 	const { data: response, error: transportError } = await tryAsync({
 		try: () =>
@@ -87,6 +94,7 @@ export async function complete(
 					],
 					stream: false,
 				}),
+				signal,
 			}),
 		catch: (cause) => CompleteError.TransportFailed({ cause }),
 	});

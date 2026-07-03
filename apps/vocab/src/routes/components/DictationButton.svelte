@@ -11,51 +11,65 @@
 		onTranscript,
 		disabled = false,
 	}: {
-		/** Called with the recognized text once a recording transcribes. */
+		/** Called with the recognized text once a spoken phrase transcribes. */
 		onTranscript: (text: string) => void;
-		/** Lock the mic, e.g. while a turn is generating. */
+		/**
+		 * Lock opening the mic, e.g. while a turn is generating. An open session
+		 * can always be stopped: never trap a live mic behind a disabled button.
+		 */
 		disabled?: boolean;
 	} = $props();
 
-	// Thin state-machine router: the record/transcribe work lives in the dictation
-	// state; here we only pick the next step and route the result to a toast or the
-	// transcript callback.
+	// Thin state-machine router: the listen/transcribe work lives in the
+	// dictation state; here we only toggle the session and route each phrase's
+	// Result to the transcript callback or a toast. A failed phrase toasts and
+	// the session keeps listening.
 	async function toggle() {
-		if (dictation.status === 'recording') {
-			const { data: transcript, error } = await dictation.stopAndTranscribe();
-			if (error) {
-				toast.error('Could not transcribe that', {
-					description: extractErrorMessage(error),
+		if (dictation.status !== 'idle') {
+			const { error: stopError } = await dictation.stop();
+			if (stopError) {
+				toast.error('Could not stop dictation', {
+					description: extractErrorMessage(stopError),
 				});
-				return;
 			}
-			if (transcript) onTranscript(transcript);
 			return;
 		}
 
-		const { error } = await dictation.start();
-		if (error) {
-			toast.error('Could not start recording', {
-				description: extractErrorMessage(error),
+		const { error: startError } = await dictation.start({
+			onTranscript: ({ data: text, error: transcribeError }) => {
+				if (transcribeError) {
+					toast.error('Could not transcribe that', {
+						description: extractErrorMessage(transcribeError),
+					});
+					return;
+				}
+				if (text) onTranscript(text);
+			},
+		});
+		if (startError) {
+			toast.error('Could not start dictation', {
+				description: extractErrorMessage(startError),
 			});
 		}
 	}
 </script>
 
 <Button
-	variant={dictation.status === 'recording' ? 'destructive' : 'outline'}
+	variant={dictation.status === 'idle' ? 'outline' : 'destructive'}
 	size="icon-lg"
 	type="button"
 	onclick={toggle}
-	disabled={disabled || dictation.status === 'transcribing'}
-	aria-label={dictation.status === 'recording'
-		? 'Stop dictation'
-		: 'Dictate a message'}
+	disabled={dictation.status === 'idle' && (disabled || dictation.isTranscribing)}
+	aria-label={dictation.status === 'idle'
+		? 'Dictate a message'
+		: 'Stop dictating'}
 >
-	{#if dictation.status === 'transcribing'}
-		<LoaderCircleIcon class="animate-spin" />
-	{:else if dictation.status === 'recording'}
+	{#if dictation.status === 'speaking'}
+		<CircleStopIcon class="animate-pulse" />
+	{:else if dictation.status === 'listening'}
 		<CircleStopIcon />
+	{:else if dictation.isTranscribing}
+		<LoaderCircleIcon class="animate-spin" />
 	{:else}
 		<MicIcon />
 	{/if}

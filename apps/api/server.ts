@@ -156,10 +156,10 @@ export function startBunApiServer(
 		afterResponse: () => {},
 	});
 	// The cloud's relational-auth layer (Better Auth on `c.var.auth` + the auth
-	// surface), mounted after the db lifecycle. Host-only cookies on the Bun dev host
-	// (no cross-subdomain domain like the Worker's `.epicenter.so`). The Cloud-only
-	// auth secrets come from the validated `env` closure (ADR-0076), never the
-	// portable `ServerBindings`.
+	// surface), mounted after the db lifecycle. Cookies are host-only everywhere
+	// (this host and the Worker alike); the dev host differs only in non-Secure
+	// attributes for localhost. The Cloud-only auth secrets come from the
+	// validated `env` closure (ADR-0076), never the portable `ServerBindings`.
 	mountCloudAuth(app, { resolveAuthSecrets: () => env });
 	mountSessionApp(app, { auth: cookieOrBearer });
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.

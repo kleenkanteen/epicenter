@@ -16,10 +16,6 @@ export {
 	Principal,
 } from './auth-types.js';
 export {
-	type CreateOAuthAppAuthConfig,
-	createOAuthAppAuth,
-} from './create-oauth-app-auth.js';
-export {
 	type Instance,
 	InstanceUrlError,
 	normalizeInstanceUrl,
@@ -39,10 +35,6 @@ export {
 	generateInstanceToken,
 	MIN_INSTANCE_TOKEN_CHARS,
 } from './instance-token.js';
-export {
-	type CreateInstanceTokenAuthConfig,
-	createInstanceTokenAuth,
-} from './instance-token-auth.js';
 export {
 	createWebStoragePersistedAuthStorage,
 	loadPersistedAuthStorage,

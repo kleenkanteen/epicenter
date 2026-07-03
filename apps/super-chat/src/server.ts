@@ -15,6 +15,7 @@
  */
 
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { API_ROUTES } from '@epicenter/constants/api-routes';
 import type {
 	ConversationSnapshot,
 	ToolCatalog,
@@ -32,10 +33,22 @@ export type ClientCommand =
 /** What the server pushes: the full render state, on every loop change. */
 export type ServerEvent = { type: 'snapshot'; snapshot: ConversationSnapshot };
 
+export type SessionResponse = {
+	tools: Array<{
+		name: string;
+		kind: string;
+		title?: string;
+		description?: string;
+	}>;
+	snapshot: ConversationSnapshot;
+};
+
 export type SuperChatServerOptions = {
 	host: SuperChatHost;
 	/** The per-launch token; the process must refuse to serve without one. */
 	token: string;
+	/** The built SPA document; the caller owns reading it from disk. */
+	page: string;
 };
 
 /**
@@ -43,7 +56,11 @@ export type SuperChatServerOptions = {
  * Binding (loopback, port 0) is the entrypoint's job, so tests can serve the
  * same app on an ephemeral port.
  */
-export function createSuperChatServer({ host, token }: SuperChatServerOptions) {
+export function createSuperChatServer({
+	host,
+	token,
+	page,
+}: SuperChatServerOptions) {
 	if (token === '') {
 		throw new Error(
 			'Super Chat refuses to serve without a per-launch token (ADR-0084).',
@@ -65,14 +82,25 @@ export function createSuperChatServer({ host, token }: SuperChatServerOptions) {
 		await next();
 	});
 
-	// The SPA slot. The real static assets land with the SPA slice; until then
-	// the placeholder proves the serving shape (page and API from one origin).
-	app.get('/', (c) => c.html(PLACEHOLDER_PAGE));
+	// The SPA: one self-contained document (all JS and CSS inlined by the
+	// build), because a separate asset request could not carry the bearer.
+	// `no-store` keeps the `/?token=` navigation out of the webview's disk
+	// cache, whose entries are keyed by the full URL including the query; the
+	// token must never outlive the process (ADR-0084).
+	app.get('/', (c) => {
+		c.header('cache-control', 'no-store');
+		return c.html(page);
+	});
 
-	app.get('/api/tools', (c) => c.json(listTools(host.tools)));
+	app.get(API_ROUTES.session.pattern, (c) =>
+		c.json({
+			tools: listTools(host.tools),
+			snapshot: host.conversation.snapshot(),
+		} satisfies SessionResponse),
+	);
 
 	app.get(
-		'/ws',
+		API_ROUTES.session.stream.pattern,
 		upgradeWebSocket(() => {
 			let unsubscribe: (() => void) | undefined;
 			const push = (ws: { send(data: string): void }) => {
@@ -122,15 +150,13 @@ function tokensMatch(candidate: string, expected: string): boolean {
 	return timingSafeEqual(a, b);
 }
 
-function listTools(tools: ToolCatalog) {
-	return {
-		tools: tools.definitions().map(({ name, kind, title, description }) => ({
-			name,
-			kind,
-			...(title !== undefined && { title }),
-			...(description !== undefined && { description }),
-		})),
-	};
+function listTools(tools: ToolCatalog): SessionResponse['tools'] {
+	return tools.definitions().map(({ name, kind, title, description }) => ({
+		name,
+		kind,
+		...(title !== undefined && { title }),
+		...(description !== undefined && { description }),
+	}));
 }
 
 function parseCommand(data: unknown): ClientCommand | undefined {
@@ -150,16 +176,3 @@ function parseCommand(data: unknown): ClientCommand | undefined {
 	if (command.type === 'retry') return { type: 'retry' };
 	return undefined;
 }
-
-const PLACEHOLDER_PAGE = `<!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<title>Super Chat</title>
-	</head>
-	<body>
-		<h1>Super Chat</h1>
-		<p>The shell is serving. The SPA lands in a later slice; until then, talk to /ws.</p>
-	</body>
-</html>
-`;

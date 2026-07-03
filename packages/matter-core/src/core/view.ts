@@ -9,7 +9,7 @@
  * UI layers (later waves) stay thin because the decisions live here, under bun tests.
  *
  * Board is deliberately the ONLY view type today. Views are a family of typed-row
- * projections that earn persisted spec surface one renderer at a time (ADR-0098);
+ * projections that earn persisted spec surface one renderer at a time (ADR-0101);
  * board goes first as the cheapest complete proof of an editable projection. A future
  * view type (calendar is the presumptive next) enters as a new additive union member,
  * spec'd against its real renderer.
@@ -30,7 +30,7 @@ import type { StemQuery } from './query';
  * One declared view, discriminated by `type`. This is the parsed form of a `views`
  * entry in `matter.json`: pure data describing a rendering, never code. A single-member
  * union on purpose: new view types join here additively once their renderer exists
- * (ADR-0098).
+ * (ADR-0101).
  */
 export type ViewSpec = {
 	id: string;

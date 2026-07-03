@@ -4,7 +4,7 @@
  * Verifies the pure logic behind declared views: parsing the `views` array from
  * `matter.json` against a contract's fields (valid entries survive, malformed
  * entries drop with one diagnostic each) and grouping rows into board buckets.
- * Board is the only view type today (ADR-0098); a future type re-enters as a new
+ * Board is the only view type today (ADR-0101); a future type re-enters as a new
  * union member with its own parse and grouping tests.
  *
  * Key behaviors:

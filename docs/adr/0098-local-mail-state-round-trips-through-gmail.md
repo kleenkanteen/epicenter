@@ -1,0 +1,37 @@
+# 0098. Every Local Mail concept a human acts on round-trips through Gmail API state
+
+- **Status:** Accepted
+- **Date:** 2026-07-01
+- **Relates:** [ADR-0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (cross-device is a remote session, not per-app phone code, so the phone reads mail in the phone's own mail app), [ADR-0081](0081-per-upstream-oauth-concurrency-decides-mirror-topology.md) (each device holds its own mirror against Google directly), [ADR-0082](0082-local-mail-mirror-is-push-free-polling-collapsing-hosted-vs-self-host-to-one-oauth-client-id.md) (writes hit Gmail first; the mirror folds the result in after), [ADR-0083](0083-apps-email-is-refused-local-mail-is-the-only-gmail-client.md) (Local Mail is the only Gmail client)
+
+## Context
+
+Local Mail ships no phone code: the phone client is Gmail's own app (ADR-0080 keeps cross-device as a remote session rather than per-app reach, and ADR-0083 refused the webmail SPA that could have filled that slot). That only stays consistent if every state change a human makes on the desktop lands in Gmail, where the phone app can see it. The mechanics are already decided: per-device mirrors against Google directly (ADR-0081) and write-through, Gmail first, mirror folded in after (ADR-0082). What had no durable home was the product refusal those mechanics serve. Until now it lived as one row of a deletable Draft spec's decision table, which is a homeless place for a load-bearing invariant: specs are deleted when the work lands.
+
+## Decision
+
+**Every Local Mail concept a human acts on must be expressible as, and round-trip through, Gmail API state. Local Mail refuses local-only mail state until a future ADR accepts device-bound behavior with explicit failure semantics.**
+
+Feature by feature:
+
+- **Tags** are allowed only as real Gmail labels (`labels.create` plus `messages.modify`), never a local column. A tag applied on the laptop must be visible and removable on the phone.
+- **Drafts** are expressible (`drafts.create`, `drafts.update`, `drafts.send`) and allowed within write-through scope.
+- **Read/unread** is the `UNREAD` label and must round-trip. This is why the UI ships only with write-through: an inbox whose read state never reaches Gmail leaves every handled message unread on the phone.
+- **Snooze** is refused. The Gmail API has no snooze surface. Emulating it with label moves plus a local timer makes the state expressible but the behavior device-bound: a laptop asleep at wake time means mail never resurfaces, and the phone can neither see nor cancel the pending snooze.
+- **Send-later** is refused hardest. It is not in the API, and a silently unsent email is a commitment breach, not a UX gap.
+- **Derived or advisory local data** (agent notes, triage suggestions, search annotations) is allowed when it is rebuildable and never gates handled-semantics.
+
+The rule of thumb: any state a human acts on must round-trip through Gmail.
+
+## Consequences
+
+- The phone story holds with zero Local Mail phone code: whatever the desktop does, Gmail's own app reflects it.
+- Enforcement is partly mechanical. The mirror's only writer is `sync.ts` (later, the write-through cores), and the schema's drop-and-rebuild on a `SCHEMA_VERSION` bump destroys any state stored in mirror tables, so a violation that smuggles precious local state into the mirror is punished at the next bump. Overlay tables beside the mirror are the escape hatch this ADR exists to catch in review.
+- Snooze and send-later stay off the roadmap regardless of demand until the revisit trigger fires.
+- Revisit trigger: an always-on device that can own timers (the super-app desktop host of ADR-0080, or a home server) would make snooze semantics honest, because the timer survives a laptop lid and cancellation has one home. That is the earliest credible reopen, and it takes a new ADR accepting device-bound behavior with explicit failure semantics.
+
+## Considered alternatives
+
+- **Emulate snooze with label moves plus a local timer.** Rejected: the state round-trips but the behavior does not; a sleeping laptop silently breaks the "it comes back" promise, and the phone cannot see or cancel it.
+- **A local tags column beside `label_ids`.** Rejected: it forks the labeling model into one the phone can never see, and the mirror's drop-and-rebuild would destroy it anyway.
+- **Ship read/unread UI before write-through.** Rejected: reading mail flips human-meaningful state; if that flip cannot reach Gmail, the phone shows as unread what the user already handled.

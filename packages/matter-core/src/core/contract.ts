@@ -80,7 +80,7 @@ export type Contract = {
 	 */
 	searchable: string[];
 	/**
-	 * The declared editable views (board only today; ADR-0098), parsed here so they can see field
+	 * The declared editable views (board only today; ADR-0101), parsed here so they can see field
 	 * kinds. Only a typed contract carries views: an untyped marker never reaches this object, so
 	 * a `views` key on an untyped table is ignored. The grid never reads this.
 	 */

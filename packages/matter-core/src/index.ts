@@ -84,7 +84,7 @@ export {
 	type UntypedView,
 } from './core/table';
 // View: declared editable views (board only today; the family grows one renderer at a
-// time, ADR-0098), parsed onto the contract (`Contract.views` / `Contract.viewErrors`
+// time, ADR-0101), parsed onto the contract (`Contract.views` / `Contract.viewErrors`
 // is the one way in), plus the pure grouping logic behind them. A view's default query
 // is the grid's own `StemQuery`.
 export {

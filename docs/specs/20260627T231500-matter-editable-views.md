@@ -10,7 +10,7 @@ writes markdown through a pure, per-file-serialized primitive
 first caller. So a view reads the same in-memory classified rows the grid renders and
 writes edits back through the *same* `saveField`/`saveBody`.
 
-## Doctrine (ADR-0098)
+## Doctrine (ADR-0101)
 
 Views are a **family of native typed-row projections** over the schema (board over a
 select field, calendar over a date field, gallery over an image field), but each view
@@ -146,7 +146,7 @@ grid and board.
   the whole doctrine.
 
 Each wave ships alone. Nothing beyond Wave 3 is scheduled by this spec; later views
-are new specs under the ADR-0098 doctrine.
+are new specs under the ADR-0101 doctrine.
 
 ## Testing
 
