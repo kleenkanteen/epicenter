@@ -16,6 +16,7 @@
  */
 
 import type { AgentMessage } from '@epicenter/workspace/agent';
+import { API_ROUTES } from '@epicenter/constants/api-routes';
 import type { ServerEvent } from './server.ts';
 
 const [, , origin, token] = process.argv;
@@ -26,7 +27,7 @@ if (!origin || !token) {
 	process.exit(1);
 }
 
-const url = `${origin.replace(/\/$/, '')}/api/session/stream?token=${encodeURIComponent(token)}`;
+const url = `${API_ROUTES.session.stream.url(origin)}?token=${encodeURIComponent(token)}`;
 console.log(`Connecting to ${origin} ...`);
 
 const socket = new WebSocket(url);
