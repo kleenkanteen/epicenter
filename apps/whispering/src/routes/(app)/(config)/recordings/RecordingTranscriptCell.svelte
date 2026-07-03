@@ -16,7 +16,7 @@
 	let { recordingId }: { recordingId: string } = $props();
 
 	const recording = $derived(recordings.get(recordingId));
-	const transcript = $derived(recording?.transcript ?? '');
+	const transcript = $derived(recording?.raw ?? '');
 	const hasTranscript = $derived(!!transcript.trim());
 </script>
 

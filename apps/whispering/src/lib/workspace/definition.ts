@@ -3,12 +3,17 @@ import {
 	defineKv,
 	defineTable,
 	defineWorkspace,
-	type IanaTimeZone,
 	type InferTableRow,
 	nullable,
 } from '@epicenter/workspace';
-import { type TProperties, Type } from 'typebox';
+import { Type } from 'typebox';
 import type { KeyBinding } from '$lib/tauri/commands';
+import {
+	type Recording,
+	type RecordingSink,
+	recordings,
+	type SinkKind,
+} from './recordings';
 
 // ── Constant imports ─────────────────────────────────────────────────────────
 
@@ -23,69 +28,11 @@ import {
 /**
  * Tables store normalized domain entities. Each row is replaced atomically via
  * `table.set()`, there's no field-level merging. Schemas validate rows on read.
- */
-/**
- * A terminal job outcome: `completed` or `failed`. Both variants carry the
- * finish instant; `failed` adds the error message; `completed` carries whatever
- * job-specific payload the caller declares through `completedExtra`.
  *
- * Only terminal states are ever stored. A job still in flight has no outcome
- * (the storing column is null); liveness comes from the in-flight mutation,
- * never from durable state. A stored 'running'/'transcribing' status would
- * wedge on crash: the process that died can no longer write the terminal
- * state. See
- * docs/articles/20260612T190745-liveness-belongs-to-the-process-not-the-row.md.
+ * `recordings` lives in its own leaf module (`./recordings`), re-exported
+ * below: it has no `$lib/*` dependency, so a test can import it standalone.
  */
-function terminalOutcome<CompletedExtra extends TProperties>(
-	completedExtra: CompletedExtra,
-) {
-	return Type.Union([
-		Type.Object({
-			status: Type.Literal('completed'),
-			completedAt: field.instant(),
-			...completedExtra,
-		}),
-		Type.Object({
-			status: Type.Literal('failed'),
-			completedAt: field.instant(),
-			error: Type.String(),
-		}),
-	]);
-}
-
-/**
- * Terminal outcome of transcribing a recording. The transcript text lives in
- * its own `transcript` column, so the `completed` variant only records when it
- * finished.
- */
-const TranscriptionOutcome = terminalOutcome({});
-
-/**
- * Audio recordings captured by the user. One row per recording session.
- *
- * `transcription` holds only the terminal outcome (completed or failed). A
- * recording that is currently transcribing has no `transcription`; liveness is
- * derived from the in-flight mutation, never stored.
- */
-const recordings = defineTable({
-	id: field.string(),
-	title: field.string(),
-	recordedAt: field.instant(),
-	recordedAtZone: field.string<IanaTimeZone>(),
-	// The raw transcript, exactly as the transcriber produced it. Polish layers
-	// correction on top and delivers the polished text, but the raw words stay
-	// here underneath so "show original" is always one click away. See ADR-0098.
-	transcript: field.string(),
-	// The delivered polished text, when a Polish pass ran. Null in speed mode and
-	// on a polish-failure fallback, where no polished version exists. The history
-	// shows this (what was actually delivered) and falls back to `transcript`.
-	polishedTranscript: nullable(field.string()),
-	duration: nullable(field.number()),
-	transcription: nullable(field.json(TranscriptionOutcome)),
-});
-
-/** Recording row type inferred from the workspace table schema. */
-export type Recording = InferTableRow<typeof recordings>;
+export { type Recording, type RecordingSink, recordings, type SinkKind };
 
 /**
  * A reusable text action: a name and a single instruction, run on demand over

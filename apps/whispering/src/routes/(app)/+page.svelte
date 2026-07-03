@@ -373,7 +373,7 @@
 		{#if latestRecording}
 			<RecordingResult
 				recordingId={latestRecording.id}
-				transcript={latestRecording.transcript}
+				transcript={latestRecording.raw}
 				rows={1}
 				onDelete={() => {
 					confirmationDialog.open({

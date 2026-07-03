@@ -1,9 +1,15 @@
 import { goto } from '$app/navigation';
 import { WHISPERING_RECORDINGS_PATHNAME } from '$lib/constants/urls';
 import type { DeliveryOutcome } from '$lib/operations/delivery-reach';
+import {
+	clipboardSink,
+	createCursorSink,
+	ledgerSink,
+	type Sink,
+} from '$lib/operations/sink';
 import type { Notice } from '$lib/report';
-import { services } from '$lib/services';
 import { settings } from '$lib/state/settings.svelte';
+import type { RecordingSink } from '$lib/workspace';
 
 // The reach types live in their own `delivery-reach` module next to their ADR
 // docstrings; re-exported here so callers keep one delivery import.
@@ -43,8 +49,16 @@ const TRANSCRIPTION_SUCCESS_COPY = {
 	import: '📁 File transcribed',
 } as const satisfies Record<TranscriptionSource, string>;
 
-/** A delivery result: the structured outcome plus a human notice for toasts. */
-export type DeliveryResult = { outcome: DeliveryOutcome; notice: Notice };
+/**
+ * A delivery result: the structured outcome, a human notice for toasts, and
+ * the sink fact to persist on the recordings row (where the text actually
+ * landed).
+ */
+export type DeliveryResult = {
+	outcome: DeliveryOutcome;
+	notice: Notice;
+	sink: RecordingSink;
+};
 
 /**
  * Delivers transcript to the user according to their text output preferences
@@ -108,71 +122,42 @@ async function deliverResult({
 			}
 		: undefined;
 
-	const clipboardRequested = settings.get(`output.${settingsScope}.clipboard`);
+	// Resolve one sink from settings: cursor beats clipboard beats the ledger.
+	// Nothing configured still reaches history, since the recordings row is
+	// itself the destination (ledgerSink).
 	const cursorRequested = settings.get(`output.${settingsScope}.cursor`);
+	const clipboardRequested = settings.get(`output.${settingsScope}.clipboard`);
+	const sink: Sink = cursorRequested
+		? createCursorSink({
+				keepOnClipboard: clipboardRequested,
+				pressEnter: settings.get(`output.${settingsScope}.enter`),
+			})
+		: clipboardRequested
+			? clipboardSink
+			: ledgerSink;
 
-	// No cursor write requested: the clipboard is the only configured sink, so
-	// copy the transcript there (or it reaches history when nothing is configured).
-	// Best-effort: a clipboard write effectively never fails, and the transcript is
-	// in history regardless, so its error does not change the reach.
-	if (!cursorRequested) {
-		if (clipboardRequested) await services.text.copyToClipboard(text);
-		return {
-			outcome: { reach: 'output' },
-			notice: {
-				title: `${successCopy}!`,
-				description: text,
-				action: recordingsAction,
-			},
-		};
-	}
+	const reach = await sink.deliver(text);
 
-	// Cursor write requested. The clipboard is `write_text`'s paste transport;
-	// `keepOnClipboard` tells it what the clipboard should hold afterward, so it
-	// owns the staging that delivery used to pre-copy: when clipboard output is on
-	// it leaves the transcript there; when off it borrows and restores the user's
-	// clipboard (full-fidelity on macOS — see write_text's docstring in src-tauri).
-	// `write_text` decides from the Accessibility grant whether it can paste and
-	// reports where the transcript landed: `pasted` at the cursor (clean), or
-	// `leftOnClipboard` when it could not paste.
-	const { data: writeOutcome, error: writeError } =
-		await services.text.writeToCursor(text, clipboardRequested);
+	// The fact recorded on the row: a cursor sink that could not paste
+	// downgrades to a `clipboard` fact, since that is where the text actually
+	// landed. Every other sink's fact is just its own kind. `ref` is always
+	// null: nothing produces one yet.
+	const sinkFact: RecordingSink = {
+		kind:
+			sink.kind === 'cursor' && reach === 'clipboard' ? 'clipboard' : sink.kind,
+		ref: null,
+	};
 
-	if (writeError) {
-		// The write failed outright (rare). Ensure the transcript is at least on the
-		// clipboard, and report the reduced reach.
-		await services.text.copyToClipboard(text);
-		return {
-			outcome: { reach: 'clipboard' },
-			notice: {
-				title: `${successCopy}, copied to clipboard (couldn't write to cursor)`,
-				description: text,
-				action: recordingsAction,
-			},
-		};
-	}
+	const title =
+		sink.kind === 'cursor'
+			? reach === 'output'
+				? `${successCopy} and written to cursor!`
+				: `${successCopy}, copied to clipboard (couldn't write to cursor)`
+			: `${successCopy}!`;
 
-	if (
-		writeOutcome === 'pasted' &&
-		settings.get(`output.${settingsScope}.enter`)
-	) {
-		// The Enter keystroke is a nicety on top of a successful write; a failure
-		// here does not change the delivery outcome.
-		await services.text.simulateEnterKeystroke();
-	}
-
-	// A clean `pasted` reached the configured output; a `leftOnClipboard` fallback
-	// is a reduced (but recoverable) reach — see DeliveryReach and ADR-0039/0040.
-	const reach = writeOutcome === 'pasted' ? 'output' : 'clipboard';
 	return {
 		outcome: { reach },
-		notice: {
-			title:
-				reach === 'output'
-					? `${successCopy} and written to cursor!`
-					: `${successCopy}, copied to clipboard (couldn't write to cursor)`,
-			description: text,
-			action: recordingsAction,
-		},
+		sink: sinkFact,
+		notice: { title, description: text, action: recordingsAction },
 	};
 }

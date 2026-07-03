@@ -113,10 +113,10 @@
 			enableHiding: false,
 			filterFn: (row, _columnId, filterValue) => {
 				const title = String(row.getValue('title'));
-				const transcript = String(row.getValue('transcript'));
+				const raw = String(row.getValue('raw'));
 				return (
 					title.toLowerCase().includes(filterValue.toLowerCase()) ||
-					transcript.toLowerCase().includes(filterValue.toLowerCase())
+					raw.toLowerCase().includes(filterValue.toLowerCase())
 				);
 			},
 		},
@@ -155,7 +155,7 @@
 			cell: formattedCell((recording) => recording.recordedAtZone),
 		},
 		{
-			accessorKey: 'transcript',
+			accessorKey: 'raw',
 			meta: { label: 'Transcript' },
 			header: ({ column }) =>
 				renderComponent(SortableTableHeader, {
@@ -307,7 +307,7 @@
 		table.getFilteredSelectedRowModel().rows,
 	);
 
-	let template = $state('{{recordedAt}} {{transcript}}');
+	let template = $state('{{recordedAt}} {{raw}}');
 	let delimiter = $state('\n\n');
 
 	let isDialogOpen = $state(false);
@@ -315,7 +315,7 @@
 	const joinedTranscriptionsText = $derived.by(() => {
 		const transcriptions = selectedRecordingRows
 			.map(({ original }) => original)
-			.filter((recording) => recording.transcript !== '')
+			.filter((recording) => recording.raw !== '')
 			.map((recording) =>
 				template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
 					if (key in recording) {

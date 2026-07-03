@@ -123,7 +123,8 @@
 			title: snapshot.title,
 			recordedAt: snapshot.recordedAt,
 			recordedAtZone: snapshot.recordedAtZone,
-			transcript: snapshot.transcript,
+			raw: snapshot.raw,
+			result: snapshot.raw === recording.raw ? recording.result : null,
 		});
 
 		if (error) {
@@ -180,11 +181,11 @@
 				<Label for="transcript">Transcript</Label>
 				<Textarea
 					id="transcript"
-					value={workingCopy.transcript}
+					value={workingCopy.raw}
 					oninput={(e) => {
 						workingCopy = {
 							...workingCopy,
-							transcript: e.currentTarget.value,
+							raw: e.currentTarget.value,
 						};
 						isWorkingCopyDirty = true;
 					}}
@@ -274,11 +275,11 @@
 				Close
 			</Button>
 			<CopyButton
-				text={workingCopy.transcript}
+				text={workingCopy.raw}
 				copyFn={createCopyFn('transcript')}
 				variant="outline"
 				size="default"
-				disabled={!workingCopy.transcript.trim()}
+				disabled={!workingCopy.raw.trim()}
 			>
 				Copy
 			</CopyButton>
