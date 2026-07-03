@@ -3,7 +3,7 @@
 **Date**: 2026-07-01
 **Status**: Draft
 **Owner**: Braden
-**Relates**: ADR-0081, ADR-0082, ADR-0083 (settled); ADR-0087 (`docs/adr/0087-local-mail-state-round-trips-through-gmail.md`, Proposed, recorded in this same design pass: every Local Mail concept a human acts on must round-trip through Gmail state; no local-only mail state until a future ADR accepts it); `specs/20260630T150000-local-mail-tauri-cdc-mirror.md` (parent spec; this spec executes its Phase 2 with scope adjustments from the 2026-07-01 live smoke test and the same-day design grill); `specs/20260701T141500-local-mail-up-bun-served-shell.md` (the Phase 4 shell direction, separate decision)
+**Relates**: ADR-0081, ADR-0082, ADR-0083 (settled); ADR-0098 (`docs/adr/0098-local-mail-state-round-trips-through-gmail.md`, Accepted, recorded in this same design pass: every Local Mail concept a human acts on must round-trip through Gmail state; no local-only mail state until a future ADR accepts it); `specs/20260630T150000-local-mail-tauri-cdc-mirror.md` (parent spec; this spec executes its Phase 2 with scope adjustments from the 2026-07-01 live smoke test and the same-day design grill); `specs/20260701T141500-local-mail-up-bun-served-shell.md` (the Phase 4 shell direction, separate decision)
 
 ## One Sentence
 
@@ -118,7 +118,7 @@ Settled since the first draft: threads derive vs guard is no longer open. Derive
 
 - Flip ADR-0081/ADR-0082 from Proposed to Accepted (the smoke test is the awaited evidence), with two corrections at flip time:
   - ADR-0082's push rejection rests on a premise to correct first: it claims push requires a publicly reachable webhook. Gmail's `users.watch` publishes to Cloud Pub/Sub, and Pub/Sub PULL subscriptions let a local long-lived process consume notifications with no public endpoint. Poll-only remains the right v1 call, but the ADR currently rejects a strawman; its revisit path should name pull-subscription push as the no-server upgrade.
-  - ADR-0081's consequence line that the mirror works "standalone on a phone" needs trimming or annotation: the Bun-served shell forecloses it, and the phone story belongs to ADR-0087 (Gmail's own app is the phone client).
+  - ADR-0081's consequence line that the mirror works "standalone on a phone" needs trimming or annotation: the Bun-served shell forecloses it, and the phone story belongs to ADR-0098 (Gmail's own app is the phone client).
 - CASA Tier 2 quote before hosted mode ships a restricted scope publicly (client stays Testing mode until then; test-user refresh tokens die 7 days after issuance).
 - Secret-vault cross-device token sync (parent spec question 1).
 
