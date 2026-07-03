@@ -57,7 +57,10 @@ function project(db: Database, rows: Row[]): void {
 
 /** The stems in one board bucket: the exact query a board column issues. */
 function bucket(db: Database, status: string): string[] {
-	const sql = buildStemQuery(TABLE, { where: `status = '${status}'`, orderBy: '"stem" asc' });
+	const sql = buildStemQuery(TABLE, {
+		where: `status = '${status}'`,
+		sort: { column: 'stem', dir: 'asc' },
+	});
 	return (db.query(sql).all() as { stem: string }[]).map((r) => r.stem);
 }
 

@@ -8,23 +8,9 @@ declare global {
 }
 
 // The fixture vault id deep-linked below. The app resolves `/vault/<id>` to a root via the persisted
-// open-vaults list, so seeding localStorage lets the test skip the native picker entirely and land
-// straight on the live grid (mocked IPC feeds it). See src/lib/e2e/install-mocks.ts for the vault.
+// open-vaults list, which the e2e IPC mock serves through the Tauri Store commands. That lets the
+// test skip the native picker and land straight on the live grid. See src/lib/e2e/install-mocks.ts.
 const VAULT_ID = 'e2e-vault';
-const ROOT = '/virtual/vault';
-
-test.beforeEach(async ({ page }) => {
-	// Persist the open vault before the app boots, so `/vault/<id>` resolves to the fixture root.
-	await page.addInitScript(
-		([id, root]) => {
-			localStorage.setItem(
-				'matter.open-vaults',
-				JSON.stringify([{ id, root }]),
-			);
-		},
-		[VAULT_ID, ROOT],
-	);
-});
 
 test('boots a mocked vault and renders its rows (read path through mocked IPC)', async ({
 	page,

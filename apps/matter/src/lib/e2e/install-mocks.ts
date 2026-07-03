@@ -5,6 +5,7 @@
  * over `invoke` + a `Channel`. To drive the real Svelte UI in a plain browser, this stands an
  * in-memory vault behind `mockIPC`, faithful to the EXACT command contract the app uses:
  *
+ *   plugin:store|load/get/set...                    -> open-vaults tab state
  *   watch_vault    { path, channel }            -> id;  channel sends string[]  (table folder paths)
  *   watch_folder   { path, channel }            -> id;  channel sends FileDelta[] (seed + echoes)
  *   read_entry     { path, fileName }           -> string | null
@@ -25,6 +26,8 @@ import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 /** The matter.json + card files of the fixture vault. The root IS the table (it carries the marker),
  *  so `watch_vault` reports the root itself as the one table (the marked-leaf rule). */
 export const E2E_ROOT = '/virtual/vault';
+const E2E_VAULT_ID = 'e2e-vault';
+const STORE_KEY = 'vaults';
 
 const FILES: Record<string, string> = {
 	'matter.json': JSON.stringify({
@@ -69,6 +72,10 @@ export function installMocks(): void {
 	window.__E2E_WRITES__ = [];
 
 	let nextId = 1;
+	const storeRid = nextId++;
+	const store: Record<string, unknown> = {
+		[STORE_KEY]: [{ id: E2E_VAULT_ID, root: E2E_ROOT }],
+	};
 	// The live folder Channel, captured so a write can echo a Content delta back the way the real
 	// watcher does (the app also applies its own write result; the echo mirrors production).
 	let folderChannel: Channel<FileDelta[]> | undefined;
@@ -82,6 +89,25 @@ export function installMocks(): void {
 			queueMicrotask(() => channel.onmessage?.(message));
 
 		switch (cmd) {
+			case 'plugin:store|load':
+				return storeRid;
+			case 'plugin:store|get': {
+				const key = args.key as string;
+				return [store[key], key in store];
+			}
+			case 'plugin:store|set':
+				store[args.key as string] = args.value;
+				return undefined;
+			case 'plugin:store|delete':
+				delete store[args.key as string];
+				return undefined;
+			case 'plugin:store|clear':
+			case 'plugin:store|reset':
+				for (const key of Object.keys(store)) delete store[key];
+				return undefined;
+			case 'plugin:store|save':
+				return undefined;
+
 			// Opening is normally the native picker; the dialog module is aliased to a stub, and the
 			// e2e test deep-links the vault, so this command is here only for completeness.
 			case 'plugin:dialog|open':
