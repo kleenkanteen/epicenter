@@ -48,7 +48,7 @@ export function resolveTranscriptionLocalityFromConfig({
 	getDeviceConfig: (key: TranscriptionEndpointKey) => string;
 }): TranscriptionLocality {
 	const provider = PROVIDERS[service];
-	// Local engines transcribe in-process; audio never becomes a network request.
+	// Local transcription runs in-process; audio never becomes a network request.
 	if (provider.location === 'local') {
 		return { onDevice: true, name: provider.label };
 	}
