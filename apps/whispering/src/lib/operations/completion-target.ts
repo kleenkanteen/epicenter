@@ -91,7 +91,7 @@ export function describePolishDestination(
 	const completionLabel = INFERENCE[completionProvider].label;
 
 	if (!state.target || !state.canRun) {
-		if (transcriptionProvider.access === 'local') {
+		if (transcriptionProvider.access === 'onDevice') {
 			return 'Audio stays on this device. Polish is not ready, so transcripts ship raw.';
 		}
 		return `Audio is sent to ${transcriptionProvider.label}. Polish is not ready, so transcripts ship raw.`;
@@ -99,11 +99,11 @@ export function describePolishDestination(
 
 	const { textStaysOnDevice } = state;
 
-	if (transcriptionProvider.access === 'local' && textStaysOnDevice) {
+	if (transcriptionProvider.access === 'onDevice' && textStaysOnDevice) {
 		return 'Audio and transcript text both stay on this device.';
 	}
 
-	if (transcriptionProvider.access === 'local') {
+	if (transcriptionProvider.access === 'onDevice') {
 		return `Audio is transcribed on-device, but Polish sends transcript text to ${completionLabel}.`;
 	}
 

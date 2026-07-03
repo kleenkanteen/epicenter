@@ -85,9 +85,9 @@
 		switch (service.access) {
 			case 'byok':
 				return settings.get(service.modelSettingKey);
-			case 'endpoint':
+			case 'byoe':
 				return deviceConfig.get(service.endpointConfigKey);
-			case 'local':
+			case 'onDevice':
 				return deviceConfig.get(service.modelConfigKey);
 			case 'star':
 				return undefined;
@@ -104,22 +104,22 @@
 		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'byok'),
 	);
 
-	const selfHostedServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'endpoint'),
+	const customServerServices = $derived(
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'byoe'),
 	);
 
-	const localServices = $derived(
+	const onDeviceServices = $derived(
 		tauri
-			? TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'local')
+			? TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'onDevice')
 			: [],
 	);
 
-	const localServiceSearchKeywords = {
+	const onDeviceServiceSearchKeywords = {
 		whispercpp: 'whisper cpp ggml gguf local offline',
 		parakeet: 'nvidia nemo onnx parakeet local offline',
 		moonshine: 'usefulsensors onnx moonshine local offline',
 	} satisfies Record<
-		Extract<TranscriptionProviderEntry, { access: 'local' }>['id'],
+		Extract<TranscriptionProviderEntry, { access: 'onDevice' }>['id'],
 		string
 	>;
 
@@ -257,16 +257,16 @@
 					</Command.Group>
 				{/if}
 
-				{#if localServices.length > 0}
-					<Command.Group heading="Local">
-						{#each localServices as service (service.id)}
+				{#if onDeviceServices.length > 0}
+					<Command.Group heading="On-device">
+						{#each onDeviceServices as service (service.id)}
 							{@const isSelected =
 								getSelectedServiceId() === service.id}
 							{@const isConfigured = isTranscriptionServiceConfigured(service)}
 							{@const modelName = getSelectedModelNameOrUrl(service)}
 
 							<Command.Item
-								value="{service.id} {service.label} {service.description} {localServiceSearchKeywords[service.id]}"
+								value="{service.id} {service.label} {service.description} {onDeviceServiceSearchKeywords[service.id]}"
 								onSelect={() => {
 									settings.set('transcription.service', service.id);
 									combobox.closeAndFocusTrigger();
@@ -294,8 +294,8 @@
 					</Command.Group>
 				{/if}
 
-				<!-- Cloud Services -->
-				<Command.Group heading="Cloud">
+				<!-- Provider API services -->
+				<Command.Group heading="Provider API">
 					{#each cloudServices as service (service.id)}
 						{@const isSelected =
 							getSelectedServiceId() === service.id}
@@ -372,16 +372,16 @@
 					{/each}
 				</Command.Group>
 
-				<!-- Self-Hosted Services -->
-				<Command.Group heading="Self-Hosted">
-					{#each selfHostedServices as service (service.id)}
+				<!-- Custom server services -->
+				<Command.Group heading="Custom server">
+					{#each customServerServices as service (service.id)}
 						{@const isSelected =
 							getSelectedServiceId() === service.id}
 						{@const isConfigured = isTranscriptionServiceConfigured(service)}
 						{@const serverUrl = getSelectedModelNameOrUrl(service)}
 
 						<Command.Item
-							value="{service.id} {service.label} self-hosted server"
+							value="{service.id} {service.label} custom server self-hosted"
 							onSelect={() => {
 								settings.set('transcription.service', service.id);
 								combobox.closeAndFocusTrigger();

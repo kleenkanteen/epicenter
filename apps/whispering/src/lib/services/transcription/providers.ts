@@ -25,25 +25,28 @@ type Capabilities = { supportsPrompt: boolean; supportsLanguage: boolean };
 type CloudModel = { name: string; description: string; cost: string };
 
 /**
- * `access` names how a provider is reached and credentialed, the one facet every
- * dispatcher, selector, and readiness check branches on. It is deliberately not
- * "where the compute runs": a `byok` provider (OpenAI) and the `star` provider
- * (Epicenter) can both be in the cloud, and the `star` can itself be a self-hosted
- * Epicenter instance. What actually differs is the credential the user supplies,
- * which is exactly what `isTranscriptionServiceConfigured` reads:
+ * `access` is the per-family discriminant every dispatcher, selector, and readiness
+ * check branches on. Each member bundles how a provider is reached and what the user
+ * must supply to make it usable. Three members name a credential; one (`onDevice`)
+ * names where the compute runs, because for the bundled engines "no network, no
+ * credential" is the whole relationship. What `isTranscriptionServiceConfigured`
+ * reads per member:
  *
  *   - `byok`     the user's own API key (a secret)         -> OpenAI, Groq, ...
- *   - `endpoint` a server URL + model id the user runs     -> Speaches
+ *   - `byoe`     a server URL + model id the user runs     -> Speaches
  *   - `star`     nothing; the session with the Epicenter   -> Epicenter
  *                deployment you are bonded to is the key
- *   - `local`    an on-device model file, no network       -> whispercpp, ...
+ *   - `onDevice` an on-device model file, no network       -> whispercpp, ...
  *
- * `star` follows the platform's own STAR-vs-SERVICES split (ADR-0068/0069/0070):
+ * `byok` and `byoe` are the matched "bring your own X" pair: both hand a
+ * `{ baseUrl, apiKey? }` to an external OpenAI-compatible box, differing only in
+ * whether the user brings a key (the vendor's compute) or an endpoint (their own
+ * box). `star` follows the platform's own STAR-vs-SERVICES split (ADR-0068/0069/0070):
  * it is the Epicenter deployment that also holds your synced data, reached by your
  * session, on that deployment's house key. Hosted stars meter it (AI credits);
- * self-host stars proxy it unmetered. `byok`/`endpoint` are external services.
+ * self-host stars proxy it unmetered. `byok`/`byoe` are external services.
  */
-type ProviderAccess = 'byok' | 'endpoint' | 'star' | 'local';
+type ProviderAccess = 'byok' | 'byoe' | 'star' | 'onDevice';
 
 type ByokProvider = {
 	access: Extract<ProviderAccess, 'byok'>;
@@ -78,8 +81,8 @@ type ByokProvider = {
 	modelsDoc: { label: string; href: string } | null;
 };
 
-type LocalProvider = {
-	access: Extract<ProviderAccess, 'local'>;
+type OnDeviceProvider = {
+	access: Extract<ProviderAccess, 'onDevice'>;
 	label: string;
 	description: string;
 	capabilities: Capabilities;
@@ -92,8 +95,8 @@ type LocalProvider = {
 	modelKind: 'file' | 'directory';
 };
 
-type EndpointProvider = {
-	access: Extract<ProviderAccess, 'endpoint'>;
+type ByoeProvider = {
+	access: Extract<ProviderAccess, 'byoe'>;
 	label: string;
 	description: string;
 	capabilities: Capabilities;
@@ -129,15 +132,16 @@ type StarProvider = {
 
 type TranscriptionProvider =
 	| ByokProvider
-	| LocalProvider
-	| EndpointProvider
+	| OnDeviceProvider
+	| ByoeProvider
 	| StarProvider;
 
 export const PROVIDERS = {
 	epicenter: {
 		access: 'star',
 		label: 'Epicenter',
-		description: 'Transcription through your Epicenter account. Sign in required.',
+		description:
+			'Transcription through your connected Epicenter star. Sign in required.',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
 		model: 'whisper-1',
 	},
@@ -309,7 +313,7 @@ export const PROVIDERS = {
 	},
 
 	whispercpp: {
-		access: 'local',
+		access: 'onDevice',
 		label: 'Whisper C++',
 		description: 'Fast local transcription with no internet required',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -317,7 +321,7 @@ export const PROVIDERS = {
 		modelKind: 'file',
 	},
 	parakeet: {
-		access: 'local',
+		access: 'onDevice',
 		label: 'Parakeet',
 		description:
 			'Recommended fast local transcription with automatic language detection',
@@ -326,7 +330,7 @@ export const PROVIDERS = {
 		modelKind: 'directory',
 	},
 	moonshine: {
-		access: 'local',
+		access: 'onDevice',
 		label: 'Moonshine',
 		description: 'Small English-only local transcription',
 		capabilities: { supportsPrompt: false, supportsLanguage: false },
@@ -335,7 +339,7 @@ export const PROVIDERS = {
 	},
 
 	speaches: {
-		access: 'endpoint',
+		access: 'byoe',
 		label: 'Speaches',
 		description: 'Self-hosted transcription server',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -350,7 +354,7 @@ export type TranscriptionServiceId = keyof typeof PROVIDERS;
  * The ids of BYOK providers, derived from PROVIDERS. Consumed by the settings UI
  * to type provider config fields. (Transcription routing no longer keys off this:
  * `operations/transcribe.ts` dispatches over a single `UPLOAD_DISPATCH` table that
- * excludes only the local ids.)
+ * excludes only the on-device ids.)
  */
 export type ByokProviderId = {
 	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['access'] extends 'byok'
@@ -359,29 +363,29 @@ export type ByokProviderId = {
 }[TranscriptionServiceId];
 
 /**
- * The ids of local engines, derived the same way. `isLocalProviderId` is the
- * one narrowing boundary callers use before reading local-only fields or
+ * The ids of on-device engines, derived the same way. `isOnDeviceProviderId` is
+ * the one narrowing boundary callers use before reading on-device-only fields or
  * touching the engine's models folder.
  */
-export type LocalProviderId = {
-	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['access'] extends 'local'
+export type OnDeviceProviderId = {
+	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['access'] extends 'onDevice'
 		? K
 		: never;
 }[TranscriptionServiceId];
 
-export function isLocalProviderId(
+export function isOnDeviceProviderId(
 	id: TranscriptionServiceId,
-): id is LocalProviderId {
-	return PROVIDERS[id].access === 'local';
+): id is OnDeviceProviderId {
+	return PROVIDERS[id].access === 'onDevice';
 }
 
 /**
- * The upload providers: every non-local id, reached by uploading audio over the
- * wire (byok, endpoint, account) rather than the on-device FFI path. "Upload" is
- * "not local", and localness is the one facet PROVIDERS declares, so the
+ * The upload providers: every non-on-device id, reached by uploading audio over the
+ * wire (byok, byoe, star) rather than the on-device FFI path. "Upload" is
+ * "not on-device", and on-device-ness is the one facet PROVIDERS declares, so the
  * subtraction reads as English. `UPLOAD_DISPATCH` is keyed by exactly this set.
  */
-export type UploadProviderId = Exclude<TranscriptionServiceId, LocalProviderId>;
+export type UploadProviderId = Exclude<TranscriptionServiceId, OnDeviceProviderId>;
 
 /** Every provider ID, e.g. for `field.select(TRANSCRIPTION_SERVICE_IDS)`. */
 export const TRANSCRIPTION_SERVICE_IDS = Object.keys(

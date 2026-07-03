@@ -22,7 +22,7 @@ export function getSelectedTranscriptionProvider():
 export function isTranscriptionServiceAvailable(
 	service: TranscriptionProviderEntry,
 ): boolean {
-	return Boolean(tauri) || service.access !== 'local';
+	return Boolean(tauri) || service.access !== 'onDevice';
 }
 
 /**
@@ -58,12 +58,12 @@ export function isTranscriptionServiceConfigured(
 			return auth.state.status === 'signed-in';
 		case 'byok':
 			return secrets.get(service.apiKeyConfigKey).status === 'available';
-		case 'endpoint':
+		case 'byoe':
 			return (
 				hasValue(deviceConfig.get(service.endpointConfigKey)) &&
 				hasValue(deviceConfig.get(service.modelIdConfigKey))
 			);
-		case 'local':
+		case 'onDevice':
 			return hasValue(deviceConfig.get(service.modelConfigKey));
 	}
 }
@@ -93,8 +93,8 @@ export function getTranscriptionReadiness(): TranscriptionReadiness {
 			{
 				star: 'Sign in to Epicenter to use hosted transcription.',
 				byok: `Add your ${service.label} API key.`,
-				endpoint: `Set your ${service.label} endpoint and model ID.`,
-				local: `Download or select a ${service.label} model.`,
+				byoe: `Set your ${service.label} endpoint and model ID.`,
+				onDevice: `Download or select a ${service.label} model.`,
 			} as const
 		)[service.access];
 

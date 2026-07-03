@@ -26,8 +26,8 @@ import { DeepgramTranscriptionServiceLive } from '$lib/services/transcription/cl
 import { ElevenLabsTranscriptionServiceLive } from '$lib/services/transcription/cloud/elevenlabs';
 import { MistralTranscriptionServiceLive } from '$lib/services/transcription/cloud/mistral';
 import {
-	isLocalProviderId,
-	type LocalProviderId,
+	isOnDeviceProviderId,
+	type OnDeviceProviderId,
 	PROVIDERS,
 	type UploadProviderId,
 } from '$lib/services/transcription/providers';
@@ -86,14 +86,14 @@ const TranscriptionOperationError = defineErrors({
 });
 
 /**
- * How an upload (non-local) provider is reached. A `wire` provider resolves its own
+ * How an upload (non-on-device) provider is reached. A `wire` provider resolves its own
  * transport and a model and hands them to the shared `transcribe()`; a `bespoke`
  * provider keeps its own SDK client (a different wire). The `kind` discriminant
  * carries the routing, so there is no wire-vs-bespoke id subset to derive and no
  * `in`-guard: one exhaustive switch on `.kind`.
  *
  * The transport is a `resolve` thunk, not static connection data, so each wire entry
- * owns how it becomes a transport (ADR-0060): a `byok`/`endpoint` entry resolves a
+ * owns how it becomes a transport (ADR-0060): a `byok`/`byoe` entry resolves a
  * `{ baseUrl, apiKey }` over `customFetch`, while the `star` Epicenter entry closes
  * over the signed-in session `fetch` (never connection data). The switch
  * therefore never branches on what kind of transport it got.
@@ -132,9 +132,9 @@ function secretApiKey(key: SecretKey): string | undefined {
 
 /**
  * Every upload transcription provider, keyed by id. `satisfies Record<UploadProviderId,
- * UploadDispatch>` makes the table total over the non-local providers: a new cloud or
- * self-hosted provider is a compile error until it has an entry, and a local provider
- * cannot appear (it goes through the FFI path, branched in `transcribeAudio`).
+ * UploadDispatch>` makes the table total over the non-on-device providers: a new cloud or
+ * self-hosted provider is a compile error until it has an entry, and an on-device
+ * provider cannot appear (it goes through the FFI path, branched in `transcribeAudio`).
  *
  * Wire entries (OpenAI, Groq, Speaches): the endpoint override beats the canonical
  * default; Speaches stores a bare host, so its `/v1` is appended; a keyless local
@@ -238,7 +238,7 @@ function getSpokenLanguage(): SupportedLanguage {
 }
 
 /**
- * Materialize the bytes to upload for a non-local (upload) transcription. The
+ * Materialize the bytes to upload for a non-on-device (upload) transcription. The
  * recording is already saved under `recordings/{id}.{ext}`; in Tauri we round-trip
  * through Rust's libopus to land on a compressed opus blob. On the web
  * there is no Rust, so we fetch the original bytes from the blob store and
@@ -274,7 +274,7 @@ async function loadForUpload(
  *   recordings blob store and pass the id here.
  *
  * Local transcription always goes through `transcribe_recording(id)`.
- * Upload (non-local) transcription uploads compressed bytes derived from the
+ * Upload (non-on-device) transcription uploads compressed bytes derived from the
  * saved file when possible, falling back to the raw blob.
  */
 export async function transcribeAudio(
@@ -288,11 +288,11 @@ export async function transcribeAudio(
 		provider: selectedService,
 	});
 
-	// The one place localness is decided. The type guard narrows `selectedService`
-	// to `LocalProviderId` in one arm and `UploadProviderId` in the other, so each
+	// The one place on-device-ness is decided. The type guard narrows `selectedService`
+	// to `OnDeviceProviderId` in one arm and `UploadProviderId` in the other, so each
 	// helper receives an already-narrowed id and neither re-checks.
-	const transcriptionResult = isLocalProviderId(selectedService)
-		? await transcribeLocally(recordingId, selectedService)
+	const transcriptionResult = isOnDeviceProviderId(selectedService)
+		? await transcribeOnDevice(recordingId, selectedService)
 		: await transcribeViaUpload(recordingId, selectedService);
 
 	const duration = Date.now() - startTime;
@@ -386,19 +386,19 @@ async function checkWhisperTruncation(
  * load (~1 s) overlaps the user's speech instead of being paid after they
  * stop. Called fire-and-forget from the manual and VAD start paths.
  *
- * No-op unless we are on desktop with a local provider selected and a model
- * chosen: cloud/self-hosted have no local model to load, and web has no Rust.
- * It resolves the model exactly the way `transcribeLocally` does, so it warms
+ * No-op unless we are on desktop with an on-device provider selected and a model
+ * chosen: cloud/self-hosted have no on-device model to load, and web has no Rust.
+ * It resolves the model exactly the way `transcribeOnDevice` does, so it warms
  * the same model transcription will use. Failures are swallowed on purpose:
  * the worst case is transcription loads the model itself, as it does today.
  * `language`/`initialPrompt` are inference params, irrelevant to loading, so
  * they are sent null.
  */
-export function prewarmLocalModel(): void {
+export function prewarmOnDeviceModel(): void {
 	if (!tauri) return;
 
 	const selectedService = settings.get('transcription.service');
-	if (!isLocalProviderId(selectedService)) return;
+	if (!isOnDeviceProviderId(selectedService)) return;
 
 	const provider = PROVIDERS[selectedService];
 	const modelName = deviceConfig.get(provider.modelConfigKey);
@@ -427,9 +427,9 @@ function withDictionaryTerms(prompt: string, dictionary: string[]): string {
 	return trimmed ? `${trimmed} ${glossary}` : glossary;
 }
 
-async function transcribeLocally(
+async function transcribeOnDevice(
 	recordingId: string,
-	selectedService: LocalProviderId,
+	selectedService: OnDeviceProviderId,
 ): Promise<Result<string, TranscriptionError>> {
 	if (!tauri) {
 		return TranscriptionOperationError.LocalTranscriptionUnavailableOnWeb();

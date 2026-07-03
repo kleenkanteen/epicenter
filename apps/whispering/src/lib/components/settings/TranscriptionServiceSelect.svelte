@@ -35,9 +35,9 @@
 		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'star'),
 	);
 
-	const localServices = $derived(
+	const onDeviceServices = $derived(
 		tauri
-			? TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'local')
+			? TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'onDevice')
 			: [],
 	);
 
@@ -45,16 +45,16 @@
 		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'byok'),
 	);
 
-	const selfHostedServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'endpoint'),
+	const customServerServices = $derived(
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'byoe'),
 	);
 
 	const selectedService = $derived(
 		[
 			...starServices,
-			...localServices,
+			...onDeviceServices,
 			...cloudServices,
-			...selfHostedServices,
+			...customServerServices,
 		].find((service) => service.id === selected),
 	);
 </script>
@@ -97,7 +97,6 @@
 								<div class="flex-1 min-w-0">
 									<div class="flex items-center gap-2">
 										<span class="font-medium">{service.label}</span>
-										<Badge variant="secondary" class="text-xs">Account</Badge>
 									</div>
 									{#if service.description}
 										<div class="text-xs text-muted-foreground mt-1">
@@ -111,20 +110,20 @@
 				</Select.Group>
 			{/if}
 
-			{#if localServices.length > 0}
+			{#if onDeviceServices.length > 0}
 				{#if starServices.length > 0}
 					<Select.Separator />
 				{/if}
 				<Select.Group>
-					<Select.GroupHeading>Local (Offline)</Select.GroupHeading>
-					{#each localServices as service}
+					<Select.GroupHeading>On-device</Select.GroupHeading>
+					{#each onDeviceServices as service}
 						<Select.Item value={service.id} label={service.label}>
 							<div class="flex items-start gap-3 py-1">
 								<div class="mt-0.5">{@render renderServiceIcon(service)}</div>
 								<div class="flex-1 min-w-0">
 									<div class="flex items-center gap-2">
 										<span class="font-medium">{service.label}</span>
-										<Badge variant="secondary" class="text-xs">Local</Badge>
+										<Badge variant="secondary" class="text-xs">On-device</Badge>
 										{#if service.id === recommendedServiceId}
 											<Badge variant="outline" class="text-xs"
 												>Recommended</Badge
@@ -144,11 +143,11 @@
 			{/if}
 
 			{#if cloudServices.length > 0}
-				{#if starServices.length > 0 || localServices.length > 0}
+				{#if starServices.length > 0 || onDeviceServices.length > 0}
 					<Select.Separator />
 				{/if}
 				<Select.Group>
-					<Select.GroupHeading>Cloud (API)</Select.GroupHeading>
+					<Select.GroupHeading>Provider API</Select.GroupHeading>
 					{#each cloudServices as service}
 						<Select.Item value={service.id} label={service.label}>
 							<div class="flex items-start gap-3 py-1">
@@ -184,20 +183,20 @@
 				</Select.Group>
 			{/if}
 
-			{#if selfHostedServices.length > 0}
-				{#if localServices.length > 0 || cloudServices.length > 0}
+			{#if customServerServices.length > 0}
+				{#if onDeviceServices.length > 0 || cloudServices.length > 0}
 					<Select.Separator />
 				{/if}
 				<Select.Group>
-					<Select.GroupHeading>Self-Hosted</Select.GroupHeading>
-					{#each selfHostedServices as service}
+					<Select.GroupHeading>Custom server</Select.GroupHeading>
+					{#each customServerServices as service}
 						<Select.Item value={service.id} label={service.label}>
 							<div class="flex items-start gap-3 py-1">
 								<div class="mt-0.5">{@render renderServiceIcon(service)}</div>
 								<div class="flex-1 min-w-0">
 									<div class="flex items-center gap-2">
 										<span class="font-medium">{service.label}</span>
-										<Badge variant="outline" class="text-xs">Self-Hosted</Badge>
+										<Badge variant="outline" class="text-xs">Custom server</Badge>
 									</div>
 									{#if service.description}
 										<div class="text-xs text-muted-foreground mt-1">

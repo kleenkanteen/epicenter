@@ -26,7 +26,7 @@ Here is the shape we want:
                              |
         +---------+----------+-----------+----------+
         |         |                      |          |
-      local      byok                endpoint      star
+    onDevice    byok                  byoe        star
         |         |                      |          |
    on device   user's key        user's service    Epicenter deployment
                                                 hosted or self-host
@@ -87,17 +87,20 @@ So the provider should name the thing that survives both deployables:
 byok:
   user supplies a provider key
 
-endpoint:
-  user supplies a service URL, such as Speaches
+byoe:
+  user brings their own endpoint, such as Speaches
 
 star:
   user is authenticated to the Epicenter deployment they are already using
 
-local:
+onDevice:
   no network, no credential, just the device
 ```
 
-That taxonomy is not just prettier. It deletes a branch.
+That taxonomy is not just prettier. `byok` and `byoe` now form a matched pair:
+bring your own key, or bring your own endpoint. `onDevice` says exactly why that
+family is different. `star` stays the platform relationship. Together, they
+delete a branch.
 
 The tempting fix would have been to keep `account` and add hosted/self-host
 visibility logic:
@@ -155,9 +158,9 @@ Epicenter transcription means transcription through your connected star.
 
 That keeps the product useful in both worlds. Hosted users get credit-metered
 transcription through Epicenter cloud. Self-host operators get the same route on
-their own instance, paid by their own upstream provider account. BYOK and custom
-endpoints stay separate because they are separate relationships: the user brings
-a key, or the user brings a service URL.
+their own instance, paid by their own upstream provider account. BYOK and BYOE
+stay separate because they are separate relationships: the user brings a key, or
+the user brings an endpoint.
 
 The rule I want to remember is simple:
 
@@ -168,6 +171,6 @@ Let billing, metering, and operator cost be deployment policy.
 
 When the name follows the billing accident, the code starts asking "which kind
 of Epicenter is this?" in places that should not care. When the name follows the
-relationship, the UI can stay flat: local, byok, endpoint, star.
+relationship, the UI can stay flat: onDevice, byok, byoe, star.
 
 That is the better shape.

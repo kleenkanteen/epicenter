@@ -63,7 +63,7 @@
 	);
 
 	const isSelectedServiceUnavailable = $derived(
-		!tauri && selectedTranscriptionProvider?.access === 'local',
+		!tauri && selectedTranscriptionProvider?.access === 'onDevice',
 	);
 
 	const spokenLanguageLabel = $derived(
@@ -74,7 +74,7 @@
 
 	const isLocalEngine = $derived(
 		Boolean(tauri) &&
-			PROVIDERS[settings.get('transcription.service')].access === 'local',
+			PROVIDERS[settings.get('transcription.service')].access === 'onDevice',
 	);
 
 	const unloadPolicyLabel = $derived(
@@ -100,7 +100,7 @@
 			<Alert.Title>Desktop-only service selected</Alert.Title>
 			<Alert.Description>
 				{selectedTranscriptionProvider.label} runs in the desktop app.
-				Choose a cloud or self-hosted service to transcribe on web.
+				Choose a cloud or custom-server service to transcribe on web.
 			</Alert.Description>
 		</Alert.Root>
 	{:else if cloudProvider}
