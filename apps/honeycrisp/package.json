@@ -50,7 +50,7 @@
 		"@epicenter/workspace": "workspace:*",
 		"@epicenter/constants": "workspace:*",
 		"@tauri-apps/api": "catalog:",
-		"@tauri-apps/plugin-deep-link": "^2.4.9",
+		"@tauri-apps/plugin-deep-link": "catalog:",
 		"@tauri-apps/plugin-opener": "catalog:",
 		"prosemirror-commands": "^1.6.0",
 		"prosemirror-inputrules": "^1.4.0",
