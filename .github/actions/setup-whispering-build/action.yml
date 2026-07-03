@@ -68,6 +68,25 @@ runs:
         "VULKAN_SDK=C:\VulkanSDK\$env:VULKAN_SDK_VERSION" >> $env:GITHUB_ENV
         "C:\VulkanSDK\$env:VULKAN_SDK_VERSION\Bin" >> $env:GITHUB_PATH
 
+    # transcribe-cpp's ggml-vulkan backend does `find_package(SPIRV-Headers CONFIG
+    # REQUIRED)` at configure time. The Vulkan SDK installed above ships the loader
+    # and puts itself on the CMake search path, but it does NOT expose a
+    # discoverable `SPIRV-HeadersConfig.cmake`, so the CONFIG-mode lookup fails and
+    # the x64 build aborts (this is what red-lit the first Windows preview). Install
+    # the header-only package via vcpkg (preinstalled on the Windows runner images)
+    # and prepend its prefix to CMAKE_PREFIX_PATH so CMake resolves it. Scoped to
+    # the x64 Vulkan build; the aarch64 Windows target is static (default-features =
+    # false, no Vulkan) and is not in the build matrix. Matches upstream Handy.
+    - name: Install SPIRV-Headers for transcribe-cpp Vulkan build (Windows x64)
+      if: ${{ inputs.os == 'windows' }}
+      shell: pwsh
+      run: |
+        vcpkg install spirv-headers:x64-windows
+        $prefix = "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows" -replace '\\','/'
+        $combined = if ($env:CMAKE_PREFIX_PATH) { "$prefix;$env:CMAKE_PREFIX_PATH" } else { $prefix }
+        Add-Content $env:GITHUB_ENV "CMAKE_PREFIX_PATH=$combined"
+        Write-Host "CMAKE_PREFIX_PATH=$combined"
+
     # No MSVC setup step is needed: cargo and the cc crate locate the x64 MSVC
     # toolchain via vswhere automatically, so the build never has to source vcvars.
     - name: Shorten Windows build path
