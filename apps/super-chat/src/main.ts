@@ -50,7 +50,17 @@ const engine = createOpenAiAgentEngine({
 });
 
 const host = await createSuperChatHost({ engine });
-const { app, websocket } = createSuperChatServer({ host, token });
+
+const pageFile = Bun.file(new URL('../dist/index.html', import.meta.url));
+if (!(await pageFile.exists())) {
+	console.error(
+		'The built SPA is missing. Run `bun run --filter @epicenter/super-chat build` first.',
+	);
+	process.exit(1);
+}
+const page = await pageFile.text();
+
+const { app, websocket } = createSuperChatServer({ host, token, page });
 
 const server = Bun.serve({
 	// Loopback only, never a LAN-reachable interface; port 0 lets the OS pick.

@@ -13,6 +13,10 @@ import { createSuperChatHost, type SuperChatHostOptions } from './host.ts';
 const FIXTURE = new URL('../test-fixtures/mini-mcp-server.ts', import.meta.url)
 	.pathname;
 
+function fixtureDir(name: string): string {
+	return new URL(`../test-fixtures/${name}/`, import.meta.url).pathname;
+}
+
 /**
  * A scripted engine: each model call consumes the next chunk list. The last
  * script repeats, so a trailing text answer also serves any extra step.
@@ -143,6 +147,97 @@ describe('createSuperChatHost', () => {
 		expect(results).toHaveLength(1);
 		expect(results[0]!.isError).toBe(false);
 		expect(results[0]!.content).toContain('Acme | 4200.00');
+	});
+
+	test('startup-scanned tool modules add verbs through the injected host API', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+			toolsDir: fixtureDir('tools'),
+		});
+		const names = host.tools.definitions().map((d) => d.name);
+		// The built-in apps still compose beside the loaded modules.
+		expect(names).toContain('todos__todos_create');
+		// weather.ts (registry form): built entirely from injected helpers.
+		expect(names).toContain('weather__weather_get');
+		// insights.ts (escape hatch): a module-returned full ToolCatalog.
+		expect(names).toContain('insights__ping');
+
+		const signal = new AbortController().signal;
+		const weather = await host.tools.resolve(
+			{
+				toolCallId: 'call-weather',
+				toolName: 'weather__weather_get',
+				input: { city: 'Oslo' },
+			},
+			signal,
+		);
+		expect(weather.isError).toBe(false);
+		expect(weather.content).toBe('Sunny in Oslo');
+
+		// The scoped workspaces bag is the one cross-app entry point (ADR-0097).
+		const scopes = await host.tools.resolve(
+			{
+				toolCallId: 'call-scopes',
+				toolName: 'weather__workspaces_list',
+				input: {},
+			},
+			signal,
+		);
+		expect(scopes.content).toBe('honeycrisp,todos');
+
+		const pong = await host.tools.resolve(
+			{ toolCallId: 'call-ping', toolName: 'insights__ping', input: {} },
+			signal,
+		);
+		expect(pong.isError).toBe(false);
+		expect(pong.content).toBe('pong');
+	});
+
+	test('a chat turn drives a loaded module verb like any built-in', async () => {
+		const engine = scriptedEngine([
+			[
+				{
+					type: 'tool-call',
+					toolCallId: 'call-1',
+					toolName: 'weather__weather_get',
+					input: { city: 'Lima' },
+				},
+			],
+			[{ type: 'text-delta', delta: 'Sunny there.' }],
+		]);
+		await using host = await createTestHost({
+			engine,
+			toolsDir: fixtureDir('tools'),
+		});
+
+		host.conversation.send('weather in lima?');
+		await settle(host);
+
+		const { messages, error } = host.conversation.snapshot();
+		expect(error).toBeNull();
+		const results = messages.flatMap((m) => toolResults(m.parts));
+		expect(results).toHaveLength(1);
+		expect(results[0]!.isError).toBe(false);
+		expect(results[0]!.content).toBe('Sunny in Lima');
+	});
+
+	test('a malformed tool module fails host startup naming the file', async () => {
+		// The documented policy: fail the launch, never skip silently.
+		await expect(
+			createTestHost({
+				engine: scriptedEngine([[]]),
+				toolsDir: fixtureDir('tools-malformed'),
+			}),
+		).rejects.toThrow(/not-a-factory\.ts" must default-export a factory/);
+	});
+
+	test('a module colliding with a built-in namespace fails host startup', async () => {
+		await expect(
+			createTestHost({
+				engine: scriptedEngine([[]]),
+				toolsDir: fixtureDir('tools-collision'),
+			}),
+		).rejects.toThrow(/namespace "todos", which is already taken/);
 	});
 
 	test('a second host over the same data dir reads the first host todos through the catalog', async () => {

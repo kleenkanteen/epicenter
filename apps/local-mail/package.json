@@ -1,0 +1,29 @@
+{
+	"name": "@epicenter/local-mail",
+	"description": "Headless Gmail mirror: syncs a Gmail account into local SQLite via full pull and incremental history.list polling, with CLI and MCP access.",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"keywords": [
+		"local-first",
+		"gmail",
+		"sqlite",
+		"cdc",
+		"email"
+	],
+	"scripts": {
+		"test": "bun test",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "catalog:",
+		"oauth4webapi": "catalog:",
+		"typebox": "catalog:",
+		"wellcrafted": "catalog:"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"typescript": "catalog:"
+	},
+	"license": "AGPL-3.0-or-later"
+}

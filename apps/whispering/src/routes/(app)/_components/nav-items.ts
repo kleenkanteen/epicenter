@@ -35,10 +35,10 @@ export const NAV_ITEMS = [
 		isActive: matchesRoute('/recordings'),
 	},
 	{
-		label: 'Transformations',
-		href: '/transformations',
+		label: 'Recipes',
+		href: '/recipes',
 		icon: LayersIcon,
-		isActive: matchesRoute('/transformations'),
+		isActive: matchesRoute('/recipes'),
 	},
 	{
 		label: 'Settings',

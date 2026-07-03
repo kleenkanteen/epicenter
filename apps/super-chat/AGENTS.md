@@ -7,6 +7,7 @@ Design authority: [ADR-0080](../../docs/adr/0080-the-super-app-is-a-desktop-host
 ## Shape
 
 - `src/host.ts` composes the static install list: in-process Yjs apps (arm A) as durable local `connect(null, { persistence })` replicas over their action registries, boxed apps (arm B, Local Books) as a local stdio MCP subprocess via `src/stdio-mcp-catalog.ts`. Every source is namespaced (`todos__`, `localbooks__`) and merged with `composeToolCatalogs` into the one `ToolCatalog` the agent loop consumes.
+- `src/tool-loader.ts` is the one dynamic source (ADR-0097): at startup it scans `<dataDir>/tools/*.ts`, imports each file with Bun `import()`, and calls the default-exported factory with the injected `ToolHost` (host-owned `defineQuery`, `defineMutation`, `Type`, and scoped `workspaces`). Each file's tools compose under its file-name namespace; a malformed module or a namespace collision fails startup with the file named, and a missing directory just means no modules are installed.
 - The in-process apps use `bunLocalPersistence({ dir, nodeId })` under the host data directory. This is signed-out local durability only; sign-in and relay sync for the host are a later enhancement.
 - Chat history is intentionally ephemeral (`src/message-store.ts`) until the transcript-persistence decision is made; tool results can carry data ADR-0080's confidentiality rule keeps off hosted readable planes.
 

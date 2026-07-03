@@ -1,17 +1,19 @@
+import {
+	asDeviceIdentifier,
+	type Device,
+	type DeviceAcquisitionOutcome,
+} from '@epicenter/recorder';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { createLogger } from 'wellcrafted/logger';
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import type { WhisperingRecordingState } from '$lib/constants/audio';
 import { recorderErrorFromIpc } from '$lib/services/recorder/categorize-error';
 import {
-	asDeviceIdentifier,
-	type CpalRecordingParams,
-	type Device,
-	type DeviceAcquisitionOutcome,
+	type BaseRecordingParams,
 	RecorderError,
 	type RecorderService,
 	type RecordingSession,
-} from '$lib/services/recorder/types';
+} from '$lib/services/recorder/contract';
 import { commands } from '$lib/tauri/commands';
 // This file is the Tauri impl, so it imports the non-null capability bag
 // directly from the Tauri marker rather than through the `#platform/tauri`
@@ -19,6 +21,14 @@ import { commands } from '$lib/tauri/commands';
 import { tauriOnly } from '$lib/tauri.tauri';
 
 const log = createLogger('whispering/recorder/cpal');
+
+/**
+ * Native (Rust/CPAL) recording parameters. Whispering-owned: the package
+ * defines only the base params; the native sample-rate knob is this app's.
+ */
+export type CpalRecordingParams = BaseRecordingParams & {
+	sampleRate: string;
+};
 
 async function getMicrophonePermissionStatus(): Promise<
 	Result<boolean, RecorderError>

@@ -67,7 +67,7 @@ Sign in on any device; the client fetches `GET /api/keyring` with its bearer; th
 | Vault doc identity | 1 evidence | User-global guid constant, owner-scoped persistence | ADR-0074 invariants 2 and 3. Constant lives in `packages/constants` beside the other cross-app identifiers. |
 | Per-doc key derivation | 1 evidence | `deriveWorkspaceKey(keyBytes, guid)` per keyring version into a `WorkspaceKeyring` map | Exactly what `activateEncryption` consumes (`keys.ts:41`, `y-keyvalue-lww-encrypted.ts`). The vault guid is the workspaceId label. |
 | Offline keyring cache | 2 coherence | Cache the fetched keyring on device: OS keychain on desktop, `localStorage` on web | Invariant 5 has no `locked` state; an offline boot with a synced vault replica MUST still decrypt, so the keyring must survive offline. Web cache is the same risk class as the grant beside it; desktop keychain is the "bootstrap root" role the keychain commit anticipated. |
-| Secret migration on sign-in | 2 coherence | Write-through device values into the vault, then delete local | Invariant 4 forbids a two-place read. Migration is copy-then-remove, mirroring the keychain grant migration pattern (`auth.tauri.ts`): local copy cleared only after a confirmed vault write. |
+| Secret migration on sign-in | 2 coherence | Write-through device values into the vault, then delete local | Invariant 4 forbids a two-place read. Migration is copy-then-remove: local copy cleared only after a confirmed vault write. |
 | Zero-knowledge / passphrase | Banked | Refused | ADR-0074 forecloses it as default; deferred premium seam. Do not reopen. |
 
 ## Architecture
@@ -165,7 +165,7 @@ export function mountSessionApp<E extends Env = Env>(
 ### Phase 2: client fetch + cache
 
 - [ ] **2.1** A `fetchKeyring` client reader beside `readApiSession` (auth-owned fetch, bearer attached, `credentials: 'omit'`).
-- [ ] **2.2** Device cache: desktop keychain entry (`vault-keyring` account via the existing `keyring_read`/`keyring_write` commands), web `localStorage` key. Refresh on every successful fetch; delete on sign-out.
+- [ ] **2.2** Device cache: desktop keychain entry (`vault-keyring` account via the existing `keyring_read`/`keyring_write` commands), web `localStorage` key. Refresh on every successful fetch; delete on sign-out. Note: `keyring_read`/`keyring_write` were narrowed alongside the auth-grant keychain migration, the service string is now hardcoded to `whispering` in Rust (`keyring_storage.rs`), and the webview may only pass an account name from a fixed allowlist that today contains just `auth-grant`. This wave must add `'vault-keyring'` to that Rust `KEYRING_ACCOUNTS` allowlist before the desktop cache can call these commands.
 - [ ] **2.3** Offline boot path: cached keyring hydrates activation before the first fetch resolves.
 
 ### Phase 3: vault doc + facade wire (Whispering first)
@@ -238,4 +238,4 @@ export function mountSessionApp<E extends Env = Env>(
 - `packages/server/src/routes/session.ts` — the mount pattern to mirror.
 - `packages/server/src/server-bindings.ts` — where `ENCRYPTION_SECRETS?` joins.
 - `apps/whispering/src/lib/state/secrets.svelte.ts` — the facade whose JSDoc already narrates this exact wave.
-- `apps/whispering/src/lib/platform/auth.tauri.ts` — keychain command surface the desktop keyring cache reuses; the copy-confirm-delete migration pattern.
+- `apps/whispering/src/lib/platform/auth.tauri.ts` — the existing consumer of the keyring commands; the desktop keyring cache mirrors its `tauriOnly.keyring` usage.

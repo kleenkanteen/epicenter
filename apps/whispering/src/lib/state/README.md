@@ -50,26 +50,15 @@ recordings.update(id, {
 recordings.delete(id);
 ```
 
-### `transformations.svelte.ts`
+### `recipes.svelte.ts`
 
-Transformations backed by a Yjs workspace table. Each transformation is a single self-contained row: the fixed three-phase shape (`preReplacements`, `prompt`, `postReplacements`) lives on the row, there is no separate steps table.
-
-```typescript
-import { transformations } from '$lib/state/transformations.svelte';
-
-const transformation = transformations.get(id);
-const sorted = transformations.sorted; // alphabetical
-```
-
-### `transformation-runs.svelte.ts`
-
-Transformation run execution records backed by Yjs workspace table.
+The on-demand Recipe library backed by a Yjs workspace table. Each recipe is a single self-contained row (`name`, `instructions`, optional `icon`); the built-in recipes are merged in ahead of the user's saved rows.
 
 ```typescript
-import { transformationRuns } from '$lib/state/transformation-runs.svelte';
+import { recipes } from '$lib/state/recipes.svelte';
 
-const runs = transformationRuns.getByRecordingId(recordingId);
-const latest = transformationRuns.getLatestByRecordingId(recordingId);
+const list = recipes.pickable; // built-ins followed by saved recipes
+recipes.set({ id, name, instructions, icon: null });
 ```
 
 ### `device-config.svelte.ts`

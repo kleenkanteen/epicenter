@@ -5,9 +5,11 @@
  * join as local stdio MCP subprocesses (arm B, Local Books today). One agent
  * loop consumes the composed catalog and never learns where a verb lives.
  *
- * The install list is static and code-owned: this file IS the discovery
- * mechanism for the first slice (no registry, no scanned tool files; dynamic
- * loading waits for the tool module contract ADR named in ADR-0084).
+ * The built-in install list is static and code-owned. Beside it, one dynamic
+ * source: trusted TypeScript tool modules scanned at startup from the host's
+ * tools directory and called with the injected host API (ADR-0084 mechanism,
+ * ADR-0097 contract; see `tool-loader.ts`). No registry, no trust prompts,
+ * no hot reload; a malformed module fails startup with the file named.
  *
  * The in-process apps open through the ungated durable local preset:
  * `connect(null, { persistence })`. Sign-in is still an enhancement; the Bun
@@ -19,7 +21,12 @@ import { homedir, platform } from 'node:os';
 import { dirname, join } from 'node:path';
 import { honeycrispWorkspace } from '@epicenter/honeycrisp';
 import { todosWorkspace } from '@epicenter/todos';
-import { createNodeId, generateId } from '@epicenter/workspace';
+import {
+	createNodeId,
+	defineMutation,
+	defineQuery,
+	generateId,
+} from '@epicenter/workspace';
 import {
 	type AgentEngine,
 	type Approval,
@@ -31,11 +38,13 @@ import {
 	type ToolCatalog,
 } from '@epicenter/workspace/agent';
 import { bunLocalPersistence } from '@epicenter/workspace/node';
+import Type from 'typebox';
 import { createInMemoryMessageStore } from './message-store.ts';
 import {
 	createStdioMcpCatalog,
 	type StdioMcpCatalogOptions,
 } from './stdio-mcp-catalog.ts';
+import { loadToolModuleCatalogs } from './tool-loader.ts';
 
 export type {
 	ToolHost,
@@ -60,6 +69,12 @@ export type SuperChatHostOptions = {
 	localBooks?: StdioMcpCatalogOptions;
 	/** Host-owned data directory for installed app replicas and node identity. */
 	dataDir?: string;
+	/**
+	 * Directory scanned at startup for trusted `.ts` tool modules (ADR-0097).
+	 * Defaults to `<dataDir>/tools`. A missing directory means none are
+	 * installed; a malformed module fails startup with the file named.
+	 */
+	toolsDir?: string;
 };
 
 export type SuperChatHost = {
@@ -71,8 +86,8 @@ export type SuperChatHost = {
 };
 
 /**
- * Open the installed apps, compose their catalogs, and start the one chat
- * session over them. Async only when arm B spawns (the MCP handshake).
+ * Open the installed apps, load the trusted tool modules, compose their
+ * catalogs, and start the one chat session over them.
  */
 export async function createSuperChatHost(
 	options: SuperChatHostOptions,
@@ -94,6 +109,26 @@ export async function createSuperChatHost(
 		),
 		namespaceToolCatalog('todos', createLocalToolCatalog(todos.actions)),
 	];
+
+	// Trusted tool modules (ADR-0097): scanned once at startup, each factory
+	// called with the host-owned runtime helpers and the workspaces the host
+	// chooses to expose. Reserving `localbooks` even when arm B is not installed
+	// keeps a module from squatting on a namespace an install would later claim.
+	const toolModuleCatalogs = await loadToolModuleCatalogs({
+		dir: options.toolsDir ?? join(dataDir, 'tools'),
+		host: {
+			defineQuery,
+			defineMutation,
+			Type,
+			workspaces: { honeycrisp, todos },
+		},
+		reservedNamespaces: ['honeycrisp', 'todos', 'localbooks'],
+	}).catch((error) => {
+		honeycrisp[Symbol.dispose]();
+		todos[Symbol.dispose]();
+		throw error;
+	});
+	catalogs.push(...toolModuleCatalogs);
 
 	// Arm B: boxed apps join as stdio MCP subprocesses behind the same seam.
 	const localBooks = options.localBooks

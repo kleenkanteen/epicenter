@@ -195,22 +195,22 @@ const KeyringError = defineErrors({
 
 const keyring = {
 	/**
-	 * Read the secret stored under `service`/`account` from the OS credential
-	 * store (Keychain, Credential Manager, Secret Service), or `null` when
-	 * absent.
+	 * Read the secret stored under an app-owned keyring account, or `null` when
+	 * absent. Rust owns the OS credential-store service name and account
+	 * allowlist.
 	 */
-	async read(service: string, account: string) {
-		const { data, error } = await commands.keyringRead(service, account);
+	async read(account: string) {
+		const { data, error } = await commands.keyringRead(account);
 		if (error !== null) return KeyringError.ReadFailed({ cause: error });
 		return Ok(data);
 	},
 
 	/**
-	 * Write `value` under `service`/`account`, or delete the entry when `value`
-	 * is `null`.
+	 * Write `value` under an app-owned keyring account, or delete the entry when
+	 * `value` is `null`.
 	 */
-	async write(service: string, account: string, value: string | null) {
-		const { error } = await commands.keyringWrite(service, account, value);
+	async write(account: string, value: string | null) {
+		const { error } = await commands.keyringWrite(account, value);
 		if (error !== null) return KeyringError.WriteFailed({ cause: error });
 		return Ok(undefined);
 	},
@@ -502,6 +502,19 @@ const opener = {
 		}),
 };
 
+/**
+ * The app's main window. `focus()` raises and focuses it, used when a global
+ * shortcut needs to surface in-app UI (the recipe picker) over whatever the user
+ * is currently in. A stopgap until the picker becomes its own floating window.
+ */
+const mainWindow = {
+	async focus(): Promise<void> {
+		const window = getCurrentWindow();
+		await window.show();
+		await window.setFocus();
+	},
+};
+
 // barrel ------------------------------------------------------------
 // `tauriOnly` is the non-null namespace for `.tauri.ts` files. The
 // `tauri` export widens it to `Tauri | null` so shared consumers narrow.
@@ -514,6 +527,7 @@ export const tauriOnly = {
 	autostart,
 	media,
 	opener,
+	mainWindow,
 };
 
 /** Shape of the Tauri capability namespace (non-null). */

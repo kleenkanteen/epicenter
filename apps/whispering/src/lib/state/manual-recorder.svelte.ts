@@ -10,7 +10,7 @@ import type {
 	RecorderError,
 	RecordingCallbacks,
 	RecordingSession,
-} from '$lib/services/recorder/types';
+} from '$lib/services/recorder/contract';
 
 const ManualRecorderError = defineErrors({
 	EnumerateDevicesFailed: ({ cause }: { cause: unknown }) => ({
