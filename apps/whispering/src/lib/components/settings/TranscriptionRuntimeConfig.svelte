@@ -3,12 +3,14 @@
 	import { Badge } from '@epicenter/ui/badge';
 	import { Button } from '@epicenter/ui/button';
 	import * as Card from '@epicenter/ui/card';
+	import * as Collapsible from '@epicenter/ui/collapsible';
 	import { CopyButton } from '@epicenter/ui/copy-button';
 	import * as Field from '@epicenter/ui/field';
 	import { Input } from '@epicenter/ui/input';
 	import { Link } from '@epicenter/ui/link';
 	import * as Select from '@epicenter/ui/select';
 	import { Textarea } from '@epicenter/ui/textarea';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import type { Snippet } from 'svelte';
 	import CopyablePre from '$lib/components/copyable/CopyablePre.svelte';
 	import { SUPPORTED_LANGUAGES_OPTIONS } from '$lib/constants/languages';
@@ -21,6 +23,7 @@
 		PARAKEET_MODELS,
 		WHISPER_MODELS,
 	} from '$lib/constants/local-models';
+	import { describeTranscriptionDestinationFromConfig } from '$lib/operations/transcription-target';
 	import { TRANSCRIPTION_PROVIDERS } from '$lib/services/transcription/provider-ui';
 	import { PROVIDERS } from '$lib/services/transcription/providers';
 	import { deviceConfig } from '$lib/state/device-config.svelte';
@@ -36,6 +39,8 @@
 		label = 'Transcription Service',
 		description,
 		showAdvanced = true,
+		showDestination = false,
+		collapseAdvanced = false,
 		class: className,
 	}: {
 		id?: string;
@@ -43,8 +48,27 @@
 		description?: string | Snippet;
 		/** When false, hide the advanced fields (unload policy, language, prompt). */
 		showAdvanced?: boolean;
+		/**
+		 * When true, show the resolved-locality line (where audio goes) under the
+		 * service select. On for the Processing surface; off for the home-page
+		 * onboarding usage, which has its own readiness copy.
+		 */
+		showDestination?: boolean;
+		/**
+		 * When true, tuck the advanced fields behind an "Advanced" disclosure
+		 * instead of rendering them inline, so the Audio row stays as compact as the
+		 * Text row on the Processing surface. Only applies when `showAdvanced`.
+		 */
+		collapseAdvanced?: boolean;
 		class?: string;
 	} = $props();
+
+	const destination = $derived(
+		describeTranscriptionDestinationFromConfig({
+			service: settings.get('transcription.service'),
+			getDeviceConfig: deviceConfig.get,
+		}),
+	);
 
 	const currentServiceCapabilities = $derived(
 		PROVIDERS[settings.get('transcription.service')].capabilities,
@@ -94,6 +118,10 @@
 			(selected) =>
 				settings.set('transcription.service', selected)}
 	/>
+
+	{#if showDestination}
+		<p class="text-muted-foreground text-sm">{destination.summary}</p>
+	{/if}
 
 	{#if isSelectedServiceUnavailable && selectedTranscriptionProvider}
 		<Alert.Root variant="warning">
@@ -398,11 +426,30 @@
 	{/if}
 
 	{#if showAdvanced && !isSelectedServiceUnavailable}
-		{#if isLocalEngine}
-			<Field.Field>
-				<Field.Label for="local-model-unload-policy">
-					Unload Model When Idle
-				</Field.Label>
+		{#if collapseAdvanced}
+			<Collapsible.Root>
+				<Collapsible.Trigger
+					class="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm [&[data-state=open]>svg]:rotate-180"
+				>
+					<ChevronDownIcon class="size-4 transition-transform" />
+					Advanced
+				</Collapsible.Trigger>
+				<Collapsible.Content class="pt-3">
+					<Field.Group>{@render advancedFields()}</Field.Group>
+				</Collapsible.Content>
+			</Collapsible.Root>
+		{:else}
+			{@render advancedFields()}
+		{/if}
+	{/if}
+</Field.Group>
+
+{#snippet advancedFields()}
+	{#if isLocalEngine}
+		<Field.Field>
+			<Field.Label for="local-model-unload-policy">
+				Unload Model When Idle
+			</Field.Label>
 				<Select.Root
 					type="single"
 					bind:value={
@@ -484,5 +531,4 @@
 					: 'This transcription service does not support prompts.'}
 			</Field.Description>
 		</Field.Field>
-	{/if}
-</Field.Group>
+{/snippet}

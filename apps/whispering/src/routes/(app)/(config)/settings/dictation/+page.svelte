@@ -72,7 +72,7 @@
 						<KeyRoundIcon class="mt-0.5 size-4 shrink-0 text-amber-500" />
 						<p>
 							Polish is on, but the completion provider is not ready, so
-							transcripts still ship raw. <Link href="/settings/api-keys"
+							transcripts still ship raw. <Link href="/settings/processing"
 								>Check completion settings</Link
 							> to start cleaning them up.
 						</p>

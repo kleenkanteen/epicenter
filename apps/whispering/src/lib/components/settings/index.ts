@@ -1,9 +1,6 @@
 // Provider config components
 
-export {
-	default as ProviderConfigFields,
-	type ProviderConfigId,
-} from './ProviderConfigFields.svelte';
+export { default as CompletionRuntimeConfig } from './CompletionRuntimeConfig.svelte';
 // Shared components
 export { default as SettingSelect } from './SettingSelect.svelte';
 export { default as SettingSwitch } from './SettingSwitch.svelte';
