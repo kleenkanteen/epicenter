@@ -28,6 +28,7 @@
 		"vite": "catalog:"
 	},
 	"dependencies": {
+		"@epicenter/constants": "workspace:*",
 		"@tanstack/svelte-query": "catalog:"
 	},
 	"license": "AGPL-3.0-or-later"

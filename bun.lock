@@ -181,6 +181,7 @@
       "name": "@epicenter/local-mail",
       "version": "0.0.1",
       "dependencies": {
+        "@epicenter/constants": "workspace:*",
         "@modelcontextprotocol/sdk": "catalog:",
         "oauth4webapi": "catalog:",
         "typebox": "catalog:",
@@ -195,6 +196,7 @@
       "name": "@epicenter/local-mail-ui",
       "version": "0.0.1",
       "dependencies": {
+        "@epicenter/constants": "workspace:*",
         "@tanstack/svelte-query": "catalog:",
       },
       "devDependencies": {

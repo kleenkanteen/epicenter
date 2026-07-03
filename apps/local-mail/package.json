@@ -16,6 +16,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@epicenter/constants": "workspace:*",
 		"@modelcontextprotocol/sdk": "catalog:",
 		"oauth4webapi": "catalog:",
 		"typebox": "catalog:",

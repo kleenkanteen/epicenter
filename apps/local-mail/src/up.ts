@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join, sep } from 'node:path';
+import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { resolveAndModifyMessageLabels } from './modify.ts';
 import { openLocalMailRuntime, openSyncSession } from './runtime.ts';
 import { readMailStatus } from './status.ts';
@@ -200,7 +201,7 @@ export async function runUp(): Promise<number> {
 		const { pathname } = url;
 
 		// The one unauthenticated mutation: exchange the bootstrap for a bearer.
-		if (pathname === '/api/session' && req.method === 'POST') {
+		if (pathname === API_ROUTES.session.pattern && req.method === 'POST') {
 			if (bootstrapToken === null) {
 				return json({ error: 'No bootstrap token is outstanding.' }, 401);
 			}
