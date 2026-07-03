@@ -117,7 +117,7 @@ MCP `modify_labels` --> resolveLabelIds (names->ids; the core takes ids only)
                        401 -> one token refresh (existing client behavior)
                        429/5xx/retryable 403 -> existing backoff
                        404/400 -> per-id error, continue
-                       403 insufficientPermissions -> abort all, "re-run connect"
+                       403 insufficientPermissions -> abort all (Gmail's raw error)
                      response.labelIds present?
                        yes -> db.patchMessageLabels(id, labelIds)  fold, best-effort
                        no  -> folded: false ("mirror catches up on next sync")
@@ -180,7 +180,7 @@ The interactive trust boundary is the MCP host's approval prompt, per ADR-0073 i
 | Failure | Where it surfaces | Behavior |
 | --- | --- | --- |
 | Token expired/revoked | `TokenError` from the token manager | Abort all ids; message names `local-mail connect` |
-| Token lacks `gmail.modify` (pre-Phase-3 grant) | Gmail 403 `insufficientPermissions` (a non-retryable 403 in the existing client) | Abort all ids; map to a dedicated message: "this account was connected read-only; re-run local-mail connect to grant write access" |
+| Token lacks `gmail.modify` (pre-Phase-3 grant) | Gmail 403 `insufficientPermissions` (a non-retryable 403 in the existing client) | Abort all ids with Gmail's raw error. **Refusal (2026-07-02):** the bespoke `ReadOnlyGrant` reconnect message was a transitional bridge for readonly-era tokens; removed once the sole such grant re-consented. `prompt=consent` + always-`gmail.modify` means no fresh connect can reproduce a readonly token, so the branch had no live producer. Revisit if a read-only-mirror consent mode ever ships. |
 | Unknown message id | Gmail 404 | Per-id error; loop continues |
 | Invalid/unknown label id, unapplicable system label | Gmail 400 (body carries Gmail's own message, e.g. `Invalid label: X`) | Per-id error with Gmail's message; loop continues |
 | Rate limit | 429 / retryable 403; existing backoff, then `Throttled` | Abort remaining ids (systemic) |
@@ -241,7 +241,7 @@ Live (owner, GUI terminal): mark a message read on the desktop, watch it show re
 
 Build, prove, remove has nothing to remove here; the waves are build-and-prove, each independently landable.
 
-- [x] **3.0 Scope flip.** `oauth.ts`: `gmail.readonly` becomes `gmail.modify` in `connect`'s scope request; README documents the re-consent (one command) and the send-stays-refused posture. Map the 403 `insufficientPermissions` reason to the re-connect message in the client or core.
+- [x] **3.0 Scope flip.** `oauth.ts`: `gmail.readonly` becomes `gmail.modify` in `connect`'s scope request; README documents the re-consent (one command) and the send-stays-refused posture. (A 403 `insufficientPermissions` from a stale readonly token surfaces Gmail's raw error; the transitional reconnect-message mapping was removed 2026-07-02 once the sole readonly grant re-consented.)
 - [x] **3.1 Client POST.** `request()` grows `method`/`body`; `modifyMessage(id, {addLabelIds, removeLabelIds})` validated against `GmailMessageSchema` (its optional `labelIds` already matches the slim response). Existing retry/refresh/throttle behavior applies unchanged.
 - [x] **3.2 The core and the fold.** `db.patchMessageLabels` (extract the labelPatch semantics already inside `applyHistoryBatch` into a single-row method both call), `src/modify.ts` with `modifyMessageLabels` (required `readOnly`, serial loop, per-id/systemic error split, best-effort fold). Tests 1-6, 10-13.
 - [x] **3.3 CLI.** `modify` verb with intent flags desugaring to add/remove sets; `resolveLabelIds` helper (mirror lookup, fresh `labels.list` on miss); `LOCAL_MAIL_READ_ONLY` in config. Tests 7, 14, 15.
@@ -261,15 +261,14 @@ Nothing in this spec adds HTTP endpoints; the shell spec's `POST /api/messages/:
 ## Open questions
 
 1. **Does the live `messages.modify` response reliably carry `labelIds`?** Not contractually documented; universally observed. The `folded: false` branch makes either answer safe. **Recommendation**: resolve empirically in wave 3.5; if it ever comes back absent, the escape hatch is a `messages.get` refetch (20 units) behind the same fold, still Gmail-sourced.
-2. **Persist the granted scope at connect time?** The token grant response includes `scope`; storing it would let the CLI warn before a write instead of after a 403. **Recommendation**: skip for v1; the 403 mapping is one round-trip and zero new state. Revisit if the error proves confusing live.
+2. **Persist the granted scope at connect time?** The token grant response includes `scope`; storing it would let the CLI warn before a write instead of after a 403. **Recommendation**: skip for v1; the raw 403 is one round-trip and zero new state. (Resolved 2026-07-02: even the bespoke reconnect-message mapping was removed as an unearned bridge; the raw Gmail 403 is the whole surface now.) Revisit if the error proves confusing live.
 3. **Per-intent MCP sugar tools (`mark_read`, `archive`)?** **Recommendation**: wait for evidence that models fumble the label vocabulary in `modify_labels`; the description documents `UNREAD`/`INBOX` explicitly.
-4. **ADR at flip time.** The durable decisions here that outlive this spec: the six-actions-one-primitive collapse, the single-scope posture (`gmail.modify`, send refused at app level, no dual consent modes), and the fold-is-not-optimistic-patch line. **Recommendation**: record as one short ADR when Phase 3 lands and this spec is deleted; check the ADR number against main first (a concurrent branch has minted another 0098).
+4. **ADR at flip time.** The durable decisions here that outlive this spec: the six-actions-one-primitive collapse, the single-scope posture (`gmail.modify`, send refused at app level, no dual consent modes, no readonly-era reconnect bridge; a stale-scope write surfaces Gmail's raw 403), and the fold-is-not-optimistic-patch line. **Recommendation**: record as one short ADR when Phase 3 lands and this spec is deleted; check the ADR number against main first (a concurrent branch has minted another 0098).
 
 ## Success criteria
 
 - [ ] `bun test` and `bun run typecheck` green in `apps/local-mail`; all sixteen test-plan pins present.
 - [ ] Live: mark-read on the desktop is visible in Gmail's phone app without a local sync pass in between (the fold), and the next `--watch` pass replays it cleanly.
-- [ ] Live: a readonly-era token gets the re-connect message on first write; after `connect`, the same command succeeds.
 - [ ] `LOCAL_MAIL_READ_ONLY=1 local-mail mcp` lists no `modify_labels`; the CLI `modify` verb refuses under the same env.
 - [ ] Grep-level: no new mirror tables, no pending-operation state, `SCHEMA_VERSION` unchanged.
 
