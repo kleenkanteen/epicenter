@@ -1,7 +1,10 @@
 import { Err, Ok, type Result } from 'wellcrafted/result';
-import type { ParsedArgs } from '../cli.ts';
 import { resolveRealm } from '../companies.ts';
-import { type AppConfig, loadConfig } from '../config.ts';
+import {
+	type AppConfig,
+	type CliConfigOverrides,
+	loadConfig,
+} from '../config.ts';
 import { createFileTokenStore, type TokenStore } from '../token-store.ts';
 
 /** Human-friendly "in 42m" / "3m ago" for the auth and status commands. */
@@ -31,12 +34,12 @@ export type CompanyContext = {
  * ambiguous or none is authenticated.
  */
 export function resolveCompany(
-	args: ParsedArgs,
+	overrides: CliConfigOverrides,
 ): Result<CompanyContext, string> {
 	const config = loadConfig({
-		dataDir: args.dataDir,
-		environment: args.environment,
-		realm: args.realm,
+		dataDir: overrides.dataDir,
+		environment: overrides.environment,
+		realm: overrides.realm,
 	});
 	const { data: realmId, error } = resolveRealm(config);
 	if (error !== null) return Err(error);

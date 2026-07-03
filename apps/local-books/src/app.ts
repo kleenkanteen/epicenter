@@ -2,8 +2,8 @@ import { Database } from 'bun:sqlite';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { createQbAccess } from './books/qb-access.ts';
-import type { ParsedArgs } from './cli.ts';
 import { resolveCompany } from './commands/context.ts';
+import type { CliConfigOverrides } from './config.ts';
 import { openBooksDb } from './db.ts';
 import { createApiApp, mintToken, type SyncPassResult } from './http/api.ts';
 import { dbPath } from './paths.ts';
@@ -143,13 +143,12 @@ export function createRequestHandler({
 }
 
 export async function runApp(
-	args: ParsedArgs,
-	options: { noOpen: boolean; port?: number },
+	options: CliConfigOverrides & { noOpen?: boolean; port?: number },
 ): Promise<number> {
 	// Resolve the company the same way `sync`/`status` do: config from flags/env,
 	// then the realm (explicit flag, recorded default, or the sole authenticated
 	// one). Ambiguity is an error, not a silent guess.
-	const { data: company, error } = resolveCompany(args);
+	const { data: company, error } = resolveCompany(options);
 	if (error !== null) {
 		console.error(error);
 		return 1;
