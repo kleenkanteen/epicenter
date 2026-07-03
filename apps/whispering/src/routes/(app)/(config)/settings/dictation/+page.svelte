@@ -10,7 +10,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { SettingSwitch } from '$lib/components/settings';
-	import { polishStatus } from '$lib/operations/run-polish';
+	import { polishDestination, polishStatus } from '$lib/operations/run-polish';
 	import { settings } from '$lib/state/settings.svelte';
 
 	const dictionary = $derived(settings.get('dictionary'));
@@ -19,6 +19,7 @@
 	// the provider is missing so the control never silently reads "on" while the
 	// pipeline ships raw.
 	const polish = $derived(polishStatus());
+	const destination = $derived(polishDestination());
 
 	let newTerm = $state('');
 
@@ -52,7 +53,7 @@
 			<Field.Legend variant="label">Polish</Field.Legend>
 			<Field.Description>
 				An always-on AI pass that fixes grammar and punctuation while keeping
-				your wording. It runs only when an AI key is configured.
+				your wording.
 			</Field.Description>
 			<Field.Group>
 				<SettingSwitch
@@ -60,6 +61,9 @@
 					label="Polish transcripts with AI"
 					description="Turn off for speed mode: the raw transcript ships instantly, with no AI call."
 				/>
+				{#if settings.get('polish.enabled')}
+					<p class="text-muted-foreground text-sm">{destination}</p>
+				{/if}
 
 				{#if polish === 'needs-key'}
 					<div
@@ -67,8 +71,9 @@
 					>
 						<KeyRoundIcon class="mt-0.5 size-4 shrink-0 text-amber-500" />
 						<p>
-							Polish is on but has no AI key, so transcripts still ship raw. <Link
-								href="/settings/api-keys">Add a completion key</Link
+							Polish is on, but the completion provider is not ready, so
+							transcripts still ship raw. <Link href="/settings/api-keys"
+								>Check completion settings</Link
 							> to start cleaning them up.
 						</p>
 					</div>
