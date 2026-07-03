@@ -2,7 +2,6 @@ import { randomBytes } from 'node:crypto';
 import { sValidator } from '@hono/standard-validator';
 import { type } from 'arktype';
 import { Hono } from 'hono';
-import { ApiError } from './api-errors.ts';
 import type { OpenQbClient } from '../books/qb-access.ts';
 import { queryBooks } from '../books/query.ts';
 import {
@@ -20,6 +19,7 @@ import type { AppConfig } from '../config.ts';
 import { entityDef, isKnownEntity } from '../entities.ts';
 import type { SyncOutcome } from '../sync.ts';
 import type { TokenStore } from '../token-store.ts';
+import { ApiError } from './api-errors.ts';
 
 /**
  * The `/api` surface of `local-books app`, as a Hono app. It owns routing, the
