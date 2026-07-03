@@ -371,33 +371,34 @@
 				</div>
 
 				{#if formPreset === null}
-					<div class="overflow-hidden rounded-md border">
-						{#each CONNECTION_PRESETS as preset (preset.id)}
-							<button
-								type="button"
-								class="flex w-full items-center gap-2 px-3 py-2 text-sm outline-none hover:bg-accent focus-visible:bg-accent"
-								onclick={() => choosePreset(preset.id)}
+					<Command.Root class="rounded-md border">
+						<Command.List>
+							{#each CONNECTION_PRESETS as preset (preset.id)}
+								<Command.Item
+									value={preset.label}
+									onSelect={() => choosePreset(preset.id)}
+								>
+									{#if isLocal(preset.baseUrl)}
+										<HardDrive class="size-4 shrink-0 opacity-70" />
+									{:else}
+										<Cloud class="size-4 shrink-0 opacity-70" />
+									{/if}
+									<span class="flex-1">{preset.label}</span>
+									<span class="text-xs text-muted-foreground">
+										{isLocal(preset.baseUrl) ? 'local' : 'cloud'}
+									</span>
+								</Command.Item>
+							{/each}
+							<Command.Separator />
+							<Command.Item
+								value="custom url"
+								onSelect={() => choosePreset('custom')}
 							>
-								{#if isLocal(preset.baseUrl)}
-									<HardDrive class="size-4 shrink-0 opacity-70" />
-								{:else}
-									<Cloud class="size-4 shrink-0 opacity-70" />
-								{/if}
-								<span class="flex-1 text-left">{preset.label}</span>
-								<span class="text-xs text-muted-foreground">
-									{isLocal(preset.baseUrl) ? 'local' : 'cloud'}
-								</span>
-							</button>
-						{/each}
-						<button
-							type="button"
-							class="flex w-full items-center gap-2 border-t px-3 py-2 text-sm outline-none hover:bg-accent focus-visible:bg-accent"
-							onclick={() => choosePreset('custom')}
-						>
-							<Plus class="size-4 shrink-0 opacity-70" />
-							<span class="flex-1 text-left">Custom URL</span>
-						</button>
-					</div>
+								<Plus class="size-4 shrink-0 opacity-70" />
+								<span class="flex-1">Custom URL</span>
+							</Command.Item>
+						</Command.List>
+					</Command.Root>
 				{:else}
 					<div class="space-y-1">
 						<Label for="conn-url" class="text-xs">Base URL</Label>
