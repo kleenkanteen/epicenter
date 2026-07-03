@@ -22,8 +22,8 @@ import { Ok, type Result } from 'wellcrafted/result';
 // they are the credential-shaped cell and grant, internal to auth core.
 // Import them from their source module.
 import type { OAuthTokenGrant, PersistedAuth } from './auth-types.js';
+import { createOAuthAppAuth } from './create-oauth-app-auth.js';
 import type { AuthClient, PersistedAuthStorage } from './index.js';
-import { createOAuthAppAuth } from './index.js';
 import type { OAuthLaunchResult } from './oauth-launchers/contract.js';
 
 const now = 1_000_000;
