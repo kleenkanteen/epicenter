@@ -26,6 +26,15 @@
 - **The type cost of the eventual overlay is already priced.** [ADR-0050](0050-the-inference-contract-is-openai-compatible.md) already made the model id a free string the gateway routes (an unservable id is a runtime error, not a compile error), so overlay-added ids being unbounded strings is consistent, not a regression. The seed keeps its literal union.
 - **Nothing in the client changes.** Custom `/v1/models` discovery, the injected hosted transport, and the custom-before-hosted collision tie-break all stand as [ADR-0060](0060-an-inference-connection-is-a-base-url-and-an-optional-bearer-key.md) left them.
 
+### Refinement (2026-07-03): the overlay read should be query-backed
+
+When the overlay is built, prefer a TanStack Query read over a hand-rolled localStorage cache:
+
+- The hosted query uses `AI_MODELS` as `initialData`. Failed or malformed fetches leave the seed visible, so the group never empties. Cross-session persistence is unnecessary unless the seed-to-overlay blink becomes a real UX problem.
+- The fetched catalog still goes through the overlay guard above: runtime can add ids, but price changes need an explicit server-authority decision (for example, a signed payload or a server-owned app catalog). Do not smuggle that decision into a client cache.
+- The custom lane can use the same query shape later, keyed by each connection's base URL, with `queryFn` = `/v1/models` discovery and `initialData` = the connection's last-discovered ids. That would retire manual refresh state once a query producer exists; until then, the current manual refresh is the smaller fix for stale custom models.
+- **Still open at trigger time:** whether the server owns the per-app catalog subset (a registry) or apps keep client-side curation. A global catalog can replace the seed after validation; per-app subsets need the server to know the app-to-models mapping or the client to keep filtering.
+
 ## Considered alternatives
 
 - **Expose hosted over the gateway's `/v1/models` and drop the catalog.** Rejected: `/v1/models` carries no label, credit price, or app default, so it deletes the reason the hosted lane exists; and it re-couples the catalog to a boot fetch with an offline failure mode for a fact we already own.

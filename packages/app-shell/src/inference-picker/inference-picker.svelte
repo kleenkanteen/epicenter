@@ -66,9 +66,10 @@
 	// malformed), or null when discovery has not failed.
 	let discoveryError = $state<string | null>(null);
 
-	// Which connection is re-discovering its models right now (one at a time), for
-	// the per-group refresh spinner. Null when idle.
-	let refreshingBaseUrl = $state<string | null>(null);
+	// Connections currently re-discovering their models, for per-group refresh
+	// spinners. Usually one entry, but keep the state per URL so overlapping refreshes
+	// cannot clear each other's loading state.
+	let refreshingBaseUrls = $state<string[]>([]);
 
 	// Clear all of the connect form's working state. Called on close so a user who
 	// connected one provider lands back on the preset chooser (not a stale sub-form
@@ -144,9 +145,13 @@
 	// Re-discover a connected endpoint's models in place. Best effort: the group's
 	// list updates reactively when the fresh ids land, and stands on error.
 	async function refreshConnection(baseUrl: string) {
-		refreshingBaseUrl = baseUrl;
-		await connections.refresh(baseUrl);
-		refreshingBaseUrl = null;
+		if (refreshingBaseUrls.includes(baseUrl)) return;
+		refreshingBaseUrls = [...refreshingBaseUrls, baseUrl];
+		try {
+			await connections.refresh(baseUrl);
+		} finally {
+			refreshingBaseUrls = refreshingBaseUrls.filter((url) => url !== baseUrl);
+		}
 	}
 
 	function choosePreset(id: PresetId | 'custom') {
@@ -301,9 +306,10 @@
 							{/each}
 							<Command.Item
 								value="refresh {connection.baseUrl}"
+								disabled={refreshingBaseUrls.includes(connection.baseUrl)}
 								onSelect={() => refreshConnection(connection.baseUrl)}
 							>
-								{#if refreshingBaseUrl === connection.baseUrl}
+								{#if refreshingBaseUrls.includes(connection.baseUrl)}
 									<LoaderCircle class="size-4 animate-spin" />
 								{:else}
 									<RefreshCw class="size-4" />
