@@ -109,9 +109,7 @@
 	);
 
 	const localServiceSearchKeywords = {
-		whispercpp: 'whisper cpp ggml gguf local offline',
-		parakeet: 'nvidia nemo onnx parakeet local offline',
-		moonshine: 'usefulsensors onnx moonshine local offline',
+		local: 'local offline whisper parakeet gguf ggml on-device private',
 	} satisfies Record<
 		Extract<TranscriptionProviderEntry, { location: 'local' }>['id'],
 		string
@@ -375,7 +373,7 @@
 				<Command.Item
 					value="settings"
 					onSelect={() => {
-						goto('/settings/transcription');
+						goto('/settings/processing');
 						combobox.closeAndFocusTrigger();
 					}}
 					class="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground"

@@ -16,7 +16,6 @@ import {
 	SUPPORTED_LANGUAGES,
 	type SupportedLanguage,
 } from '$lib/constants/languages';
-import { WHISPER_MODELS } from '$lib/constants/local-models';
 import { analytics } from '$lib/operations/analytics';
 import { report } from '$lib/report';
 import { services } from '$lib/services';
@@ -54,27 +53,8 @@ const TranscriptionOperationError = defineErrors({
 		message:
 			'Local transcription is only available in the desktop app. Choose a cloud or self-hosted provider on web.',
 	}),
-	LocalModelNotSelected: ({
-		engineDisplayName,
-		kind,
-	}: {
-		engineDisplayName: string;
-		kind: 'file' | 'directory';
-	}) => ({
-		message: `Please select a ${engineDisplayName} model ${kind} in settings.`,
-		engineDisplayName,
-		kind,
-	}),
-	CorruptedModelFile: ({
-		actualSizeMb,
-		expectedSizeMb,
-	}: {
-		actualSizeMb: number;
-		expectedSizeMb: number;
-	}) => ({
-		message: `The model file is ${actualSizeMb}MB but should be ~${expectedSizeMb}MB. This usually happens when a download was interrupted. Please delete and re-download the model.`,
-		actualSizeMb,
-		expectedSizeMb,
+	LocalModelNotSelected: () => ({
+		message: 'Please select a local model in settings.',
 	}),
 });
 
@@ -303,46 +283,11 @@ export async function transcribeAndPersist(
 }
 
 /**
- * Whisper .bin downloads can finish at a smaller-than-expected size when the
- * connection drops mid-stream. The file still loads via whisper.cpp but
- * produces nonsense transcripts. Catalog match is best-effort: only models
- * we recognize from `WHISPER_MODELS` have an expected size to compare, and
- * any filesystem failure passes through (Rust reports load errors itself).
- */
-async function checkWhisperTruncation(
-	modelName: string,
-): Promise<Result<void, TranscriptionError>> {
-	const modelConfig = WHISPER_MODELS.find((m) => m.file.filename === modelName);
-	if (!modelConfig) return Ok(undefined);
-
-	// Rust resolves the entry through any link, stats it, and applies the 90%
-	// completeness rule against the catalog size we pass; an empty filename list
-	// means "the entry is itself the file" (Whisper). A missing/unstattable file
-	// passes through (Rust reports load errors itself).
-	const { data: statuses } = await commands.resolveModelFiles(
-		'whispercpp',
-		modelName,
-		[],
-		[modelConfig.sizeBytes],
-	);
-	const status = statuses?.[0];
-	if (!status || status.size == null) return Ok(undefined);
-
-	if (!status.complete) {
-		return TranscriptionOperationError.CorruptedModelFile({
-			actualSizeMb: Math.round(status.size / 1000000),
-			expectedSizeMb: Math.round(modelConfig.sizeBytes / 1000000),
-		});
-	}
-	return Ok(undefined);
-}
-
-/**
  * Warm the selected local model the instant a capture begins, so the cold
  * load (~1 s) overlaps the user's speech instead of being paid after they
  * stop. Called fire-and-forget from the manual and VAD start paths.
  *
- * No-op unless we are on desktop with a local provider selected and a model
+ * No-op unless we are on desktop with the local provider selected and a model
  * chosen: cloud/self-hosted have no local model to load, and web has no Rust.
  * It resolves the model exactly the way `transcribeLocally` does, so it warms
  * the same model transcription will use. Failures are swallowed on purpose:
@@ -356,13 +301,11 @@ export function prewarmLocalModel(): void {
 	const selectedService = settings.get('transcription.service');
 	if (!isLocalProviderId(selectedService)) return;
 
-	const provider = PROVIDERS[selectedService];
-	const modelName = deviceConfig.get(provider.modelConfigKey);
-	if (!modelName) return;
+	const modelId = deviceConfig.get(PROVIDERS[selectedService].modelConfigKey);
+	if (!modelId) return;
 
 	void commands.prewarmModel({
-		engine: selectedService,
-		modelName,
+		modelId,
 		language: null,
 		initialPrompt: null,
 	});
@@ -394,24 +337,14 @@ async function transcribeLocally(
 	if (!isLocalProviderId(selectedService)) {
 		return TranscriptionOperationError.NoTranscriptionServiceSelected();
 	}
-	const provider = PROVIDERS[selectedService];
 
-	// Rust owns model resolution and validation: it joins this model name under
-	// its models directory and reports missing or invalid models with
-	// user-facing messages. The FE keeps two checks Rust cannot make as well:
-	// "nothing selected yet" (instant, no IPC) and the catalog-size truncation
-	// check (the expected sizes live in the JS catalog).
-	const modelName = deviceConfig.get(provider.modelConfigKey);
-	if (!modelName) {
-		return TranscriptionOperationError.LocalModelNotSelected({
-			engineDisplayName: provider.label,
-			kind: provider.modelKind,
-		});
-	}
-
-	if (selectedService === 'whispercpp') {
-		const truncated = await checkWhisperTruncation(modelName);
-		if (truncated.error) return truncated;
+	// Rust owns model resolution and validation: it resolves this catalog id to a
+	// shared-HF-cache path and reports an unknown or not-downloaded model with a
+	// user-facing message. The FE keeps the one check Rust cannot make as well:
+	// "nothing selected yet" (instant, no IPC).
+	const modelId = deviceConfig.get(PROVIDERS[selectedService].modelConfigKey);
+	if (!modelId) {
+		return TranscriptionOperationError.LocalModelNotSelected();
 	}
 
 	// Read-at-use: the per-call spec is built right here, where it is consumed,
@@ -424,8 +357,7 @@ async function transcribeLocally(
 		settings.get('dictionary'),
 	);
 	return commands.transcribeRecording(recordingId, {
-		engine: selectedService,
-		modelName,
+		modelId,
 		language: language === 'auto' ? null : language,
 		initialPrompt: prompt || null,
 	});

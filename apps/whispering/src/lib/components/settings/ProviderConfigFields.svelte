@@ -221,9 +221,25 @@
 	} from '$lib/state/device-config.svelte';
 	import { secrets } from '$lib/state/secrets.svelte';
 
-	let { provider }: { provider: ProviderConfigId } = $props();
+	let {
+		provider,
+		secretsOnly = false,
+	}: {
+		provider: ProviderConfigId;
+		/**
+		 * When true, render only the secret (API key) fields, hiding optional
+		 * endpoint or base-URL overrides. The home onboarding uses this to ask for
+		 * just the one required credential; the full field set (and the
+		 * provider/model choice) lives on Privacy & Processing.
+		 */
+		secretsOnly?: boolean;
+	} = $props();
 
-	const fields = $derived(PROVIDER_FIELDS[provider]);
+	const fields = $derived(
+		secretsOnly
+			? PROVIDER_FIELDS[provider].filter((field) => isSecretKey(field.configKey))
+			: PROVIDER_FIELDS[provider],
+	);
 
 	/**
 	 * This component is the one settings surface that reads and writes provider API

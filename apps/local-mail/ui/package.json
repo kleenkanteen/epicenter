@@ -29,6 +29,7 @@
 		"vite": "catalog:"
 	},
 	"dependencies": {
+		"@epicenter/constants": "workspace:*",
 		"@tanstack/svelte-query": "catalog:",
 		"hono": "catalog:"
 	},

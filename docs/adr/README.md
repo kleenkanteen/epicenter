@@ -171,5 +171,6 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0101](0101-native-typed-row-projection-views-are-earned-serially-board-is-first.md) | Native typed-row projection views are earned serially; board is first | Accepted |
 | [0102](0102-vocab-stores-verbatim-terms-under-a-human-owned-note-and-refuses-glosses-srs-and-provenance.md) | Vocab stores verbatim terms under a human-owned note and refuses glosses, SRS, and provenance | Accepted |
 | [0103](0103-stt-overspend-is-guarded-in-trigger-order-never-by-media-preflight.md) | STT overspend is bounded by cheap guards in trigger order, never by media preflight or a reservation lock | Accepted |
+| [0104](0104-hosted-models-are-a-build-time-seed-not-discovered-the-runtime-overlay-is-deferred.md) | Hosted models are a build-time seed catalog, not a discovered one; a runtime overlay is a named deferral | Accepted |
 
 When you add an ADR, add its row here.

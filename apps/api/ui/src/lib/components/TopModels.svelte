@@ -47,7 +47,13 @@
 				{/each}
 			</div>
 		{:else if usage.isError}
-			<p class="text-sm text-destructive">Failed to load model data.</p>
+			<Empty.Root class="py-4 border-0" role="alert">
+				<Empty.Content>
+					<Empty.Title class="text-destructive"
+						>Failed to load model data</Empty.Title
+					>
+				</Empty.Content>
+			</Empty.Root>
 		{:else if sortedModels.length === 0}
 			<Empty.Root class="py-4 border-0">
 				<Empty.Content>

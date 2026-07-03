@@ -31,7 +31,9 @@
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Plus from '@lucide/svelte/icons/plus';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { InferenceConnections } from './connections.svelte.js';
 
 	type Props = {
@@ -64,6 +66,11 @@
 	// A tailored, per-variant message when discovery fails (401 vs unreachable vs
 	// malformed), or null when discovery has not failed.
 	let discoveryError = $state<string | null>(null);
+
+	// Connections currently re-discovering their models, for per-group refresh
+	// spinners. Usually one entry, but keep the set keyed per URL so overlapping
+	// refreshes cannot clear each other's loading state.
+	const refreshingBaseUrls = new SvelteSet<string>();
 
 	// Clear all of the connect form's working state. Called on close so a user who
 	// connected one provider lands back on the preset chooser (not a stale sub-form
@@ -134,6 +141,18 @@
 	function selectModel(id: string) {
 		onSelectModel(id);
 		open = false;
+	}
+
+	// Re-discover a connected endpoint's models in place. Best effort: the group's
+	// list updates reactively when the fresh ids land, and stands on error.
+	async function refreshConnection(baseUrl: string) {
+		if (refreshingBaseUrls.has(baseUrl)) return;
+		refreshingBaseUrls.add(baseUrl);
+		try {
+			await connections.refresh(baseUrl);
+		} finally {
+			refreshingBaseUrls.delete(baseUrl);
+		}
 	}
 
 	function choosePreset(id: PresetId | 'custom') {
@@ -286,6 +305,18 @@
 									</span>
 								</Command.Item>
 							{/each}
+							<Command.Item
+								value="refresh {connection.baseUrl}"
+								disabled={refreshingBaseUrls.has(connection.baseUrl)}
+								onSelect={() => refreshConnection(connection.baseUrl)}
+							>
+								{#if refreshingBaseUrls.has(connection.baseUrl)}
+									<LoaderCircle class="size-4 animate-spin" />
+								{:else}
+									<RefreshCw class="size-4" />
+								{/if}
+								<span class="text-xs">Refresh {connectionLabel(connection)}</span>
+							</Command.Item>
 							<Command.Item
 								value="remove {connection.baseUrl}"
 								onSelect={() => connections.remove(connection.baseUrl)}

@@ -8,7 +8,7 @@
 	const items = [
 		{ title: 'General', href: '/settings' },
 		{ title: 'Recording', href: '/settings/recording' },
-		{ title: 'Transcription', href: '/settings/transcription' },
+		{ title: 'Privacy & Processing', href: '/settings/processing' },
 		{ title: 'Dictation', href: '/settings/dictation' },
 		{
 			title: 'Shortcuts',
@@ -16,8 +16,7 @@
 			activePathPrefix: '/settings/shortcuts',
 		},
 		{ title: 'Sound', href: '/settings/sound' },
-		{ title: 'API Keys', href: '/settings/api-keys' },
-		{ title: 'Privacy & Analytics', href: '/settings/analytics' },
+		{ title: 'Analytics', href: '/settings/analytics' },
 		{ title: 'Account', href: '/settings/account' },
 	] satisfies {
 		title: string;

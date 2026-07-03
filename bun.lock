@@ -208,6 +208,7 @@
       "name": "@epicenter/local-mail",
       "version": "0.0.1",
       "dependencies": {
+        "@epicenter/constants": "workspace:*",
         "@hono/standard-validator": "catalog:",
         "@modelcontextprotocol/sdk": "catalog:",
         "arktype": "catalog:",
@@ -225,6 +226,7 @@
       "name": "@epicenter/local-mail-ui",
       "version": "0.0.1",
       "dependencies": {
+        "@epicenter/constants": "workspace:*",
         "@tanstack/svelte-query": "catalog:",
         "hono": "catalog:",
       },

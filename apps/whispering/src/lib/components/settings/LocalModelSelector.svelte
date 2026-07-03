@@ -4,238 +4,116 @@
 	import * as Card from '@epicenter/ui/card';
 	import * as Collapsible from '@epicenter/ui/collapsible';
 	import * as Empty from '@epicenter/ui/empty';
-	import * as Field from '@epicenter/ui/field';
 	import * as Item from '@epicenter/ui/item';
 	import { Progress } from '@epicenter/ui/progress';
 	import { toast } from '@epicenter/ui/sonner';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Download from '@lucide/svelte/icons/download';
-	import FolderOpen from '@lucide/svelte/icons/folder-open';
 	import HardDriveDownload from '@lucide/svelte/icons/hard-drive-download';
-	import Link from '@lucide/svelte/icons/link';
+	import Trash from '@lucide/svelte/icons/trash-2';
 	import X from '@lucide/svelte/icons/x';
-	import type { Snippet } from 'svelte';
-	import {
-		type LocalModelConfig,
-		modelEntryName,
-		RECOMMENDED_MODELS,
-	} from '$lib/constants/local-models';
-	import {
-		deleteModelEntry,
-		linkModelEntry,
-		type ModelEntry,
-		revealModelsFolder,
-	} from '$lib/services/transcription/local-model-folder';
-	import { PROVIDERS } from '$lib/services/transcription/providers';
-	import { modelFolder } from '$lib/state/model-folder.svelte';
-	import {
-		announceModelDelete,
-		announceModelDownload,
-	} from './local-model-toasts';
-	import LocalModelDownloadCard from './LocalModelDownloadCard.svelte';
+	import { localModels } from '$lib/state/local-models.svelte';
+	import type { ModelInfo } from '$lib/tauri/commands';
 
 	/**
-	 * One happy path per engine: an empty-state hero that downloads the
-	 * recommended model, or a summary row showing the active one. The full
-	 * list (catalog download cards, custom folder entries, the folder help
-	 * box) collapses behind "All models". The list is backed by the engine's
-	 * models folder; the bindable value is the active entry's name.
+	 * The one local-model picker: a flat list of Rust-catalog GGUF models, each
+	 * with its download / cancel / activate / delete affordance. Rust owns the
+	 * catalog, capabilities, and shared-HF-cache download; this view reads the
+	 * `localModels` store and binds the selection (a model id) as `value`.
 	 */
-	type LocalModelSelectorProps = {
-		/**
-		 * Pre-built models available for download. All entries share one
-		 * engine; at least one is required because the engine decides which
-		 * models folder backs this list.
-		 */
-		models: readonly [LocalModelConfig, ...LocalModelConfig[]];
-
-		/** Component title displayed in the card header */
-		title: string;
-
-		/** Component description displayed below the title */
-		description: string;
-
-		/** Bindable name of the active entry in the engine's models folder */
-		value: string;
-
-		/** Optional footer content (download sources, naming notes) */
-		footer?: Snippet;
-	};
-
 	let {
-		models,
-		title,
-		description,
 		value = $bindable(),
-		footer,
-	}: LocalModelSelectorProps = $props();
+	}: {
+		/** Bindable catalog id of the active model. */
+		value: string;
+	} = $props();
 
-	const engine = $derived(models[0].engine);
-	const modelKind = $derived(PROVIDERS[engine].modelKind);
-
-	// The one shared folder store for this engine: the single source of disk state
-	// (the scan) and in-flight downloads. Every view (this selector, each catalog
-	// row) reads it, so a download started anywhere updates them all reactively;
-	// nothing here keeps a private scan that could go stale.
-	const folder = $derived(modelFolder(models));
-
-	// Re-scan on mount and when the engine changes. The store persists across
-	// mounts, so an explicit refresh here catches a folder that changed while it
-	// was unmounted; window focus catches changes made while mounted.
+	// Re-scan on mount and window focus: the shared HF cache can change outside
+	// the app (another HF tool, a manual delete), so the download status stays
+	// honest.
 	$effect(() => {
-		folder.refresh();
+		localModels.refresh();
 	});
 
-	const customEntries = $derived(folder.customEntries());
+	/** The recommended model; the empty-state hero builds its action around it. */
+	const recommended = $derived(
+		localModels.models.find((model) => model.recommended) ??
+			localModels.models[0],
+	);
+	const recommendedState = $derived(
+		recommended ? localModels.stateOf(recommended) : null,
+	);
 
-	// "Missing" means nothing in the folder backs the active selection. One truth:
-	// the store's scan, which is global and reactive, so a model downloaded after
-	// the user navigated away no longer reads as missing and needs no special-case.
+	/** The active model, when the selection resolves to a downloaded catalog one. */
+	const activeModel = $derived(localModels.find(value) ?? null);
+	const anyDownloaded = $derived(
+		localModels.models.some((model) => model.downloaded),
+	);
+
+	// "Missing" means the selection points at a model that is not downloaded (an
+	// unknown id, or one deleted from the cache).
 	const isSelectionMissing = $derived(
-		!!value && folder.loaded && !folder.present(value),
+		!!value && localModels.loaded && !activeModel?.downloaded,
 	);
 
-	/** The catalog model behind the active entry, when it is a catalog one. */
-	const activeCatalogModel = $derived(
-		models.find((model) => modelEntryName(model) === value) ?? null,
-	);
-
-	const activeCustomEntry = $derived(
-		customEntries.find((entry) => entry.name === value) ?? null,
-	);
-
-	/** The engine's default download; the hero builds its action around it. */
-	const recommended = $derived(RECOMMENDED_MODELS[engine]);
-
-	// Aliased so the template narrows the union per branch. Shared with the catalog
-	// row for the same model, so a download started here shows its progress there.
-	const recommendedState = $derived(folder.stateOf(recommended));
-
-	/** Whether the full list behind "All models" is expanded. */
 	let allModelsOpen = $state(false);
 
-	// A user who already brought their own model gets the list, not a download
-	// pitch: when nothing is active and the first scan finds custom entries, start
-	// with the list open instead of the hero. One-shot, gated on the first load.
-	let hasDecidedInitialOpen = false;
-	$effect(() => {
-		if (hasDecidedInitialOpen || !folder.loaded) return;
-		hasDecidedInitialOpen = true;
-		if (!value && customEntries.length > 0) allModelsOpen = true;
-	});
-
-	async function downloadRecommendedModel() {
-		// The store re-scans itself on completion, so `value` lands on a present
-		// entry instead of flashing "Selected model is missing".
-		const downloaded = announceModelDownload(await folder.download(recommended));
-		if (!downloaded) return;
-		value = downloaded;
+	function formatSize(bytes: number | null): string {
+		if (!bytes) return '';
+		const mb = bytes / 1_000_000;
+		return mb >= 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${Math.round(mb)} MB`;
 	}
 
-	async function cancelRecommendedDownload() {
-		await folder.cancel(recommended);
-	}
-
-	/** Point the engine's selection at an on-disk entry by name. */
-	function activate(name: string) {
-		value = name;
+	function activate(model: ModelInfo) {
+		value = model.id;
 		toast.success('Model activated');
 	}
 
-	async function openModelsFolder() {
-		const { error } = await revealModelsFolder(engine);
-		if (error) {
-			toast.error('Failed to open models folder', {
-				description: error.message,
+	async function download(model: ModelInfo) {
+		const result = await localModels.download(model);
+		if (!result) return;
+		if (result.error) {
+			toast.error('Failed to download model', {
+				description: result.error.message,
 			});
+			return;
 		}
+		value = result.data.modelId;
+		toast.success(
+			result.data.outcome === 'already-installed'
+				? 'Model already downloaded and activated'
+				: 'Model downloaded and activated',
+		);
 	}
 
-	/**
-	 * Link a model already on disk instead of downloading a copy. Picks a file
-	 * (Whisper) or directory (Parakeet/Moonshine), then has Rust validate the
-	 * engine shape and create a symlink entry named after the source. The native
-	 * side is the trust boundary: an incompatible pick fails with its reason.
-	 */
-	async function linkModel() {
-		const { open } = await import('@tauri-apps/plugin-dialog');
-		const { basename } = await import('@tauri-apps/api/path');
-		const selected = await open({
-			directory: modelKind === 'directory',
-			multiple: false,
-			title: `Link a ${title}`,
-			filters:
-				modelKind === 'directory'
-					? undefined
-					: [{ name: 'Whisper model', extensions: ['bin', 'gguf', 'ggml'] }],
-		});
-		if (typeof selected !== 'string') return;
-
-		const entryName = await basename(selected);
-		const { error } = await linkModelEntry({
-			engine,
-			entryName,
-			sourcePath: selected,
-		});
+	async function remove(model: ModelInfo) {
+		const { error } = await localModels.remove(model);
 		if (error) {
-			// A name collision is the common dedup case: an external copy shares the
-			// model's canonical name with one already installed. Name it and open the
-			// folder, since the folder is the truth this list mirrors: delete the
-			// existing one there and the onfocus rescan picks up the relink.
-			if (error.name === 'EntryExists') {
-				toast.error(`"${error.entry}" is already installed`, {
-					description: `Whispering won't overwrite it. To use this copy instead, delete "${error.entry}" from Whispering's models folder, then link it again.`,
-					action: {
-						label: 'Open Models Folder',
-						onClick: () => void openModelsFolder(),
-					},
-				});
-				return;
-			}
-			toast.error('Could not link that model', { description: error.message });
+			toast.error('Failed to delete model', { description: error.message });
 			return;
 		}
-		// Rescan before selecting so the new link is already in the list when
-		// `value` flips (no transient "Selected model is missing" flash).
-		await folder.refresh();
-		value = entryName;
-		toast.success('Model linked', {
-			description: `${entryName} now points to your file. Deleting it later removes only the link.`,
-		});
-	}
-
-	async function removeEntry(entry: ModelEntry) {
-		if (!announceModelDelete(await deleteModelEntry({ engine, name: entry.name })))
-			return;
-		if (value === entry.name) value = '';
-		await folder.refresh();
+		if (value === model.id) value = '';
+		toast.success('Model deleted');
 	}
 </script>
 
-<svelte:window onfocus={folder.refresh} />
+<svelte:window onfocus={localModels.refresh} />
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title class="text-lg">{title}</Card.Title>
-		<Card.Description>{description}</Card.Description>
+		<Card.Title class="text-lg">Local Model</Card.Title>
+		<Card.Description>
+			Download a model to transcribe on this device: private, offline, and
+			free. Models are stored in your shared Hugging Face cache.
+		</Card.Description>
 	</Card.Header>
 	<Card.Content class="space-y-3">
-		{#if value && !isSelectionMissing}
+		{#if value && !isSelectionMissing && activeModel}
 			<Item.Root variant="outline">
 				<Item.Content>
-					<Item.Title>
-						{activeCatalogModel ? activeCatalogModel.name : value}
-					</Item.Title>
-					<Item.Description>
-						{#if activeCatalogModel}
-							{activeCatalogModel.size}
-						{:else if activeCustomEntry?.linked}
-							Your model (linked)
-						{:else}
-							Your model
-						{/if}
-					</Item.Description>
+					<Item.Title>{activeModel.name}</Item.Title>
+					<Item.Description>{formatSize(activeModel.sizeBytes)}</Item.Description>
 				</Item.Content>
 				<Item.Actions>
 					<Badge class="text-xs">Active</Badge>
@@ -248,14 +126,14 @@
 					</Button>
 				</Item.Actions>
 			</Item.Root>
-		{:else if !value && customEntries.length === 0}
+		{:else if !anyDownloaded && recommended && recommendedState}
 			<Empty.Root class="py-8">
 				<Empty.Media variant="icon">
 					<HardDriveDownload class="size-5" />
 				</Empty.Media>
 				<Empty.Title>No local model installed</Empty.Title>
 				<Empty.Description>
-					Runs on this device — private, offline, and free. Download the
+					Runs on this device: private, offline, and free. Download the
 					recommended model to start transcribing.
 				</Empty.Description>
 				<Empty.Content>
@@ -268,21 +146,17 @@
 							<Button
 								variant="ghost"
 								size="sm"
-								onclick={cancelRecommendedDownload}
+								onclick={() => localModels.cancel(recommended)}
 								disabled={recommendedState.cancelling}
 							>
 								<X class="size-4" />
 								{recommendedState.cancelling ? 'Cancelling…' : 'Cancel'}
 							</Button>
 						</div>
-					{:else if recommendedState.type === 'ready'}
-						<Button onclick={() => activate(modelEntryName(recommended))}>
-							Activate {recommended.name}
-						</Button>
 					{:else}
-						<Button onclick={downloadRecommendedModel}>
+						<Button onclick={() => download(recommended)}>
 							<Download class="size-4" />
-							Download {recommended.name} ({recommended.size})
+							Download {recommended.name} ({formatSize(recommended.sizeBytes)})
 						</Button>
 					{/if}
 				</Empty.Content>
@@ -292,11 +166,10 @@
 		{#if isSelectionMissing}
 			<div class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
 				<p class="text-sm font-medium text-amber-600 dark:text-amber-400">
-					Selected model is missing
+					Selected model is not downloaded
 				</p>
 				<p class="mt-1 text-sm text-muted-foreground">
-					"{value}" is no longer in the models folder. Pick another model under
-					All models, or add yours back and activate it.
+					Download it again under All models, or pick another model.
 				</p>
 			</div>
 		{/if}
@@ -305,88 +178,82 @@
 			<Collapsible.Trigger
 				class="flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/50 [&[data-state=open]>svg]:rotate-180"
 			>
-				All models ({models.length + customEntries.length})
+				All models ({localModels.models.length})
 				<ChevronDown
 					class="size-4 shrink-0 text-muted-foreground transition-transform"
 				/>
 			</Collapsible.Trigger>
 			<Collapsible.Content class="space-y-3 pt-3">
-				{#each models as model (model.id)}
-					<LocalModelDownloadCard
-						{folder}
-						{model}
-						bind:value
-						recommended={models.length > 1 && model.id === recommended.id}
-					/>
-				{/each}
-
-				{#each customEntries as entry (entry.name)}
-					{@const isActive = value === entry.name}
+				{#each localModels.models as model (model.id)}
+					{@const state = localModels.stateOf(model)}
+					{@const isActive = value === model.id && model.downloaded}
 					<div
-						class="flex items-center gap-3 p-3 rounded-lg border {isActive
+						class="flex items-center gap-3 rounded-lg border p-3 {isActive
 							? 'border-primary bg-primary/5'
 							: ''}"
 					>
-						<div class="flex-1">
+						<div class="min-w-0 flex-1">
 							<div class="flex items-center gap-2">
-								<span class="font-medium">{entry.name}</span>
+								<span class="font-medium">{model.name}</span>
+								{#if model.recommended}
+									<Badge variant="outline" class="text-xs">Recommended</Badge>
+								{/if}
 								{#if isActive}
 									<Badge variant="default" class="text-xs">Active</Badge>
+								{:else if model.downloaded}
+									<Badge variant="secondary" class="text-xs">Downloaded</Badge>
 								{/if}
 							</div>
 							<div class="text-sm text-muted-foreground">
-								{entry.linked ? 'Your model (linked)' : 'Your model'}
+								{model.description} · {formatSize(model.sizeBytes)}
 							</div>
 						</div>
 
 						<div class="flex items-center gap-2">
-							{#if isActive}
-								<Button size="sm" variant="default" disabled>
-									<CheckIcon class="size-4 mr-1" />
-									Activated
-								</Button>
-							{:else}
+							{#if state.type === 'downloading'}
+								<span class="text-sm text-muted-foreground tabular-nums">
+									{state.progress}%
+								</span>
 								<Button
 									size="sm"
-									variant="outline"
-									onclick={() => activate(entry.name)}
+									variant="ghost"
+									onclick={() => localModels.cancel(model)}
+									disabled={state.cancelling}
 								>
-									Activate
+									<X class="size-4" />
+									{state.cancelling ? 'Cancelling…' : 'Cancel'}
+								</Button>
+							{:else if state.type === 'ready'}
+								{#if isActive}
+									<Button size="sm" variant="default" disabled>
+										<CheckIcon class="mr-1 size-4" />
+										Activated
+									</Button>
+								{:else}
+									<Button
+										size="sm"
+										variant="outline"
+										onclick={() => activate(model)}
+									>
+										Activate
+									</Button>
+								{/if}
+								<Button size="sm" variant="ghost" onclick={() => remove(model)}>
+									<Trash class="size-4" />
+								</Button>
+							{:else}
+								<Button size="sm" onclick={() => download(model)}>
+									<Download class="mr-1 size-4" />
+									Download
 								</Button>
 							{/if}
-							<Button
-								size="sm"
-								variant="ghost"
-								onclick={() => removeEntry(entry)}
-							>
-								<X class="size-4" />
-							</Button>
 						</div>
 					</div>
-				{/each}
 
-				<div class="rounded-lg border bg-muted/50 p-4 space-y-3">
-					<Field.Description>
-						Have your own model? Link a {modelKind === 'directory'
-							? 'model directory'
-							: 'model file (.bin, .gguf, or .ggml)'} from anywhere on disk and it
-						appears in this list, without copying a second copy. Or drop one into
-						the models folder yourself.
-					</Field.Description>
-					<div class="flex flex-wrap gap-2">
-						<Button variant="outline" size="sm" onclick={linkModel}>
-							<Link class="size-4 mr-2" />
-							Link a model
-						</Button>
-						<Button variant="outline" size="sm" onclick={openModelsFolder}>
-							<FolderOpen class="size-4 mr-2" />
-							Open Models Folder
-						</Button>
-					</div>
-					{#if footer}
-						{@render footer()}
+					{#if state.type === 'downloading' && state.progress > 0}
+						<Progress value={state.progress} class="h-2" />
 					{/if}
-				</div>
+				{/each}
 			</Collapsible.Content>
 		</Collapsible.Root>
 	</Card.Content>
