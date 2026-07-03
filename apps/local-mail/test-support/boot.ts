@@ -1,6 +1,5 @@
 /**
- * Shared boot for the Local Mail write harness. Both `smoke.ts` (headless API
- * driver) and `browser-smoke.ts` (Chrome driver) stand up the exact same safe
+ * Shared boot for the Local Mail write harness. `smoke.ts` stands up the safe
  * stack through here, so the safety-critical wiring lives in one place:
  *
  *   throwaway mirror copy (forged creds)  +  mock Gmail  +  `local-mail up`

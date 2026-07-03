@@ -13,9 +13,10 @@
  *
  *   bun run apps/local-mail/test-support/smoke.ts
  *
- * For the browser-only affordances (undo toast, catching-up chip, shortcuts
- * overlay, keyboard dispatch) use ./browser-smoke.ts. Both are LOCAL tooling,
- * deliberately not wired into CI: they need a real connected mirror to copy from.
+ * The browser-only affordances (undo toast, catching-up chip, shortcuts
+ * overlay, keyboard dispatch) are verified by hand against the SPA. This is
+ * LOCAL tooling, deliberately not wired into CI: it needs a real connected
+ * mirror to copy from.
  */
 import { bootHarness, fingerprintReal, readModifyLog } from './boot.ts';
 

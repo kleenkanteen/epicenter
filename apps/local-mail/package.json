@@ -24,7 +24,6 @@
 	},
 	"devDependencies": {
 		"@types/bun": "catalog:",
-		"puppeteer-core": "^25.3.0",
 		"typescript": "catalog:"
 	},
 	"license": "AGPL-3.0-or-later"

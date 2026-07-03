@@ -6,7 +6,7 @@ label, mark read/unread, star) against a **mock Gmail backend** and a
 touching real Gmail or your real mirror.
 
 This is developer tooling, not CI. Nothing here runs in the pipeline: the smoke
-needs a real connected mirror to copy from, and the browser loop needs a human.
+needs a real connected mirror to copy from.
 
 ## Safety model
 
@@ -37,10 +37,8 @@ Four independent guarantees keep this from touching anything real:
 | `mock-gmail.ts`    | Mock Gmail REST server. Reads the copy's SQLite to know current labels, applies the modify, logs it, 403s everything else. |
 | `setup-copy.sh`    | Copies the real mirror to `LM_TEST_DIR` and forges dummy credentials. |
 | `fingerprint.sh`   | Hashes the real mirror's durable state, for the before/after safety proof. |
-| `boot.ts`          | Shared boot used by the smokes and `harness.ts`: stands up copy + mock + `up` on ephemeral ports and hands back the launch coordinates. The one owner of the safety-critical wiring. |
-| `harness.ts`       | Boots mock + `up` against the copy and prints a launch URL, then stays alive for the manual browser loop. |
+| `boot.ts`          | Shared boot used by `smoke.ts` (and any manual session): stands up copy + mock + `up` on ephemeral ports and hands back the launch coordinates. The one owner of the safety-critical wiring. |
 | `smoke.ts`         | Headless one-shot: fires one real write through `/api/messages/modify`, asserts it hit the mock, asserts the real mirror is unchanged. |
-| `browser-smoke.ts` | Browser one-shot: drives system Chrome to verify the write UX (undo toast, catching-up chip, shortcuts overlay, keyboard dispatch). |
 
 Runtime artifacts (the copy, the modify log, server logs) live under
 `LM_TEST_DIR`, never inside the repo.
@@ -56,51 +54,28 @@ bun run apps/local-mail/test-support/smoke.ts
 On success it prints `SMOKE PASS`, the mock log line for the write, and confirms
 the real mirror fingerprint is unchanged. Exits non-zero on any failure.
 
-## Automated browser smoke (write UX)
+## Manual write-UX check (browser)
 
-Drives the already-installed system Chrome (via `puppeteer-core`, no browser
-download) to verify the four affordances the API smoke can't see, then tears
-itself down:
-
-```sh
-bun run apps/local-mail/test-support/browser-smoke.ts
-```
-
-It boots the mock in `folded:false` mode and asserts, against the live DOM and
-the mock modify log:
-
-1. `?` opens the keyboard-shortcuts overlay
-2. clicking Archive shows an "Archived / Undo" toast, and Undo fires the inverse
-   write (add INBOX) at the mock
-3. the `folded:false` write flips the StatusBar mirror chip to "catching up"
-4. the `e` key dispatches an archive through the same path, hitting the mock
-
-It builds the SPA first if `ui/dist` is missing, and confirms the real mirror
-fingerprint is unchanged. Set `CHROME_PATH` to override the browser binary.
-
-## Manual browser loop (write UX)
-
-For the affordances a script can't see (undo toast, keyboard triage, the
-"catching up" mirror chip), drive the real SPA:
+The affordances the API smoke can't assert (undo toast, keyboard triage, the
+"catching up" mirror chip, the shortcuts overlay) are verified by hand. `boot.ts`
+exports `bootHarness()`, which stands up the same safe stack (copy + mock + `up`)
+and returns a launch URL; call it from a scratch script or the REPL, open the
+URL, and poke the SPA. Build the SPA first or the page is blank:
 
 ```sh
-# 1. build the SPA once (rebuild after UI changes)
 bun run --cwd apps/local-mail/ui build
-
-# 2. boot the harness; open the printed URL in a browser
-bun run apps/local-mail/test-support/harness.ts                 # folds immediately
-# bun run apps/local-mail/test-support/harness.ts --catching-up  # exercises the "catching up" chip
 ```
 
-The bootstrap token is single-use, so re-run `harness.ts` for each fresh browser
-session. Watch the writes land:
+Watch the writes land:
 
 ```sh
 tail -f /tmp/local-mail-harness/modify-log.jsonl
 ```
 
-Read-only smoke against your **real** mirror (no copy, no writes; a dead Gmail
-base no-ops the sync loop and every action button is disabled):
+## Read-only smoke against your real mirror
+
+No copy, no writes; a dead Gmail base no-ops the sync loop and every action
+button is disabled:
 
 ```sh
 bun run --cwd apps/local-mail/ui build
@@ -112,7 +87,7 @@ LOCAL_MAIL_READ_ONLY=1 LOCAL_MAIL_GMAIL_API_BASE=http://127.0.0.1:9 \
 
 ```sh
 bash apps/local-mail/test-support/fingerprint.sh > /tmp/lm-before.txt
-# ...run harness.ts + a browser write test, or smoke.ts...
+# ...run smoke.ts or a manual bootHarness session...
 diff /tmp/lm-before.txt <(bash apps/local-mail/test-support/fingerprint.sh)   # must be empty
 ```
 
@@ -127,4 +102,3 @@ one separately from a fingerprint window.
 | `LM_TEST_DIR`         | `/tmp/local-mail-harness` | where the throwaway copy + logs live |
 | `LOCAL_MAIL_REAL_DIR` | macOS Application Support dir | the mirror to copy/fingerprint |
 | `LOCAL_MAIL_ACCOUNT`  | the sole connected account | which account to forge (required if you have more than one) |
-| `CHROME_PATH`         | system Chrome | browser binary for `browser-smoke.ts` |
