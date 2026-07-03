@@ -42,6 +42,23 @@ export type InferenceConfigKey =
 	| (typeof INFERENCE)[InferenceProviderId]['apiKeyConfigKey']
 	| NonNullable<(typeof INFERENCE)[InferenceProviderId]['endpointConfigKey']>;
 
+/**
+ * The honest name for where completion text goes. Custom's label
+ * ("Custom (OpenAI-compatible)") names an API shape, not a destination, so the
+ * resolved host is the truthful thing to show; a canonical provider names
+ * itself. This is the single resolver ADR-0101 promises: the Processing
+ * readiness line and the pipeline privacy sentence both call it, so every
+ * surface names the same place and they can never drift apart.
+ */
+function resolveTextDestination(
+	provider: InferenceProviderId,
+	target: CompletionTarget,
+): string {
+	return provider === 'Custom'
+		? hostFromBaseUrl(target.baseUrl)
+		: INFERENCE[provider].label;
+}
+
 type DeviceConfigReader = (key: InferenceConfigKey) => string;
 
 export function resolveCompletionStateFromConfig({
@@ -104,13 +121,7 @@ export function describeCompletionReadiness(
 	if (state.textStaysOnDevice) {
 		return { ready: true, summary: 'Transcript text stays on this device.' };
 	}
-	// Custom's label ("Custom (OpenAI-compatible)") names a shape, not a
-	// destination, so the resolved host is the honest thing to show; a canonical
-	// provider names itself.
-	const destination =
-		provider === 'Custom'
-			? hostFromBaseUrl(state.target.baseUrl)
-			: INFERENCE[provider].label;
+	const destination = resolveTextDestination(provider, state.target);
 	return { ready: true, summary: `Transcript text is sent to ${destination}.` };
 }
 
@@ -140,14 +151,12 @@ export function describePolishDestination(
 		return 'Audio and transcript text both stay on this device.';
 	}
 
-	// Text leaves this device below. Name the resolved host for Custom (whose
-	// label names an API shape, not a destination), mirroring
-	// `describeCompletionReadiness` so every surface names the same place. A
-	// canonical provider names itself.
-	const textDestination =
-		completionProvider === 'Custom'
-			? hostFromBaseUrl(state.target.baseUrl)
-			: INFERENCE[completionProvider].label;
+	// Text leaves this device below; name where it goes through the shared
+	// resolver so this sentence and the Processing surface never disagree.
+	const textDestination = resolveTextDestination(
+		completionProvider,
+		state.target,
+	);
 
 	if (audio.onDevice) {
 		return `Audio is transcribed on-device, but Polish sends transcript text to ${textDestination}.`;

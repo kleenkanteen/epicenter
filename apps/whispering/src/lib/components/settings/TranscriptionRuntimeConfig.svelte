@@ -9,7 +9,6 @@
 	import { Link } from '@epicenter/ui/link';
 	import * as Select from '@epicenter/ui/select';
 	import { Textarea } from '@epicenter/ui/textarea';
-	import type { Snippet } from 'svelte';
 	import CopyablePre from '$lib/components/copyable/CopyablePre.svelte';
 	import { SUPPORTED_LANGUAGES_OPTIONS } from '$lib/constants/languages';
 	import {
@@ -29,17 +28,10 @@
 	import ProviderConfigFields from './ProviderConfigFields.svelte';
 	import TranscriptionServiceSelect from './TranscriptionServiceSelect.svelte';
 
-	let {
-		id = 'selected-transcription-service',
-		label = 'Transcription Service',
-		description,
-		class: className,
-	}: {
-		id?: string;
-		label?: string;
-		description?: string | Snippet;
-		class?: string;
-	} = $props();
+	// The Audio stage of the capture pipeline: the transcription destination the
+	// recording is sent to. Like {@link CompletionRuntimeConfig}, this surface owns
+	// its own routing decision and takes no props, so the Privacy & Processing page
+	// renders it as `<TranscriptionRuntimeConfig />`.
 
 	const destination = $derived(
 		describeTranscriptionDestinationFromConfig({
@@ -101,11 +93,10 @@
 	);
 </script>
 
-<Field.Group class={className}>
+<Field.Group>
 	<TranscriptionServiceSelect
-		{id}
-		{label}
-		{description}
+		id="selected-transcription-service"
+		label="Service"
 		bind:selected={() => settings.get('transcription.service'),
 			(selected) =>
 				settings.set('transcription.service', selected)}
