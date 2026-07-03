@@ -103,7 +103,10 @@ describe('parseViews (declared views against the contract)', () => {
 		);
 		expect(views.map((view) => view.id)).toEqual(['pipeline', 'by-platform']);
 		expect(errors).toEqual([
-			{ view: 'broken', message: 'groupBy field "nope" is not in this contract' },
+			{
+				view: 'broken',
+				message: 'groupBy field "nope" is not in this contract',
+			},
 		]);
 	});
 
@@ -183,7 +186,7 @@ describe('parseViews (declared views against the contract)', () => {
 		]);
 	});
 
-	test('a typo\'d key on a view rejects the entry (closed shape)', () => {
+	test("a typo'd key on a view rejects the entry (closed shape)", () => {
 		const { fields } = setup();
 		const { views, errors } = parseViews(
 			[{ id: 'pipeline', type: 'board', groupBy: 'status', colums: ['idea'] }],
@@ -202,7 +205,9 @@ describe('parseViews (declared views against the contract)', () => {
 			fields,
 		);
 		expect(errors).toEqual([]);
-		expect(views).toEqual([{ id: 'pipeline', type: 'board', groupBy: 'status' }]);
+		expect(views).toEqual([
+			{ id: 'pipeline', type: 'board', groupBy: 'status' },
+		]);
 	});
 
 	test('query shape is validated: dir, sort keys, and unknown keys', () => {
@@ -234,7 +239,9 @@ describe('groupRowsByField (board buckets)', () => {
 			row('a.md', { status: 'posted' }),
 			row('b.md', { status: 'idea' }),
 		];
-		expect(groupRowsByField(rows, 'status', ['idea', 'drafting', 'posted'])).toEqual([
+		expect(
+			groupRowsByField(rows, 'status', ['idea', 'drafting', 'posted']),
+		).toEqual([
 			{ value: 'idea', rows: [rows[1]!] },
 			{ value: 'drafting', rows: [] },
 			{ value: 'posted', rows: [rows[0]!] },

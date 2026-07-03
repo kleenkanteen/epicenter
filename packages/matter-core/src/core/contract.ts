@@ -173,7 +173,14 @@ export function validateContract(
 	// diagnostic, valid entries survive, and the contract itself never errors over them.
 	const { views, errors: viewErrors } = parseViews(raw.views, fields);
 
-	return Ok({ fields, untyped, unmatchedOptional, searchable, views, viewErrors });
+	return Ok({
+		fields,
+		untyped,
+		unmatchedOptional,
+		searchable,
+		views,
+		viewErrors,
+	});
 }
 
 /**

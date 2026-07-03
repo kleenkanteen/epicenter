@@ -149,7 +149,8 @@ export function installMocks(): void {
 				FILES[fileName] = content;
 				window.__E2E_WRITES__?.push({ fileName, content });
 				// Echo the change the way the watcher would, so any view reading the folder stays current.
-				if (folderChannel) push(folderChannel, [{ kind: 'content', fileName, text: content }]);
+				if (folderChannel)
+					push(folderChannel, [{ kind: 'content', fileName, text: content }]);
 				return null;
 			}
 

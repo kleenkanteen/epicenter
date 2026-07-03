@@ -142,7 +142,10 @@ describe('validateContract (the matter.json gate)', () => {
 			{ id: 'pipeline', type: 'board', groupBy: 'status' },
 		]);
 		expect(data.viewErrors).toEqual([
-			{ view: 'broken', message: 'groupBy field "nope" is not in this contract' },
+			{
+				view: 'broken',
+				message: 'groupBy field "nope" is not in this contract',
+			},
 		]);
 	});
 

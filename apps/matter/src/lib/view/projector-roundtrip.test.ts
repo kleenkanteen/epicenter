@@ -13,6 +13,8 @@
  * just this query with `where: "status = '<bucket>'"`.
  */
 
+import { Database } from 'bun:sqlite';
+import { expect, test } from 'bun:test';
 import {
 	buildStemQuery,
 	buildView,
@@ -21,8 +23,6 @@ import {
 	projectToSqlite,
 	type Row,
 } from '@epicenter/matter-core';
-import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
 
 const TABLE = 'tasks';
 // `searchable` defaults to body + text fields, so the projector also emits an FTS5 index and trigger;
@@ -35,19 +35,21 @@ function card(stem: string, status: string): Row {
 		`${stem}.md`,
 		`---\nstatus: ${status}\n---\n# ${stem}\n`,
 	);
-	if (error) throw new Error(`fixture ${stem} failed to parse: ${error.message}`);
+	if (error)
+		throw new Error(`fixture ${stem} failed to parse: ${error.message}`);
 	return data;
 }
 
 /** Project the rows into a fresh SQLite db, exactly as a settled watcher batch would. */
 function project(db: Database, rows: Row[]): void {
 	const view = buildView(rows, loadContract(CONTRACT));
-	if (view.mode !== 'typed') throw new Error('fixture contract should be typed');
-	const { schema, insert, rows: tuples } = projectToSqlite(
-		TABLE,
-		view.contract,
-		view.conformance,
-	);
+	if (view.mode !== 'typed')
+		throw new Error('fixture contract should be typed');
+	const {
+		schema,
+		insert,
+		rows: tuples,
+	} = projectToSqlite(TABLE, view.contract, view.conformance);
 	// The schema is a multi-statement DROP + CREATE script (base table + FTS5 index + trigger, whose
 	// body carries its own semicolons), so it runs as one script, not per-split-statement.
 	db.run(schema);
