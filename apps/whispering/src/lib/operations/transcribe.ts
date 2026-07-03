@@ -12,10 +12,7 @@ import {
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import { customFetch } from '#platform/http';
 import { tauri } from '#platform/tauri';
-import {
-	SUPPORTED_LANGUAGES,
-	type SupportedLanguage,
-} from '$lib/constants/languages';
+import type { SupportedLanguage } from '$lib/constants/languages';
 import { analytics } from '$lib/operations/analytics';
 import { report } from '$lib/report';
 import { services } from '$lib/services';
@@ -24,8 +21,8 @@ import { ElevenLabsTranscriptionServiceLive } from '$lib/services/transcription/
 import { MistralTranscriptionServiceLive } from '$lib/services/transcription/cloud/mistral';
 import {
 	isLocalProviderId,
+	type LocalProviderId,
 	PROVIDERS,
-	type TranscriptionServiceId,
 	type UploadProviderId,
 } from '$lib/services/transcription/providers';
 import { deviceConfig } from '$lib/state/device-config.svelte';
@@ -46,9 +43,6 @@ import { commands } from '$lib/tauri/commands';
 export type TranscriptionError = AnyTaggedError;
 
 const TranscriptionOperationError = defineErrors({
-	NoTranscriptionServiceSelected: () => ({
-		message: 'Please select a transcription service in settings.',
-	}),
 	LocalTranscriptionUnavailableOnWeb: () => ({
 		message:
 			'Local transcription is only available in the desktop app. Choose a cloud or self-hosted provider on web.',
@@ -165,16 +159,6 @@ const UPLOAD_DISPATCH = {
 	},
 } satisfies Record<UploadProviderId, UploadDispatch>;
 
-function getSpokenLanguage(): SupportedLanguage {
-	const language = settings.get('transcription.language');
-	for (const supportedLanguage of SUPPORTED_LANGUAGES) {
-		if (supportedLanguage === language) {
-			return supportedLanguage;
-		}
-	}
-	return 'auto';
-}
-
 /**
  * Materialize the bytes to upload for a cloud transcription. The recording
  * is already saved under `recordings/{id}.{ext}`; in Tauri we round-trip
@@ -226,10 +210,12 @@ export async function transcribeAudio(
 		provider: selectedService,
 	});
 
-	const transcriptionResult =
-		PROVIDERS[selectedService].location === 'local'
-			? await transcribeLocally(recordingId, selectedService)
-			: await transcribeViaUpload(recordingId, selectedService);
+	// Narrow the id here, once. The type guard splits `selectedService` into the
+	// local vs upload id sets, so each path receives an already-narrowed id and
+	// neither has to re-check the case the other owns.
+	const transcriptionResult = isLocalProviderId(selectedService)
+		? await transcribeLocally(recordingId, selectedService)
+		: await transcribeViaUpload(recordingId, selectedService);
 
 	const duration = Date.now() - startTime;
 	if (transcriptionResult.error) {
@@ -328,14 +314,10 @@ function withDictionaryTerms(prompt: string, dictionary: string[]): string {
 
 async function transcribeLocally(
 	recordingId: string,
-	selectedService: TranscriptionServiceId,
+	selectedService: LocalProviderId,
 ): Promise<Result<string, TranscriptionError>> {
 	if (!tauri) {
 		return TranscriptionOperationError.LocalTranscriptionUnavailableOnWeb();
-	}
-
-	if (!isLocalProviderId(selectedService)) {
-		return TranscriptionOperationError.NoTranscriptionServiceSelected();
 	}
 
 	// Rust owns model resolution and validation: it resolves this catalog id to a
@@ -349,8 +331,8 @@ async function transcribeLocally(
 
 	// Read-at-use: the per-call spec is built right here, where it is consumed,
 	// so there is no ambient config to go stale. `auto` language and an empty
-	// prompt map to null (the wire's "unset"). The Dictionary terms fold into the
-	// prompt so local recognition spells them the user's way.
+	// prompt map to the wire's "unset" (an omitted optional field). The Dictionary
+	// terms fold into the prompt so local recognition spells them the user's way.
 	const language = settings.get('transcription.language');
 	const prompt = withDictionaryTerms(
 		settings.get('transcription.prompt'),
@@ -358,22 +340,15 @@ async function transcribeLocally(
 	);
 	return commands.transcribeRecording(recordingId, {
 		modelId,
-		language: language === 'auto' ? null : language,
-		initialPrompt: prompt || null,
+		language: language === 'auto' ? undefined : language,
+		initialPrompt: prompt || undefined,
 	});
 }
 
 async function transcribeViaUpload(
 	recordingId: string,
-	selectedService: TranscriptionServiceId,
+	selectedService: UploadProviderId,
 ): Promise<Result<string, TranscriptionError>> {
-	// `transcribeAudio` routes local providers to `transcribeLocally`, so a local id
-	// is the impossible case here; this guard also narrows `selectedService` off the
-	// local ids so it indexes `UPLOAD_DISPATCH`.
-	if (isLocalProviderId(selectedService)) {
-		return TranscriptionOperationError.NoTranscriptionServiceSelected();
-	}
-
 	const { data: audio, error: loadError } =
 		await loadForCloudUpload(recordingId);
 	if (loadError) return Err(loadError);
@@ -383,7 +358,7 @@ async function transcribeViaUpload(
 	// and the server answers 401, surfaced as a RequestFailed carrying that detail.
 	// The Dictionary terms fold into the prompt so cloud recognition spells them
 	// the user's way.
-	const spokenLanguage = getSpokenLanguage();
+	const spokenLanguage = settings.get('transcription.language');
 	const prompt = withDictionaryTerms(
 		settings.get('transcription.prompt'),
 		settings.get('dictionary'),
