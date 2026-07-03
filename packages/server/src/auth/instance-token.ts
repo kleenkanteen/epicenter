@@ -34,10 +34,10 @@
  */
 
 import { Principal } from '@epicenter/auth';
-import { OAuthError } from './oauth-errors.js';
 import { INSTANCE_PRINCIPAL_ID } from '@epicenter/identity';
 import { Ok } from 'wellcrafted/result';
 import type { ResolveBearerPrincipal } from '../types.js';
+import { OAuthError } from './oauth-errors.js';
 
 /**
  * Constant-time equality for two strings of any length.

@@ -1,5 +1,5 @@
-import type { OAuthError } from './oauth-errors.js';
 import type { Context } from 'hono';
+import type { OAuthError } from './oauth-errors.js';
 
 /**
  * Map an {@link OAuthError} to the protected-resource HTTP failure response.
