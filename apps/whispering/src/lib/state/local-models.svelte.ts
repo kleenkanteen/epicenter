@@ -113,7 +113,7 @@ function createLocalModels() {
 
 			// Already downloaded? A fresh scan is the one truth; skip the transfer.
 			await refresh();
-			if (this.find(model.id)?.downloaded) {
+			if ((models ?? []).find((m) => m.id === model.id)?.downloaded) {
 				transfers.delete(model.id);
 				return Ok({ modelId: model.id, outcome: 'already-installed' });
 			}
