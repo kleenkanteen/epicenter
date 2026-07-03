@@ -5,15 +5,14 @@
 	} from '@epicenter/app-shell/agent-chat';
 	import { complete } from '@epicenter/client';
 	import { Button } from '@epicenter/ui/button';
-	import { Markdown } from '@epicenter/ui/markdown';
 	import { agentMessageText } from '@epicenter/workspace/agent';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { buildHarvestPrompt, parseHarvestCandidates } from '$lib/harvest';
-	import { pinyinRomanizer } from '$lib/romanize/pinyin';
 	import { auth } from '$platform/auth';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
 	import { termsState } from '$lib/state/terms.svelte';
 	import DictationButton from './DictationButton.svelte';
+	import ReadingMarkdown from './ReadingMarkdown.svelte';
 
 	let {
 		active,
@@ -171,11 +170,7 @@
 				<div class="whitespace-pre-wrap">{agentMessageText(msg)}</div>
 			{:else}
 				<div data-term-source>
-					<Markdown
-						content={agentMessageText(msg)}
-						romanizer={pinyinRomanizer}
-						{showReadings}
-					/>
+					<ReadingMarkdown passage={agentMessageText(msg)} {showReadings} />
 				</div>
 
 				{#if harvest?.messageId === msg.id}
