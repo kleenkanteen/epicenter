@@ -1,3 +1,4 @@
+import { API_ROUTES } from '@epicenter/constants/api-routes';
 import type { ApiApp } from '@epicenter/local-books/http/api';
 import { hc, type InferRequestType } from 'hono/client';
 
@@ -33,7 +34,7 @@ async function bootstrap(): Promise<void> {
 		'',
 		window.location.pathname + window.location.search,
 	);
-	const res = await fetch('/api/session', {
+	const res = await fetch(API_ROUTES.session.pattern, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({ token: bootstrapToken }),
