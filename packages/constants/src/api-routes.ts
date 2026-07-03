@@ -43,6 +43,10 @@ export const API_ROUTES = {
 	session: {
 		pattern: '/api/session',
 		url: (baseURL: string) => `${stripTrailing(baseURL)}/api/session`,
+		stream: {
+			pattern: '/api/session/stream',
+			url: (baseURL: string) => `${stripTrailing(baseURL)}/api/session/stream`,
+		},
 	},
 	/**
 	 * Content-addressed blob store. POST mints an upload ticket (presigned R2
