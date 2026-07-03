@@ -12,6 +12,7 @@
 		"typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
 	},
 	"devDependencies": {
+		"@epicenter/local-mail": "workspace:*",
 		"@epicenter/ui": "workspace:*",
 		"@lucide/svelte": "catalog:",
 		"@sveltejs/adapter-static": "catalog:",
@@ -28,7 +29,8 @@
 		"vite": "catalog:"
 	},
 	"dependencies": {
-		"@tanstack/svelte-query": "catalog:"
+		"@tanstack/svelte-query": "catalog:",
+		"hono": "catalog:"
 	},
 	"license": "AGPL-3.0-or-later"
 }
