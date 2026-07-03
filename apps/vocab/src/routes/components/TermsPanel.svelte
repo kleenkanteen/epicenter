@@ -2,42 +2,40 @@
 	import { Button } from '@epicenter/ui/button';
 	import { Input } from '@epicenter/ui/input';
 	import * as Sidebar from '@epicenter/ui/sidebar';
-	import type { Word, WordId } from '@epicenter/vocab';
+	import type { Term, TermId } from '@epicenter/vocab';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash';
-	import { wordsState } from '$lib/state/words.svelte';
+	import { termsState } from '$lib/state/terms.svelte';
 
-	/** The one-way cycle a status button steps through on each click. */
-	const NEXT_STATUS: Record<Word['status'], Word['status']> = {
-		new: 'learning',
-		learning: 'known',
-		known: 'new',
+	/** The one-way cycle a stage button steps through on each click. */
+	const NEXT_STAGE: Record<Term['stage'], Term['stage']> = {
+		new: 'understood',
+		understood: 'usable',
+		usable: 'new',
 	};
 
 	let newTerm = $state('');
-	let newGloss = $state('');
 
-	function addWord() {
-		if (wordsState.add({ term: newTerm, gloss: newGloss })) {
+	function addTerm() {
+		if (termsState.save(newTerm)) {
 			newTerm = '';
-			newGloss = '';
 		}
 	}
 
-	function cycleStatus(id: WordId, status: Word['status']) {
-		wordsState.setStatus(id, NEXT_STATUS[status]);
+	function cycleStage(id: TermId, stage: Term['stage']) {
+		termsState.setStage(id, NEXT_STAGE[stage]);
 	}
 
-	function commitGloss(word: Word, gloss: string) {
-		if (gloss !== word.gloss) wordsState.setGloss(word.id, gloss);
+	function commitNote(term: Term, note: string) {
+		if (note !== term.note) termsState.setNote(term.id, note);
 	}
 </script>
 
 <Sidebar.Group class="group-data-[collapsible=icon]:hidden">
 	<Sidebar.GroupLabel>
-		<span>Words</span>
+		<span>Terms</span>
 		<span class="ml-auto text-xs text-muted-foreground">
-			known: {wordsState.knownCount}
+			usable: {termsState.usableCount}
 		</span>
 	</Sidebar.GroupLabel>
 	<Sidebar.GroupContent>
@@ -45,45 +43,44 @@
 			class="flex items-center gap-1 px-2 py-1"
 			onsubmit={(event) => {
 				event.preventDefault();
-				addWord();
+				addTerm();
 			}}
 		>
 			<Input bind:value={newTerm} placeholder="Term" class="h-7 text-sm" />
-			<Input bind:value={newGloss} placeholder="Gloss" class="h-7 text-sm" />
-			<Button type="submit" size="icon-sm" variant="outline" aria-label="Add word">
+			<Button type="submit" size="icon-sm" variant="outline" aria-label="Add term">
 				<PlusIcon class="size-3.5" />
 			</Button>
 		</form>
 
-		{#if wordsState.words.length === 0}
+		{#if termsState.terms.length === 0}
 			<p class="px-2 py-1 text-xs text-muted-foreground">
-				Tap a word in the chat to save it.
+				Select text in the chat to save it as a term.
 			</p>
 		{:else}
 			<Sidebar.Menu>
-				{#each wordsState.words as word (word.id)}
+				{#each termsState.terms as term (term.id)}
 					<Sidebar.MenuItem>
 						<div class="flex w-full items-center gap-1.5 px-2 py-1">
-							<span class="shrink-0 font-medium">{word.term}</span>
+							<span class="shrink-0 font-medium">{term.text}</span>
 							<input
 								class="min-w-0 flex-1 bg-transparent text-xs text-muted-foreground outline-none"
-								value={word.gloss}
-								placeholder="Gloss"
-								onblur={(event) => commitGloss(word, event.currentTarget.value)}
+								value={term.note}
+								placeholder="Note"
+								onblur={(event) => commitNote(term, event.currentTarget.value)}
 							/>
 							<button
 								type="button"
 								class="shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] text-muted-foreground uppercase hover:bg-accent"
-								title="Cycle status: new, learning, known"
-								onclick={() => cycleStatus(word.id, word.status)}
+								title="Cycle stage: new, understood, usable"
+								onclick={() => cycleStage(term.id, term.stage)}
 							>
-								{word.status}
+								{term.stage}
 							</button>
 						</div>
 						<Sidebar.MenuAction
 							showOnHover
-							aria-label="Delete word"
-							onclick={() => wordsState.remove(word.id)}
+							aria-label="Delete term"
+							onclick={() => termsState.remove(term.id)}
 						>
 							<TrashIcon class="size-3.5" />
 						</Sidebar.MenuAction>

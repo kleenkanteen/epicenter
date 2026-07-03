@@ -5,22 +5,10 @@ import { pinyin } from 'pinyin-pro';
 const CJK_REGEX = /[一-鿿㐀-䶿豈-﫿]+/g;
 
 /**
- * Word-level segmenter for Chinese, constructed once at module scope: splits a
- * CJK run into the words a learner would tap as one unit (e.g. 你好 -> `['你好']`,
- * 学习中文 -> `['学习', '中文']`).
- */
-const wordSegmenter = new Intl.Segmenter('zh-Hans', { granularity: 'word' });
-
-/**
  * Per-character pinyin for Chinese runs; every other run (Latin, punctuation,
  * whitespace, HTML entities) passes through with no reading. The returned
  * segments cover the whole input in order, so concatenating their `text`
  * reproduces it exactly.
- *
- * Each CJK character segment also carries `term`: the containing word, from
- * {@link wordSegmenter}. A tap anywhere in a multi-character word (via
- * `Ruby`'s tap target) captures the whole word, not just the tapped
- * character.
  */
 export const pinyinRomanizer: Romanizer = (text) => {
 	const segments: Segment[] = [];
@@ -34,15 +22,12 @@ export const pinyinRomanizer: Romanizer = (text) => {
 		const run = match[0];
 		const readings = pinyin(run, { type: 'array' });
 		let charIndex = 0;
-		for (const { segment: word } of wordSegmenter.segment(run)) {
-			for (const char of word) {
-				segments.push({
-					text: char,
-					reading: readings[charIndex] ?? '',
-					term: word,
-				});
-				charIndex++;
-			}
+		for (const char of run) {
+			segments.push({
+				text: char,
+				reading: readings[charIndex] ?? '',
+			});
+			charIndex++;
 		}
 		lastIndex = match.index + run.length;
 		match = regex.exec(text);

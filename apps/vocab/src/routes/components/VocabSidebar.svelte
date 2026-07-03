@@ -10,7 +10,7 @@
 	import { auth } from '$platform/auth';
 	import { dictation } from '$lib/state/dictation.svelte';
 	import { vocab } from '$lib/vocab';
-	import WordsPanel from './WordsPanel.svelte';
+	import TermsPanel from './TermsPanel.svelte';
 
 	let {
 		conversations,
@@ -85,7 +85,7 @@
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 
-		<WordsPanel />
+		<TermsPanel />
 	</Sidebar.Content>
 
 	<Sidebar.Rail />

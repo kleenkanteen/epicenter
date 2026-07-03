@@ -94,30 +94,32 @@ export const VOCAB_DICTATION_LANGUAGE = 'en';
 export type VocabMessage = AgentMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Words
+// Terms
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Branded word id: a nanoid minted when a word is captured. */
-export type WordId = Id & Brand<'WordId'>;
+/** Branded term id: a nanoid minted when a term is saved. */
+export type TermId = Id & Brand<'TermId'>;
 
-/** Mint a unique {@link WordId}. */
-export const generateWordId = (): WordId => generateId<WordId>();
+/** Mint a unique {@link TermId}. */
+export const generateTermId = (): TermId => generateId<TermId>();
 
 /**
- * The words table: the user-curated word store. One pool, no decks. `status`
- * is the one mastery signal a learner tracks (new/learning/known); `notes` and
- * `lastPracticedAt` arrive in later phases as additive versioned migrations.
+ * The terms table: the user-curated store of language units of any length
+ * (words, phrases, chengyu) captured by selection. One pool, no decks.
+ * `stage` is the one acquisition dial (new: saved because you did not know
+ * it; understood: you comprehend it; usable: you can produce it). `note` is
+ * human-owned: no code path machine-writes it.
  */
-export const wordsTable = defineTable({
-	id: field.string<WordId>(),
-	term: field.string(),
-	gloss: field.string(),
-	status: field.select(['new', 'learning', 'known']),
+export const termsTable = defineTable({
+	id: field.string<TermId>(),
+	text: field.string(),
+	note: field.string(),
+	stage: field.select(['new', 'understood', 'usable']),
 	createdAt: field.instant(),
 });
 
-/** One word row. */
-export type Word = InferTableRow<typeof wordsTable>;
+/** One term row. */
+export type Term = InferTableRow<typeof termsTable>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Workspace Factory
@@ -137,7 +139,7 @@ export const vocabWorkspace = defineWorkspace({
 	name: 'vocab',
 	tables: {
 		conversations: conversationsTable,
-		words: wordsTable,
+		terms: termsTable,
 	},
 	kv: {
 		showPinyin: defineKv(Type.Boolean(), () => true),

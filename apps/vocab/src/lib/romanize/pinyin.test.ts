@@ -21,12 +21,14 @@ describe('pinyinRomanizer', () => {
 		expect(chinese.map((s) => s.text)).toEqual(['你', '好']);
 	});
 
-	test('Chinese characters carry their containing word as the tap term', () => {
+	test('each Chinese character is its own segment with its own reading', () => {
 		const segments = pinyinRomanizer('我学习中文');
 		const xue = segments.find((s) => s.text === '学');
 		const xi = segments.find((s) => s.text === '习');
 
-		expect(xue?.term).toBe('学习');
-		expect(xi?.term).toBe('学习');
+		expect(xue).toEqual({ text: '学', reading: xue?.reading });
+		expect(xi).toEqual({ text: '习', reading: xi?.reading });
+		expect(xue?.reading).toBeTruthy();
+		expect(xi?.reading).toBeTruthy();
 	});
 });
