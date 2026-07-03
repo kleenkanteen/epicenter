@@ -302,8 +302,8 @@ describe('local-books app /api', () => {
 			}),
 		);
 		expect(res.status).toBe(403);
-		expect((await res.json()) as { error: string }).toMatchObject({
-			error: expect.stringContaining('read-only'),
+		expect((await res.json()) as { error: { message: string } }).toMatchObject({
+			error: { message: expect.stringContaining('read-only') },
 		});
 	});
 

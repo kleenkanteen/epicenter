@@ -23,13 +23,11 @@
 	// token has lapsed (browse still works, sync will fail), "empty" before the
 	// first pull.
 	const tone = $derived(
-		!status
+		!status || !status.mirrorBuilt
 			? 'bg-muted-foreground'
-			: !status.mirrorBuilt
-				? 'bg-muted-foreground'
-				: status.accessToken?.valid || status.refreshToken?.valid
-					? 'bg-emerald-500'
-					: 'bg-amber-500',
+			: status.accessToken?.valid || status.refreshToken?.valid
+				? 'bg-emerald-500'
+				: 'bg-amber-500',
 	);
 	const label = $derived(
 		!status
