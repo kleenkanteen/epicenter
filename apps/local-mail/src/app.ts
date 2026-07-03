@@ -8,7 +8,7 @@ import { syncMailbox } from './sync.ts';
 /**
  * `local-mail app`: one Bun process that serves the triage SPA and its `/api`
  * over `127.0.0.1`, while the same process keeps the mirror fresh through the
- * sync loop. The security model is the up-shell spec's, condensed:
+ * sync loop. The security model is the loopback shell spec's, condensed:
  *
  * - A single-use bootstrap token rides in the URL fragment (never the query
  *   string, so it never lands in a request line or access log). The SPA reads
@@ -34,7 +34,7 @@ type LockHandle = { db: Database; release(): void };
 
 /**
  * A dedicated `lock.db` held with `BEGIN EXCLUSIVE` for the process lifetime,
- * so a second `up` for the same account is refused instantly. `flock` has no
+ * so a second `app` for the same account is refused instantly. `flock` has no
  * Bun API and an `O_EXCL` lockfile is stale-on-crash; the fcntl lock a live
  * SQLite transaction holds is released by the kernel on `kill -9`.
  */

@@ -101,7 +101,7 @@ bun run src/bin.ts app
 
 `app` runs the sync loop and serves the triage SPA (`ui/`) plus a same-origin
 `/api` on `127.0.0.1`, then prints `http://127.0.0.1:PORT/#token=...` and opens
-it. The tab is the app. Security is the up-shell spec's: a single-use bootstrap
+it. The tab is the app. Security is the loopback shell spec's: a single-use bootstrap
 token rides in the URL fragment and is exchanged once at `POST /api/session`
 for a per-launch session bearer (kept in sessionStorage); every request is
 Host-checked first; the write route is the one `POST /api/messages/modify`

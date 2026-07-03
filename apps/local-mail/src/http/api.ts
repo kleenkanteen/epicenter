@@ -26,7 +26,7 @@ import { type SyncDeps, syncMailbox } from '../sync.ts';
  */
 
 /** Bound online guessing by another local user against the exchange endpoint. */
-export const MAX_FAILED_EXCHANGES = 25;
+const MAX_FAILED_EXCHANGES = 25;
 
 /** 256 bits of CSPRNG, base64url: well past the spec's 128-bit floor. */
 export function mintToken(): string {
@@ -85,7 +85,9 @@ export function createApiApp(deps: ApiDeps) {
 		// The skip is an explicit path check, not a registration-order trick, so
 		// it stays correct wherever this middleware sits in the chain.
 		.use('/api/*', async (c, next) => {
-			if (c.req.path === '/api/session') return next();
+			if (c.req.path === '/api/session' && c.req.method === 'POST') {
+				return next();
+			}
 			const header = c.req.header('authorization');
 			const bearer = header?.startsWith('Bearer ')
 				? header.slice('Bearer '.length)

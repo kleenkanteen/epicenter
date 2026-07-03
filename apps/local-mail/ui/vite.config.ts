@@ -7,7 +7,7 @@ import { defineConfig } from 'vite';
 // the SPA and proxies `/api` to the running app process; the proxy injects the
 // dev bearer (`LOCAL_MAIL_TOKEN`) server-side and rewrites Host via
 // `changeOrigin`, so the app server's Host check and bearer check both pass
-// without any credential ever reaching the browser (up-shell spec, Dev mode).
+// without any credential ever reaching the browser (loopback shell spec, Dev mode).
 const SPA_DEV_PORT = 5177;
 
 export default defineConfig(({ command }) => {

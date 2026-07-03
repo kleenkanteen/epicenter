@@ -71,9 +71,6 @@ const base =
 	typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
 const client = hc<ApiApp>(base, { fetch: authedFetch });
 
-/** The typed client, exported so `types.ts` derives the wire shapes from it. */
-export type ApiClient = typeof client;
-
 async function toError(res: Response): Promise<Error> {
 	const body = (await res.json().catch(() => null)) as {
 		error?: string;
