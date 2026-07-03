@@ -21,13 +21,11 @@
 	import { createCopyFn } from '$lib/utils/createCopyFn';
 	import DownloadRecordingButton from './actions/DownloadRecordingButton.svelte';
 	import TranscribeRecordingButton from './actions/TranscribeRecordingButton.svelte';
-	import TransformationPicker from './actions/TransformationPicker.svelte';
-	import ViewTransformationRunsDialog from './actions/ViewTransformationRunsDialog.svelte';
 
 	/**
 	 * The single detail surface for one recording: play it back, read and edit
-	 * its transcript and metadata, run transcription or a transformation,
-	 * download it, copy the transcript, or delete it.
+	 * its transcript and metadata, run transcription, download it, copy the
+	 * transcript, or delete it.
 	 *
 	 * The opener is supplied by the caller via the `trigger` snippet, so the
 	 * same modal can be reached from the transcript cell (the textarea preview)
@@ -91,6 +89,10 @@
 		enabled: isDialogOpen,
 	}));
 
+	const deliveredTranscript = $derived(
+		workingCopy.polishedTranscript ?? workingCopy.transcript,
+	);
+
 	function promptUserConfirmLeave() {
 		if (!isWorkingCopyDirty) {
 			isDialogOpen = false;
@@ -126,6 +128,10 @@
 			recordedAt: snapshot.recordedAt,
 			recordedAtZone: snapshot.recordedAtZone,
 			transcript: snapshot.transcript,
+			polishedTranscript:
+				snapshot.transcript === recording.transcript
+					? recording.polishedTranscript
+					: null,
 		});
 
 		if (error) {
@@ -165,7 +171,7 @@
 		<Modal.Header>
 			<Modal.Title>{recording.title || 'Untitled recording'}</Modal.Title>
 			<Modal.Description>
-				Play it back, edit the transcript, transcribe, transform, or download.
+				Play it back, edit the transcript, transcribe, or download.
 			</Modal.Description>
 		</Modal.Header>
 
@@ -178,8 +184,29 @@
 				></audio>
 			{/if}
 
+			{#if workingCopy.polishedTranscript}
+				<div class="space-y-2">
+					<div class="flex items-center justify-between gap-2">
+						<Label for="delivered-transcript">Delivered transcript</Label>
+						<CopyButton
+							text={workingCopy.polishedTranscript}
+							copyFn={createCopyFn('delivered transcript')}
+							variant="outline"
+						/>
+					</div>
+					<Textarea
+						id="delivered-transcript"
+						value={workingCopy.polishedTranscript}
+						readonly
+						rows={6}
+					/>
+				</div>
+			{/if}
+
 			<div class="space-y-2">
-				<Label for="transcript">Transcript</Label>
+				<Label for="transcript">
+					{workingCopy.polishedTranscript ? 'Original transcript' : 'Transcript'}
+				</Label>
 				<Textarea
 					id="transcript"
 					value={workingCopy.transcript}
@@ -197,18 +224,6 @@
 			<div class="flex flex-wrap gap-2">
 				<TranscribeRecordingButton
 					{recording}
-					variant="outline"
-					size="sm"
-					showLabel
-				/>
-				<TransformationPicker
-					recordingId={recording.id}
-					variant="outline"
-					size="sm"
-					showLabel
-				/>
-				<ViewTransformationRunsDialog
-					recordingId={recording.id}
 					variant="outline"
 					size="sm"
 					showLabel
@@ -288,11 +303,11 @@
 				Close
 			</Button>
 			<CopyButton
-				text={workingCopy.transcript}
+				text={deliveredTranscript}
 				copyFn={createCopyFn('transcript')}
 				variant="outline"
 				size="default"
-				disabled={!workingCopy.transcript.trim()}
+				disabled={!deliveredTranscript.trim()}
 			>
 				Copy
 			</CopyButton>

@@ -51,7 +51,6 @@
 	import { deleteRecordingsWithConfirmation } from '$lib/operations/recordings';
 	import { type Recording, recordings } from '$lib/state/recordings.svelte';
 	import { createCopyFn } from '$lib/utils/createCopyFn';
-	import LatestTransformationRunOutputByRecordingId from './LatestTransformationRunOutputByRecordingId.svelte';
 	import RecordingTranscriptCell from './RecordingTranscriptCell.svelte';
 	import RenderAudioUrl from './RenderAudioUrl.svelte';
 	import TranscriptionStatusBadge from './TranscriptionStatusBadge.svelte';
@@ -99,6 +98,10 @@
 		() => rpc.transcription.transcribeRecordings.options,
 	);
 
+	function displayTranscript(recording: Recording): string {
+		return recording.polishedTranscript ?? recording.transcript;
+	}
+
 	const columns = [
 		{
 			id: 'select',
@@ -114,7 +117,7 @@
 			enableHiding: false,
 			filterFn: (row, _columnId, filterValue) => {
 				const title = String(row.getValue('title'));
-				const transcript = String(row.getValue('transcript'));
+				const transcript = displayTranscript(row.original);
 				return (
 					title.toLowerCase().includes(filterValue.toLowerCase()) ||
 					transcript.toLowerCase().includes(filterValue.toLowerCase())
@@ -156,7 +159,8 @@
 			cell: formattedCell((recording) => recording.recordedAtZone),
 		},
 		{
-			accessorKey: 'transcript',
+			id: 'transcript',
+			accessorFn: displayTranscript,
 			meta: { label: 'Transcript' },
 			header: ({ column }) =>
 				renderComponent(SortableTableHeader, {
@@ -165,22 +169,6 @@
 				}),
 			cell: ({ row }) =>
 				renderComponent(RecordingTranscriptCell, { recordingId: row.id }),
-		},
-		{
-			id: 'latestTransformationRunOutput',
-			meta: { label: 'Latest Transformation Run Output' },
-			accessorFn: ({ id }) => id,
-			header: ({ column }) =>
-				renderComponent(SortableTableHeader, {
-					column,
-					headerText: 'Latest Transformation Run Output',
-				}),
-			cell: ({ getValue }) => {
-				const recordingId = getValue<string>();
-				return renderComponent(LatestTransformationRunOutputByRecordingId, {
-					recordingId,
-				});
-			},
 		},
 		{
 			id: 'audio',
@@ -332,9 +320,10 @@
 	const joinedTranscriptionsText = $derived.by(() => {
 		const transcriptions = selectedRecordingRows
 			.map(({ original }) => original)
-			.filter((recording) => recording.transcript !== '')
+			.filter((recording) => displayTranscript(recording) !== '')
 			.map((recording) =>
 				template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+					if (key === 'transcript') return displayTranscript(recording);
 					if (key in recording) {
 						const value = recording[key as keyof Recording];
 						return typeof value === 'string' ? value : '';
@@ -462,8 +451,8 @@
 							<Modal.Header>
 								<Modal.Title>Copy Transcripts</Modal.Title>
 								<Modal.Description>
-									Make changes to your profile here. Click save when you're
-									done.
+									Choose the template and delimiter for the selected
+									transcripts.
 								</Modal.Description>
 							</Modal.Header>
 							<div class="grid gap-4 py-4">

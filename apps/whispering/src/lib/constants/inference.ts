@@ -5,6 +5,14 @@ import type {
 
 type InferenceProvider = {
 	label: string;
+	/**
+	 * Canonical OpenAI-compatible base URL this provider's completions run
+	 * against, or null when the user must supply it (Custom). Anthropic and Google
+	 * point at their OpenAI-compatibility endpoints (ADR-0060), so every provider
+	 * speaks one wire and completion has a single code path with no per-provider
+	 * client. An endpoint override in deviceConfig still wins over this default.
+	 */
+	defaultBaseUrl: string | null;
 	/** Fixed model list, or null when the model is typed free-form (OpenRouter, Custom). */
 	models: readonly string[] | null;
 	/**
@@ -18,12 +26,15 @@ type InferenceProvider = {
 };
 
 /**
- * Single source of truth for inference providers: their models, labels, and the
- * deviceConfig key NAMES holding each provider's credential and endpoint override.
- * SDK-free (only a type import), so the workspace schema and the transformations
- * editor import it without bundling any provider client. This is the completion
- * twin of transcription's `PROVIDERS`: the metadata table that also owns the
- * config-key names, paired with the SDK-bearing `COMPLETION_DISPATCH`.
+ * Single source of truth for inference providers: their models, labels, the
+ * deviceConfig key NAMES holding each provider's credential and endpoint override,
+ * and the canonical base URL each provider's completions run against. SDK-free
+ * (only a type import), so the workspace schema imports it without bundling any
+ * provider client. This is the completion twin of transcription's `PROVIDERS`:
+ * every provider speaks the OpenAI completion wire (Anthropic and Google through
+ * their OpenAI-compatibility endpoints), so a completion resolves a
+ * `{ baseUrl, apiKey? }` connection from this table and hands it to one
+ * `complete()` call: no per-provider dispatch, no bespoke client.
  *
  * Access patterns:
  * - Provider IDs:  `keyof typeof INFERENCE` → 'OpenAI' | 'Groq' | ...
@@ -36,6 +47,7 @@ type InferenceProvider = {
 export const INFERENCE = {
 	OpenAI: {
 		label: 'OpenAI',
+		defaultBaseUrl: 'https://api.openai.com/v1',
 		apiKeyConfigKey: 'providers.openai.apiKey',
 		endpointConfigKey: 'providers.openai.endpoint',
 		models: [
@@ -54,6 +66,7 @@ export const INFERENCE = {
 	},
 	Groq: {
 		label: 'Groq',
+		defaultBaseUrl: 'https://api.groq.com/openai/v1',
 		apiKeyConfigKey: 'providers.groq.apiKey',
 		endpointConfigKey: 'providers.groq.endpoint',
 		models: [
@@ -75,6 +88,7 @@ export const INFERENCE = {
 	},
 	Anthropic: {
 		label: 'Anthropic',
+		defaultBaseUrl: 'https://api.anthropic.com/v1',
 		apiKeyConfigKey: 'providers.anthropic.apiKey',
 		endpointConfigKey: null,
 		models: [
@@ -102,6 +116,7 @@ export const INFERENCE = {
 	},
 	Google: {
 		label: 'Google',
+		defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
 		apiKeyConfigKey: 'providers.google.apiKey',
 		endpointConfigKey: null,
 		models: [
@@ -115,12 +130,14 @@ export const INFERENCE = {
 	},
 	OpenRouter: {
 		label: 'OpenRouter',
+		defaultBaseUrl: 'https://openrouter.ai/api/v1',
 		apiKeyConfigKey: 'providers.openrouter.apiKey',
 		endpointConfigKey: null,
 		models: null,
 	},
 	Custom: {
 		label: 'Custom (OpenAI-compatible)',
+		defaultBaseUrl: null,
 		apiKeyConfigKey: 'providers.custom.apiKey',
 		endpointConfigKey: 'providers.custom.endpoint',
 		models: null,

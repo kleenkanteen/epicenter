@@ -293,6 +293,7 @@ export async function transcribeAndPersist(
 	}
 	recordings.update(recordingId, {
 		transcript: transcribedText,
+		polishedTranscript: null,
 		transcription: {
 			status: 'completed',
 			completedAt: InstantString.now(),
@@ -367,6 +368,21 @@ export function prewarmLocalModel(): void {
 	});
 }
 
+/**
+ * Fold the user's Dictionary into a transcription prompt. Both the cloud `prompt`
+ * and the local `initialPrompt` are freeform context the recognizer biases
+ * toward, so appending the terms as a glossary nudges it to spell proper nouns
+ * and jargon the way the user wrote them. Composition stays here in the app, not
+ * in `@epicenter/client`: the wire just carries one prompt string. An empty
+ * Dictionary returns the prompt unchanged. See ADR-0099.
+ */
+function withDictionaryTerms(prompt: string, dictionary: string[]): string {
+	if (dictionary.length === 0) return prompt;
+	const glossary = dictionary.join(', ');
+	const trimmed = prompt.trim();
+	return trimmed ? `${trimmed} ${glossary}` : glossary;
+}
+
 async function transcribeLocally(
 	recordingId: string,
 	selectedService: TranscriptionServiceId,
@@ -400,9 +416,13 @@ async function transcribeLocally(
 
 	// Read-at-use: the per-call spec is built right here, where it is consumed,
 	// so there is no ambient config to go stale. `auto` language and an empty
-	// prompt map to null (the wire's "unset").
+	// prompt map to null (the wire's "unset"). The Dictionary terms fold into the
+	// prompt so local recognition spells them the user's way.
 	const language = settings.get('transcription.language');
-	const prompt = settings.get('transcription.prompt');
+	const prompt = withDictionaryTerms(
+		settings.get('transcription.prompt'),
+		settings.get('dictionary'),
+	);
 	return commands.transcribeRecording(recordingId, {
 		engine: selectedService,
 		modelName,
@@ -429,8 +449,13 @@ async function transcribeViaUpload(
 	// `auto` language and an empty prompt map to the wire's "unset" (omitted from
 	// the form). No per-provider key-format pre-check: no key just means no header,
 	// and the server answers 401, surfaced as a RequestFailed carrying that detail.
+	// The Dictionary terms fold into the prompt so cloud recognition spells them
+	// the user's way.
 	const spokenLanguage = getSpokenLanguage();
-	const prompt = settings.get('transcription.prompt');
+	const prompt = withDictionaryTerms(
+		settings.get('transcription.prompt'),
+		settings.get('dictionary'),
+	);
 	const entry = UPLOAD_DISPATCH[selectedService];
 	switch (entry.kind) {
 		case 'wire':

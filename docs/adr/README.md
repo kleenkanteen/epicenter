@@ -166,5 +166,6 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0096](0096-local-workspace-persistence-is-environment-injected.md) | Local workspace persistence is environment-injected | Accepted |
 | [0097](0097-super-chat-tool-modules-receive-a-host-api.md) | Super Chat tool modules receive a host API | Accepted |
 | [0098](0098-local-mail-state-round-trips-through-gmail.md) | Every Local Mail concept a human acts on round-trips through Gmail API state | Accepted |
+| [0099](0099-replace-transformations-with-a-dictionary-polish-and-a-portable-recipe-library.md) | Replace Transformations with a Dictionary, an always-on Polish, and a portable Recipe library | Accepted |
 
 When you add an ADR, add its row here.

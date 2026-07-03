@@ -3,10 +3,10 @@
 	import { cn } from '@epicenter/ui/utils';
 	import { commandRunners } from '$lib/commands';
 	import ImportFileButton from '$lib/components/ImportFileButton.svelte';
+	import PolishPipelineControl from '../_components/PolishPipelineControl.svelte';
 	import {
 		CaptureSurfaceSelector,
 		TranscriptionSelector,
-		TransformationSelector,
 	} from '$lib/components/settings';
 	import ManualDeviceSelector from '$lib/components/settings/selectors/ManualDeviceSelector.svelte';
 	import VadDeviceSelector from '$lib/components/settings/selectors/VadDeviceSelector.svelte';
@@ -48,7 +48,7 @@
 				variant="standalone"
 				iconViewTransitionName={viewTransition.pipeline.transcription}
 			/>
-			<TransformationSelector />
+			<PolishPipelineControl />
 			<div class="flex">
 				<Button
 					tooltip="Start recording"
@@ -74,7 +74,7 @@
 				variant="standalone"
 				iconViewTransitionName={viewTransition.pipeline.transcription}
 			/>
-			<TransformationSelector />
+			<PolishPipelineControl />
 			<div class="flex">
 				<Button
 					tooltip="Start voice activated recording"
@@ -97,7 +97,7 @@
 				variant="standalone"
 				iconViewTransitionName={viewTransition.pipeline.transcription}
 			/>
-			<TransformationSelector />
+			<PolishPipelineControl />
 			<div class="flex">
 				<ImportFileButton class="rounded-r-none border-r-0" />
 				<CaptureSurfaceSelector class="rounded-l-none" />

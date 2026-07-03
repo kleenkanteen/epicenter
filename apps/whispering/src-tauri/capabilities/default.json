@@ -81,12 +81,6 @@
           "path": "$APPDATA/recordings/**"
         },
         {
-          "path": "$APPDATA/transformations"
-        },
-        {
-          "path": "$APPDATA/transformations/**"
-        },
-        {
           "path": "$APPDATA/models"
         },
         {

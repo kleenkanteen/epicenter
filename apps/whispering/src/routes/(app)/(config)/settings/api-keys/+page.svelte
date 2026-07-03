@@ -14,7 +14,7 @@
 		'Deepgram',
 		'Mistral',
 	];
-	const TRANSFORMATION: ProviderConfigId[] = [
+	const COMPLETION: ProviderConfigId[] = [
 		'Google',
 		'Anthropic',
 		'OpenAI',
@@ -27,13 +27,13 @@
 		{
 			value: 'all',
 			label: 'All',
-			providers: [...new Set([...TRANSCRIPTION, ...TRANSFORMATION])],
+			providers: [...new Set([...TRANSCRIPTION, ...COMPLETION])],
 		},
 		{ value: 'transcription', label: 'Transcription', providers: TRANSCRIPTION },
 		{
-			value: 'transformation',
-			label: 'Transformation',
-			providers: TRANSFORMATION,
+			value: 'completion',
+			label: 'Completion',
+			providers: COMPLETION,
 		},
 	];
 </script>
