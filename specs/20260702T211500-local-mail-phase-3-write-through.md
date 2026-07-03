@@ -245,7 +245,7 @@ Build, prove, remove has nothing to remove here; the waves are build-and-prove, 
 - [x] **3.1 Client POST.** `request()` grows `method`/`body`; `modifyMessage(id, {addLabelIds, removeLabelIds})` validated against `GmailMessageSchema` (its optional `labelIds` already matches the slim response). Existing retry/refresh/throttle behavior applies unchanged.
 - [x] **3.2 The core and the fold.** `db.patchMessageLabels` (extract the labelPatch semantics already inside `applyHistoryBatch` into a single-row method both call), `src/modify.ts` with `modifyMessageLabels` (required `readOnly`, serial loop, per-id/systemic error split, best-effort fold). Tests 1-6, 10-13.
 - [x] **3.3 CLI.** `modify` verb with intent flags desugaring to add/remove sets; `resolveLabelIds` helper (mirror lookup, fresh `labels.list` on miss); `LOCAL_MAIL_READ_ONLY` in config. Tests 7, 14, 15.
-- [ ] **3.4 MCP.** Three-tier `tier`, catalog filter under `LOCAL_MAIL_READ_ONLY`, `modify_labels` tool (TypeBox input: `ids` 1-100, optional `addLabelIds`/`removeLabelIds` accepting ids or names via the same helper), per-tool annotations. Tests 8, 9, 16.
+- [x] **3.4 MCP.** Three-tier `tier`, catalog filter under `LOCAL_MAIL_READ_ONLY`, `modify_labels` tool (TypeBox input: `ids` 1-100, optional `addLabelIds`/`removeLabelIds` accepting ids or names via the same helper), per-tool annotations. Tests 8, 9, 16.
 - [ ] **3.5 Live round-trip (owner).** The phone-visible verification above; this is the gate the shell spec's Phase C/D UI waits on.
 
 ## Stop point: what must be true before UI work starts
