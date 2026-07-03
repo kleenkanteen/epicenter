@@ -360,9 +360,8 @@ export function openBooksDb(
 			const table = def.table;
 			if (!tableExists(def.table)) return { rows: [], total: 0 };
 			const total =
-				db
-					.query<{ n: number }, []>(`SELECT count(*) AS n FROM ${table}`)
-					.get()?.n ?? 0;
+				db.query<{ n: number }, []>(`SELECT count(*) AS n FROM ${table}`).get()
+					?.n ?? 0;
 			const cols = [
 				'id',
 				'updated_at',
@@ -386,9 +385,7 @@ export function openBooksDb(
 		 */
 		getRow(def: EntityDef, id: string): Record<string, unknown> | null {
 			if (!tableExists(def.table)) return null;
-			const row = db
-				.query(`SELECT * FROM ${def.table} WHERE id = ?`)
-				.get(id);
+			const row = db.query(`SELECT * FROM ${def.table} WHERE id = ?`).get(id);
 			return (row as Record<string, unknown>) ?? null;
 		},
 
