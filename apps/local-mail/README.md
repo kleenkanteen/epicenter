@@ -37,6 +37,12 @@ Use `--client-id <id>` to override `GMAIL_CLIENT_ID` for the connect command.
 `GMAIL_CLIENT_SECRET` is still required because Google Desktop clients have a
 secret and the token exchange sends it as a form parameter.
 
+Local Mail requests `gmail.modify` so write-through label changes can round-trip
+through Gmail. Older tokens minted with the previous read-only scope can still
+read and sync; the first write will ask you to run `local-mail connect` again.
+Although Google grants send at the same OAuth layer, Local Mail does not expose
+send, reply, compose, drafts, trash, untrash, or delete in this phase.
+
 Headless bootstrap is still available. The refresh token is redeemed
 immediately (one refresh grant plus a profile read), so a dead token fails
 here rather than on the first sync, and the account email comes from the
@@ -109,7 +115,9 @@ stdio subprocess for the agent-facing protocol surface.
 
 ## Not built yet
 
-- Gmail write-through actions such as archive, mark-read, and label edits.
+- CLI, MCP, HTTP, and UI surfaces for Gmail write-through actions such as
+  archive, mark-read, and label edits.
+- Send, reply, compose, drafts, trash, untrash, and permanent delete.
 - FTS5. `LIKE` over `body_text` is enough for the current mirror size.
 - Push/Pub/Sub.
 - The `up` local server and UI.
