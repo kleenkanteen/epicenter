@@ -6,7 +6,6 @@
 	import { complete } from '@epicenter/client';
 	import { Button } from '@epicenter/ui/button';
 	import { Markdown } from '@epicenter/ui/markdown';
-	import { VOCAB_MODEL } from '@epicenter/vocab';
 	import { agentMessageText } from '@epicenter/workspace/agent';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { buildHarvestPrompt, parseHarvestCandidates } from '$lib/harvest';
@@ -101,9 +100,14 @@
 	 * `harvest.candidates` until the user saves or dismisses it. */
 	async function harvestMessage(messageId: string, passage: string) {
 		harvest = { messageId, status: 'loading', candidates: [] };
-		const connection = inferenceConnections.resolveOrHosted(VOCAB_MODEL);
+		const model = active?.model;
+		if (!model) {
+			harvest = { messageId, status: 'error', candidates: [] };
+			return;
+		}
+		const connection = inferenceConnections.resolveOrHosted(model);
 		const { data, error } = await complete(connection, {
-			model: VOCAB_MODEL,
+			model,
 			systemPrompt: buildHarvestPrompt(),
 			userPrompt: passage,
 		});
