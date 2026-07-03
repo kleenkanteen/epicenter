@@ -43,7 +43,7 @@ import {
 import { type Static, type TObject, Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { Err, Ok, type Result } from 'wellcrafted/result';
-import { modifyMessageLabels, resolveLabelIds } from './modify.ts';
+import { resolveAndModifyMessageLabels } from './modify.ts';
 import { queryMail } from './query.ts';
 import {
 	type LocalMailRuntime,
@@ -54,7 +54,13 @@ import { readMailStatus } from './status.ts';
 import { syncMailbox } from './sync.ts';
 import { VERSION } from './version.ts';
 
-type ToolOutcome = Result<unknown, { message: string }>;
+/**
+ * A tool that ran to completion but failed can still carry its structured
+ * outcome: `modify_labels` sets `structured` on a systemic abort so the model
+ * reads the per-id results even while `isError` flags the abort.
+ */
+type ToolFailure = { message: string; structured?: unknown };
+type ToolOutcome = Result<unknown, ToolFailure>;
 
 type ToolDescriptor = {
 	name: string;
@@ -154,13 +160,13 @@ const TOOLS: ToolDescriptor[] = [
 				maxItems: 100,
 				description: 'Gmail message ids to mutate serially.',
 			}),
-			addLabelIds: Type.Optional(
+			addLabels: Type.Optional(
 				Type.Array(Type.String({ minLength: 1 }), {
 					maxItems: 100,
 					description: 'Gmail label ids or exact names to add.',
 				}),
 			),
-			removeLabelIds: Type.Optional(
+			removeLabels: Type.Optional(
 				Type.Array(Type.String({ minLength: 1 }), {
 					maxItems: 100,
 					description: 'Gmail label ids or exact names to remove.',
@@ -172,42 +178,26 @@ const TOOLS: ToolDescriptor[] = [
 			const { data: session, error } = await openSyncSession(ctx);
 			if (error) return Err(error);
 			try {
-				const addLabels = args.addLabelIds ?? [];
-				const removeLabels = args.removeLabelIds ?? [];
-				if (ctx.config.readOnly) {
-					return await modifyMessageLabels({
+				const { data, error: modifyError } =
+					await resolveAndModifyMessageLabels({
 						deps: session.deps,
-						input: {
-							ids: args.ids,
-							addLabelIds: addLabels,
-							removeLabelIds: removeLabels,
-						},
-						readOnly: true,
-					});
-				}
-
-				const { data: resolvedLabels, error: labelError } =
-					await resolveLabelIds({
-						deps: session.deps,
-						labels: [...addLabels, ...removeLabels],
-					});
-				if (labelError) return Err(labelError);
-
-				const { data, error } = await modifyMessageLabels({
-					deps: session.deps,
-					input: {
 						ids: args.ids,
-						addLabelIds: resolvedLabels.slice(0, addLabels.length),
-						removeLabelIds: resolvedLabels.slice(addLabels.length),
-					},
-					readOnly: ctx.config.readOnly,
-				});
-				if (error) return Err(error);
-				if (
-					data.aborted ||
-					data.results.some((result) => result.error !== null)
-				) {
-					return Err({ message: JSON.stringify(data) });
+						addLabels: args.addLabels ?? [],
+						removeLabels: args.removeLabels ?? [],
+						readOnly: ctx.config.readOnly,
+					});
+				// A whole-request refusal (read-only, empty sets, unknown label)
+				// never ran, so it is a plain error with no structured payload.
+				if (modifyError) return Err({ message: modifyError.message });
+				// A systemic abort (token, throttle, network) ran partway: flag
+				// isError but keep the per-id results so the model sees what
+				// succeeded. Per-id Gmail rejections are NOT an error channel;
+				// they ride inside the structured results for per-id self-repair.
+				if (data.aborted) {
+					return Err({
+						message: `Modify aborted after ${data.results.length} of ${args.ids.length} id(s): ${data.aborted.message}`,
+						structured: data,
+					});
 				}
 				return Ok(data);
 			} finally {
@@ -219,7 +209,14 @@ const TOOLS: ToolDescriptor[] = [
 
 function toCallResult({ data, error }: ToolOutcome): CallToolResult {
 	if (error) {
-		return { content: [{ type: 'text', text: error.message }], isError: true };
+		const result: CallToolResult = {
+			content: [{ type: 'text', text: error.message }],
+			isError: true,
+		};
+		if (error.structured !== undefined) {
+			result.structuredContent = error.structured as Record<string, unknown>;
+		}
+		return result;
 	}
 	return {
 		content: [{ type: 'text', text: JSON.stringify(data) }],

@@ -13,8 +13,9 @@ import { expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseArgs, runCli } from './cli.ts';
+import { modifyExitCode, parseArgs, runCli } from './cli.ts';
 import { loadConfig } from './config.ts';
+import type { ModifyMessageLabelsOutcome } from './modify.ts';
 import { createFileTokenStore } from './token-store.ts';
 import type { TokenSet } from './tokens.ts';
 
@@ -50,25 +51,57 @@ test('--watch followed by another flag stays flag-only', () => {
 	expect(args.watchIntervalMs).toBeUndefined();
 });
 
-test('modify parses intent flags and repeatable label changes', () => {
+test('triage verbs collect ids as positionals', () => {
+	const args = parseArgs(['mark-read', 'm1', 'm2']);
+	expect(args.command).toBe('mark-read');
+	expect(args.positionals).toEqual(['m1', 'm2']);
+	expect(args.addLabels).toEqual([]);
+	expect(args.removeLabels).toEqual([]);
+});
+
+test('label parses repeatable label changes and --json', () => {
 	const args = parseArgs([
-		'modify',
+		'label',
 		'm1',
 		'm2',
-		'--read',
-		'--archive',
 		'--add',
 		'Work',
 		'--add=Label_2',
 		'--remove',
 		'Travel',
+		'--json',
 	]);
-	expect(args.command).toBe('modify');
+	expect(args.command).toBe('label');
 	expect(args.positionals).toEqual(['m1', 'm2']);
-	expect(args.read).toBe(true);
-	expect(args.archive).toBe(true);
 	expect(args.addLabels).toEqual(['Work', 'Label_2']);
 	expect(args.removeLabels).toEqual(['Travel']);
+	expect(args.json).toBe(true);
+});
+
+test('modifyExitCode is nonzero on any per-id failure or systemic abort', () => {
+	const clean: ModifyMessageLabelsOutcome = {
+		results: [{ id: 'm1', labelIds: ['INBOX'], folded: true, error: null }],
+		aborted: null,
+	};
+	const perId: ModifyMessageLabelsOutcome = {
+		results: [
+			{ id: 'm1', labelIds: ['INBOX'], folded: true, error: null },
+			{
+				id: 'm2',
+				labelIds: null,
+				folded: false,
+				error: { name: 'Http', message: 'not found' },
+			},
+		],
+		aborted: null,
+	};
+	const aborted: ModifyMessageLabelsOutcome = {
+		results: [{ id: 'm1', labelIds: ['INBOX'], folded: true, error: null }],
+		aborted: { name: 'Throttled', message: 'slow down' },
+	};
+	expect(modifyExitCode(clean)).toBe(0);
+	expect(modifyExitCode(perId)).toBe(1);
+	expect(modifyExitCode(aborted)).toBe(1);
 });
 
 test('LOCAL_MAIL_READ_ONLY enables read-only config mode', () => {
@@ -82,7 +115,7 @@ test('LOCAL_MAIL_READ_ONLY enables read-only config mode', () => {
 	}
 });
 
-test('modify honors LOCAL_MAIL_READ_ONLY before resolving labels', async () => {
+test('label honors LOCAL_MAIL_READ_ONLY before resolving labels', async () => {
 	const dir = mkdtempSync(join(tmpdir(), 'local-mail-cli-readonly-test-'));
 	const token: TokenSet = {
 		accountEmail: 'you@example.com',
@@ -107,7 +140,7 @@ test('modify honors LOCAL_MAIL_READ_ONLY before resolving labels', async () => {
 		errors.push(String(message));
 	};
 	try {
-		expect(await runCli(['modify', 'm1', '--add', 'Missing Label'])).toBe(1);
+		expect(await runCli(['label', 'm1', '--add', 'Missing Label'])).toBe(1);
 		expect(errors.join('\n')).toContain('Refusing to write: read-only mode');
 		expect(errors.join('\n')).not.toContain('Unknown Gmail label');
 	} finally {
@@ -125,7 +158,7 @@ test('modify honors LOCAL_MAIL_READ_ONLY before resolving labels', async () => {
 	}
 });
 
-test('status resolves the sole stored account and prints JSON', async () => {
+test('status --json resolves the sole stored account and prints JSON', async () => {
 	const dir = mkdtempSync(join(tmpdir(), 'local-mail-cli-test-'));
 	const token: TokenSet = {
 		accountEmail: 'you@example.com',
@@ -148,7 +181,7 @@ test('status resolves the sole stored account and prints JSON', async () => {
 		logs.push(String(message));
 	};
 	try {
-		expect(await runCli(['status'])).toBe(0);
+		expect(await runCli(['status', '--json'])).toBe(0);
 		expect(JSON.parse(logs[0] ?? '{}').accountEmail).toBe('you@example.com');
 	} finally {
 		console.log = originalLog;

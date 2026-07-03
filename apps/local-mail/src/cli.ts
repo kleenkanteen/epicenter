@@ -1,10 +1,12 @@
 import { loadConfig } from './config.ts';
-import type { MailDb } from './db.ts';
-import { modifyMessageLabels, resolveLabelIds } from './modify.ts';
+import {
+	type ModifyMessageLabelsOutcome,
+	resolveAndModifyMessageLabels,
+} from './modify.ts';
 import { redeemRefreshToken, runAuthorizationFlow } from './oauth.ts';
 import { queryMail } from './query.ts';
 import { openLocalMailRuntime, openSyncSession } from './runtime.ts';
-import { readMailStatus } from './status.ts';
+import { type MailStatus, readMailStatus } from './status.ts';
 import { runSyncLoop, type SyncOutcome, syncMailbox } from './sync.ts';
 import { createFileTokenStore } from './token-store.ts';
 import { VERSION } from './version.ts';
@@ -18,10 +20,7 @@ export type ParsedArgs = {
 	clientId?: string;
 	addLabels: string[];
 	removeLabels: string[];
-	read: boolean;
-	unread: boolean;
-	archive: boolean;
-	unarchive: boolean;
+	json: boolean;
 	help: boolean;
 	version: boolean;
 };
@@ -33,10 +32,11 @@ const HELP = `local-mail: keep a private local copy of Gmail for local tools and
 Usage:
   local-mail connect [--client-id <id>]
   local-mail seed-token <refreshToken>
-  local-mail sync [--full] [--watch [intervalMs]]
-  local-mail status
+  local-mail sync [--full] [--watch [intervalMs]] [--json]
+  local-mail status [--json]
   local-mail query "<sql>"
-  local-mail modify <id...> [--read|--unread|--archive|--unarchive] [--add <label>...] [--remove <label>...]
+  local-mail archive|unarchive|mark-read|mark-unread <id...> [--json]
+  local-mail label <id...> [--add <label>...] [--remove <label>...] [--json]
   local-mail mcp
 
 Commands:
@@ -46,20 +46,22 @@ Commands:
                the Gmail profile.
   sync         Refresh the local mirror. Use --watch to keep polling.
   status       Show connection state, cursor, and row counts.
-  query        Run a read-only SQL query over the local mirror.
-  modify       Apply Gmail label changes, then fold Gmail's response into the mirror.
-  mcp          Serve query/status/sync tools to an agent over stdio.
+  query        Run a read-only SQL query over the local mirror (JSON output).
+  archive      Archive messages by removing INBOX, then fold Gmail's response.
+  unarchive    Move messages back to the inbox by adding INBOX.
+  mark-read    Mark messages read by removing UNREAD.
+  mark-unread  Mark messages unread by adding UNREAD.
+  label        Add or remove Gmail labels by exact name or id.
+  mcp          Serve query/status/sync/modify_labels tools over stdio.
 
 Options:
   --client-id <id>      Override GMAIL_CLIENT_ID for connect.
   --full                Force a full pull on the first sync pass.
   --watch [intervalMs]  Keep syncing on a loop. Default: 30000.
-  --read                Mark messages read by removing UNREAD.
-  --unread              Mark messages unread by adding UNREAD.
-  --archive             Archive messages by removing INBOX.
-  --unarchive           Move messages to the inbox by adding INBOX.
   --add <label>         Add a Gmail label by exact name or id. Repeatable.
   --remove <label>      Remove a Gmail label by exact name or id. Repeatable.
+  --json                Print typed JSON instead of human text. query is
+                        always JSON, so --json is a no-op there.
   -h, --help            Show this help.
   -v, --version         Show version.
 
@@ -70,6 +72,25 @@ Environment:
   LOCAL_MAIL_TOKEN_FILE                   Override the credentials file path.
   LOCAL_MAIL_READ_ONLY                    Disable Gmail mutations.
 `;
+
+/**
+ * The four triage verbs desugar to a fixed Gmail label change. `label` is the
+ * transparent primitive: it takes the same add/remove sets these verbs hide.
+ * One core (`resolveAndModifyMessageLabels`) runs all five.
+ */
+const TRIAGE_VERBS: Record<
+	'archive' | 'unarchive' | 'mark-read' | 'mark-unread',
+	{ addLabels: string[]; removeLabels: string[]; done: string }
+> = {
+	archive: { addLabels: [], removeLabels: ['INBOX'], done: 'archived' },
+	unarchive: { addLabels: ['INBOX'], removeLabels: [], done: 'moved to inbox' },
+	'mark-read': { addLabels: [], removeLabels: ['UNREAD'], done: 'marked read' },
+	'mark-unread': {
+		addLabels: ['UNREAD'],
+		removeLabels: [],
+		done: 'marked unread',
+	},
+};
 
 function parseWatchInterval(input: string): number {
 	const value = Number(input.trim());
@@ -89,10 +110,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		watch: false,
 		addLabels: [],
 		removeLabels: [],
-		read: false,
-		unread: false,
-		archive: false,
-		unarchive: false,
+		json: false,
 		help: false,
 		version: false,
 	};
@@ -136,23 +154,14 @@ export function parseArgs(argv: string[]): ParsedArgs {
 				}
 				break;
 			}
-			case '--read':
-				args.read = true;
-				break;
-			case '--unread':
-				args.unread = true;
-				break;
-			case '--archive':
-				args.archive = true;
-				break;
-			case '--unarchive':
-				args.unarchive = true;
-				break;
 			case '--add':
 				args.addLabels.push(takeValue());
 				break;
 			case '--remove':
 				args.removeLabels.push(takeValue());
+				break;
+			case '--json':
+				args.json = true;
 				break;
 			case '-h':
 			case '--help':
@@ -218,17 +227,17 @@ async function runSeedToken(args: ParsedArgs): Promise<number> {
 	return 0;
 }
 
-function printOutcome(db: MailDb, outcome: SyncOutcome): void {
-	console.log(JSON.stringify(outcome, null, 2));
-	if (outcome.failure) return;
-
-	const { messages } = db.counts();
-	console.log(`\n${messages} live messages mirrored. Most recent:`);
-	for (const row of db.recentMessages(5)) {
-		console.log(
-			`  ${row.sender ?? '(unknown)'}: ${row.subject ?? '(no subject)'}`,
-		);
+function renderSyncOutcome(outcome: SyncOutcome): string {
+	if (outcome.failure) {
+		return `Sync failed (${outcome.failure.name}): ${outcome.failure.message}. The cursor did not advance.`;
 	}
+	const mode = outcome.mode === 'FULL' ? 'Full sync' : 'Incremental sync';
+	const labelWord = outcome.labelsPatched === 1 ? 'label' : 'labels';
+	const cursor =
+		outcome.cursorBefore === outcome.cursorAfter
+			? `cursor ${outcome.cursorAfter ?? 'none'}`
+			: `cursor ${outcome.cursorBefore ?? 'none'} to ${outcome.cursorAfter ?? 'none'}`;
+	return `${mode}: ${outcome.messagesUpserted} upserted, ${outcome.messagesDeleted} deleted, ${outcome.labelsPatched} ${labelWord} patched, ${cursor}.`;
 }
 
 async function runSync(args: ParsedArgs): Promise<number> {
@@ -243,11 +252,13 @@ async function runSync(args: ParsedArgs): Promise<number> {
 		console.error(runtimeError.message);
 		return 1;
 	}
+	// Progress goes to stderr so stdout carries only the outcome, keeping
+	// --json (and the human summary line) a clean single-value stream.
 	const { data: session, error: sessionError } = await openSyncSession(
 		runtime,
 		{
-			gmailLog: (m) => console.log(`[gmail] ${m}`),
-			syncLog: (m) => console.log(`[sync] ${m}`),
+			gmailLog: (m) => console.error(`[gmail] ${m}`),
+			syncLog: (m) => console.error(`[sync] ${m}`),
 		},
 	);
 	if (sessionError) {
@@ -257,14 +268,15 @@ async function runSync(args: ParsedArgs): Promise<number> {
 
 	if (!args.watch) {
 		const outcome = await syncMailbox(session.deps, { forceFull: args.full });
-		printOutcome(session.deps.db, outcome);
-		const failed = outcome.failure !== null;
+		console.log(
+			args.json ? JSON.stringify(outcome, null, 2) : renderSyncOutcome(outcome),
+		);
 		session.close();
-		return failed ? 1 : 0;
+		return outcome.failure ? 1 : 0;
 	}
 
 	const intervalMs = args.watchIntervalMs ?? DEFAULT_WATCH_INTERVAL_MS;
-	console.log(`Watching every ${intervalMs}ms. Ctrl-C to stop.`);
+	console.error(`Watching every ${intervalMs}ms. Ctrl-C to stop.`);
 	const controller = new AbortController();
 	process.on('SIGINT', () => controller.abort());
 	// The exit code reflects the LAST pass, so a supervisor restarting on
@@ -276,28 +288,62 @@ async function runSync(args: ParsedArgs): Promise<number> {
 		signal: controller.signal,
 		onPass: (outcome, pass) => {
 			lastPassFailed = outcome.failure !== null;
-			console.log(`\n=== pass ${pass} ===`);
-			printOutcome(session.deps.db, outcome);
+			if (args.json) {
+				console.log(JSON.stringify(outcome));
+			} else {
+				console.log(`=== pass ${pass} ===`);
+				console.log(renderSyncOutcome(outcome));
+			}
 		},
 	});
 	session.close();
 	return lastPassFailed ? 1 : 0;
 }
 
-async function runModify(args: ParsedArgs): Promise<number> {
-	if (args.positionals.length === 0) {
-		console.error(
-			'Usage: local-mail modify <id...> [--read|--unread|--archive|--unarchive] [--add <label>...] [--remove <label>...]',
+/**
+ * 0 only when Gmail accepted every id. Any per-id rejection or a systemic
+ * abort exits 1 so `local-mail mark-read <id> && next` never proceeds on a
+ * mailbox that did not change.
+ */
+export function modifyExitCode(outcome: ModifyMessageLabelsOutcome): number {
+	const anyFailed = outcome.results.some((result) => result.error !== null);
+	return outcome.aborted !== null || anyFailed ? 1 : 0;
+}
+
+function renderModifyOutcome(
+	outcome: ModifyMessageLabelsOutcome,
+	done: string,
+): string {
+	const lines = outcome.results.map((result) => {
+		if (result.error) return `✗ ${result.id}  ${result.error.message}`;
+		const tail = result.folded
+			? ''
+			: ' (local mirror will catch up on next sync)';
+		return `✓ ${result.id}  ${done}${tail}`;
+	});
+	const ok = outcome.results.filter((result) => result.error === null).length;
+	const failed = outcome.results.length - ok;
+	lines.push(`${ok} succeeded, ${failed} failed`);
+	if (outcome.aborted) {
+		lines.push(
+			`Aborted after ${outcome.results.length}: ${outcome.aborted.message}`,
 		);
+	}
+	return lines.join('\n');
+}
+
+async function runLabelMutation(
+	args: ParsedArgs,
+	verb: { addLabels: string[]; removeLabels: string[]; done: string },
+): Promise<number> {
+	if (args.positionals.length === 0) {
+		const extra =
+			args.command === 'label'
+				? ' [--add <label>...] [--remove <label>...]'
+				: '';
+		console.error(`Usage: local-mail ${args.command} <id...>${extra} [--json]`);
 		return 1;
 	}
-
-	const addLabels = [...args.addLabels];
-	const removeLabels = [...args.removeLabels];
-	if (args.unread) addLabels.push('UNREAD');
-	if (args.unarchive) addLabels.push('INBOX');
-	if (args.read) removeLabels.push('UNREAD');
-	if (args.archive) removeLabels.push('INBOX');
 
 	const { data: runtime, error: runtimeError } = await openLocalMailRuntime();
 	if (runtimeError) {
@@ -311,49 +357,23 @@ async function runModify(args: ParsedArgs): Promise<number> {
 	}
 
 	try {
-		if (runtime.config.readOnly) {
-			const { error } = await modifyMessageLabels({
-				deps: session.deps,
-				input: {
-					ids: args.positionals,
-					addLabelIds: addLabels,
-					removeLabelIds: removeLabels,
-				},
-				readOnly: true,
-			});
-			if (error) {
-				console.error(error.message);
-				return 1;
-			}
-			return 0;
-		}
-
-		const labels = [...addLabels, ...removeLabels];
-		const { data: resolvedLabels, error: labelError } = await resolveLabelIds({
+		const { data, error } = await resolveAndModifyMessageLabels({
 			deps: session.deps,
-			labels,
-		});
-		if (labelError) {
-			console.error(labelError.message);
-			return 1;
-		}
-
-		const { data, error } = await modifyMessageLabels({
-			deps: session.deps,
-			input: {
-				ids: args.positionals,
-				addLabelIds: resolvedLabels.slice(0, addLabels.length),
-				removeLabelIds: resolvedLabels.slice(addLabels.length),
-			},
+			ids: args.positionals,
+			addLabels: verb.addLabels,
+			removeLabels: verb.removeLabels,
 			readOnly: runtime.config.readOnly,
 		});
 		if (error) {
 			console.error(error.message);
 			return 1;
 		}
-
-		console.log(JSON.stringify(data, null, 2));
-		return data.aborted ? 1 : 0;
+		console.log(
+			args.json
+				? JSON.stringify(data, null, 2)
+				: renderModifyOutcome(data, verb.done),
+		);
+		return modifyExitCode(data);
 	} finally {
 		session.close();
 	}
@@ -379,19 +399,50 @@ async function runQuery(args: ParsedArgs): Promise<number> {
 		console.error(error.message);
 		return 1;
 	}
+	// query is JSON-first by design: an arbitrary SELECT over raw/body_text is
+	// not column-shaped, and the rows pipe straight to jq. --json is a no-op.
 	console.log(JSON.stringify(data.rows, null, 2));
 	const note = data.truncated ? ' (capped; more rows matched)' : '';
 	console.error(`${data.rowCount} row${data.rowCount === 1 ? '' : 's'}${note}`);
 	return 0;
 }
 
-async function runStatus(): Promise<number> {
+function renderStatus(status: MailStatus): string {
+	const accessToken = status.accessToken
+		? status.accessToken.valid
+			? `valid (expires ${status.accessToken.expiresAt})`
+			: `expired (${status.accessToken.expiresAt})`
+		: 'none';
+	const rows: [string, string][] = [
+		['account', status.accountEmail],
+		['data dir', status.dataDir],
+		['token file', status.tokenFile],
+		['connected', status.connected ? 'yes' : 'no'],
+		['access token', accessToken],
+		['mirror', status.mirror],
+		['schema version', status.schemaVersion ?? 'none'],
+		['history cursor', status.historyId ?? 'none'],
+		['last full pull', status.lastFullPullAt ?? 'never'],
+		['last synced', status.lastSyncedAt ?? 'never'],
+		['messages', String(status.rows.messages)],
+		['labels', String(status.rows.labels)],
+	];
+	const width = Math.max(...rows.map(([key]) => key.length));
+	return rows
+		.map(([key, value]) => `${key.padEnd(width)}  ${value}`)
+		.join('\n');
+}
+
+async function runStatus(args: ParsedArgs): Promise<number> {
 	const { data: runtime, error } = await openLocalMailRuntime();
 	if (error) {
 		console.error(error.message);
 		return 1;
 	}
-	console.log(JSON.stringify(await readMailStatus(runtime), null, 2));
+	const status = await readMailStatus(runtime);
+	console.log(
+		args.json ? JSON.stringify(status, null, 2) : renderStatus(status),
+	);
 	return 0;
 }
 
@@ -415,11 +466,20 @@ export async function runCli(argv: string[]): Promise<number> {
 		case 'sync':
 			return runSync(args);
 		case 'status':
-			return runStatus();
+			return runStatus(args);
 		case 'query':
 			return runQuery(args);
-		case 'modify':
-			return runModify(args);
+		case 'archive':
+		case 'unarchive':
+		case 'mark-read':
+		case 'mark-unread':
+			return runLabelMutation(args, TRIAGE_VERBS[args.command]);
+		case 'label':
+			return runLabelMutation(args, {
+				addLabels: args.addLabels,
+				removeLabels: args.removeLabels,
+				done: 'labels updated',
+			});
 		case 'mcp': {
 			const { runMcpServer } = await import('./mcp.ts');
 			return runMcpServer();
