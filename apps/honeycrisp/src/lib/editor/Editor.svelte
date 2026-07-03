@@ -34,7 +34,6 @@
 	import {
 		type MarkSpec,
 		type MarkType,
-		type Node,
 		type NodeSpec,
 		type NodeType,
 		Schema,
@@ -50,8 +49,19 @@
 	import { EditorState, Plugin } from 'prosemirror-state';
 	import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 	import 'prosemirror-view/style/prosemirror.css';
-	import { redo, undo, ySyncPlugin, yUndoPlugin } from 'y-prosemirror';
+	import {
+		redo,
+		undo,
+		ySyncPlugin,
+		ySyncPluginKey,
+		yUndoPlugin,
+	} from 'y-prosemirror';
 	import type * as Y from 'yjs';
+	import {
+		extractNoteMetadata,
+		isDocEmpty,
+		type NoteMetadata,
+	} from './extract-metadata';
 
 	const taskList = {
 		group: 'block',
@@ -207,42 +217,12 @@
 		};
 	}
 
-	/**
-	 * Extract title, preview, and word count from the ProseMirror document.
-	 *
-	 * Title is the first line (up to 80 chars), preview is the first 100 chars,
-	 * and word count is computed by splitting on whitespace.
-	 */
-	function extractTitleAndPreview(doc: Node): {
-		title: string;
-		preview: string;
-		wordCount: number;
-	} {
-		// The title is the first block's text (the "first line"): `doc.textContent`
-		// joins every block with no separator, so a `\n` search never finds a break
-		// and the title would swallow the whole note. `textBetween` with a space
-		// separator keeps words from adjacent blocks from merging in the preview and
-		// word count.
-		const firstLine = doc.firstChild?.textContent ?? '';
-		const text = doc.textBetween(0, doc.content.size, ' ');
-		const trimmed = text.trim();
-		return {
-			title: firstLine.slice(0, 80).trim(),
-			preview: text.slice(0, 100).trim(),
-			wordCount: trimmed.length === 0 ? 0 : trimmed.split(/\s+/).length,
-		};
-	}
-
 	let {
 		yxmlfragment,
 		onContentChange,
 	}: {
 		yxmlfragment: Y.XmlFragment;
-		onContentChange: (content: {
-			title: string;
-			preview: string;
-			wordCount: number;
-		}) => void;
+		onContentChange: (content: NoteMetadata) => void;
 	} = $props();
 
 	let element: HTMLDivElement | undefined = $state();
@@ -367,17 +347,33 @@
 				const newState = this.state.apply(tr);
 				this.updateState(newState);
 				updateActiveFormats(newState);
-				if (tr.docChanged) {
-					onContentChange(extractTitleAndPreview(newState.doc));
-				}
+				if (!tr.docChanged) return;
+				// A ySync-origin transaction that leaves the document empty is the
+				// sync layer initializing or streaming in the note body, not a user
+				// edit. On a signed-in relogin the editor can mount and render before
+				// the body doc's WebSocket handshake delivers content, so ySync's
+				// initial render (`_forceRerender`, which fires synchronously during
+				// `new EditorView(...)`) and any pre-content sync frame produce an
+				// empty document. Persisting that would overwrite the note's real
+				// title/preview/wordCount on the table row, and last-writer-wins makes
+				// the empty write durable (issue #1590). Skip it: real content arrives
+				// as a later non-empty sync transaction, and genuine user edits
+				// (including clearing a note) are not sync-origin, so both still
+				// persist.
+				const isSyncOrigin =
+					tr.getMeta(ySyncPluginKey)?.isChangeOrigin === true;
+				if (isSyncOrigin && isDocEmpty(newState.doc)) return;
+				onContentChange(extractNoteMetadata(newState.doc));
 			},
 		});
 
 		view = currentView;
 		updateActiveFormats(currentView.state);
-
-		// Fire initial content extraction
-		onContentChange(extractTitleAndPreview(currentView.state.doc));
+		// No explicit initial extraction: ySync's `_forceRerender` already fires a
+		// `docChanged` transaction through `dispatchTransaction` during construction
+		// above, which extracts metadata when content is present and (per #1590)
+		// skips the empty pre-load render. A direct call here would bypass that
+		// guard and clobber real metadata with an empty write.
 
 		return () => {
 			currentView.destroy();
