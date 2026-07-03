@@ -114,9 +114,13 @@
 		{#if usage.isPending}
 			<Skeleton class="h-48 w-full" />
 		{:else if usage.isError}
-			<p class="text-sm text-destructive py-12 text-center">
-				Failed to load usage data.
-			</p>
+			<Empty.Root class="py-12 border-0" role="alert">
+				<Empty.Content>
+					<Empty.Title class="text-destructive"
+						>Failed to load usage data</Empty.Title
+					>
+				</Empty.Content>
+			</Empty.Root>
 		{:else if chartData.length === 0}
 			<Empty.Root class="py-8 border-0">
 				<Empty.Content>

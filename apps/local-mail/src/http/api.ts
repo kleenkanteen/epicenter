@@ -1,3 +1,4 @@
+import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { sValidator } from '@hono/standard-validator';
 import { type } from 'arktype';
 import { randomBytes } from 'node:crypto';
@@ -85,7 +86,7 @@ export function createApiApp(deps: ApiDeps) {
 		// The skip is an explicit path check, not a registration-order trick, so
 		// it stays correct wherever this middleware sits in the chain.
 		.use('/api/*', async (c, next) => {
-			if (c.req.path === '/api/session' && c.req.method === 'POST') {
+			if (c.req.path === API_ROUTES.session.pattern && c.req.method === 'POST') {
 				return next();
 			}
 			const header = c.req.header('authorization');
@@ -98,7 +99,7 @@ export function createApiApp(deps: ApiDeps) {
 			return next();
 		})
 		// The one unauthenticated mutation: exchange the bootstrap for a bearer.
-		.post('/api/session', sValidator('json', SessionBody), (c) => {
+		.post(API_ROUTES.session.pattern, sValidator('json', SessionBody), (c) => {
 			if (bootstrapToken === null) {
 				return c.json({ error: 'No bootstrap token is outstanding.' }, 401);
 			}
