@@ -1,7 +1,7 @@
 /**
- * A stand-in for "the phone": a CLI client of the shell's `/ws` session
- * endpoint. Connects, prints the live transcript as it streams, and sends
- * whatever you type as a new turn.
+ * A stand-in for "the phone": a CLI client of the shell's
+ * `/api/session/stream` session endpoint. Connects, prints the live transcript
+ * as it streams, and sends whatever you type as a new turn.
  *
  * This is the ADR-0080 remote-session proof carried forward from the Slice 1
  * prototype's `remote-client.ts`: every connected socket shares the SAME host
@@ -26,7 +26,7 @@ if (!origin || !token) {
 	process.exit(1);
 }
 
-const url = `${origin.replace(/\/$/, '')}/ws?token=${encodeURIComponent(token)}`;
+const url = `${origin.replace(/\/$/, '')}/api/session/stream?token=${encodeURIComponent(token)}`;
 console.log(`Connecting to ${origin} ...`);
 
 const socket = new WebSocket(url);

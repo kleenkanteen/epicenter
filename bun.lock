@@ -366,6 +366,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@epicenter/client": "workspace:*",
+        "@epicenter/constants": "workspace:*",
         "@epicenter/honeycrisp": "workspace:*",
         "@epicenter/todos": "workspace:*",
         "@epicenter/workspace": "workspace:*",

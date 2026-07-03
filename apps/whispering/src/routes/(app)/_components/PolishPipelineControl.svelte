@@ -6,7 +6,8 @@
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import { SettingSwitch } from '$lib/components/settings';
-	import { polishStatus } from '$lib/operations/run-polish';
+	import { polishDestination, polishStatus } from '$lib/operations/run-polish';
+	import { settings } from '$lib/state/settings.svelte';
 
 	// The post-transcription stage of the capture pipeline, surfaced beside the
 	// model selector so the delivered output's mode (raw vs polished) is legible
@@ -18,6 +19,7 @@
 	let open = $state(false);
 
 	const status = $derived(polishStatus());
+	const destination = $derived(polishDestination());
 
 	const meta = $derived(
 		{
@@ -37,7 +39,8 @@
 			},
 			'needs-key': {
 				label: 'Polish',
-				tooltip: 'Polish is on but needs an AI key. Transcripts ship raw',
+				tooltip:
+					'Polish is on, but the completion provider is not ready. Transcripts ship raw',
 				Icon: KeyRoundIcon,
 				triggerClass: 'text-amber-600 dark:text-amber-500',
 				iconClass: 'text-amber-500',
@@ -70,6 +73,9 @@
 				label="Polish transcripts with AI"
 				description="An always-on AI pass that fixes grammar and punctuation while keeping your wording. Turn off for speed mode: instant raw transcript, no AI call."
 			/>
+			{#if settings.get('polish.enabled')}
+				<p class="text-muted-foreground text-sm">{destination}</p>
+			{/if}
 
 			{#if status === 'needs-key'}
 				<div
@@ -77,8 +83,8 @@
 				>
 					<KeyRoundIcon class="mt-0.5 size-4 shrink-0 text-amber-500" />
 					<p>
-						No AI key, so transcripts still ship raw. <Link
-							href="/settings/api-keys">Add a completion key</Link
+						The completion provider is not ready, so transcripts still ship raw. <Link
+							href="/settings/api-keys">Check completion settings</Link
 						> to start polishing.
 					</p>
 				</div>

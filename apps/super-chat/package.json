@@ -15,6 +15,7 @@
 	},
 	"dependencies": {
 		"@epicenter/client": "workspace:*",
+		"@epicenter/constants": "workspace:*",
 		"@epicenter/honeycrisp": "workspace:*",
 		"@epicenter/todos": "workspace:*",
 		"@epicenter/workspace": "workspace:*",
