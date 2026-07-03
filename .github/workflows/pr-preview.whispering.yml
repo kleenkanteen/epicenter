@@ -342,6 +342,32 @@ jobs:
           if ($script:fail) { Write-Host "::error::transcribe-cpp runtime DLLs missing from a Windows installer"; exit 1 }
           Write-Host "Windows staging dir, MSI, and NSIS installer all contain transcribe.dll + a ggml-cpu backend."
 
+      # Runtime proof (Windows x86_64). The audit above proves the DLLs are IN
+      # the installers; it does NOT prove libtranscribe dlopens the ggml backend
+      # modules and registers a compute device. Run the transcribe_cpp_devices
+      # example harness against the staged transcribe-libs dir (transcribe.dll +
+      # the ggml modules the bundle ships) and fail the job on zero devices. The
+      # harness reuses the release artifacts tauri-action just built (no native
+      # cmake rebuild), so the CI env is mirrored to keep sys-crate fingerprints
+      # stable. A GPU-less runner exercises the CPU-backend fallback, the
+      # load-bearing path for a machine with no usable Vulkan device.
+      - name: Smoke transcribe-cpp runtime devices (Windows)
+        if: ${{ matrix.os == 'windows' }}
+        shell: pwsh
+        env:
+          CI: true
+          CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staged = Join-Path $env:GITHUB_WORKSPACE 'apps/whispering/src-tauri/transcribe-libs'
+          if (-not (Test-Path $staged)) { Write-Host "::error::staged transcribe-libs dir not found at $staged"; exit 1 }
+          # transcribe.dll is a load-time import of the harness; Windows resolves
+          # it from the exe dir or PATH. The staged dir holds it AND the ggml
+          # module DLLs, so one dir satisfies both the loader and the module scan.
+          $env:PATH = "$staged;$env:PATH"
+          cargo run --release --manifest-path apps/whispering/src-tauri/Cargo.toml --example transcribe_cpp_devices -- "$staged"
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::transcribe-cpp runtime smoke failed (init error or zero compute devices)"; exit 1 }
+
       - name: Process AppImage (Linux only)
         if: ${{ matrix.os == 'linux' }}
         uses: ./.github/actions/process-whispering-appimage
@@ -405,6 +431,25 @@ jobs:
 
           test "$fail" -eq 0 || { echo "::error::transcribe-cpp runtime libs missing from a Linux package"; exit 1; }
           echo "All Linux packages contain libtranscribe + a libggml-cpu backend."
+
+      # Runtime proof (Linux x86_64). Mirror of the Windows smoke: the audit
+      # proves libtranscribe + the ggml backends are in the deb/rpm/AppImage;
+      # this proves the loader resolves them and registers a compute device.
+      # LD_LIBRARY_PATH points at the staged transcribe-libs so libtranscribe.so
+      # loads from the same file set the bundle ships, and that dir is passed as
+      # the explicit module-scan dir. Fails the job on zero devices.
+      - name: Smoke transcribe-cpp runtime devices (Linux)
+        if: ${{ matrix.os == 'linux' }}
+        shell: bash
+        env:
+          CI: true
+          CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+        run: |
+          set -euo pipefail
+          STAGED="$PWD/apps/whispering/src-tauri/transcribe-libs"
+          test -d "$STAGED" || { echo "::error::staged transcribe-libs dir not found at $STAGED"; exit 1; }
+          export LD_LIBRARY_PATH="$STAGED${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          cargo run --release --manifest-path apps/whispering/src-tauri/Cargo.toml --example transcribe_cpp_devices -- "$STAGED"
 
       # Only trusted runs upload. Fork PRs are compile checks: their green/red status
       # is the signal, and they never produce a signed build, so there is nothing
