@@ -113,10 +113,11 @@ const HOSTED_STT_PROVIDER = 'openai';
  * per-minute charge is tracked off the after-response queue from the `duration`
  * the gateway returns. No reservation lock, because the cost is unknown until the
  * call returns; the charge settles after the call, so concurrent requests can each
- * pass the gate before any usage posts, and steady-state overspend is bounded by
- * in-flight concurrency rather than a single call. A reservation lock would tighten
- * that and is deferred. House-key-only (ADR-0054): every call is metered, no BYOK
- * bypass.
+ * pass the gate before any usage posts. Overspend is bounded by both the largest
+ * single call (a long recording can over-tip a near-empty wallet on its own) and
+ * the number of in-flight calls; the deferred remedy is an input duration ceiling,
+ * not a reservation lock (see ADR-0100). House-key-only (ADR-0054): every call is
+ * metered, no BYOK bypass.
  */
 export const chargeOpenAiTranscriptionCredits = createMiddleware<CloudEnv>(
 	async (c, next) => {

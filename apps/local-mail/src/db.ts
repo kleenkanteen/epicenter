@@ -250,6 +250,15 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 	const patchMessageLabelsStmt = db.query(
 		`UPDATE messages SET raw = ?, synced_at = ? WHERE id = ?`,
 	);
+	const findLabelByIdOrExactNameStmt = db.query<
+		{ id: string; name: string | null },
+		[string, string, string]
+	>(
+		`SELECT id, name FROM labels
+		 WHERE id = ? OR name = ?
+		 ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, id
+		 LIMIT 1`,
+	);
 	const upsertLabelStmt = db.query(
 		`INSERT INTO labels (id, raw, synced_at)
 		 VALUES (?, ?, ?)
@@ -286,6 +295,20 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 		);
 	}
 
+	function patchMessageLabelsRow(
+		messageId: string,
+		labelIds: string[],
+		syncedAt: string,
+	): boolean {
+		const row = getMessageRawStmt.get(messageId);
+		if (!row) return false;
+		const patched = { ...JSON.parse(row.raw), labelIds };
+		return (
+			patchMessageLabelsStmt.run(JSON.stringify(patched), syncedAt, messageId)
+				.changes > 0
+		);
+	}
+
 	return {
 		/**
 		 * Escape hatch for tests and diagnostics only. Production reads go
@@ -301,11 +324,35 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 			return hasMessageStmt.get(id) !== null;
 		},
 
+		/**
+		 * Fold Gmail's authoritative post-mutation labels into one mirrored row.
+		 * Returns false when the row is absent and does not touch `_meta`: a fold
+		 * is not a sync pass and must not move staleness or history cursors.
+		 */
+		patchMessageLabels(
+			messageId: string,
+			labelIds: string[],
+			syncedAt: string,
+		) {
+			let patched = false;
+			const tx = db.transaction(() => {
+				patched = patchMessageLabelsRow(messageId, labelIds, syncedAt);
+			});
+			tx.immediate();
+			return patched;
+		},
+
 		counts(): { messages: number; labels: number } {
 			return {
 				messages: liveMessageCountStmt.get()?.n ?? 0,
 				labels: labelCountStmt.get()?.n ?? 0,
 			};
+		},
+
+		findLabelByIdOrExactName(
+			label: string,
+		): { id: string; name: string | null } | null {
+			return findLabelByIdOrExactNameStmt.get(label, label, label) ?? null;
 		},
 
 		/** Live messages, newest first, for post-pass reporting. */
@@ -388,14 +435,7 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 					upsertMessage(message, syncedAt);
 				for (const id of messagesToDelete) deleteMessageStmt.run(id);
 				for (const { messageId, labelIds } of labelPatches) {
-					const row = getMessageRawStmt.get(messageId);
-					if (!row) continue;
-					const patched = { ...JSON.parse(row.raw), labelIds };
-					patchMessageLabelsStmt.run(
-						JSON.stringify(patched),
-						syncedAt,
-						messageId,
-					);
+					patchMessageLabelsRow(messageId, labelIds, syncedAt);
 				}
 				setMetaStmt.run('history_id', newHistoryId);
 				setMetaStmt.run('last_synced_at', syncedAt);

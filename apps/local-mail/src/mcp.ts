@@ -43,6 +43,7 @@ import {
 import { type Static, type TObject, Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { Err, Ok, type Result } from 'wellcrafted/result';
+import { resolveAndModifyMessageLabels } from './modify.ts';
 import { queryMail } from './query.ts';
 import {
 	type LocalMailRuntime,
@@ -53,14 +54,20 @@ import { readMailStatus } from './status.ts';
 import { syncMailbox } from './sync.ts';
 import { VERSION } from './version.ts';
 
-type ToolOutcome = Result<unknown, { message: string }>;
+/**
+ * A tool that ran to completion but failed can still carry its structured
+ * outcome: `modify_labels` sets `structured` on a systemic abort so the model
+ * reads the per-id results even while `isError` flags the abort.
+ */
+type ToolFailure = { message: string; structured?: unknown };
+type ToolOutcome = Result<unknown, ToolFailure>;
 
 type ToolDescriptor = {
 	name: string;
 	title: string;
 	description: string;
 	input: TObject;
-	tier: 'read' | 'write';
+	tier: 'read' | 'write' | 'mutation';
 	run: (
 		ctx: LocalMailRuntime,
 		args: Record<string, unknown>,
@@ -72,7 +79,7 @@ function defineMcpTool<S extends TObject>(tool: {
 	title: string;
 	description: string;
 	input: S;
-	tier: 'read' | 'write';
+	tier: 'read' | 'write' | 'mutation';
 	run: (ctx: LocalMailRuntime, args: Static<S>) => Promise<ToolOutcome>;
 }): ToolDescriptor {
 	return { ...tool, run: (ctx, args) => tool.run(ctx, args as Static<S>) };
@@ -142,11 +149,74 @@ const TOOLS: ToolDescriptor[] = [
 			}
 		},
 	}),
+	defineMcpTool({
+		name: 'modify_labels',
+		title: 'Modify message labels',
+		description:
+			'Add or remove Gmail labels on 1 to 100 messages. Pass Gmail label ids or exact label names; UNREAD marks unread, removing UNREAD marks read, removing INBOX archives, and adding INBOX unarchives. Gmail accepts or rejects each mutation before the local mirror is folded.',
+		input: Type.Object({
+			ids: Type.Array(Type.String({ minLength: 1 }), {
+				minItems: 1,
+				maxItems: 100,
+				description: 'Gmail message ids to mutate serially.',
+			}),
+			addLabels: Type.Optional(
+				Type.Array(Type.String({ minLength: 1 }), {
+					maxItems: 100,
+					description: 'Gmail label ids or exact names to add.',
+				}),
+			),
+			removeLabels: Type.Optional(
+				Type.Array(Type.String({ minLength: 1 }), {
+					maxItems: 100,
+					description: 'Gmail label ids or exact names to remove.',
+				}),
+			),
+		}),
+		tier: 'mutation',
+		async run(ctx, args) {
+			const { data: session, error } = await openSyncSession(ctx);
+			if (error) return Err(error);
+			try {
+				const { data, error: modifyError } =
+					await resolveAndModifyMessageLabels({
+						deps: session.deps,
+						ids: args.ids,
+						addLabels: args.addLabels ?? [],
+						removeLabels: args.removeLabels ?? [],
+						readOnly: ctx.config.readOnly,
+					});
+				// A whole-request refusal (read-only, empty sets, unknown label)
+				// never ran, so it is a plain error with no structured payload.
+				if (modifyError) return Err({ message: modifyError.message });
+				// A systemic abort (token, throttle, network) ran partway: flag
+				// isError but keep the per-id results so the model sees what
+				// succeeded. Per-id Gmail rejections are NOT an error channel;
+				// they ride inside the structured results for per-id self-repair.
+				if (data.aborted) {
+					return Err({
+						message: `Modify aborted after ${data.results.length} of ${args.ids.length} id(s): ${data.aborted.message}`,
+						structured: data,
+					});
+				}
+				return Ok(data);
+			} finally {
+				session.close();
+			}
+		},
+	}),
 ];
 
 function toCallResult({ data, error }: ToolOutcome): CallToolResult {
 	if (error) {
-		return { content: [{ type: 'text', text: error.message }], isError: true };
+		const result: CallToolResult = {
+			content: [{ type: 'text', text: error.message }],
+			isError: true,
+		};
+		if (error.structured !== undefined) {
+			result.structuredContent = error.structured as Record<string, unknown>;
+		}
+		return result;
 	}
 	return {
 		content: [{ type: 'text', text: JSON.stringify(data) }],
@@ -170,9 +240,12 @@ export async function runMcpServer(): Promise<number> {
 		{ name: 'local-mail', version: VERSION },
 		{ capabilities: { tools: {} } },
 	);
+	const tools = TOOLS.filter(
+		(tool) => tool.tier !== 'mutation' || !runtime.config.readOnly,
+	);
 
 	server.setRequestHandler(ListToolsRequestSchema, async () => ({
-		tools: TOOLS.map((tool) => ({
+		tools: tools.map((tool) => ({
 			name: tool.name,
 			title: tool.title,
 			description: tool.description,
@@ -180,12 +253,13 @@ export async function runMcpServer(): Promise<number> {
 			annotations: {
 				readOnlyHint: tool.tier === 'read',
 				destructiveHint: false,
+				...(tool.tier === 'mutation' ? { idempotentHint: true } : {}),
 			},
 		})),
 	}));
 
 	server.setRequestHandler(CallToolRequestSchema, async (req) => {
-		const tool = TOOLS.find((candidate) => candidate.name === req.params.name);
+		const tool = tools.find((candidate) => candidate.name === req.params.name);
 		if (!tool) {
 			throw new McpError(
 				ErrorCode.MethodNotFound,

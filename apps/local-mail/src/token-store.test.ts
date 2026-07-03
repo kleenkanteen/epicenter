@@ -51,6 +51,7 @@ function config(account: string | null): AppConfig {
 		pageSize: 100,
 		credentialsPath: '/tmp/local-mail-test/credentials.json',
 		account,
+		readOnly: false,
 	};
 }
 

@@ -1,4 +1,4 @@
-# 0100. Vocab stores verbatim terms under a human-owned note and refuses glosses, SRS, and provenance
+# 0102. Vocab stores verbatim terms under a human-owned note and refuses glosses, SRS, and provenance
 
 - **Status:** Accepted
 - **Date:** 2026-07-02

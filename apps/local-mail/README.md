@@ -37,6 +37,11 @@ Use `--client-id <id>` to override `GMAIL_CLIENT_ID` for the connect command.
 `GMAIL_CLIENT_SECRET` is still required because Google Desktop clients have a
 secret and the token exchange sends it as a form parameter.
 
+Local Mail requests `gmail.modify` so write-through label changes can round-trip
+through Gmail. Although Google grants send at the same OAuth layer, Local Mail
+does not expose send, reply, compose, drafts, trash, untrash, or delete in this
+phase.
+
 Headless bootstrap is still available. The refresh token is redeemed
 immediately (one refresh grant plus a profile read), so a dead token fails
 here rather than on the first sync, and the account email comes from the
@@ -69,6 +74,25 @@ Query the mirror:
 bun run src/bin.ts query "SELECT subject, sender FROM messages ORDER BY internal_date DESC LIMIT 10"
 ```
 
+Triage messages. Each verb is a Gmail label change that the mirror folds in
+after Gmail accepts it. Output is human-readable; add `--json` for the typed
+`ModifyMessageLabelsOutcome` that MCP and a future HTTP adapter share.
+
+```sh
+bun run src/bin.ts archive <id...>
+bun run src/bin.ts unarchive <id...>
+bun run src/bin.ts mark-read <id...>
+bun run src/bin.ts mark-unread <id...>
+bun run src/bin.ts label <id...> --add Work --remove Promotions
+```
+
+`archive`, `mark-read`, and friends are the triage vocabulary; `label` is the
+transparent primitive they desugar to (`archive` is `label --remove INBOX`).
+Any per-id rejection or a systemic abort exits nonzero, so
+`mark-read <id> && next` never proceeds on a mailbox that did not change.
+`LOCAL_MAIL_READ_ONLY` refuses every write while leaving `query`/`status`/`sync`
+available.
+
 Serve tools to an MCP host:
 
 ```sh
@@ -83,6 +107,11 @@ Tools:
 - `query`: read-only SQL over the mirror, capped at 1000 returned rows.
 - `status`: account, cursor, and row counts.
 - `sync`: one local mirror refresh pass. This writes only the local cache.
+- `modify_labels`: add or remove Gmail labels on 1 to 100 messages by id or
+  exact name (`addLabels`/`removeLabels`), then fold Gmail's response. Per-id
+  rejections ride inside the structured result; only a systemic abort sets
+  `isError`. Unlisted under `LOCAL_MAIL_READ_ONLY`. The CLI triage verbs above
+  are the human-facing form of this one tool.
 
 ## Config
 
@@ -109,7 +138,10 @@ stdio subprocess for the agent-facing protocol surface.
 
 ## Not built yet
 
-- Gmail write-through actions such as archive, mark-read, and label edits.
+- HTTP and UI surfaces for the write-through actions. When they land, the UI
+  calls one `POST /api/messages/modify` adapter over the same core the CLI and
+  MCP use, not per-intent routes.
+- Send, reply, compose, drafts, trash, untrash, and permanent delete.
 - FTS5. `LIKE` over `body_text` is enough for the current mirror size.
 - Push/Pub/Sub.
 - The `up` local server and UI.

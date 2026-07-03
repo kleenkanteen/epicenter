@@ -7,8 +7,9 @@ import { isErr, Ok, type Result } from 'wellcrafted/result';
 import { buildPolishSystemPrompt } from '$lib/operations/build-system-prompt';
 import {
 	completeWithGlobalDefault,
-	hasCompletionCapability,
+	resolveCompletionState,
 } from '$lib/operations/completion';
+import { describePolishDestination } from '$lib/operations/completion-target';
 import { settings } from '$lib/state/settings.svelte';
 
 export const RunPolishError = defineErrors({
@@ -43,7 +44,22 @@ export type PolishStatus = 'off' | 'on' | 'needs-key';
 
 export function polishStatus(): PolishStatus {
 	if (!settings.get('polish.enabled')) return 'off';
-	return hasCompletionCapability() ? 'on' : 'needs-key';
+	return resolveCompletionState().canRun ? 'on' : 'needs-key';
+}
+
+/**
+ * The privacy boundary the UI shows for the current Polish configuration: where
+ * audio is transcribed and where Polish sends transcript text. Assembled once
+ * here, beside {@link polishStatus}, so the Polish controls only render the
+ * derived sentence instead of each reconstructing it from settings and the
+ * resolved completion target. Read at use per ADR 0012.
+ */
+export function polishDestination(): string {
+	return describePolishDestination(
+		settings.get('transcription.service'),
+		settings.get('completion.provider'),
+		resolveCompletionState(),
+	);
 }
 
 /**
