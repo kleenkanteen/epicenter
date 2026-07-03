@@ -246,31 +246,32 @@ Build, prove, remove has nothing to remove here; the waves are build-and-prove, 
 - [x] **3.2 The core and the fold.** `db.patchMessageLabels` (extract the labelPatch semantics already inside `applyHistoryBatch` into a single-row method both call), `src/modify.ts` with `modifyMessageLabels` (required `readOnly`, serial loop, per-id/systemic error split, best-effort fold). Tests 1-6, 10-13.
 - [x] **3.3 CLI.** `modify` verb with intent flags desugaring to add/remove sets; `resolveLabelIds` helper (mirror lookup, fresh `labels.list` on miss); `LOCAL_MAIL_READ_ONLY` in config. Tests 7, 14, 15.
 - [x] **3.4 MCP.** Three-tier `tier`, catalog filter under `LOCAL_MAIL_READ_ONLY`, `modify_labels` tool (TypeBox input: `ids` 1-100, optional `addLabelIds`/`removeLabelIds` accepting ids or names via the same helper), per-tool annotations. Tests 8, 9, 16.
-- [ ] **3.5 Live round-trip (owner).** The phone-visible verification above; this is the gate the shell spec's Phase C/D UI waits on.
+- [x] **3.5 Live round-trip (owner).** The phone-visible verification above; this is the gate the shell spec's Phase C/D UI waits on.
+  > **Live note, 2026-07-02:** Owner verified `modify 19f25c61b98fe50e --read` and `--unread` against Gmail web/phone. Gmail's `messages.modify` response carried `labelIds`; both CLI outcomes returned `folded: true`, and the mirror query matched the returned labels immediately. Owner then verified `--archive` and `--unarchive`: archive removed `INBOX`, unarchive restored `INBOX`, and both returned `folded: true`. After establishing the first full-sync cursor (`559146`), a post-cursor incremental sync replayed the archive history cleanly: `cursorBefore: "559146"`, `cursorAfter: "559160"`, `labelsPatched: 1`, `failure: null`. The message was restored with `--unarchive`, and the restore-side incremental sync converged cleanly once Gmail history caught up.
 
 ## Stop point: what must be true before UI work starts
 
 UI (shell spec Phases C and D) starts only when all of:
 
-1. The mark-read and archive cores are live-verified round-trip: desktop mutation, phone Gmail reflects it, next sync pass replays it without churn.
-2. The re-consent flow is proven: a readonly-granted account hits the 403 mapping, runs `connect`, and the same write succeeds.
+1. The mark-read and archive cores are live-verified round-trip: desktop mutation, phone Gmail reflects it, next sync pass replays it without churn. As of 2026-07-02, mark-read/unread and archive/unarchive are phone-visible and folded; archive and restore history replay after a stored cursor are verified.
+2. The stale-grant path is settled: a readonly-era token surfaces Gmail's raw 403, and `connect` requests the write-capable `gmail.modify` grant.
 3. The failure surfacing is settled as data (this spec's `ModifyOutcome` and error names), so UI work binds to a stable shape instead of inventing one.
 
 Nothing in this spec adds HTTP endpoints; the shell spec's `POST /api/messages/:id/...` adapters are Phase D work that wraps `modifyMessageLabels` the same way the CLI does.
 
 ## Open questions
 
-1. **Does the live `messages.modify` response reliably carry `labelIds`?** Not contractually documented; universally observed. The `folded: false` branch makes either answer safe. **Recommendation**: resolve empirically in wave 3.5; if it ever comes back absent, the escape hatch is a `messages.get` refetch (20 units) behind the same fold, still Gmail-sourced.
+1. **Does the live `messages.modify` response reliably carry `labelIds`?** Not contractually documented; universally observed. **Resolved 2026-07-02 for the live Phase 3.5 sample:** mark-read, mark-unread, archive, and unarchive all returned `labelIds` and folded immediately. Keep the `folded: false` branch because the field is still not contractual; if it ever comes back absent, the escape hatch is a `messages.get` refetch (20 units) behind the same fold, still Gmail-sourced.
 2. **Persist the granted scope at connect time?** The token grant response includes `scope`; storing it would let the CLI warn before a write instead of after a 403. **Recommendation**: skip for v1; the raw 403 is one round-trip and zero new state. (Resolved 2026-07-02: even the bespoke reconnect-message mapping was removed as an unearned bridge; the raw Gmail 403 is the whole surface now.) Revisit if the error proves confusing live.
 3. **Per-intent MCP sugar tools (`mark_read`, `archive`)?** **Recommendation**: wait for evidence that models fumble the label vocabulary in `modify_labels`; the description documents `UNREAD`/`INBOX` explicitly.
 4. **ADR at flip time.** The durable decisions here that outlive this spec: the six-actions-one-primitive collapse, the single-scope posture (`gmail.modify`, send refused at app level, no dual consent modes, no readonly-era reconnect bridge; a stale-scope write surfaces Gmail's raw 403), and the fold-is-not-optimistic-patch line. **Recommendation**: record as one short ADR when Phase 3 lands and this spec is deleted; check the ADR number against main first (a concurrent branch has minted another 0098).
 
 ## Success criteria
 
-- [ ] `bun test` and `bun run typecheck` green in `apps/local-mail`; all sixteen test-plan pins present.
-- [ ] Live: mark-read on the desktop is visible in Gmail's phone app without a local sync pass in between (the fold), and the next `--watch` pass replays it cleanly.
-- [ ] `LOCAL_MAIL_READ_ONLY=1 local-mail mcp` lists no `modify_labels`; the CLI `modify` verb refuses under the same env.
-- [ ] Grep-level: no new mirror tables, no pending-operation state, `SCHEMA_VERSION` unchanged.
+- [x] `bun test` and `bun run typecheck` green in `apps/local-mail`; all sixteen test-plan pins present.
+- [x] Live: mark-read on the desktop is visible in Gmail's phone app without a local sync pass in between (the fold), and the next `--watch` pass replays it cleanly. Mark-read/unread and archive/unarchive folds are verified; archive and restore history replay after cursor `559146` are verified.
+- [x] `LOCAL_MAIL_READ_ONLY=1 local-mail mcp` lists no `modify_labels`; the CLI `modify` verb refuses under the same env.
+- [x] Grep-level: no new mirror tables, no pending-operation state, `SCHEMA_VERSION` unchanged.
 
 ## References
 
