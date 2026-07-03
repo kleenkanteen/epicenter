@@ -83,7 +83,7 @@
 		)?.label,
 	);
 
-	const isLocalEngine = $derived(
+	const isLocalProvider = $derived(
 		Boolean(tauri) &&
 			PROVIDERS[settings.get('transcription.service')].location === 'local',
 	);
@@ -334,7 +334,7 @@
 </Field.Group>
 
 {#snippet advancedFields()}
-	{#if isLocalEngine}
+	{#if isLocalProvider}
 		<Field.Field>
 			<Field.Label for="local-model-unload-policy">
 				Unload Model When Idle
