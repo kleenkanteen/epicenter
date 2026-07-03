@@ -1,15 +1,13 @@
 <script lang="ts">
 	import { Button } from '@epicenter/ui/button';
-	import * as Collapsible from '@epicenter/ui/collapsible';
 	import * as Field from '@epicenter/ui/field';
 	import { Input } from '@epicenter/ui/input';
 	import { Link } from '@epicenter/ui/link';
 	import { Textarea } from '@epicenter/ui/textarea';
-	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { SettingSwitch } from '$lib/components/settings';
+	import { AdvancedDisclosure, SettingSwitch } from '$lib/components/settings';
 	import { polishDestination, polishStatus } from '$lib/operations/run-polish';
 	import { settings } from '$lib/state/settings.svelte';
 
@@ -80,34 +78,26 @@
 				{/if}
 
 				{#if settings.get('polish.enabled')}
-					<Collapsible.Root>
-						<Collapsible.Trigger
-							class="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm [&[data-state=open]>svg]:rotate-180"
-						>
-							<ChevronDownIcon class="size-4 transition-transform" />
-							Advanced
-						</Collapsible.Trigger>
-						<Collapsible.Content class="pt-3">
-							<Field.Field>
-								<Field.Label for="polish-instructions">
-									Polish instructions
-								</Field.Label>
-								<Textarea
-									id="polish-instructions"
-									placeholder={settings.getDefault('polish.instructions')}
-									bind:value={
-										() => settings.get('polish.instructions'),
-										(value) => settings.set('polish.instructions', value)
-									}
-								/>
-								<Field.Description>
-									What Polish does to every transcript. Keep it
-									meaning-preserving; reshaping (email, to-dos) belongs in
-									recipes.
-								</Field.Description>
-							</Field.Field>
-						</Collapsible.Content>
-					</Collapsible.Root>
+					<AdvancedDisclosure>
+						<Field.Field>
+							<Field.Label for="polish-instructions">
+								Polish instructions
+							</Field.Label>
+							<Textarea
+								id="polish-instructions"
+								placeholder={settings.getDefault('polish.instructions')}
+								bind:value={
+									() => settings.get('polish.instructions'),
+									(value) => settings.set('polish.instructions', value)
+								}
+							/>
+							<Field.Description>
+								What Polish does to every transcript. Keep it
+								meaning-preserving; reshaping (email, to-dos) belongs in
+								recipes.
+							</Field.Description>
+						</Field.Field>
+					</AdvancedDisclosure>
 				{/if}
 			</Field.Group>
 		</Field.Set>

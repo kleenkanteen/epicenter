@@ -1,10 +1,8 @@
 <script lang="ts">
 	import * as Alert from '@epicenter/ui/alert';
-	import * as Collapsible from '@epicenter/ui/collapsible';
 	import * as Field from '@epicenter/ui/field';
 	import { Input } from '@epicenter/ui/input';
 	import * as Select from '@epicenter/ui/select';
-	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import {
 		hasModelSelect,
@@ -15,6 +13,7 @@
 	import { resolveCompletionState } from '$lib/operations/completion';
 	import { describeCompletionReadiness } from '$lib/operations/completion-target';
 	import { settings } from '$lib/state/settings.svelte';
+	import AdvancedDisclosure from './AdvancedDisclosure.svelte';
 	import ProviderConfigFields from './ProviderConfigFields.svelte';
 
 	// The Text stage of the capture pipeline: the AI destination Polish and every
@@ -90,36 +89,28 @@
 	{#if modelItems}
 		<!-- Fixed-list providers get a working default model on selection, so the
 		     model is an advanced detail, not a required input. -->
-		<Collapsible.Root>
-			<Collapsible.Trigger
-				class="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm [&[data-state=open]>svg]:rotate-180"
-			>
-				<ChevronDownIcon class="size-4 transition-transform" />
-				Advanced
-			</Collapsible.Trigger>
-			<Collapsible.Content class="pt-3">
-				<Field.Field>
-					<Field.Label for="completion-model">Model</Field.Label>
-					<Select.Root
-						type="single"
-						bind:value={() => settings.get('completion.model'),
-							(value) => settings.set('completion.model', value)}
-					>
-						<Select.Trigger id="completion-model" class="w-full">
-							{settings.get('completion.model') || 'Select a model'}
-						</Select.Trigger>
-						<Select.Content>
-							{#each modelItems as item (item.value)}
-								<Select.Item value={item.value} label={item.label} />
-							{/each}
-						</Select.Content>
-					</Select.Root>
-					<Field.Description>
-						The model Polish and Recipes call on this provider.
-					</Field.Description>
-				</Field.Field>
-			</Collapsible.Content>
-		</Collapsible.Root>
+		<AdvancedDisclosure>
+			<Field.Field>
+				<Field.Label for="completion-model">Model</Field.Label>
+				<Select.Root
+					type="single"
+					bind:value={() => settings.get('completion.model'),
+						(value) => settings.set('completion.model', value)}
+				>
+					<Select.Trigger id="completion-model" class="w-full">
+						{settings.get('completion.model') || 'Select a model'}
+					</Select.Trigger>
+					<Select.Content>
+						{#each modelItems as item (item.value)}
+							<Select.Item value={item.value} label={item.label} />
+						{/each}
+					</Select.Content>
+				</Select.Root>
+				<Field.Description>
+					The model Polish and Recipes call on this provider.
+				</Field.Description>
+			</Field.Field>
+		</AdvancedDisclosure>
 	{:else}
 		<!-- Free-form providers (OpenRouter, Custom) have no default model, so the
 		     id is a required primary input the endpoint must serve, kept inline. -->

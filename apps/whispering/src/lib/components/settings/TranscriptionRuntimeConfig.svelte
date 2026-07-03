@@ -3,14 +3,12 @@
 	import { Badge } from '@epicenter/ui/badge';
 	import { Button } from '@epicenter/ui/button';
 	import * as Card from '@epicenter/ui/card';
-	import * as Collapsible from '@epicenter/ui/collapsible';
 	import { CopyButton } from '@epicenter/ui/copy-button';
 	import * as Field from '@epicenter/ui/field';
 	import { Input } from '@epicenter/ui/input';
 	import { Link } from '@epicenter/ui/link';
 	import * as Select from '@epicenter/ui/select';
 	import { Textarea } from '@epicenter/ui/textarea';
-	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import type { Snippet } from 'svelte';
 	import CopyablePre from '$lib/components/copyable/CopyablePre.svelte';
 	import { SUPPORTED_LANGUAGES_OPTIONS } from '$lib/constants/languages';
@@ -30,6 +28,7 @@
 	import { settings } from '$lib/state/settings.svelte';
 	import { createCopyFn } from '$lib/utils/createCopyFn';
 	import { tauri } from '#platform/tauri';
+	import AdvancedDisclosure from './AdvancedDisclosure.svelte';
 	import LocalModelSelector from './LocalModelSelector.svelte';
 	import ProviderConfigFields from './ProviderConfigFields.svelte';
 	import TranscriptionServiceSelect from './TranscriptionServiceSelect.svelte';
@@ -407,17 +406,9 @@
 	{/if}
 
 	{#if !isSelectedServiceUnavailable}
-		<Collapsible.Root>
-			<Collapsible.Trigger
-				class="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm [&[data-state=open]>svg]:rotate-180"
-			>
-				<ChevronDownIcon class="size-4 transition-transform" />
-				Advanced
-			</Collapsible.Trigger>
-			<Collapsible.Content class="pt-3">
-				<Field.Group>{@render advancedFields()}</Field.Group>
-			</Collapsible.Content>
-		</Collapsible.Root>
+		<AdvancedDisclosure>
+			<Field.Group>{@render advancedFields()}</Field.Group>
+		</AdvancedDisclosure>
 	{/if}
 </Field.Group>
 
