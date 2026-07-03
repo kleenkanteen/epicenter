@@ -129,6 +129,14 @@ describe('createSuperChatServer', () => {
 			};
 			expect(body.tools.map((t) => t.name)).toContain('todos__todos_create');
 			expect(body.snapshot.messages).toEqual([]);
+
+			const oldTools = await fetch(`${server.url.origin}/api/tools`, {
+				headers: { authorization: `Bearer ${TOKEN}` },
+			});
+			expect(oldTools.status).toBe(404);
+
+			const oldWs = await fetch(`${server.url.origin}/ws?token=${TOKEN}`);
+			expect(oldWs.status).toBe(404);
 		} finally {
 			await server.stop(true);
 		}
