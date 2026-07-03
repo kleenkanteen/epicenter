@@ -12,11 +12,10 @@ import {
 } from './devices';
 
 /**
- * Speech-transcription-friendly capture constraints (mono, 16 kHz), the shape
- * Whisper-style STT APIs recommend. Applied to every `getUserMedia` call this
- * module makes.
+ * Browser microphone capture constraints for speech audio. Applied to every
+ * `getUserMedia` call this module makes.
  */
-const TRANSCRIPTION_MEDIA_TRACK_CONSTRAINTS = {
+const SPEECH_MEDIA_TRACK_CONSTRAINTS = {
 	channelCount: { ideal: 1 },
 	sampleRate: { ideal: 16_000 },
 } satisfies MediaTrackConstraints;
@@ -57,7 +56,7 @@ export async function enumerateDevices(): Promise<
 			// device labels; we only need it long enough to enumerate, so stop it
 			// in `finally` even when enumeration throws.
 			const stream = await navigator.mediaDevices.getUserMedia({
-				audio: TRANSCRIPTION_MEDIA_TRACK_CONSTRAINTS,
+				audio: SPEECH_MEDIA_TRACK_CONSTRAINTS,
 			});
 			try {
 				const devices = await navigator.mediaDevices.enumerateDevices();
@@ -95,7 +94,7 @@ export async function getRecordingStream({
 			try: () =>
 				navigator.mediaDevices.getUserMedia({
 					audio: {
-						...TRANSCRIPTION_MEDIA_TRACK_CONSTRAINTS,
+						...SPEECH_MEDIA_TRACK_CONSTRAINTS,
 						deviceId: { exact: selectedDeviceId },
 					},
 				}),
@@ -123,7 +122,7 @@ export async function getRecordingStream({
 	const { data: stream, error } = await tryAsync({
 		try: () =>
 			navigator.mediaDevices.getUserMedia({
-				audio: TRANSCRIPTION_MEDIA_TRACK_CONSTRAINTS,
+				audio: SPEECH_MEDIA_TRACK_CONSTRAINTS,
 			}),
 		catch: (error) => {
 			const name = error instanceof DOMException ? error.name : '';
