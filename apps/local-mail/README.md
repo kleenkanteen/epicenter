@@ -96,10 +96,10 @@ available.
 Serve the triage UI and its API from one loopback process:
 
 ```sh
-bun run src/bin.ts up
+bun run src/bin.ts app
 ```
 
-`up` runs the sync loop and serves the triage SPA (`ui/`) plus a same-origin
+`app` runs the sync loop and serves the triage SPA (`ui/`) plus a same-origin
 `/api` on `127.0.0.1`, then prints `http://127.0.0.1:PORT/#token=...` and opens
 it. The tab is the app. Security is the up-shell spec's: a single-use bootstrap
 token rides in the URL fragment and is exchanged once at `POST /api/session`
@@ -108,13 +108,14 @@ Host-checked first; the write route is the one `POST /api/messages/modify`
 (`{ ids, addLabels, removeLabels }` -> `ModifyMessageLabelsOutcome`) over the
 same core the CLI verbs and MCP tool use, so archive/read/label all desugar to
 add/remove sets client-side. `LOCAL_MAIL_READ_ONLY` disables writes end to end;
-`LOCAL_MAIL_NO_OPEN=1` prints the URL without launching a browser.
+`--no-open` prints the URL without launching a browser. `--port <n>` pins the
+server port. `LOCAL_MAIL_NO_OPEN=1` and `LOCAL_MAIL_PORT` remain env fallbacks.
 
-Develop the UI against a running `up`:
+Develop the UI against a running `app`:
 
 ```sh
-LOCAL_MAIL_DEV=1 LOCAL_MAIL_TOKEN=devtoken LOCAL_MAIL_PORT=4177 bun run src/bin.ts up
-LOCAL_MAIL_TOKEN=devtoken bun run --cwd ui dev   # same token: Vite proxies /api to up, injecting this bearer
+LOCAL_MAIL_DEV=1 LOCAL_MAIL_TOKEN=devtoken LOCAL_MAIL_PORT=4177 bun run src/bin.ts app
+LOCAL_MAIL_TOKEN=devtoken bun run --cwd ui dev   # same token: Vite proxies /api to app, injecting this bearer
 ```
 
 Serve tools to an MCP host:
@@ -146,10 +147,12 @@ Tools:
 - `LOCAL_MAIL_TOKEN_FILE`: token file override.
 - `LOCAL_MAIL_GMAIL_API_BASE`: test plumbing only; points the Gmail client at
   a mock server in the MCP subprocess test.
-- `LOCAL_MAIL_PORT`: pin the `up` server port (default: ephemeral).
-- `LOCAL_MAIL_DEV` / `LOCAL_MAIL_TOKEN`: dev-mode `up`; the Vite proxy injects
+- `LOCAL_MAIL_PORT`: fallback for pinning the `app` server port; prefer
+  `--port <n>` for normal use.
+- `LOCAL_MAIL_DEV` / `LOCAL_MAIL_TOKEN`: dev-mode `app`; the Vite proxy injects
   the fixed bearer. `bearerAuth` is never disabled in any mode.
-- `LOCAL_MAIL_NO_OPEN`: `up` prints the launch URL without opening a browser.
+- `LOCAL_MAIL_NO_OPEN`: fallback for making `app` print the launch URL without
+  opening a browser; prefer `--no-open` for normal use.
 
 ## Testing
 
@@ -169,7 +172,7 @@ stdio subprocess for the agent-facing protocol surface.
 - HTML mail-body rendering. The detail pane shows the pre-extracted plain-text
   body; rich HTML rendering (the sanitizer + sandboxed srcdoc + CSP + show-images
   proxy) is deferred, which is why the SPA has no mail-body iframe yet.
-- Compile-embed distribution (`bun build --compile`) and the Tauri wrapper. `up`
+- Compile-embed distribution (`bun build --compile`) and the Tauri wrapper. `app`
   serves `ui/dist` from disk; the route table is the seam the distribution wave
   swaps for embedded assets later.
 - Send, reply, compose, drafts, trash, untrash, and permanent delete.

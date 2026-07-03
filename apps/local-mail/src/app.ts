@@ -8,7 +8,7 @@ import { readMailStatus } from './status.ts';
 import { syncMailbox } from './sync.ts';
 
 /**
- * `local-mail up`: one Bun process that serves the triage SPA and its `/api`
+ * `local-mail app`: one Bun process that serves the triage SPA and its `/api`
  * over `127.0.0.1`, while the same process keeps the mirror fresh through the
  * sync loop. The security model is the up-shell spec's, condensed:
  *
@@ -124,7 +124,10 @@ async function serveStatic(
 	return new Response('Not found', { status: 404 });
 }
 
-export async function runUp(): Promise<number> {
+export async function runApp(options: {
+	noOpen: boolean;
+	port?: number;
+}): Promise<number> {
 	const { data: runtime, error: runtimeError } = await openLocalMailRuntime();
 	// Narrow on `runtime` itself, not just the error: the value is captured in
 	// the fetch/handleApi closures below, where only a truthiness guard on the
@@ -140,7 +143,7 @@ export async function runUp(): Promise<number> {
 	const lock = acquireAccountLock(accountDir);
 	if (!lock) {
 		console.error(
-			`local-mail up is already running for ${runtime.accountEmail}. Stop it first, or open the URL it printed.`,
+			`local-mail app is already running for ${runtime.accountEmail}. Stop it first, or open the URL it printed.`,
 		);
 		return 1;
 	}
@@ -222,7 +225,7 @@ export async function runUp(): Promise<number> {
 
 		const bearer = bearerOf(req);
 		if (!bearer || !sessionBearers.has(bearer)) {
-			return json({ error: 'Unauthorized. Restart local-mail up.' }, 401);
+			return json({ error: 'Unauthorized. Restart local-mail app.' }, 401);
 		}
 
 		if (pathname === '/api/status' && req.method === 'GET') {
@@ -297,7 +300,7 @@ export async function runUp(): Promise<number> {
 
 	const server = Bun.serve({
 		hostname: '127.0.0.1',
-		port: Number(process.env.LOCAL_MAIL_PORT) || 0,
+		port: options.port ?? (Number(process.env.LOCAL_MAIL_PORT) || 0),
 		async fetch(req) {
 			const url = new URL(req.url);
 
@@ -327,7 +330,7 @@ export async function runUp(): Promise<number> {
 
 	const origin = `http://127.0.0.1:${server.port}`;
 	if (DEV) {
-		console.error(`local-mail up (dev API) listening on ${origin}`);
+		console.error(`local-mail app (dev API) listening on ${origin}`);
 		console.error('Run the SPA with: bun run --cwd apps/local-mail/ui dev');
 	} else {
 		const launchUrl = `${origin}/#token=${bootstrapToken}`;
@@ -337,9 +340,11 @@ export async function runUp(): Promise<number> {
 				`Note: ${uiDist} does not exist yet. Build the SPA with "bun run --cwd apps/local-mail/ui build".`,
 			);
 		}
-		// `LOCAL_MAIL_NO_OPEN=1` prints the URL without launching a browser: for
-		// headless hosts, CI, and "copy the URL into the browser I want" workflows.
-		if (process.env.LOCAL_MAIL_NO_OPEN !== '1') {
+		// `--no-open` (or `LOCAL_MAIL_NO_OPEN=1`) prints the URL without launching
+		// a browser: for headless hosts, CI, and "copy the URL into the browser I
+		// want" workflows.
+		const noOpen = options.noOpen || process.env.LOCAL_MAIL_NO_OPEN === '1';
+		if (!noOpen) {
 			Bun.spawn(['open', launchUrl]).exited.catch(() => {});
 		}
 	}
