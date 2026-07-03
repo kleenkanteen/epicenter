@@ -7,9 +7,6 @@ pub enum TranscriptionError {
     #[error("Audio read error: {message}")]
     AudioReadError { message: String },
 
-    #[error("GPU error: {message}")]
-    GpuError { message: String },
-
     #[error("Model load error: {message}")]
     ModelLoadError { message: String },
 

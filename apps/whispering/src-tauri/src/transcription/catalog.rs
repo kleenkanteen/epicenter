@@ -130,6 +130,15 @@ fn find(model_id: &str) -> Option<&'static CatalogEntry> {
     CATALOG.iter().find(|entry| entry.id() == model_id)
 }
 
+/// Resolve a model id to its catalog entry, or the `UnknownModel` error the
+/// `download_model`/`delete_model` commands both return for an id not in the
+/// catalog. One place owns that message so the two commands cannot drift.
+fn find_or_unknown(model_id: &str) -> Result<&'static CatalogEntry, CatalogError> {
+    find(model_id).ok_or_else(|| CatalogError::UnknownModel {
+        message: format!("Unknown local model \"{model_id}\"."),
+    })
+}
+
 /// Resolve a stored model id to its on-disk GGUF path, or a user-facing message.
 /// The one place `transcribe_recording`/`prewarm_model` turn a selection into a
 /// path: an unknown id or a not-yet-downloaded model both fail here with a
@@ -253,9 +262,7 @@ pub async fn download_model(
     on_progress: Channel<DownloadProgress>,
     manager: State<'_, DownloadManager>,
 ) -> Result<(), CatalogError> {
-    let entry = find(&model_id).ok_or_else(|| CatalogError::UnknownModel {
-        message: format!("Unknown local model \"{model_id}\"."),
-    })?;
+    let entry = find_or_unknown(&model_id)?;
 
     let api = ApiBuilder::from_env()
         .with_progress(false)
@@ -290,9 +297,7 @@ pub async fn download_model(
 #[tauri::command]
 #[specta::specta]
 pub fn delete_model(model_id: String) -> Result<(), CatalogError> {
-    let entry = find(&model_id).ok_or_else(|| CatalogError::UnknownModel {
-        message: format!("Unknown local model \"{model_id}\"."),
-    })?;
+    let entry = find_or_unknown(&model_id)?;
 
     let Some(pointer) = entry.cached_path() else {
         return Ok(());
