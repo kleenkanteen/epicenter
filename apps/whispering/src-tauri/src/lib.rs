@@ -238,10 +238,9 @@ pub async fn run() {
             // the generated `events` listeners (FE) resolve the same names.
             specta_builder.mount_events(app);
 
-            // ModelCache owns an `AppHandle` for emitting model lifecycle
-            // events, so it cannot be constructed at builder-time (no app handle
-            // exists yet). Move construction into setup; everything that needs it
-            // reads via `app.state::<ModelCache>()`.
+            // Construct the model cache and start its idle watcher, which spawns
+            // a background eviction task on the tauri async runtime. Everything
+            // that needs the cache reads it via `app.state::<ModelCache>()`.
             let cache = ModelCache::new();
             cache.start_idle_watcher();
             app.manage(cache);
