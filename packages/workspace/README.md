@@ -83,12 +83,8 @@ const blogWorkspace = defineWorkspace({
 	kv: {},
 });
 
-export function openBlog() {
-	return blogWorkspace.connect(null);
-}
-
-// Singleton style: open once at module scope, use everywhere.
-export const blog = openBlog();
+// Singleton style: connect once at module scope, use everywhere.
+export const blog = blogWorkspace.connect(null);
 
 async function quickStart() {
 	await blog.storage.whenLoaded;
@@ -112,16 +108,16 @@ void quickStart;
 That example uses the current public API end to end:
 
 - `defineTable(...)` with a real schema
-- a direct `openBlog()` builder function that calls `blogWorkspace.connect(null)`
 - `defineWorkspace(...)` for the shared contract and `connect(null)` for the live local bundle
+- a module-scope singleton: `export const blog = blogWorkspace.connect(null)`
 - direct property access via `blog.tables.posts`
 - `set`, `get`, `update`, `delete`, `scan`, and `observe`
 
 The quick start is local-first: it persists to browser storage and works
 offline. Sync is the credentialed arm of the same call. See [Sync](#sync).
 
-Singleton apps (one workspace per app) call a builder like `openBlog()` once at
-module scope. Browser child documents are declared on tables and opened through
+Singleton apps (one workspace per app) call `connect(...)` once at module
+scope. Browser child documents are declared on tables and opened through
 the connected table handle. One-shot Node scripts and daemon projections can
 derive the same child-doc guid for one row, read it, and destroy it. See
 [Per-row content documents](#per-row-content-documents) below.
@@ -398,9 +394,10 @@ Yjs supports multiple providers simultaneously. A phone can connect to desktop, 
    browser apps: call `definition.connect(connection)`. For browser child documents:
    declare them with `table.docs(...)` and call `tables.<table>.docs.<field>.open(rowId)`.
    For one-shot Node operations: derive the same child-doc guid and read the room directly.
-4. Await the right readiness signal before reading persisted state. There are two shapes here, and the choice is load-bearing:
-   - **One subsystem to wait on.** Expose the subsystem (`storage`, `persistence`, ...) on the bundle root and let consumers reach through: `await bundle.storage.whenLoaded`. Do not alias `whenLoaded`/`whenReady` flat at the bundle root just to save `.storage`; the alias lies about composition.
+4. Await the right readiness signal before reading persisted state. The rule is scoped by what kind of bundle you are building:
+   - **Opener and runtime bundles expose subsystem readiness.** Expose the subsystem (`storage`, `persistence`, ...) on the bundle root and let consumers reach through: `await bundle.storage.whenLoaded`. Inside this layer, do not alias `whenLoaded`/`whenReady` flat at the bundle root just to save `.storage`.
    - **Two or more subsystems to compose into one barrier.** Then `whenReady` earns its place: `whenReady: Promise.all([persistence.whenLoaded, unlock.whenChecked, sync.whenConnected])`. Because the field is typed `Promise<unknown>`, `Promise.all([...])` is assignable directly. Consumers `await bundle.whenReady`. The CLI's `run` command, migrations, `@epicenter/filesystem` ops, the sqlite-index materializer, and `{#await}` gates in editors all consume this aggregate.
+   - **App singletons may expose an app-level `whenReady`.** When one promise is the product-level readiness contract (the load gate, the sign-in migration), an app singleton aliasing `whenReady: storage.whenLoaded` is legitimate: the app owns that contract and its consumers should not care which subsystem backs it.
 
 5. Read and write through `bundle.tables`, `bundle.kv`, and `bundle.collaboration.peers`, and (for per-row content docs) whatever you exposed in the returned bundle.
 6. Iterate `Object.entries(bundle.actions)` and read each action's metadata (`type`, `title`, `description`, `input`) if you want to build adapters such as HTTP, CLI, or MCP.
@@ -425,8 +422,8 @@ The ID becomes `ydoc.guid` for the workspace doc, so it is not a throwaway strin
 
 A workspace is a `Y.Doc` plus whatever `attach*` handles you bound to it,
 packaged as a bundle with `{ id, ydoc, [Symbol.dispose], ... }`. A browser
-workspace also exposes `wipe()`. A singleton app returns the bundle
-from a top-level function like `openBlog()`. A document cache returns disposable
+workspace also exposes `wipe()`. A singleton app assigns the bundle to a
+module-scope `const`. A document cache returns disposable
 handles over child documents keyed by row id.
 
 ### Yjs document
@@ -1363,7 +1360,7 @@ Yjs transactions do not roll back on throw. They batch notifications; they are n
 | API | What it means |
 | --- | --- |
 | `bundle.storage.whenLoaded` (or `bundle.sqlite.whenLoaded`) | Direct subsystem readiness; the default form |
-| `bundle.whenReady` | Optional aggregate: only when the bundle composes 2+ subsystem signals into `Promise.all([...])` |
+| `bundle.whenReady` | Optional: an aggregate of 2+ subsystem signals via `Promise.all([...])`, or an app singleton's product-level readiness contract |
 | `bundle.storage.clearLocal()` (or `bundle.sqlite.clearLocal()`) | Wipes persisted local state for that attachment |
 | `bundle[Symbol.dispose]()` | Singleton teardown: your builder calls `ydoc.destroy()` |
 | `handle[Symbol.dispose]()` | Cache handle: decrements refcount; last dispose arms `gcTime` |
@@ -1442,7 +1439,7 @@ import { createDisposableCache } from '@epicenter/workspace';
 returned, so `ydoc`, `content`, `idb`, and any composed `whenReady` are all
 things you explicitly put in the bundle.
 
-For singleton apps, call your builder function once at module scope. For Node
+For singleton apps, connect once at module scope. For Node
 one-shot operations and daemon row projections, call the child builder directly
 inside `using`. Use the cache when browser components have a real same-process
 reuse invariant.
@@ -1459,7 +1456,7 @@ Everything below is a *convention*: the builder is free to expose more or less. 
 - `collaboration` (from `openCollaboration`)
 - `actions`
 - `batch(fn)`
-- `whenReady` (only when composed from 2+ subsystem signals; otherwise consumers await `storage.whenLoaded` directly)
+- `whenReady` (an aggregate of 2+ subsystem signals, or an app singleton's product-level readiness contract; runtime bundles otherwise leave consumers on `storage.whenLoaded`)
 - `[Symbol.dispose]()`
 
 ### Document content attachments
