@@ -193,7 +193,7 @@
 				placeholder: 'e.g. http://localhost:11434/v1',
 				configKey: 'providers.custom.endpoint',
 				description: [
-					'URL for OpenAI-compatible endpoints (Ollama, LM Studio, llama.cpp, etc.). Every Polish and Recipe run that uses the Custom provider calls this endpoint.',
+					'URL for OpenAI-compatible endpoints. For local Polish, run Ollama or LM Studio yourself and paste its URL here. Every Polish and Recipe run that uses the Custom provider calls this endpoint.',
 				],
 			},
 			{
