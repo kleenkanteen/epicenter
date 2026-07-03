@@ -212,25 +212,26 @@ impl ModelCache {
     /// Drop the resident model now if the current policy is `Immediately`.
     /// Called at the end of every successful transcription.
     fn evict_if_immediate(&self) {
-        if matches!(self.current_policy(), UnloadPolicy::Immediately) {
-            self.evict();
+        if !matches!(self.current_policy(), UnloadPolicy::Immediately) {
+            return;
+        }
+        if let Some(path) = self.try_unload() {
+            debug!(
+                "[Transcription] unloaded model (immediate): {}",
+                path.display()
+            );
         }
     }
 
-    /// Drop the resident model. Uses `try_lock` so it never blocks behind an
-    /// in-flight transcription: a busy cache keeps its model, which the next
-    /// transcription reloads against its per-call spec anyway. A no-op when the
-    /// cache is already empty.
-    fn evict(&self) {
-        let Ok(mut guard) = self.cached.try_lock() else {
-            return;
-        };
-        if let Some(cached) = guard.take() {
-            debug!(
-                "[Transcription] unloaded model (immediate): {}",
-                cached.path.display()
-            );
-        }
+    /// Drop the resident model if the cache isn't mid-transcription, returning
+    /// the path it unloaded (or `None` when busy or already empty). Uses
+    /// `try_lock` so it never blocks behind an in-flight run: a busy cache keeps
+    /// its model, which the next transcription reloads against its per-call spec
+    /// anyway. Both eviction policies (immediate and idle) unload through here,
+    /// so the lock discipline lives in one place and each caller logs its reason.
+    fn try_unload(&self) -> Option<PathBuf> {
+        let mut guard = self.cached.try_lock().ok()?;
+        guard.take().map(|cached| cached.path)
     }
 
     // ── Idle watcher ──────────────────────────────────────────────────
@@ -258,16 +259,13 @@ impl ModelCache {
         if idle < timeout {
             return;
         }
-        // try_lock so a long transcription in progress just postpones eviction
-        // to the next tick instead of blocking the watcher.
-        let Ok(mut guard) = self.cached.try_lock() else {
-            return;
-        };
-        if let Some(cached) = guard.take() {
+        // A long transcription in progress just postpones eviction to the next
+        // tick (try_unload's try_lock) instead of blocking the watcher.
+        if let Some(path) = self.try_unload() {
             debug!(
                 "[Transcription] unloaded model (idle {}s): {}",
                 idle.as_secs(),
-                cached.path.display()
+                path.display()
             );
         }
     }
