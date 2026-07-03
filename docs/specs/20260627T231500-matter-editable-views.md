@@ -63,7 +63,7 @@ and valid views still work.
   "views": [
     { "id": "pipeline", "type": "board", "groupBy": "status",
       "columns": ["idea","drafting","edited","scheduled","posted"],
-      "card": ["title","platform"], "query": { "orderBy": "publish_at asc" } },
+      "card": ["title","platform"], "query": { "sort": { "column": "publish_at", "dir": "asc" } } },
     { "id": "schedule", "type": "calendar", "dateField": "publish_at", "card": ["title","status"] },
     { "id": "capture",  "type": "form", "fields": ["title","platform","status"], "body": true }
   ]
@@ -74,7 +74,11 @@ and valid views still work.
 
 ```ts
 // packages/matter-core/src/core/view.ts (new)
-export type ViewQuery = { where?: string; match?: string; orderBy?: string };
+export type ViewQuery = {
+  where?: string;
+  match?: string;
+  sort?: { column: string; dir: "asc" | "desc" };
+};
 export type ViewSpec =
   | { id; type:"board";    groupBy:string; columns?:string[]; card?:string[]; query?:ViewQuery }
   | { id; type:"calendar"; dateField:string; card?:string[]; query?:ViewQuery }
