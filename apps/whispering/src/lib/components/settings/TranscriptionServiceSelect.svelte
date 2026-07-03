@@ -31,26 +31,31 @@
 		recommendedServiceId?: TranscriptionServiceId | null;
 	} = $props();
 
+	const hostedServices = $derived(
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'account'),
+	);
+
 	const localServices = $derived(
 		tauri
-			? TRANSCRIPTION_PROVIDERS.filter((service) => service.location === 'local')
+			? TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'local')
 			: [],
 	);
 
 	const cloudServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter((service) => service.location === 'cloud'),
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'byok'),
 	);
 
 	const selfHostedServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter(
-			(service) => service.location === 'self-hosted',
-		),
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'endpoint'),
 	);
 
 	const selectedService = $derived(
-		[...localServices, ...cloudServices, ...selfHostedServices].find(
-			(service) => service.id === selected,
-		),
+		[
+			...hostedServices,
+			...localServices,
+			...cloudServices,
+			...selfHostedServices,
+		].find((service) => service.id === selected),
 	);
 </script>
 
@@ -82,7 +87,34 @@
 			</div>
 		</Select.Trigger>
 		<Select.Content class="max-h-[400px]">
+			{#if hostedServices.length > 0}
+				<Select.Group>
+					<Select.GroupHeading>Epicenter</Select.GroupHeading>
+					{#each hostedServices as service (service.id)}
+						<Select.Item value={service.id} label={service.label}>
+							<div class="flex items-start gap-3 py-1">
+								<div class="mt-0.5">{@render renderServiceIcon(service)}</div>
+								<div class="flex-1 min-w-0">
+									<div class="flex items-center gap-2">
+										<span class="font-medium">{service.label}</span>
+										<Badge variant="secondary" class="text-xs">Account</Badge>
+									</div>
+									{#if service.description}
+										<div class="text-xs text-muted-foreground mt-1">
+											{service.description}
+										</div>
+									{/if}
+								</div>
+							</div>
+						</Select.Item>
+					{/each}
+				</Select.Group>
+			{/if}
+
 			{#if localServices.length > 0}
+				{#if hostedServices.length > 0}
+					<Select.Separator />
+				{/if}
 				<Select.Group>
 					<Select.GroupHeading>Local (Offline)</Select.GroupHeading>
 					{#each localServices as service}
@@ -112,7 +144,7 @@
 			{/if}
 
 			{#if cloudServices.length > 0}
-				{#if localServices.length > 0}
+				{#if hostedServices.length > 0 || localServices.length > 0}
 					<Select.Separator />
 				{/if}
 				<Select.Group>
@@ -136,7 +168,7 @@
 											{service.description}
 										</div>
 									{/if}
-									{#if service.location === 'cloud' && service.models.length > 0}
+									{#if service.access === 'byok' && service.models.length > 0}
 										<div class="text-xs text-muted-foreground mt-1">
 											{service.models.length}
 											model{service.models.length > 1

@@ -4,10 +4,11 @@
  * `TRANSCRIPTION_SERVICE_IDS` without bundling these `?raw` SVGs.
  * `TRANSCRIPTION_PROVIDERS` is the join of each provider's data with its icon:
  * an array (id + every provider field + icon) that the settings selectors
- * iterate and filter by `location`.
+ * iterate and filter by `access`.
  */
 import deepgramIcon from '$lib/constants/icons/deepgram.svg?raw';
 import elevenlabsIcon from '$lib/constants/icons/elevenlabs.svg?raw';
+import epicenterIcon from '$lib/constants/icons/epicenter.svg?raw';
 import ggmlIcon from '$lib/constants/icons/ggml.svg?raw';
 import groqIcon from '$lib/constants/icons/groq.svg?raw';
 import mistralIcon from '$lib/constants/icons/mistral.svg?raw';
@@ -18,6 +19,7 @@ import speachesIcon from '$lib/constants/icons/speaches.svg?raw';
 import { PROVIDERS, type TranscriptionServiceId } from './providers';
 
 export const PROVIDER_ICONS = {
+	epicenter: { icon: epicenterIcon, invertInDarkMode: false },
 	OpenAI: { icon: openaiIcon, invertInDarkMode: true },
 	Groq: { icon: groqIcon, invertInDarkMode: false },
 	ElevenLabs: { icon: elevenlabsIcon, invertInDarkMode: true },

@@ -72,7 +72,7 @@
 				: 'Choose transcription model';
 		}
 		if (!selectedService) return 'Select transcription service';
-		return selectedService.location === 'cloud'
+		return selectedService.access === 'byok'
 			? `${selectedService.label} - ${getSelectedModelNameOrUrl(selectedService)}`
 			: selectedService.label;
 	});
@@ -82,29 +82,29 @@
 	}
 
 	function getSelectedModelNameOrUrl(service: TranscriptionProviderEntry) {
-		switch (service.location) {
-			case 'cloud':
+		switch (service.access) {
+			case 'byok':
 				return settings.get(service.modelSettingKey);
-			case 'self-hosted':
+			case 'endpoint':
 				return deviceConfig.get(service.endpointConfigKey);
 			case 'local':
 				return deviceConfig.get(service.modelConfigKey);
+			case 'account':
+				return undefined;
 		}
 	}
 
 	const cloudServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter((service) => service.location === 'cloud'),
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'byok'),
 	);
 
 	const selfHostedServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter(
-			(service) => service.location === 'self-hosted',
-		),
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'endpoint'),
 	);
 
 	const localServices = $derived(
 		tauri
-			? TRANSCRIPTION_PROVIDERS.filter((service) => service.location === 'local')
+			? TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'local')
 			: [],
 	);
 
@@ -113,7 +113,7 @@
 		parakeet: 'nvidia nemo onnx parakeet local offline',
 		moonshine: 'usefulsensors onnx moonshine local offline',
 	} satisfies Record<
-		Extract<TranscriptionProviderEntry, { location: 'local' }>['id'],
+		Extract<TranscriptionProviderEntry, { access: 'local' }>['id'],
 		string
 	>;
 

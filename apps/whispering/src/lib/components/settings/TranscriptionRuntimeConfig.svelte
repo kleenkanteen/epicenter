@@ -57,13 +57,13 @@
 	);
 
 	const cloudProvider = $derived(
-		selectedTranscriptionProvider?.location === 'cloud'
+		selectedTranscriptionProvider?.access === 'byok'
 			? selectedTranscriptionProvider
 			: null,
 	);
 
 	const isSelectedServiceUnavailable = $derived(
-		!tauri && selectedTranscriptionProvider?.location === 'local',
+		!tauri && selectedTranscriptionProvider?.access === 'local',
 	);
 
 	const spokenLanguageLabel = $derived(
@@ -74,7 +74,7 @@
 
 	const isLocalEngine = $derived(
 		Boolean(tauri) &&
-			PROVIDERS[settings.get('transcription.service')].location === 'local',
+			PROVIDERS[settings.get('transcription.service')].access === 'local',
 	);
 
 	const unloadPolicyLabel = $derived(

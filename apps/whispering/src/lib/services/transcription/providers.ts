@@ -1,6 +1,6 @@
 /**
  * The single source of truth for transcription providers. One entry per
- * provider owns every fact: label, location, models, capabilities, and the
+ * provider owns every fact: label, access, models, capabilities, and the
  * deviceConfig/settings key NAMES used to read its config (never the values,
  * which the dispatcher in `operations/transcribe.ts` reads).
  *
@@ -24,8 +24,23 @@ import type {
 type Capabilities = { supportsPrompt: boolean; supportsLanguage: boolean };
 type CloudModel = { name: string; description: string; cost: string };
 
-type CloudProvider = {
-	location: 'cloud';
+/**
+ * `access` names how a provider is reached and credentialed, the one facet every
+ * dispatcher, selector, and readiness check branches on. It is deliberately not
+ * "where the compute runs": a `byok` provider (OpenAI) and an `account` provider
+ * (Epicenter) can both be in the cloud, and an `account` provider can be a
+ * self-hosted Epicenter instance. What actually differs is the credential the user
+ * supplies, which is exactly what `isTranscriptionServiceConfigured` reads:
+ *
+ *   - `byok`     the user's own API key (a secret)         -> OpenAI, Groq, ...
+ *   - `endpoint` a server URL + model id the user runs     -> Speaches
+ *   - `account`  nothing; the signed-in session is the key -> Epicenter
+ *   - `local`    an on-device model file, no network       -> whispercpp, ...
+ */
+type ProviderAccess = 'byok' | 'endpoint' | 'account' | 'local';
+
+type ByokProvider = {
+	access: Extract<ProviderAccess, 'byok'>;
 	label: string;
 	description: string;
 	capabilities: Capabilities;
@@ -58,7 +73,7 @@ type CloudProvider = {
 };
 
 type LocalProvider = {
-	location: 'local';
+	access: Extract<ProviderAccess, 'local'>;
 	label: string;
 	description: string;
 	capabilities: Capabilities;
@@ -71,8 +86,8 @@ type LocalProvider = {
 	modelKind: 'file' | 'directory';
 };
 
-type SelfHostedProvider = {
-	location: 'self-hosted';
+type EndpointProvider = {
+	access: Extract<ProviderAccess, 'endpoint'>;
 	label: string;
 	description: string;
 	capabilities: Capabilities;
@@ -80,11 +95,43 @@ type SelfHostedProvider = {
 	modelIdConfigKey: DeviceConfigKey;
 };
 
-type TranscriptionProvider = CloudProvider | LocalProvider | SelfHostedProvider;
+/**
+ * Epicenter's own transcription, reached through the signed-in account. Unlike a
+ * `byok` provider it carries no key or endpoint config: the transport is the
+ * account's audience-scoped session fetch (`auth.fetch`), resolved in the
+ * dispatcher against whichever star it is signed into, and the gateway pins its
+ * own house model server-side (ADR-0100). So the only fact this entry holds is
+ * the single `model` string the wire requires. "Configured" means signed in, not
+ * "has a key" (see `transcription-validation.ts`). Whether the call spends AI
+ * credits is a property of the star (metered on the hosted cloud, free on a
+ * self-hosted instance), surfaced at runtime, never fixed here.
+ */
+type AccountProvider = {
+	access: Extract<ProviderAccess, 'account'>;
+	label: string;
+	description: string;
+	capabilities: Capabilities;
+	/** The fixed model sent on the wire; the gateway meters by duration, not by
+	 *  model, so there is no user-selectable list. */
+	model: string;
+};
+
+type TranscriptionProvider =
+	| ByokProvider
+	| LocalProvider
+	| EndpointProvider
+	| AccountProvider;
 
 export const PROVIDERS = {
+	epicenter: {
+		access: 'account',
+		label: 'Epicenter',
+		description: 'Transcription through your Epicenter account. Sign in required.',
+		capabilities: { supportsPrompt: true, supportsLanguage: true },
+		model: 'whisper-1',
+	},
 	OpenAI: {
-		location: 'cloud',
+		access: 'byok',
 		label: 'OpenAI',
 		description: 'Industry-standard Whisper API',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -118,7 +165,7 @@ export const PROVIDERS = {
 		],
 	},
 	Groq: {
-		location: 'cloud',
+		access: 'byok',
 		label: 'Groq',
 		description: 'Lightning-fast cloud transcription',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -146,7 +193,7 @@ export const PROVIDERS = {
 		],
 	},
 	ElevenLabs: {
-		location: 'cloud',
+		access: 'byok',
 		label: 'ElevenLabs',
 		description: 'Voice AI platform with transcription',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -180,7 +227,7 @@ export const PROVIDERS = {
 		],
 	},
 	Deepgram: {
-		location: 'cloud',
+		access: 'byok',
 		label: 'Deepgram',
 		description: 'Real-time speech recognition API',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -222,7 +269,7 @@ export const PROVIDERS = {
 		],
 	},
 	Mistral: {
-		location: 'cloud',
+		access: 'byok',
 		label: 'Mistral AI',
 		description: 'Advanced Voxtral speech understanding',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -251,7 +298,7 @@ export const PROVIDERS = {
 	},
 
 	whispercpp: {
-		location: 'local',
+		access: 'local',
 		label: 'Whisper C++',
 		description: 'Fast local transcription with no internet required',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -259,7 +306,7 @@ export const PROVIDERS = {
 		modelKind: 'file',
 	},
 	parakeet: {
-		location: 'local',
+		access: 'local',
 		label: 'Parakeet',
 		description:
 			'Recommended fast local transcription with automatic language detection',
@@ -268,7 +315,7 @@ export const PROVIDERS = {
 		modelKind: 'directory',
 	},
 	moonshine: {
-		location: 'local',
+		access: 'local',
 		label: 'Moonshine',
 		description: 'Small English-only local transcription',
 		capabilities: { supportsPrompt: false, supportsLanguage: false },
@@ -277,7 +324,7 @@ export const PROVIDERS = {
 	},
 
 	speaches: {
-		location: 'self-hosted',
+		access: 'endpoint',
 		label: 'Speaches',
 		description: 'Self-hosted transcription server',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -289,13 +336,13 @@ export const PROVIDERS = {
 export type TranscriptionServiceId = keyof typeof PROVIDERS;
 
 /**
- * The ids of cloud providers, derived from PROVIDERS. Consumed by the settings UI
+ * The ids of BYOK providers, derived from PROVIDERS. Consumed by the settings UI
  * to type provider config fields. (Transcription routing no longer keys off this:
  * `operations/transcribe.ts` dispatches over a single `UPLOAD_DISPATCH` table that
  * excludes only the local ids.)
  */
-export type CloudProviderId = {
-	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['location'] extends 'cloud'
+export type ByokProviderId = {
+	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['access'] extends 'byok'
 		? K
 		: never;
 }[TranscriptionServiceId];
@@ -306,7 +353,7 @@ export type CloudProviderId = {
  * touching the engine's models folder.
  */
 export type LocalProviderId = {
-	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['location'] extends 'local'
+	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['access'] extends 'local'
 		? K
 		: never;
 }[TranscriptionServiceId];
@@ -314,12 +361,12 @@ export type LocalProviderId = {
 export function isLocalProviderId(
 	id: TranscriptionServiceId,
 ): id is LocalProviderId {
-	return PROVIDERS[id].location === 'local';
+	return PROVIDERS[id].access === 'local';
 }
 
 /**
  * The upload providers: every non-local id, reached by uploading audio over the
- * wire (cloud and self-hosted) rather than the on-device FFI path. "Upload" is
+ * wire (byok, endpoint, account) rather than the on-device FFI path. "Upload" is
  * "not local", and localness is the one facet PROVIDERS declares, so the
  * subtraction reads as English. `UPLOAD_DISPATCH` is keyed by exactly this set.
  */
