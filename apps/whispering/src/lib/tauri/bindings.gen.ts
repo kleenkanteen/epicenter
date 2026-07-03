@@ -198,16 +198,6 @@ export const commands = {
 	setUnloadPolicy: (policy: UnloadPolicy) =>
 		__TAURI_INVOKE<void>('set_unload_policy', { policy }),
 	/**
-	 *  Snapshot the current model state. Used by late-mounted observers (a
-	 *  second window, the settings panel re-opening, etc.) to catch up to
-	 *  the current lifecycle state without waiting for the next event on
-	 *  `transcription://model-state`.
-	 *
-	 *  Reads the status plus resident model identity, if any.
-	 */
-	getTranscriptionState: () =>
-		__TAURI_INVOKE<LocalModelState>('get_transcription_state'),
-	/**
 	 *  The full local GGUF catalog with per-model download status. The picker's one
 	 *  data source: which models exist, what they can do, and which are on disk.
 	 */
@@ -325,7 +315,6 @@ export const events = {
 	dictationCapabilityEvent: makeEvent<DictationCapabilityEvent>(
 		'dictation-capability-event',
 	),
-	modelStateEvent: makeEvent<ModelStateEvent>('model-state-event'),
 	shortcutCaptureEvent: makeEvent<ShortcutCaptureEvent>(
 		'shortcut-capture-event',
 	),
@@ -546,22 +535,6 @@ export type KeyBinding = {
 export type KeyringError = { name: 'Failed'; message: string };
 
 /**
- *  Snapshot of everything observable about the resident model. Every event
- *  carries a full snapshot rather than a delta because `AppHandle::emit`
- *  does not replay to future windows: a window opened mid-load reads the
- *  current snapshot via `get_transcription_state` and then catches up via
- *  the next event.
- */
-export type LocalModelState = {
-	/**
-	 *  The resident model's catalog id, mirroring `TranscriptionSpec::model_id`;
-	 *  `None` when no model is resident.
-	 */
-	modelId: string | null;
-	status: ModelStatus;
-};
-
-/**
  *  The OS-level microphone authorization, read from the platform privacy store.
  *
  *  Only an explicit `Denied` gates recording. `Unknown` (no entry in the store,
@@ -593,50 +566,6 @@ export type ModelInfo = {
 	recommended: boolean;
 	downloaded: boolean;
 };
-
-/**
- *  Single event type for everything observable about the model lifecycle.
- *  `tag = "kind"` matches `ModelStatus` and `UnloadReason` so the FE pattern
- *  is uniform: `switch (event.kind)`.
- *
- *  Registered as a `tauri_specta::Event`, so the Rust emitter
- *  (`event.emit(&app)`) and the generated FE binding (`events.modelStateEvent`)
- *  share one generated topic name instead of a hand-mirrored string.
- */
-export type ModelStateEvent =
-	| { kind: 'loading_started'; state: LocalModelState }
-	| { kind: 'loading_completed'; state: LocalModelState; elapsedMs: number }
-	| { kind: 'loading_failed'; state: LocalModelState; error: string }
-	| { kind: 'inference_started'; state: LocalModelState }
-	| { kind: 'inference_completed'; state: LocalModelState; elapsedMs: number }
-	| { kind: 'inference_failed'; state: LocalModelState; error: string }
-	| { kind: 'unloaded'; state: LocalModelState; reason: UnloadReason };
-
-/**
- *  Lifecycle state of the resident model. Owned by an `Arc<RwLock<...>>`
- *  inside `ModelCache` so `snapshot()` can read it without touching the
- *  cache mutex (which is held across long-running inference).
- */
-export type ModelStatus =
-	/**
-	 *  No model resident and none loading. Initial state, and reached after
-	 *  `Unloaded`.
-	 */
-	| { kind: 'idle' }
-	/**  `with_model` is currently inside the `load(&model_path)` call. */
-	| { kind: 'loading' }
-	/**  A model is resident and not currently in use. */
-	| { kind: 'ready' }
-	/**
-	 *  `with_model` is currently inside the user closure (transcribe call).
-	 *  The cache lock is held; `snapshot()` reports this without contending.
-	 */
-	| { kind: 'inferring' }
-	/**
-	 *  The last attempt to load or transcribe failed. Inference failures may
-	 *  leave the model resident so a later transcription can reuse it.
-	 */
-	| { kind: 'error'; message: string };
 
 /**
  *  A logical modifier. Left and right are collapsed in v1 (ControlLeft and
@@ -766,23 +695,6 @@ export type UnloadPolicy =
 	| 'immediately'
 	| 'after_5_minutes'
 	| 'after_30_minutes';
-
-/**
- *  Reason the resident model was dropped. Folded into a single event variant
- *  (`ModelStateEvent::Unloaded`) rather than fanned out into per-reason
- *  variants so the FE has one branch to handle.
- */
-export type UnloadReason =
-	/**
-	 *  Synchronous eviction after a transcription completed under the
-	 *  `Immediately` unload policy.
-	 */
-	| { kind: 'immediate' }
-	/**
-	 *  Background idle watcher dropped the model after the configured timeout
-	 *  elapsed without activity.
-	 */
-	| { kind: 'idle'; idleSecs: number };
 
 /**
  *  Where `write_text` left the transcript.
