@@ -36,11 +36,7 @@ export type CompanyContext = {
 export function resolveCompany(
 	overrides: CliConfigOverrides,
 ): Result<CompanyContext, string> {
-	const config = loadConfig({
-		dataDir: overrides.dataDir,
-		environment: overrides.environment,
-		realm: overrides.realm,
-	});
+	const config = loadConfig(overrides);
 	const { data: realmId, error } = resolveRealm(config);
 	if (error !== null) return Err(error);
 	return Ok({
