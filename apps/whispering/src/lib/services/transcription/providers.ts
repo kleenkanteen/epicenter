@@ -367,7 +367,10 @@ export function isOnDeviceProviderId(
  * "not on-device", and on-device-ness is the one facet PROVIDERS declares, so the
  * subtraction reads as English. `UPLOAD_DISPATCH` is keyed by exactly this set.
  */
-export type UploadProviderId = Exclude<TranscriptionServiceId, OnDeviceProviderId>;
+export type UploadProviderId = Exclude<
+	TranscriptionServiceId,
+	OnDeviceProviderId
+>;
 
 /** Every provider ID, e.g. for `field.select(TRANSCRIPTION_SERVICE_IDS)`. */
 export const TRANSCRIPTION_SERVICE_IDS = Object.keys(
@@ -396,9 +399,9 @@ export function isLegacyOnDeviceTranscriptionServiceId(
 ): value is LegacyOnDeviceTranscriptionServiceId {
 	return (
 		typeof value === 'string' &&
-		(
-			LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS as readonly string[]
-		).includes(value)
+		(LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS as readonly string[]).includes(
+			value,
+		)
 	);
 }
 

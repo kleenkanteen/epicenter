@@ -11,9 +11,9 @@ import { expect, test } from 'bun:test';
 import { creditStatus, fetchCreditOverview } from './credit-balance.js';
 
 test('creditStatus: empty wallet is out', () => {
-	expect(creditStatus({ remaining: 0, granted: 500, planDisplayName: 'Pro' })).toBe(
-		'out',
-	);
+	expect(
+		creditStatus({ remaining: 0, granted: 500, planDisplayName: 'Pro' }),
+	).toBe('out');
 	expect(
 		creditStatus({ remaining: -5, granted: 500, planDisplayName: 'Pro' }),
 	).toBe('out');
@@ -30,12 +30,12 @@ test('creditStatus: low is 10% of the cycle grant', () => {
 
 test('creditStatus: grant-less wallet falls back to an absolute floor', () => {
 	// A top-up-only or free wallet with no cycle grant still warns before empty.
-	expect(creditStatus({ remaining: 8, granted: 0, planDisplayName: 'Free' })).toBe(
-		'low',
-	);
-	expect(creditStatus({ remaining: 40, granted: 0, planDisplayName: 'Free' })).toBe(
-		'ok',
-	);
+	expect(
+		creditStatus({ remaining: 8, granted: 0, planDisplayName: 'Free' }),
+	).toBe('low');
+	expect(
+		creditStatus({ remaining: 40, granted: 0, planDisplayName: 'Free' }),
+	).toBe('ok');
 });
 
 test('fetchCreditOverview: parses the overview subset from a 200', async () => {
@@ -49,9 +49,16 @@ test('fetchCreditOverview: parses the overview subset from a 200', async () => {
 			}),
 			{ status: 200, headers: { 'content-type': 'application/json' } },
 		);
-	const { data, error } = await fetchCreditOverview(authFetch, 'https://api.example');
+	const { data, error } = await fetchCreditOverview(
+		authFetch,
+		'https://api.example',
+	);
 	expect(error).toBeNull();
-	expect(data).toEqual({ remaining: 1234, granted: 5000, planDisplayName: 'Pro' });
+	expect(data).toEqual({
+		remaining: 1234,
+		granted: 5000,
+		planDisplayName: 'Pro',
+	});
 });
 
 test('fetchCreditOverview: a non-200 (self-host 404, 401, 503) is null, not an error', async () => {
@@ -83,7 +90,10 @@ test('fetchCreditOverview: resolves the path against the API origin, not the pag
 	const authFetch = async (input: Request | string | URL) => {
 		seen = input.toString();
 		return new Response(
-			JSON.stringify({ planDisplayName: 'Free', credits: { remaining: 0, granted: 0 } }),
+			JSON.stringify({
+				planDisplayName: 'Free',
+				credits: { remaining: 0, granted: 0 },
+			}),
 			{ status: 200 },
 		);
 	};
