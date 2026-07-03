@@ -37,6 +37,7 @@ Usage:
   local-mail query "<sql>"
   local-mail archive|unarchive|mark-read|mark-unread <id...> [--json]
   local-mail label <id...> [--add <label>...] [--remove <label>...] [--json]
+  local-mail up
   local-mail mcp
 
 Commands:
@@ -480,6 +481,10 @@ export async function runCli(argv: string[]): Promise<number> {
 				removeLabels: args.removeLabels,
 				done: 'labels updated',
 			});
+		case 'up': {
+			const { runUp } = await import('./up.ts');
+			return runUp();
+		}
 		case 'mcp': {
 			const { runMcpServer } = await import('./mcp.ts');
 			return runMcpServer();
