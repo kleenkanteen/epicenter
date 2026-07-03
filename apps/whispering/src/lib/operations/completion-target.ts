@@ -1,8 +1,6 @@
 import { INFERENCE, type InferenceProviderId } from '../constants/inference';
-import {
-	PROVIDERS,
-	type TranscriptionServiceId,
-} from '../services/transcription/providers';
+import { hostFromBaseUrl, isLoopbackBaseUrl } from './locality';
+import type { TranscriptionLocality } from './transcription-target';
 
 export type CompletionTarget = {
 	baseUrl: string;
@@ -69,47 +67,88 @@ export function resolveCompletionStateFromConfig({
 	};
 }
 
-function isLoopbackBaseUrl(baseUrl: string): boolean {
-	try {
-		const hostname = new URL(baseUrl).hostname;
-		return (
-			hostname === 'localhost' ||
-			hostname === '127.0.0.1' ||
-			hostname === '[::1]'
-		);
-	} catch {
-		return false;
+/**
+ * The Text-stage status the Processing surface renders for the current completion
+ * provider, as one tone and one sentence. Derived from the same
+ * {@link CompletionState} the call path consumes, so the surface and the pipeline
+ * can never disagree about readiness or locality.
+ *
+ * The surface expresses two orthogonal facts through two channels, not one enum:
+ * `ready` is the usability axis and drives tone (a not-ready row is a warning, a
+ * ready row a neutral note), while `summary` is the prose that names the
+ * destination when ready or the single missing setup step when not. Only one
+ * sentence is ever shown, so where-it-goes and what-is-missing never compete.
+ */
+export type CompletionReadiness = {
+	ready: boolean;
+	summary: string;
+};
+
+export function describeCompletionReadiness(
+	provider: InferenceProviderId,
+	state: CompletionState,
+): CompletionReadiness {
+	// The only null-target provider is Custom, so the missing piece is its URL.
+	if (!state.target) {
+		return {
+			ready: false,
+			summary: 'Add a server URL below. Until then, transcripts ship raw.',
+		};
 	}
+	if (!state.canRun) {
+		return {
+			ready: false,
+			summary: `Add the ${INFERENCE[provider].label} API key below. Until then, transcripts ship raw.`,
+		};
+	}
+	if (state.textStaysOnDevice) {
+		return { ready: true, summary: 'Transcript text stays on this device.' };
+	}
+	// Custom's label ("Custom (OpenAI-compatible)") names a shape, not a
+	// destination, so the resolved host is the honest thing to show; a canonical
+	// provider names itself.
+	const destination =
+		provider === 'Custom'
+			? hostFromBaseUrl(state.target.baseUrl)
+			: INFERENCE[provider].label;
+	return { ready: true, summary: `Transcript text is sent to ${destination}.` };
 }
 
+/**
+ * The pipeline-wide privacy sentence for the home chip and Dictation page: where
+ * audio goes and where Polish sends transcript text, woven into one line. Audio
+ * locality is resolved upstream ({@link TranscriptionLocality}) rather than read
+ * from the provider's `location` label, so a self-hosted or localhost-overridden
+ * transcription endpoint reads on-device here exactly as it does on the Processing
+ * surface.
+ */
 export function describePolishDestination(
-	transcriptionService: TranscriptionServiceId,
+	audio: TranscriptionLocality,
 	completionProvider: InferenceProviderId,
 	state: CompletionState,
 ): string {
-	const transcriptionProvider = PROVIDERS[transcriptionService];
 	const completionLabel = INFERENCE[completionProvider].label;
 
 	if (!state.target || !state.canRun) {
-		if (transcriptionProvider.location === 'local') {
+		if (audio.onDevice) {
 			return 'Audio stays on this device. Polish is not ready, so transcripts ship raw.';
 		}
-		return `Audio is sent to ${transcriptionProvider.label}. Polish is not ready, so transcripts ship raw.`;
+		return `Audio is sent to ${audio.name}. Polish is not ready, so transcripts ship raw.`;
 	}
 
 	const { textStaysOnDevice } = state;
 
-	if (transcriptionProvider.location === 'local' && textStaysOnDevice) {
+	if (audio.onDevice && textStaysOnDevice) {
 		return 'Audio and transcript text both stay on this device.';
 	}
 
-	if (transcriptionProvider.location === 'local') {
+	if (audio.onDevice) {
 		return `Audio is transcribed on-device, but Polish sends transcript text to ${completionLabel}.`;
 	}
 
 	if (textStaysOnDevice) {
-		return `Audio is sent to ${transcriptionProvider.label}, then Polish keeps transcript text on this device.`;
+		return `Audio is sent to ${audio.name}, then Polish keeps transcript text on this device.`;
 	}
 
-	return `Audio is sent to ${transcriptionProvider.label}, and Polish sends transcript text to ${completionLabel}.`;
+	return `Audio is sent to ${audio.name}, and Polish sends transcript text to ${completionLabel}.`;
 }
