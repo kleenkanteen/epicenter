@@ -9,8 +9,9 @@
 	},
 	"scripts": {
 		"start": "bun run src/main.ts",
+		"build": "vite build",
 		"test": "bun test",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json"
 	},
 	"dependencies": {
 		"@epicenter/client": "workspace:*",
@@ -24,8 +25,13 @@
 		"yjs": "catalog:"
 	},
 	"devDependencies": {
+		"@sveltejs/vite-plugin-svelte": "catalog:",
 		"@types/bun": "catalog:",
-		"typescript": "catalog:"
+		"svelte": "catalog:",
+		"svelte-check": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:",
+		"vite-plugin-singlefile": "catalog:"
 	},
 	"license": "AGPL-3.0-or-later"
 }
