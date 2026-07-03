@@ -1,14 +1,16 @@
 /**
  * Board Projection Helper Tests
  *
- * Verifies the read-only board data shape built from classified in-memory rows.
- * The renderer consumes these columns directly, so this test guards the important
- * slice before Svelte markup gets involved.
+ * Verifies the board data shape built from classified in-memory rows and the
+ * write decision a card drop uses before calling saveField. The renderer
+ * consumes these helpers directly, so the important slice stays testable before
+ * Svelte markup gets involved.
  *
  * Key behaviors:
  * - Rows group by the board field after SQL stem ordering is applied.
  * - Declared card fields render by name and omit non-card fields.
  * - Missing group values land in the trailing Unassigned column.
+ * - Drop writes validate bucket values and clear Unassigned with undefined.
  */
 
 import { expect, test } from 'bun:test';
@@ -19,7 +21,11 @@ import {
 	type ViewSpec,
 	validateContract,
 } from '@epicenter/matter-core';
-import { boardColumnsFor } from './board';
+import {
+	boardColumnsFor,
+	boardDropEditFor,
+	canWriteBoardColumn,
+} from './board';
 
 function contract(): Contract {
 	const { data, error } = validateContract({
@@ -164,4 +170,47 @@ test('boardColumnsFor defaults to up to three non-group fields when card is omit
 		{ field: field(model, 'platform'), value: 'web' },
 		{ field: field(model, 'owner'), value: 'ada' },
 	]);
+});
+
+test('boardDropEditFor writes valid bucket values through the group field', () => {
+	const model = contract();
+
+	expect(
+		boardDropEditFor({
+			fileName: 'alpha.md',
+			groupByField: field(model, 'status'),
+			columnValue: 'done',
+		}),
+	).toEqual({
+		fileName: 'alpha.md',
+		key: 'status',
+		value: 'done',
+	});
+});
+
+test('boardDropEditFor clears the group field for the unassigned bucket', () => {
+	const model = contract();
+	const edit = boardDropEditFor({
+		fileName: 'alpha.md',
+		groupByField: field(model, 'status'),
+		columnValue: null,
+	});
+
+	expect(edit?.fileName).toBe('alpha.md');
+	expect(edit?.key).toBe('status');
+	expect(edit?.value).toBeUndefined();
+});
+
+test('boardDropEditFor refuses buckets that fail the group field check', () => {
+	const model = contract();
+	const status = field(model, 'status');
+
+	expect(canWriteBoardColumn(status, 'blocked')).toBe(false);
+	expect(
+		boardDropEditFor({
+			fileName: 'alpha.md',
+			groupByField: status,
+			columnValue: 'blocked',
+		}),
+	).toBeNull();
 });

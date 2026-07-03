@@ -29,7 +29,7 @@ test('boots a mocked vault and renders its rows (read path through mocked IPC)',
 // button showing the value; clicking it opens an auto-focused input that commits on Enter (see
 // TextCell.svelte). The assertion reads window.__E2E_WRITES__, which captures the exact
 // { fileName, content } the app sent over IPC, so it verifies the real saveField -> editField ->
-// write_entry path (the same path a future board card's drag will use).
+// write_entry path shared by the grid and board drags.
 test('editing a title cell writes the markdown file (write path)', async ({
 	page,
 }) => {
@@ -46,6 +46,26 @@ test('editing a title cell writes the markdown file (write path)', async ({
 			expect.objectContaining({
 				fileName: 'card-a.md',
 				content: expect.stringContaining('title: Card A edited'),
+			}),
+		);
+});
+
+test('dragging a board card writes the group field through saveField', async ({
+	page,
+}) => {
+	await page.goto(`/vault/${VAULT_ID}?view=pipeline`);
+
+	await expect(page.getByRole('heading', { name: 'Pipeline' })).toBeVisible();
+	await page
+		.locator('[data-board-card="card-a.md"]')
+		.dragTo(page.locator('[data-board-column="done"]'));
+
+	await expect
+		.poll(() => page.evaluate(() => window.__E2E_WRITES__ ?? []))
+		.toContainEqual(
+			expect.objectContaining({
+				fileName: 'card-a.md',
+				content: expect.stringContaining('status: done'),
 			}),
 		);
 });

@@ -5,8 +5,14 @@
 	import type { ViewSpec } from '@epicenter/matter-core';
 	import type { TableView } from '$lib/table.svelte';
 	import type { TableQuery } from '$lib/table-query.svelte';
-	import { boardColumnsFor } from './board';
+	import {
+		boardColumnsFor,
+		boardDropEditFor,
+		canWriteBoardColumn,
+	} from './board';
 	import FieldValue from './FieldValue.svelte';
+
+	const BOARD_CARD_MIME = 'application/x-epicenter-matter-board-card';
 
 	let {
 		table,
@@ -20,6 +26,11 @@
 
 	const read = $derived(table.read);
 	const view = $derived(read.view);
+	const groupByField = $derived(
+		view.mode === 'typed'
+			? view.contract.fields.find((field) => field.name === projection.groupBy)
+			: undefined,
+	);
 	const columns = $derived.by(() => {
 		if (view.mode !== 'typed') return [];
 		return boardColumnsFor({
@@ -32,6 +43,36 @@
 	const cardCount = $derived(
 		columns.reduce((count, column) => count + column.cards.length, 0),
 	);
+
+	function canDropOn(columnValue: string | null): boolean {
+		return (
+			groupByField !== undefined &&
+			canWriteBoardColumn(groupByField, columnValue)
+		);
+	}
+
+	function dragStart(event: DragEvent, fileName: string): void {
+		event.dataTransfer?.setData(BOARD_CARD_MIME, fileName);
+		event.dataTransfer?.setData('text/plain', fileName);
+		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+	}
+
+	function dragOver(event: DragEvent, columnValue: string | null): void {
+		if (!canDropOn(columnValue)) return;
+		event.preventDefault();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+	}
+
+	function drop(event: DragEvent, columnValue: string | null): void {
+		const fileName =
+			event.dataTransfer?.getData(BOARD_CARD_MIME) ||
+			event.dataTransfer?.getData('text/plain');
+		if (!fileName || groupByField === undefined) return;
+		const edit = boardDropEditFor({ fileName, groupByField, columnValue });
+		if (!edit) return;
+		event.preventDefault();
+		void table.saveField(edit.fileName, edit.key, edit.value);
+	}
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col">
@@ -65,7 +106,12 @@
 		<div class="flex-1 overflow-auto bg-muted/20">
 			<div class="flex min-h-full w-max gap-3 p-3">
 				{#each columns as column (column.value ?? '__unassigned__')}
-					<section class="flex max-h-full w-72 shrink-0 flex-col rounded-md border bg-background">
+					<section
+						class={[
+							'flex max-h-full w-72 shrink-0 flex-col rounded-md border bg-background',
+							canDropOn(column.value) ? 'border-border' : 'border-border/60',
+						]}
+					>
 						<header class="flex items-center justify-between gap-2 border-b px-3 py-2">
 							<h2 class="truncate text-sm font-medium">
 								{column.value ?? 'Unassigned'}
@@ -77,14 +123,27 @@
 								{column.cards.length}
 							</Badge>
 						</header>
-						<div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+						<div
+							role="list"
+							aria-label="{column.value ?? 'Unassigned'} rows"
+							data-board-column={column.value ?? '__unassigned__'}
+							ondragover={(event) => dragOver(event, column.value)}
+							ondrop={(event) => drop(event, column.value)}
+							class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2"
+						>
 							{#if column.cards.length === 0}
 								<p class="px-1 py-6 text-center text-xs text-muted-foreground">
 									No rows
 								</p>
 							{:else}
 								{#each column.cards as card (card.row.fileName)}
-									<article class="rounded-md border bg-card p-3 shadow-sm">
+									<article
+										role="listitem"
+										draggable={true}
+										data-board-card={card.row.fileName}
+										ondragstart={(event) => dragStart(event, card.row.fileName)}
+										class="cursor-grab rounded-md border bg-card p-3 shadow-sm active:cursor-grabbing"
+									>
 										<h3
 											class="truncate font-mono text-xs font-medium text-card-foreground"
 											title={card.row.fileName}

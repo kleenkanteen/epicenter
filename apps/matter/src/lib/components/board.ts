@@ -22,6 +22,19 @@ export type BoardColumn = {
 	cards: BoardCard[];
 };
 
+export type BoardDropEdit = {
+	fileName: string;
+	key: string;
+	value: string | undefined;
+};
+
+export function canWriteBoardColumn(
+	groupByField: ContractField,
+	columnValue: string | null,
+): boolean {
+	return columnValue === null || groupByField.check(columnValue);
+}
+
 function orderedConformance(
 	conformance: readonly RowConformance[],
 	orderedStems: readonly string[] | undefined,
@@ -80,4 +93,28 @@ export function boardColumnsFor({
 			})),
 		})),
 	}));
+}
+
+export function boardDropEditFor({
+	fileName,
+	groupByField,
+	columnValue,
+}: {
+	fileName: string;
+	groupByField: ContractField;
+	columnValue: string | null;
+}): BoardDropEdit | null {
+	if (columnValue === null) {
+		return {
+			fileName,
+			key: groupByField.name,
+			value: undefined,
+		};
+	}
+	if (!canWriteBoardColumn(groupByField, columnValue)) return null;
+	return {
+		fileName,
+		key: groupByField.name,
+		value: columnValue,
+	};
 }

@@ -31,7 +31,20 @@ const STORE_KEY = 'vaults';
 
 const FILES: Record<string, string> = {
 	'matter.json': JSON.stringify({
-		fields: { title: { type: 'string' }, status: { type: 'string' } },
+		fields: {
+			title: { type: 'string' },
+			status: { type: 'string', enum: ['todo', 'done'] },
+		},
+		views: [
+			{
+				id: 'pipeline',
+				title: 'Pipeline',
+				type: 'board',
+				groupBy: 'status',
+				columns: ['todo', 'done'],
+				card: ['title'],
+			},
+		],
 	}),
 	'card-a.md': '---\ntitle: Card A\nstatus: todo\n---\n# Card A\n',
 	'card-b.md': '---\ntitle: Card B\nstatus: done\n---\n# Card B\n',
