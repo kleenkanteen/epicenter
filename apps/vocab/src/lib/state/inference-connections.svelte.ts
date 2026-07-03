@@ -21,7 +21,7 @@ export const inferenceConnections = createInferenceConnections({
 	hostedModels: toHostedCatalog([VOCAB_MODEL]),
 	hosted: {
 		fetch: auth.fetch,
-		baseURL: API_ROUTES.ai.completions.baseUrl(APP_URLS.API),
+		baseURL: API_ROUTES.ai.baseUrl(APP_URLS.API),
 	},
 	persist: (key, schema, defaultValue) =>
 		createPersistedState({ key, schema, defaultValue }),
