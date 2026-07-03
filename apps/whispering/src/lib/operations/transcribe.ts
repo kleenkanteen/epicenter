@@ -292,8 +292,8 @@ export async function transcribeAndPersist(
 		return Err(error);
 	}
 	recordings.update(recordingId, {
-		raw: transcribedText,
-		result: null,
+		transcript: transcribedText,
+		polishedTranscript: null,
 		transcription: {
 			status: 'completed',
 			completedAt: InstantString.now(),

@@ -7,8 +7,9 @@
  * construction, so a sink is reusable outside a settings-backed caller too.
  */
 import { services } from '$lib/services';
-import type { SinkKind } from '$lib/workspace';
 import type { DeliveryReach } from './delivery-reach';
+
+type SinkKind = 'cursor' | 'clipboard' | 'ledger';
 
 /** A pluggable delivery destination, resolved once per capture. */
 export interface Sink {

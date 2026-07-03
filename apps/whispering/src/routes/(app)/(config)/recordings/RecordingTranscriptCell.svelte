@@ -18,9 +18,11 @@
 
 	let showOriginal = $state(false);
 	const recording = $derived(recordings.get(recordingId));
-	const hasResult = $derived(!!recording?.result);
+	const hasDeliveredTranscript = $derived(!!recording?.polishedTranscript);
 	const transcript = $derived(
-		showOriginal ? (recording?.raw ?? '') : (recording?.result ?? recording?.raw ?? ''),
+		showOriginal
+			? (recording?.transcript ?? '')
+			: (recording?.polishedTranscript ?? recording?.transcript ?? ''),
 	);
 	const hasTranscript = $derived(!!transcript.trim());
 </script>
@@ -44,7 +46,7 @@
 			{/snippet}
 		</RecordingDetailModal>
 		{#if hasTranscript}
-			{#if hasResult}
+			{#if hasDeliveredTranscript}
 				<InputGroup.Addon align="inline-end">
 					<Button
 						variant="ghost"

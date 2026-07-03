@@ -3,17 +3,12 @@ import {
 	defineKv,
 	defineTable,
 	defineWorkspace,
+	type IanaTimeZone,
 	type InferTableRow,
 	nullable,
 } from '@epicenter/workspace';
 import { Type } from 'typebox';
 import type { KeyBinding } from '$lib/tauri/commands';
-import {
-	type Recording,
-	type RecordingSink,
-	recordings,
-	type SinkKind,
-} from './recordings';
 
 // ── Constant imports ─────────────────────────────────────────────────────────
 
@@ -28,11 +23,39 @@ import {
 /**
  * Tables store normalized domain entities. Each row is replaced atomically via
  * `table.set()`, there's no field-level merging. Schemas validate rows on read.
- *
- * `recordings` lives in its own leaf module (`./recordings`), re-exported
- * below: it has no `$lib/*` dependency, so a test can import it standalone.
  */
-export { type Recording, type RecordingSink, recordings, type SinkKind };
+const TranscriptionOutcome = Type.Union([
+	Type.Object({
+		status: Type.Literal('completed'),
+		completedAt: field.instant(),
+	}),
+	Type.Object({
+		status: Type.Literal('failed'),
+		completedAt: field.instant(),
+		error: Type.String(),
+	}),
+]);
+
+/**
+ * Audio recordings captured by the user. One row per recording session.
+ *
+ * `transcription` holds only the terminal outcome (completed or failed). A
+ * recording that is currently transcribing has no `transcription`; liveness is
+ * derived from the in-flight mutation, never stored.
+ */
+const recordings = defineTable({
+	id: field.string(),
+	title: field.string(),
+	recordedAt: field.instant(),
+	recordedAtZone: field.string<IanaTimeZone>(),
+	transcript: field.string(),
+	polishedTranscript: nullable(field.string()),
+	duration: nullable(field.number()),
+	transcription: nullable(field.json(TranscriptionOutcome)),
+});
+
+/** Recording row type inferred from the workspace table schema. */
+export type Recording = InferTableRow<typeof recordings>;
 
 /**
  * A reusable text action: a name and a single instruction, run on demand over

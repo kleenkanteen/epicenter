@@ -22,9 +22,9 @@ import type { Recording } from '$lib/workspace';
 
 /** Render one recording row as Markdown: YAML frontmatter + transcript body. */
 function recordingToMarkdown(recording: Recording): string {
-	const { raw, ...frontmatter } = recording;
+	const { transcript, ...frontmatter } = recording;
 	const yamlStr = yaml.dump(frontmatter, { lineWidth: -1 });
-	return `---\n${yamlStr}---\n${raw || ''}\n`;
+	return `---\n${yamlStr}---\n${transcript || ''}\n`;
 }
 
 export function defineRecordingsMarkdownExport(recordings: Table<Recording>) {

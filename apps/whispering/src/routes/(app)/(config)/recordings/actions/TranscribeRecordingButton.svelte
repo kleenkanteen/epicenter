@@ -10,10 +10,7 @@
 	import { report } from '$lib/report';
 	import { sound } from '$lib/operations/sound';
 	import { rpc } from '$lib/rpc';
-	import {
-		recordings,
-		type Recording,
-	} from '$lib/state/recordings.svelte';
+	import type { Recording } from '$lib/state/recordings.svelte';
 
 	/**
 	 * The transcribe / retry button for a single recording.
@@ -92,10 +89,9 @@
 			onSuccess: async (transcribedText) => {
 				sound.playSoundIfEnabled('transcriptionComplete');
 
-				const { notice, sink } = await deliverTranscriptionResult({
+				const { notice } = await deliverTranscriptionResult({
 					text: transcribedText,
 				});
-				recordings.update(recording.id, { sink });
 				loading.resolve(notice);
 			},
 		});

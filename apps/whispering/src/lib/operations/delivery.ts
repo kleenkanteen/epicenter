@@ -9,7 +9,6 @@ import {
 } from '$lib/operations/sink';
 import type { Notice } from '$lib/report';
 import { settings } from '$lib/state/settings.svelte';
-import type { RecordingSink } from '$lib/workspace';
 
 // The reach types live in their own `delivery-reach` module next to their ADR
 // docstrings; re-exported here so callers keep one delivery import.
@@ -49,21 +48,15 @@ const TRANSCRIPTION_SUCCESS_COPY = {
 	import: '📁 File transcribed',
 } as const satisfies Record<TranscriptionSource, string>;
 
-/**
- * A delivery result: the structured outcome, a human notice for toasts, and
- * the sink fact to persist on the recordings row (where the text actually
- * landed).
- */
+/** A delivery result: the structured outcome plus a human notice for toasts. */
 export type DeliveryResult = {
 	outcome: DeliveryOutcome;
 	notice: Notice;
-	sink: RecordingSink;
 };
 
 /**
- * Delivers transcript to the user through the Dictate resolver. Cursor intent
- * writes to the focused field; otherwise the recordings row is the ledger
- * destination. Clipboard remains the cursor fallback and optional tee. Returns
+ * Delivers transcript to the user according to their transcription output
+ * preferences. Clipboard remains the cursor fallback and optional tee. Returns
  * the structured outcome plus a human notice; it does not toast. The dictation
  * path reads the outcome to drive the pill; file import and row actions show
  * the notice.
@@ -75,19 +68,10 @@ export async function deliverTranscriptionResult({
 	text: string;
 	source?: TranscriptionSource;
 }): Promise<DeliveryResult> {
-	const sink = resolveDictateSink({
-		// Phase 1 has no focused-field probe yet. The existing cursor setting is
-		// the observable "try to write into the focused field" intent until a
-		// native focus resolver exists.
-		focusedField: settings.get('output.transcription.cursor'),
-		keepOnClipboard: settings.get('output.transcription.clipboard'),
-		pressEnter: settings.get('output.transcription.enter'),
-	});
-
 	return deliverToSink({
 		text,
 		successCopy: TRANSCRIPTION_SUCCESS_COPY[source],
-		sink,
+		sink: resolveSettingsSink('transcription'),
 		// A transcription always belongs to a recording, so its history is reachable.
 		linkedRecording: true,
 	});
@@ -113,20 +97,6 @@ export async function deliverRecipeResult({
 		sink: resolveSettingsSink('recipe'),
 		linkedRecording: recordingId !== null,
 	});
-}
-
-function resolveDictateSink({
-	focusedField,
-	keepOnClipboard,
-	pressEnter,
-}: {
-	focusedField: boolean;
-	keepOnClipboard: boolean;
-	pressEnter: boolean;
-}): Sink {
-	return focusedField
-		? createCursorSink({ keepOnClipboard, pressEnter })
-		: ledgerSink;
 }
 
 function resolveSettingsSink(settingsScope: OutputScope): Sink {
@@ -163,16 +133,6 @@ async function deliverToSink({
 
 	const reach = await sink.deliver(text);
 
-	// The fact recorded on the row: a cursor sink that could not paste
-	// downgrades to a `clipboard` fact, since that is where the text actually
-	// landed. Every other sink's fact is just its own kind. `ref` is always
-	// null: nothing produces one yet.
-	const sinkFact: RecordingSink = {
-		kind:
-			sink.kind === 'cursor' && reach === 'clipboard' ? 'clipboard' : sink.kind,
-		ref: null,
-	};
-
 	const title =
 		sink.kind === 'cursor'
 			? reach === 'output'
@@ -182,7 +142,6 @@ async function deliverToSink({
 
 	return {
 		outcome: { reach },
-		sink: sinkFact,
 		notice: { title, description: text, action: recordingsAction },
 	};
 }

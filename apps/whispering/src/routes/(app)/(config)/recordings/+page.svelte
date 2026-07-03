@@ -99,7 +99,7 @@
 	);
 
 	function displayTranscript(recording: Recording): string {
-		return recording.result ?? recording.raw;
+		return recording.polishedTranscript ?? recording.transcript;
 	}
 
 	const columns = [

@@ -60,11 +60,8 @@ export async function processRecordingPipeline({
 		title: '',
 		recordedAt: now,
 		recordedAtZone: IanaTimeZone.current(),
-		raw: '',
-		result: null,
-		intent: 'dictate',
-		operand: { kind: 'none', text: null },
-		sink: null,
+		transcript: '',
+		polishedTranscript: null,
 		duration: durationMs,
 		transcription: null,
 	});
@@ -129,8 +126,8 @@ export async function processRecordingPipeline({
 		return;
 	}
 
-	// Run Polish over the raw transcript, then deliver the POLISHED text. The raw
-	// stays on `recordings.raw` (persisted by transcribeAndPersist) so
+	// Run Polish over the raw transcript, then deliver the polished text. The raw
+	// stays on `recordings.transcript` (persisted by transcribeAndPersist) so
 	// "show original" is recoverable. We hold delivery until Polish finishes and
 	// deliver once, with the final text: delivering the raw and then the polished
 	// version would land two copies (a clipboard the user might paste mid-polish,
@@ -166,30 +163,23 @@ export async function processRecordingPipeline({
 		});
 	}
 
-	// Persist the result alongside the raw transcript so the history shows what
-	// was actually delivered, with the original one click away. Only write when
-	// a Polish pass actually produced a result: `recordings.set` already left
-	// `result` null, so speed mode (no AI call) and a polish failure (the
-	// fallback delivers the raw words) need no second write.
+	// Persist the polished transcript alongside the raw transcript so history
+	// shows what was actually delivered, with the original one click away. Only
+	// write when a Polish pass actually produced a result: `recordings.set`
+	// already left `polishedTranscript` null, so speed mode (no AI call) and a
+	// polish failure (the fallback delivers the raw words) need no second write.
 	if (willPolish && !polishError) {
-		recordings.update(recordingId, { result: polishedText });
+		recordings.update(recordingId, { polishedTranscript: polishedText });
 	}
 
 	// The transcript is "ready" once it is polished and about to be delivered, so
 	// the completion sound and the resolved loading notice both fire here.
 	sound.playSoundIfEnabled('transcriptionComplete');
-	const {
-		outcome: transcriptDelivery,
-		notice: transcribeNotice,
-		sink,
-	} = await deliverTranscriptionResult({
-		text: deliveredText,
-		source: deliverySource,
-	});
-	// The sink is a terminal delivery fact: record it only once delivery has
-	// actually happened, the same stance `transcription` takes on its own
-	// terminal outcome.
-	recordings.update(recordingId, { sink });
+	const { outcome: transcriptDelivery, notice: transcribeNotice } =
+		await deliverTranscriptionResult({
+			text: deliveredText,
+			source: deliverySource,
+		});
 	if (isDictation) {
 		// The polished transcript is the dictation receipt. Every reach is a success
 		// (the transcript is saved), so this is always `delivered`; the reach decides

@@ -89,7 +89,9 @@
 		enabled: isDialogOpen,
 	}));
 
-	const deliveredTranscript = $derived(workingCopy.result ?? workingCopy.raw);
+	const deliveredTranscript = $derived(
+		workingCopy.polishedTranscript ?? workingCopy.transcript,
+	);
 
 	function promptUserConfirmLeave() {
 		if (!isWorkingCopyDirty) {
@@ -125,8 +127,11 @@
 			title: snapshot.title,
 			recordedAt: snapshot.recordedAt,
 			recordedAtZone: snapshot.recordedAtZone,
-			raw: snapshot.raw,
-			result: snapshot.raw === recording.raw ? recording.result : null,
+			transcript: snapshot.transcript,
+			polishedTranscript:
+				snapshot.transcript === recording.transcript
+					? recording.polishedTranscript
+					: null,
 		});
 
 		if (error) {
@@ -179,19 +184,19 @@
 				></audio>
 			{/if}
 
-			{#if workingCopy.result}
+			{#if workingCopy.polishedTranscript}
 				<div class="space-y-2">
 					<div class="flex items-center justify-between gap-2">
 						<Label for="delivered-transcript">Delivered transcript</Label>
 						<CopyButton
-							text={workingCopy.result}
+							text={workingCopy.polishedTranscript}
 							copyFn={createCopyFn('delivered transcript')}
 							variant="outline"
 						/>
 					</div>
 					<Textarea
 						id="delivered-transcript"
-						value={workingCopy.result}
+						value={workingCopy.polishedTranscript}
 						readonly
 						rows={6}
 					/>
@@ -200,15 +205,15 @@
 
 			<div class="space-y-2">
 				<Label for="transcript">
-					{workingCopy.result ? 'Original transcript' : 'Transcript'}
+					{workingCopy.polishedTranscript ? 'Original transcript' : 'Transcript'}
 				</Label>
 				<Textarea
 					id="transcript"
-					value={workingCopy.raw}
+					value={workingCopy.transcript}
 					oninput={(e) => {
 						workingCopy = {
 							...workingCopy,
-							raw: e.currentTarget.value,
+							transcript: e.currentTarget.value,
 						};
 						isWorkingCopyDirty = true;
 					}}
