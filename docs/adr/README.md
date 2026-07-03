@@ -165,5 +165,6 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0095](0095-websocket-room-auth-uses-route-owned-subprotocol-bearers.md) | WebSocket room auth uses route-owned subprotocol bearers | Accepted |
 | [0096](0096-local-workspace-persistence-is-environment-injected.md) | Local workspace persistence is environment-injected | Accepted |
 | [0097](0097-super-chat-tool-modules-receive-a-host-api.md) | Super Chat tool modules receive a host API | Accepted |
+| [0098](0098-vocab-stores-verbatim-terms-under-a-human-owned-note-and-refuses-glosses-srs-and-provenance.md) | Vocab stores verbatim terms under a human-owned note and refuses glosses, SRS, and provenance | Accepted |
 
 When you add an ADR, add its row here.
