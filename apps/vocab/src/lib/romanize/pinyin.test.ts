@@ -31,4 +31,18 @@ describe('pinyinRomanizer', () => {
 		expect(xue?.reading).toBeTruthy();
 		expect(xi?.reading).toBeTruthy();
 	});
+
+	test('Japanese text (kana present) gets no readings, so shared Han never gets Mandarin', () => {
+		// 今日 and 学校 are Han shared with Chinese; the kana は/に/き/ま/す mark the
+		// run as Japanese, so the whole run passes through with no reading.
+		const input = '今日は学校に行きます';
+		const segments = pinyinRomanizer(input);
+		expect(segments).toEqual([{ text: input }]);
+	});
+
+	test('Korean text (hangul present) gets no readings', () => {
+		const input = '학교';
+		const segments = pinyinRomanizer(input);
+		expect(segments).toEqual([{ text: input }]);
+	});
 });
