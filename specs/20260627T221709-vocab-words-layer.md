@@ -104,7 +104,7 @@ Two adversaries (champion-B: AI curates durable state; champion-A: deterministic
 
 > **Non-determinism at write time (gated, typed, approved, revertible). Determinism at read time (`select()` is a pure function of stored fields).**
 
-The repo already ships the write machinery: `invokeAction` validates every AI mutation against a TypeBox schema at one choke point (`packages/workspace/src/shared/actions.ts`), `createDispatchToolCatalog` turns an action's schema into the AI tool's input schema (ADR-0047), and `apps/local-books` proved model-in-the-loop typed writes with per-mutation approval (ADR-0044). `local-books` even has *parked* `mark_reviewed` / `add_note` tools that are this words layer.
+The repo already ships the write machinery: `invokeAction` validates every AI mutation against a TypeBox schema at one choke point (`packages/workspace/src/shared/actions.ts`), `createLocalToolCatalog` turns local `defineActions` entries into AI tool definitions (`packages/workspace/src/agent/local-tool-catalog.ts`), and the shared agent loop gates mutations through ADR-0044 approval policy (`packages/workspace/src/agent/tools.ts`). `apps/tab-manager` is the closest in-app precedent: it passes `createLocalToolCatalog(tabManager.actions)` into `createAgentChatState` and folds user trust into `decideApproval`.
 
 ### User-perspective stress test
 
@@ -328,6 +328,7 @@ Promote the top three to an ADR when work lands, so this is durable past the spe
 - `packages/ui/src/markdown/romanizer.ts` - `Romanizer`/`Segment` types (already language-agnostic).
 - `packages/chat/src/index.ts` - the shared `conversationsTable` Vocab composes beside (do not fork).
 - `packages/workspace/src/shared/actions.ts` - `invokeAction` + `Value.Check` choke point for gated AI writes.
-- `packages/workspace/src/agent/dispatch-catalog.ts` - `createDispatchToolCatalog`; action schema becomes the AI tool input schema (ADR-0047).
-- `apps/local-books/src/agent/recategorize.ts` - model-in-the-loop typed mutation pattern to mirror for harvest.
-- `apps/local-books/AGENTS.md` - capability/approval lattice (ADR-0044) and the parked `mark_reviewed`/`add_note` precedent.
+- `packages/workspace/src/agent/local-tool-catalog.ts` - `createLocalToolCatalog`; local action metadata becomes AI tool definitions (ADR-0047).
+- `packages/workspace/src/agent/tools.ts` - tool definitions and approval policy (`query` auto, `mutation` ask by default).
+- `apps/tab-manager/src/lib/session.svelte.ts` - live `createAgentChatState` integration with `createLocalToolCatalog(...)` and `decideApproval`.
+- `apps/tab-manager/src/lib/tab-manager/extension.ts` - app-local `defineActions` over workspace tables and browser capabilities.
