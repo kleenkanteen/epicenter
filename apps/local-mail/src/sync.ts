@@ -1,14 +1,20 @@
+import {
+	defineErrors,
+	extractErrorMessage,
+	type InferErrors,
+} from 'wellcrafted/error';
 import type { AppConfig } from './config.ts';
 import type { MailDb, RealmState } from './db.ts';
 import type { GmailClient, GmailClientError } from './gmail-client.ts';
 import type { GmailMessage, HistoryRecord } from './schema.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const FULL_PULL_GET_CHUNK_SIZE = 8;
 
 export type SyncMode = 'FULL' | 'INCREMENTAL';
-export type ModeDecision = { mode: SyncMode; reason: string };
+type ModeDecision = { mode: SyncMode; reason: string };
 
-export type ModeInputs = {
+type ModeInputs = {
 	forceFull: boolean;
 	realmState: RealmState;
 	now: number;
@@ -65,6 +71,28 @@ export function decideMode({
 	};
 }
 
+/**
+ * A concurrent writer (another sync pass in a second process) held the mirror
+ * lock past the 5s busy timeout. The failed transaction rolled back whole, so
+ * the cursor did not advance and the next pass retries the same window; this
+ * is a reportable outcome, not a crash, because a watch loop and an MCP host
+ * syncing the same mirror is a supported arrangement.
+ */
+export const MirrorWriteError = defineErrors({
+	MirrorBusy: ({ cause }: { cause: unknown }) => ({
+		message: `The mirror is locked by another writer (${extractErrorMessage(cause)}). Nothing was lost; the next sync pass retries.`,
+		cause,
+	}),
+});
+export type MirrorWriteError = InferErrors<typeof MirrorWriteError>;
+
+export type SyncFailure = GmailClientError | MirrorWriteError;
+
+function isSqliteBusy(cause: unknown): boolean {
+	const code = (cause as { code?: unknown } | null)?.code;
+	return typeof code === 'string' && code.startsWith('SQLITE_BUSY');
+}
+
 export type SyncOutcome = {
 	mode: SyncMode;
 	reason: string;
@@ -73,7 +101,7 @@ export type SyncOutcome = {
 	messagesUpserted: number;
 	messagesDeleted: number;
 	labelsPatched: number;
-	failure: GmailClientError | null;
+	failure: SyncFailure | null;
 };
 
 export type SyncDeps = {
@@ -91,7 +119,7 @@ function failedOutcome(
 	mode: SyncMode,
 	reason: string,
 	cursorBefore: string | null,
-	failure: GmailClientError,
+	failure: SyncFailure,
 	messagesUpserted = 0,
 ): SyncOutcome {
 	return {
@@ -110,7 +138,7 @@ function failedOutcome(
  * Full pull: paginate `messages.list`, fetch each page's messages concurrently
  * via `messages.get(format=full)`, and commit per page (`ingestFullPullPage`).
  * Cursor advances only once, via `finishFullPull`, after every page succeeds
- * and `getProfile` gives the post-pull `historyId` baseline. Committing a page
+ * against the pre-pull `getProfile` baseline. Committing a page
  * that later fails means a retry re-pulls from `messages.list`'s first page
  * again (upserts are idempotent, so this repeats work rather than losing it,
  * the same tradeoff `apps/local-books` makes on a failed FULL pull).
@@ -130,13 +158,23 @@ async function fullPull(
 		const listed = await client.listMessageIds(pageToken);
 		if (listed.error) return { upserted, failure: listed.error };
 
-		const fetched = await Promise.all(
-			listed.data.ids.map((id) => client.getMessage(id)),
-		);
 		const messages: GmailMessage[] = [];
-		for (const result of fetched) {
-			if (result.error) return { upserted, failure: result.error };
-			messages.push(result.data);
+		for (
+			let start = 0;
+			start < listed.data.ids.length;
+			start += FULL_PULL_GET_CHUNK_SIZE
+		) {
+			const chunk = listed.data.ids.slice(
+				start,
+				start + FULL_PULL_GET_CHUNK_SIZE,
+			);
+			const fetched = await Promise.all(
+				chunk.map((id) => client.getMessage(id)),
+			);
+			for (const result of fetched) {
+				if (result.error) return { upserted, failure: result.error };
+				messages.push(result.data);
+			}
 		}
 
 		db.ingestFullPullPage(messages, syncedAt);
@@ -215,6 +253,7 @@ async function incrementalPoll(
 	syncedAt: string,
 ): Promise<SyncOutcome> {
 	const { db, client } = deps;
+	const log = deps.log ?? (() => {});
 	const records: HistoryRecord[] = [];
 	let newHistoryId = cursorBefore;
 	let pageToken: string | undefined;
@@ -243,24 +282,38 @@ async function incrementalPoll(
 	for (const [id, action] of actions) {
 		if (action.kind === 'delete') {
 			messagesToDelete.push(id);
-		} else if (action.kind === 'labelPatch') {
-			labelPatches.push({ messageId: id, labelIds: action.labelIds });
-		} else {
-			const fetched = await client.getMessage(id);
-			if (fetched.error) {
-				if (fetched.error.name === 'Http' && fetched.error.status === 404) {
-					messagesToDelete.push(id);
-					continue;
-				}
-				return failedOutcome(
-					'INCREMENTAL',
-					'messages.get failed while resolving an added message',
-					cursorBefore,
-					fetched.error,
-				);
-			}
-			messagesToUpsert.push(fetched.data);
+			continue;
 		}
+		if (action.kind === 'labelPatch' && db.hasMessage(id)) {
+			labelPatches.push({ messageId: id, labelIds: action.labelIds });
+			continue;
+		}
+		// An upsert, or a label patch aimed at a row the mirror lacks: full
+		// pulls exclude SPAM/TRASH, so the sweep can evict a row that a later
+		// patch targets (untrash), and refetching converges the mirror.
+		const fetched = await client.getMessage(id);
+		if (fetched.error) {
+			if (fetched.error.name === 'Http' && fetched.error.status === 404) {
+				messagesToDelete.push(id);
+				continue;
+			}
+			return failedOutcome(
+				'INCREMENTAL',
+				'messages.get failed while resolving an added message',
+				cursorBefore,
+				fetched.error,
+			);
+		}
+		messagesToUpsert.push(fetched.data);
+	}
+
+	const labels = await client.listLabels();
+	if (labels.error) {
+		log(
+			`labels.list failed during incremental refresh: ${labels.error.message}`,
+		);
+	} else {
+		db.ingestLabels(labels.data, syncedAt);
 	}
 
 	db.applyHistoryBatch({
@@ -306,52 +359,57 @@ export async function syncMailbox(
 	});
 	const cursorBefore = realmState.historyId;
 	const syncedAt = new Date(nowMs).toISOString();
+	let fullReason = decision.reason;
 	log(`sync: ${decision.mode} (${decision.reason})`);
 
-	if (decision.mode === 'INCREMENTAL' && cursorBefore) {
-		const outcome = await incrementalPoll(deps, cursorBefore, syncedAt);
-		if (!outcome.failure || outcome.failure.name !== 'HistoryExpired') {
-			return outcome;
+	// SQLITE_BUSY past the busy timeout throws out of the MailDb mutations;
+	// map it to a failed outcome here so a lock lost to a concurrent writer
+	// reports like any other failed pass instead of killing the process (CLI
+	// watch) or corrupting into a protocol error (MCP). Anything else keeps
+	// throwing: it is a bug, not an operational condition.
+	try {
+		if (decision.mode === 'INCREMENTAL' && cursorBefore) {
+			const outcome = await incrementalPoll(deps, cursorBefore, syncedAt);
+			if (!outcome.failure || outcome.failure.name !== 'HistoryExpired') {
+				return outcome;
+			}
+			fullReason = 'historyId expired mid-pass';
+			log('sync: historyId expired mid-pass, falling back to FULL');
 		}
-		log('sync: historyId expired mid-pass, falling back to FULL');
-	}
 
-	const { upserted, failure } = await fullPull(deps, syncedAt);
-	if (failure) {
+		const profile = await deps.client.getProfile();
+		if (profile.error) {
+			return failedOutcome('FULL', fullReason, cursorBefore, profile.error);
+		}
+
+		const { upserted, failure } = await fullPull(deps, syncedAt);
+		if (failure) {
+			return failedOutcome('FULL', fullReason, cursorBefore, failure, upserted);
+		}
+
+		const messagesDeleted = db.finishFullPull(profile.data.historyId, syncedAt);
+		return {
+			mode: 'FULL',
+			reason: fullReason,
+			cursorBefore,
+			cursorAfter: profile.data.historyId,
+			messagesUpserted: upserted,
+			messagesDeleted,
+			labelsPatched: 0,
+			failure: null,
+		};
+	} catch (cause) {
+		if (!isSqliteBusy(cause)) throw cause;
 		return failedOutcome(
-			'FULL',
+			decision.mode,
 			decision.reason,
 			cursorBefore,
-			failure,
-			upserted,
+			MirrorWriteError.MirrorBusy({ cause }).error,
 		);
 	}
-
-	const profile = await deps.client.getProfile();
-	if (profile.error) {
-		return failedOutcome(
-			'FULL',
-			decision.reason,
-			cursorBefore,
-			profile.error,
-			upserted,
-		);
-	}
-
-	db.finishFullPull(profile.data.historyId, syncedAt);
-	return {
-		mode: 'FULL',
-		reason: decision.reason,
-		cursorBefore,
-		cursorAfter: profile.data.historyId,
-		messagesUpserted: upserted,
-		messagesDeleted: 0,
-		labelsPatched: 0,
-		failure: null,
-	};
 }
 
-export type SyncLoopOptions = {
+type SyncLoopOptions = {
 	forceFull: boolean;
 	intervalMs: number;
 	/** Aborting the signal stops the loop after the current pass or sleep. */

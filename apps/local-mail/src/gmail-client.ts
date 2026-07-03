@@ -18,7 +18,7 @@ import type { TokenError, TokenManager } from './token-manager.ts';
 /**
  * The Gmail REST API client: `messages.list`/`messages.get` for full pulls,
  * `history.list` for incremental refresh, `labels.list`, and `getProfile` for
- * the post-full-pull `historyId` baseline. Same job as `apps/local-books`'
+ * the pre-full-pull `historyId` baseline. Same job as `apps/local-books`'
  * `qb-client.ts`: bearer auth from the token manager, one-shot refresh on 401,
  * backoff on throttling.
  *
@@ -72,11 +72,13 @@ export type GmailClient = {
 		pageToken?: string,
 	): Promise<Result<HistoryPage, GmailClientError>>;
 	listLabels(): Promise<Result<GmailLabel[], GmailClientError>>;
-	/** Current mailbox `historyId`, used as the baseline right after a full pull. */
-	getProfile(): Promise<Result<{ historyId: string }, GmailClientError>>;
+	/** Current mailbox `historyId`, used as the baseline right before a full pull. */
+	getProfile(): Promise<
+		Result<{ historyId: string; emailAddress?: string }, GmailClientError>
+	>;
 };
 
-export type GmailClientDeps = {
+type GmailClientDeps = {
 	config: AppConfig;
 	tokens: TokenManager;
 	log?: (message: string) => void;

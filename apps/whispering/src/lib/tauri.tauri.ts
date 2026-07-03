@@ -195,22 +195,22 @@ const KeyringError = defineErrors({
 
 const keyring = {
 	/**
-	 * Read the secret stored under `service`/`account` from the OS credential
-	 * store (Keychain, Credential Manager, Secret Service), or `null` when
-	 * absent.
+	 * Read the secret stored under an app-owned keyring account, or `null` when
+	 * absent. Rust owns the OS credential-store service name and account
+	 * allowlist.
 	 */
-	async read(service: string, account: string) {
-		const { data, error } = await commands.keyringRead(service, account);
+	async read(account: string) {
+		const { data, error } = await commands.keyringRead(account);
 		if (error !== null) return KeyringError.ReadFailed({ cause: error });
 		return Ok(data);
 	},
 
 	/**
-	 * Write `value` under `service`/`account`, or delete the entry when `value`
-	 * is `null`.
+	 * Write `value` under an app-owned keyring account, or delete the entry when
+	 * `value` is `null`.
 	 */
-	async write(service: string, account: string, value: string | null) {
-		const { error } = await commands.keyringWrite(service, account, value);
+	async write(account: string, value: string | null) {
+		const { error } = await commands.keyringWrite(account, value);
 		if (error !== null) return KeyringError.WriteFailed({ cause: error });
 		return Ok(undefined);
 	},

@@ -320,28 +320,29 @@ export const commands = {
 	resumePlayback: (sessions: string[]) =>
 		__TAURI_INVOKE<void>('resume_playback', { sessions }),
 	/**
-	 *  Read the secret stored under `service`/`account`, or `None` when absent.
+	 *  Read the secret stored under the app keyring service and `account`, or
+	 *  `None` when absent.
 	 *
 	 *  `keyring::Error::NoEntry` (nothing stored yet, or a prior delete) is the
 	 *  only variant folded into `Ok(None)`; every other failure (locked keychain,
 	 *  platform failure, bad encoding) surfaces as `Err`.
 	 */
-	keyringRead: (service: string, account: string) =>
+	keyringRead: (account: string) =>
 		typedError<string | null, KeyringError>(
-			__TAURI_INVOKE('keyring_read', { service, account }),
+			__TAURI_INVOKE('keyring_read', { account }),
 		),
 	/**
-	 *  Write `value` under `service`/`account`, or delete the entry when `value`
-	 *  is `None`.
+	 *  Write `value` under the app keyring service and `account`, or delete the
+	 *  entry when `value` is `None`.
 	 *
 	 *  Deleting an entry that is already absent (`NoEntry`) is treated as
 	 *  success, matching `Storage.removeItem`'s no-throw-if-missing semantics:
 	 *  the TypeScript `PersistedAuthStorage.set(null)` contract relies on a
 	 *  no-op delete being safe to call repeatedly.
 	 */
-	keyringWrite: (service: string, account: string, value: string | null) =>
+	keyringWrite: (account: string, value: string | null) =>
 		typedError<null, KeyringError>(
-			__TAURI_INVOKE('keyring_write', { service, account, value }),
+			__TAURI_INVOKE('keyring_write', { account, value }),
 		),
 	/**
 	 *  Replace the full set of registered global shortcuts. The FE computes the
