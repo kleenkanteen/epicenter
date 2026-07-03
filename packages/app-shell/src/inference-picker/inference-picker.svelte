@@ -138,6 +138,16 @@
 			: (connections.hostedModels.find((m) => m.id === model)?.label ?? model),
 	);
 
+	// Whether the selected model is served by a local (localhost) custom
+	// connection, so the closed trigger flags it with a HardDrive icon and a local
+	// Ollama pick reads differently from a hosted one at a glance.
+	const selectedIsLocal = $derived(
+		!!model &&
+			connections.custom.some(
+				(c) => isLocal(c.baseUrl) && (c.models ?? []).includes(model),
+			),
+	);
+
 	function selectModel(id: string) {
 		onSelectModel(id);
 		open = false;
@@ -237,7 +247,12 @@
 				aria-expanded={open}
 				class="max-w-56 justify-between gap-2 font-normal"
 			>
-				<span class="truncate">{triggerLabel}</span>
+				<span class="flex min-w-0 items-center gap-2">
+					{#if selectedIsLocal}
+						<HardDrive class="size-4 shrink-0 opacity-70" />
+					{/if}
+					<span class="truncate">{triggerLabel}</span>
+				</span>
 				<ChevronsUpDown class="size-4 shrink-0 opacity-50" />
 			</Button>
 		{/snippet}
@@ -292,11 +307,15 @@
 											: 'opacity-0'}"
 									/>
 									{#if isLocal(connection.baseUrl)}
-										<HardDrive class="size-4" />
+										<HardDrive class="size-4 shrink-0 opacity-70" />
 									{:else}
-										<Cloud class="size-4" />
+										<Cloud class="size-4 shrink-0 opacity-70" />
 									{/if}
-									<span class="flex-1 truncate">{id}</span>
+									<span
+										class="line-clamp-2 flex-1 break-all {model === id
+											? 'font-medium'
+											: ''}"
+										title={id}>{id}</span>
 								</Command.Item>
 							{:else}
 								<Command.Item disabled value="{connection.baseUrl} empty">
@@ -352,28 +371,32 @@
 				</div>
 
 				{#if formPreset === null}
-					<div class="space-y-1">
+					<div class="overflow-hidden rounded-md border">
 						{#each CONNECTION_PRESETS as preset (preset.id)}
-							<Button
-								variant="outline"
-								size="sm"
-								class="w-full justify-between"
+							<button
+								type="button"
+								class="flex w-full items-center gap-2 px-3 py-2 text-sm outline-none hover:bg-accent focus-visible:bg-accent"
 								onclick={() => choosePreset(preset.id)}
 							>
-								<span>{preset.label}</span>
+								{#if isLocal(preset.baseUrl)}
+									<HardDrive class="size-4 shrink-0 opacity-70" />
+								{:else}
+									<Cloud class="size-4 shrink-0 opacity-70" />
+								{/if}
+								<span class="flex-1 text-left">{preset.label}</span>
 								<span class="text-xs text-muted-foreground">
 									{isLocal(preset.baseUrl) ? 'local' : 'cloud'}
 								</span>
-							</Button>
+							</button>
 						{/each}
-						<Button
-							variant="outline"
-							size="sm"
-							class="w-full justify-start"
+						<button
+							type="button"
+							class="flex w-full items-center gap-2 border-t px-3 py-2 text-sm outline-none hover:bg-accent focus-visible:bg-accent"
 							onclick={() => choosePreset('custom')}
 						>
-							Custom URL
-						</Button>
+							<Plus class="size-4 shrink-0 opacity-70" />
+							<span class="flex-1 text-left">Custom URL</span>
+						</button>
 					</div>
 				{:else}
 					<div class="space-y-1">
@@ -420,6 +443,9 @@
 								<LoaderCircle class="size-3.5 animate-spin" /> Loading models...
 							</p>
 						{:else if discovered && discovered.length > 0}
+							<p class="text-xs text-muted-foreground">
+								Pick a model to start using it.
+							</p>
 							<Command.Root class="rounded-md border">
 								<Command.Input placeholder="Search models..." />
 								<Command.List class="max-h-48">
@@ -430,7 +456,7 @@
 											keywords={[id]}
 											onSelect={() => commitConnection(id)}
 										>
-											<span class="truncate">{id}</span>
+											<span class="line-clamp-2 break-all" title={id}>{id}</span>
 										</Command.Item>
 									{/each}
 								</Command.List>
