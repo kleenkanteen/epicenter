@@ -40,6 +40,49 @@ export type RealmState = {
 	lastSyncedAt: string | null;
 };
 
+/**
+ * One row of the triage list, projected for the HTTP read surface. `labelIds`
+ * is the parsed array (the `label_ids` column stores Gmail's JSON string); the
+ * UI derives unread/inbox/label chips from it, so no state is invented here.
+ */
+export type MessageSummary = {
+	id: string;
+	threadId: string | null;
+	subject: string | null;
+	sender: string | null;
+	snippet: string | null;
+	internalDate: number | null;
+	labelIds: string[];
+};
+
+/** A single message opened in the detail pane: a summary plus its extracted
+ * plain-text body and the `To` header. Bodies are stored pre-extracted as
+ * text (`db.ts`'s `bodyText`), so the read surface never ships raw HTML. */
+export type MessageDetail = MessageSummary & {
+	to: string | null;
+	date: string | null;
+	bodyText: string | null;
+};
+
+/** A mirrored Gmail label, for the label-filter rail and the add/remove menu. */
+export type LabelSummary = {
+	id: string;
+	name: string | null;
+	type: string | null;
+};
+
+function parseLabelIds(json: string | null): string[] {
+	if (!json) return [];
+	try {
+		const parsed = JSON.parse(json);
+		return Array.isArray(parsed)
+			? parsed.filter((v) => typeof v === 'string')
+			: [];
+	} catch {
+		return [];
+	}
+}
+
 export type MailDb = ReturnType<typeof openMailDb>;
 
 type GmailMessagePart = {
@@ -360,6 +403,125 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 			limit: number,
 		): { subject: string | null; sender: string | null }[] {
 			return recentMessagesStmt.all(limit);
+		},
+
+		/**
+		 * The triage list read model. Newest first; an optional `labelId` filters
+		 * to messages carrying that Gmail label, and an optional `search` matches
+		 * subject/sender/body. Both are pushed into SQL so the process never
+		 * materializes the whole mirror. Compiled per call (dynamic WHERE), which
+		 * is fine at mirror scale and mirrors the `query` verb's discipline.
+		 */
+		listMessages({
+			labelId,
+			search,
+			limit,
+			offset,
+		}: {
+			labelId?: string;
+			search?: string;
+			limit: number;
+			offset: number;
+		}): MessageSummary[] {
+			const where: string[] = [];
+			const params: Record<string, string | number> = {
+				$limit: limit,
+				$offset: offset,
+			};
+			if (labelId) {
+				where.push(
+					`EXISTS (SELECT 1 FROM json_each(messages.label_ids) WHERE value = $labelId)`,
+				);
+				params.$labelId = labelId;
+			}
+			if (search) {
+				where.push(`(subject LIKE $q OR sender LIKE $q OR body_text LIKE $q)`);
+				params.$q = `%${search}%`;
+			}
+			const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+			const rows = db
+				.query<
+					{
+						id: string;
+						thread_id: string | null;
+						subject: string | null;
+						sender: string | null;
+						snippet: string | null;
+						internal_date: number | null;
+						label_ids: string | null;
+					},
+					Record<string, string | number>
+				>(
+					`SELECT id, thread_id, subject, sender, snippet, internal_date, label_ids
+					 FROM messages ${clause}
+					 ORDER BY internal_date DESC
+					 LIMIT $limit OFFSET $offset`,
+				)
+				.all(params);
+			return rows.map((row) => ({
+				id: row.id,
+				threadId: row.thread_id,
+				subject: row.subject,
+				sender: row.sender,
+				snippet: row.snippet,
+				internalDate: row.internal_date,
+				labelIds: parseLabelIds(row.label_ids),
+			}));
+		},
+
+		/** One message with its extracted body, for the detail pane. */
+		getMessageDetail(id: string): MessageDetail | null {
+			const row = db
+				.query<
+					{
+						id: string;
+						thread_id: string | null;
+						subject: string | null;
+						sender: string | null;
+						snippet: string | null;
+						internal_date: number | null;
+						label_ids: string | null;
+						body_text: string | null;
+						raw: string;
+					},
+					[string]
+				>(
+					`SELECT id, thread_id, subject, sender, snippet, internal_date,
+					        label_ids, body_text, raw
+					 FROM messages WHERE id = ?`,
+				)
+				.get(id);
+			if (!row) return null;
+			let to: string | null = null;
+			let date: string | null = null;
+			try {
+				const message = JSON.parse(row.raw) as GmailMessage;
+				to = headerValue(message, 'To');
+				date = headerValue(message, 'Date');
+			} catch {
+				// Fall back to nulls; the summary fields already carry the essentials.
+			}
+			return {
+				id: row.id,
+				threadId: row.thread_id,
+				subject: row.subject,
+				sender: row.sender,
+				snippet: row.snippet,
+				internalDate: row.internal_date,
+				labelIds: parseLabelIds(row.label_ids),
+				to,
+				date,
+				bodyText: row.body_text,
+			};
+		},
+
+		/** Every mirrored label, for the filter rail and the add/remove menu. */
+		listLabels(): LabelSummary[] {
+			return db
+				.query<{ id: string; name: string | null; type: string | null }, []>(
+					`SELECT id, name, type FROM labels ORDER BY type, name`,
+				)
+				.all();
 		},
 
 		/**
