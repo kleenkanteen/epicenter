@@ -6,13 +6,12 @@
 	import type { TableView } from '$lib/table.svelte';
 	import type { TableQuery } from '$lib/table-query.svelte';
 	import {
+		type BoardCard,
 		boardColumnsFor,
 		boardDropEditFor,
 		canWriteBoardColumn,
 	} from './board';
 	import FieldValue from './FieldValue.svelte';
-
-	const BOARD_CARD_MIME = 'application/x-epicenter-matter-board-card';
 
 	let {
 		table,
@@ -44,6 +43,11 @@
 		columns.reduce((count, column) => count + column.cards.length, 0),
 	);
 
+	// The card being dragged, held in state rather than serialized through the drag
+	// payload: it is a card this board just rendered, so its identity never leaves the
+	// process and `drop` acts on a trusted card, not an arbitrary browser payload.
+	let draggedCard = $state<BoardCard>();
+
 	function canDropOn(columnValue: string | null): boolean {
 		return (
 			groupByField !== undefined &&
@@ -51,13 +55,8 @@
 		);
 	}
 
-	// The card MIME scopes drops to board cards; the `text/plain` copy is a fallback for
-	// drag harnesses that only round-trip the standard type (the Playwright e2e). Reading an
-	// arbitrary payload is safe because `boardDropEditFor` refuses any name that is not a card
-	// currently in `columns`, so the fallback cannot write to an off-board file.
-	function dragStart(event: DragEvent, fileName: string): void {
-		event.dataTransfer?.setData(BOARD_CARD_MIME, fileName);
-		event.dataTransfer?.setData('text/plain', fileName);
+	function dragStart(event: DragEvent, card: BoardCard): void {
+		draggedCard = card;
 		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 	}
 
@@ -68,11 +67,10 @@
 	}
 
 	function drop(event: DragEvent, columnValue: string | null): void {
-		const fileName =
-			event.dataTransfer?.getData(BOARD_CARD_MIME) ||
-			event.dataTransfer?.getData('text/plain');
-		if (!fileName || groupByField === undefined) return;
-		const edit = boardDropEditFor({ columns, fileName, groupByField, columnValue });
+		const card = draggedCard;
+		draggedCard = undefined;
+		if (!card || groupByField === undefined) return;
+		const edit = boardDropEditFor({ card, groupByField, columnValue });
 		if (!edit) return;
 		event.preventDefault();
 		void table.saveField(edit.fileName, edit.key, edit.value);
@@ -145,7 +143,7 @@
 										role="listitem"
 										draggable={true}
 										data-board-card={card.row.fileName}
-										ondragstart={(event) => dragStart(event, card.row.fileName)}
+										ondragstart={(event) => dragStart(event, card)}
 										class="cursor-grab rounded-md border bg-card p-3 shadow-sm active:cursor-grabbing"
 									>
 										<h3
