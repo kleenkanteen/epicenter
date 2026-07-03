@@ -170,6 +170,7 @@ export {
 	type ConnectedTables,
 	type ConnectedWorkspace,
 	type ConnectedWorkspaceContext,
+	type ConnectOptions,
 	type CreateWorkspaceOptions,
 	createWorkspace,
 	type DefineWorkspaceOptions,

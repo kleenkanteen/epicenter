@@ -65,8 +65,6 @@ bun add @epicenter/workspace @epicenter/field
 ```typescript
 import { field } from '@epicenter/field';
 import {
-	attachBroadcastChannel,
-	attachIndexedDb,
 	defineTable,
 	defineWorkspace,
 } from '@epicenter/workspace';
@@ -85,24 +83,14 @@ const blogWorkspace = defineWorkspace({
 });
 
 export function openBlog() {
-	const workspace = blogWorkspace.connect();
-	const idb = attachIndexedDb(workspace.ydoc);
-	// Cross-tab broadcast keyed by ydoc.guid. Skip this line for a Tauri
-	// or Electron app that only ever runs one window.
-	attachBroadcastChannel(workspace.ydoc);
-
-	return {
-		...workspace,
-		idb,
-		batch: (fn: () => void) => workspace.ydoc.transact(fn),
-	};
+	return blogWorkspace.connect(null);
 }
 
 // Singleton style: open once at module scope, use everywhere.
 export const blog = openBlog();
 
 async function quickStart() {
-	await blog.idb.whenLoaded;
+	await blog.storage.whenLoaded;
 
 	blog.tables.posts.set({
 		id: 'welcome',
@@ -123,13 +111,13 @@ void quickStart;
 That example uses the current public API end to end:
 
 - `defineTable(...)` with a real schema
-- a direct `openBlog()` builder function that calls `blogWorkspace.connect()`
+- a direct `openBlog()` builder function that calls `blogWorkspace.connect(null)`
 - `defineWorkspace(...)` for the shared contract and `open()` for the live root
 - direct property access via `blog.tables.posts`
 - `set`, `get`, `update`, `delete`, `scan`, and `observe`
 
-The quick start is local-first: it persists to IndexedDB and works offline.
-Sync is one more line in the builder: add `openCollaboration`. See [Sync](#sync).
+The quick start is local-first: it persists to browser storage and works
+offline. Sync is the credentialed arm of the same call. See [Sync](#sync).
 
 Singleton apps (one workspace per app) call a builder like `openBlog()` once at
 module scope. Browser child documents are declared on tables and opened through
@@ -296,11 +284,11 @@ function openBlog(connection: ConnectionConfig) {
 }
 ```
 
-Daemon and test paths can use `open()` to compose root-only infrastructure:
+Daemon and test paths can use `create()` to compose root-only infrastructure:
 
 ```typescript
 function openBlogDaemon() {
-	const workspace = blogWorkspace.connect();
+	const workspace = blogWorkspace.create();
 	const collaboration = openCollaboration(workspace.ydoc, {
 		url,
 		openWebSocket,
@@ -404,12 +392,12 @@ Yjs supports multiple providers simultaneously. A phone can connect to desktop, 
 
 1. Define tables and KV entries with `defineTable` and `defineKv`.
 2. Export a `defineWorkspace({ id, tables, kv, actions })` value beside the schema.
-3. For singleton apps: call `definition.connect()` once at module scope. For cloud
+3. For singleton apps: call `definition.connect(null)` once at module scope. For cloud
    browser apps: call `definition.connect(connection)`. For browser child documents:
    declare them with `table.docs(...)` and call `tables.<table>.docs.<field>.open(rowId)`.
    For one-shot Node operations: derive the same child-doc guid and read the room directly.
 4. Await the right readiness signal before reading persisted state. There are two shapes here, and the choice is load-bearing:
-   - **One subsystem to wait on.** Expose the subsystem (`idb`, `persistence`, ...) on the bundle root and let consumers reach through: `await bundle.idb.whenLoaded`. Do not alias `whenLoaded`/`whenReady` flat at the bundle root just to save a `.idb`; the alias lies about composition.
+   - **One subsystem to wait on.** Expose the subsystem (`storage`, `persistence`, ...) on the bundle root and let consumers reach through: `await bundle.storage.whenLoaded`. Do not alias `whenLoaded`/`whenReady` flat at the bundle root just to save `.storage`; the alias lies about composition.
    - **Two or more subsystems to compose into one barrier.** Then `whenReady` earns its place: `whenReady: Promise.all([persistence.whenLoaded, unlock.whenChecked, sync.whenConnected])`. Because the field is typed `Promise<unknown>`, `Promise.all([...])` is assignable directly. Consumers `await bundle.whenReady`. The CLI's `run` command, migrations, `@epicenter/filesystem` ops, the sqlite-index materializer, and `{#await}` gates in editors all consume this aggregate.
 
 5. Read and write through `bundle.tables`, `bundle.kv`, and `bundle.collaboration.peers`, and (for per-row content docs) whatever you exposed in the returned bundle.
@@ -1329,7 +1317,7 @@ Two composition shapes, one builder contract.
 │     kv: {},                                               │
 │     actions: ({ tables }) => defineActions({ ... }),      │
 │ });                                                       │
-│ export const workspace = appWorkspace.connect();             │
+│ export const workspace = appWorkspace.connect(null);         │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -1374,14 +1362,14 @@ Yjs transactions do not roll back on throw. They batch notifications; they are n
 
 | API | What it means |
 | --- | --- |
-| `bundle.idb.whenLoaded` (or `bundle.sqlite.whenLoaded`) | Direct subsystem readiness; the default form |
+| `bundle.storage.whenLoaded` (or `bundle.sqlite.whenLoaded`) | Direct subsystem readiness; the default form |
 | `bundle.whenReady` | Optional aggregate: only when the bundle composes 2+ subsystem signals into `Promise.all([...])` |
-| `bundle.idb.clearLocal()` (or `bundle.sqlite.clearLocal()`) | Wipes persisted local state for that attachment |
+| `bundle.storage.clearLocal()` (or `bundle.sqlite.clearLocal()`) | Wipes persisted local state for that attachment |
 | `bundle[Symbol.dispose]()` | Singleton teardown: your builder calls `ydoc.destroy()` |
 | `handle[Symbol.dispose]()` | Cache handle: decrements refcount; last dispose arms `gcTime` |
 | `cache[Symbol.dispose]()` | Flushes every cached entry immediately |
 
-Disposal preserves data: it releases the handle. To wipe persisted local state, call `clearLocal()` on the persistence attachment (`bundle.idb` or `bundle.sqlite`) directly.
+Disposal preserves data: it releases the handle. To wipe persisted local state, call `clearLocal()` on the persistence attachment (`bundle.storage` or `bundle.sqlite`) directly.
 
 ### Cleanup lifecycle (cache)
 
@@ -1413,7 +1401,7 @@ Disposal preserves data: it releases the handle. To wipe persisted local state, 
 
 ```ts
 cache[Symbol.dispose]();
-await handle.idb.whenDisposed;
+await handle.storage.whenDisposed;
 ```
 
 ## Client vs Server
@@ -1467,11 +1455,11 @@ Everything below is a *convention*: the builder is free to expose more or less. 
 - `ydoc`
 - `tables`
 - `kv`
-- `idb` (or `sqlite`)
+- `storage` (or `sqlite`)
 - `collaboration` (from `openCollaboration`)
 - `actions`
 - `batch(fn)`
-- `whenReady` (only when composed from 2+ subsystem signals; otherwise consumers await `idb.whenLoaded` directly)
+- `whenReady` (only when composed from 2+ subsystem signals; otherwise consumers await `storage.whenLoaded` directly)
 - `[Symbol.dispose]()`
 
 ### Document content attachments

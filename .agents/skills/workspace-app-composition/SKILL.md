@@ -1,6 +1,6 @@
 ---
 name: workspace-app-composition
-description: 'How a workspace-backed app under `apps/*` is composed: the isomorphic doc factory (`create<App>`), the environment factories (`open<App>Browser` / `open<App>Extension` / tauri) with the one boot call (`connect(toConnection(auth, nodeId))`, ADR-0088/ADR-0094), the `#platform/*` build-time platform DI for multi-platform (Tauri) apps, the workspace singleton, the sign-in migration wiring, daemon/script placement under per-project `workspaces/<app>/`, and the file layout itself. Use when creating a new app, naming or placing the iso/browser/extension factory, wiring `#platform/*` subpath imports for a Tauri seam, placing the workspace singleton, wiring the first-sign-in migration, registering daemon/script bindings, or gating first paint on IndexedDB hydration (load gate vs WorkspaceGate).'
+description: 'How a workspace-backed app under `apps/*` is composed: the isomorphic doc factory (`create<App>`), the environment factories (`open<App>Browser` / `open<App>Extension` / tauri) with the one boot call (`connect(toConnection(auth, nodeId))`, ADR-0088/ADR-0094), the `#platform/*` build-time platform DI for multi-platform (Tauri) apps, the workspace singleton, the sign-in migration wiring, daemon/script placement under per-project `workspaces/<app>/`, and the file layout itself. Use when creating a new app, naming or placing the iso/browser/extension factory, wiring `#platform/*` subpath imports for a Tauri seam, placing the workspace singleton, wiring the first-sign-in migration, registering daemon/script bindings, or gating first paint on local storage hydration (load gate vs WorkspaceGate).'
 metadata:
   author: epicenter
   version: '6.0'
@@ -235,8 +235,8 @@ where the workspace is built.
 - Correctness gates (404 / redirect / param) always go in `load`; only `load`
   can `error()` / `redirect()` (matter `vault/[id]`).
 - The promise must be resolve-only or the gate blocks paint forever
-  (`whenLoaded = idb.whenSynced`, kept resolve-only by the y-indexeddb
-  corrupt-load patch). Fix the promise, never add a timeout.
+  (`storage.whenLoaded` is kept resolve-only by the y-indexeddb corrupt-load
+  patch). Fix the promise, never add a timeout.
 
 The blank-shell (load) vs `<Loading>` (`WorkspaceGate`) difference follows from
 the boundary, not a separate choice. For the `load`-blocks-render rule ground

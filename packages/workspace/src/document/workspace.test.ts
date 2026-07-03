@@ -15,7 +15,11 @@ import type { ConnectionConfig } from './connect-doc.js';
 import { defineKv } from './define-kv.js';
 import { defineTable } from './define-table.js';
 import { asNodeId } from './node-id.js';
-import { createWorkspace, defineWorkspace } from './workspace.js';
+import {
+	createWorkspace,
+	defineWorkspace,
+	type LocalPersistence,
+} from './workspace.js';
 
 Object.assign(globalThis, { indexedDB, IDBKeyRange });
 
@@ -236,6 +240,47 @@ describe('defineWorkspace', () => {
 			two[Symbol.dispose]();
 			workspace[Symbol.dispose]();
 		}
+	});
+
+	test('wipe waits for open child-doc storage before deleting local data', async () => {
+		let wipeCalled = false;
+		const childDisposed = Promise.withResolvers<void>();
+		const persistence: LocalPersistence = {
+			attach(ydoc) {
+				if (ydoc.guid === 'ws-wipe-child-storage') {
+					const rootDisposed = Promise.withResolvers<void>();
+					ydoc.once('destroy', () => rootDisposed.resolve());
+					return {
+						whenLoaded: Promise.resolve(),
+						whenDisposed: rootDisposed.promise,
+					};
+				}
+
+				return {
+					whenLoaded: Promise.resolve(),
+					whenDisposed: childDisposed.promise,
+				};
+			},
+			async wipe() {
+				wipeCalled = true;
+			},
+		};
+		const workspace = defineWorkspace({
+			id: 'ws-wipe-child-storage',
+			name: 'ws-wipe-child-storage',
+			tables: { notes: notesDefinition.docs({ body: attachPlainText }) },
+			kv: {},
+		}).connect(null, { persistence });
+
+		workspace.tables.notes.docs.body.open('note-1');
+		const wipe = workspace.wipe();
+
+		await Promise.resolve();
+		expect(wipeCalled).toBe(false);
+
+		childDisposed.resolve();
+		await wipe;
+		expect(wipeCalled).toBe(true);
 	});
 
 	test('docs touch stamps the row on local edits, not on synced ones', () => {

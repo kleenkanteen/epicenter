@@ -281,7 +281,7 @@ function browserLocalPersistence(): LocalPersistence {
 	};
 }
 
-type ConnectOptions<
+export type ConnectOptions<
 	TTables extends TableDefinitions,
 	TKv extends KvDefinitions,
 	TActions extends ActionRegistry,
