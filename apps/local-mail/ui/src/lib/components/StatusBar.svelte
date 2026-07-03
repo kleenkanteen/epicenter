@@ -27,6 +27,13 @@
 	// The mirror chip is the one canonical mirror-state surface. "catching up"
 	// overrides the steady state for the brief window after a sync-lagging write.
 	const mirror = $derived(status?.mirror ?? 'empty');
+	const mirrorTone = $derived(
+		mirror === 'ready'
+			? 'bg-emerald-500'
+			: mirror === 'building'
+				? 'bg-amber-500'
+				: 'bg-muted-foreground',
+	);
 	const chip = $derived(
 		catchingUp
 			? {
@@ -35,16 +42,7 @@
 					title:
 						'Gmail accepted a change; the mirror folds it in on the next sync.',
 				}
-			: {
-					tone:
-						mirror === 'ready'
-							? 'bg-emerald-500'
-							: mirror === 'building'
-								? 'bg-amber-500'
-								: 'bg-muted-foreground',
-					label: mirror,
-					title: 'Mirror state',
-				},
+			: { tone: mirrorTone, label: mirror, title: 'Mirror state' },
 	);
 	const numberFmt = new Intl.NumberFormat();
 </script>
