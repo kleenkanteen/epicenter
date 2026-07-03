@@ -532,9 +532,6 @@
 	:global(.ProseMirror > * + *) {
 		margin-top: 0.6rem;
 	}
-	:global(.ProseMirror p) {
-		margin: 0;
-	}
 
 	:global(.ProseMirror h1:not(:first-child)) {
 		font-size: 1.5rem;
@@ -568,9 +565,6 @@
 	}
 	:global(.ProseMirror li + li) {
 		margin-top: 0.15rem;
-	}
-	:global(.ProseMirror li > p) {
-		margin: 0;
 	}
 
 	:global(.ProseMirror blockquote) {
