@@ -143,12 +143,7 @@ export async function runApp(options: {
 		return 1;
 	}
 
-	// Re-bind the non-null values: TS drops the post-guard narrowing of the
-	// destructured `runtime`/`session` bindings inside the fetch/loop/SIGINT
-	// closures below, so capture them here where the narrowing holds.
-	const rt = runtime;
-	const sess = session;
-	const readOnly = rt.config.readOnly;
+	const readOnly = runtime.config.readOnly;
 
 	// The valid-bearer set. Dev pre-seeds the fixed proxy token; prod fills it
 	// only through the bootstrap exchange handled inside the Hono app.
@@ -158,7 +153,7 @@ export async function runApp(options: {
 		const devToken = process.env.LOCAL_MAIL_TOKEN;
 		if (!devToken) {
 			lock.release();
-			sess.close();
+			session.close();
 			console.error(
 				'LOCAL_MAIL_DEV=1 requires LOCAL_MAIL_TOKEN so the Vite proxy can authenticate.',
 			);
@@ -174,8 +169,8 @@ export async function runApp(options: {
 	const controller = new AbortController();
 
 	const api = createApiApp({
-		rt,
-		syncDeps: sess.deps,
+		rt: runtime,
+		syncDeps: session.deps,
 		readOnly,
 		gate,
 		sessionBearers,
@@ -204,7 +199,7 @@ export async function runApp(options: {
 	// The background sync loop, serialized through the same gate as POST /api/sync.
 	(async () => {
 		while (!controller.signal.aborted) {
-			await gate(() => syncMailbox(sess.deps, { forceFull: false })).catch(
+			await gate(() => syncMailbox(session.deps, { forceFull: false })).catch(
 				(cause) => console.error(`[sync] loop pass failed: ${cause}`),
 			);
 			if (controller.signal.aborted) break;
@@ -236,7 +231,7 @@ export async function runApp(options: {
 		process.on('SIGINT', () => {
 			controller.abort();
 			server.stop();
-			sess.close();
+			session.close();
 			lock.release();
 			resolve();
 		});

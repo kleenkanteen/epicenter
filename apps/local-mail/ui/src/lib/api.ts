@@ -78,7 +78,7 @@ async function toError(res: Response): Promise<Error> {
 	return new Error(body?.error ?? `Request failed (${res.status}).`);
 }
 
-export type MessageQuery = {
+type MessageQuery = {
 	label?: string;
 	search?: string;
 	limit?: number;
