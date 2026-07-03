@@ -27,6 +27,12 @@ Load on demand:
 
 When a library refuses your model, treat the refusal as information about the model, not as friction to route around. If a "simplification" requires reimplementing a library's public surface, stop and delete the model instead.
 
+When preserving a promise keeps a second system alive, run
+[asymmetric-wins](../asymmetric-wins/SKILL.md). A collapse pass may sacrifice a
+small amount of fidelity, compatibility, reproducibility, or rare-mode support
+when the product sentence survives and the deletion removes a disproportionate
+implementation family. Name the refused promise before editing.
+
 ## Per-iteration ritual
 
 For each candidate file or symbol family:

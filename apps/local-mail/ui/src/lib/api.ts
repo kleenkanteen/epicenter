@@ -1,3 +1,4 @@
+import { API_ROUTES } from '@epicenter/constants/api-routes';
 import type {
 	MailboxStatus,
 	MailLabel,
@@ -37,7 +38,7 @@ async function bootstrap(): Promise<void> {
 		'',
 		window.location.pathname + window.location.search,
 	);
-	const res = await fetch('/api/session', {
+	const res = await fetch(API_ROUTES.session.pattern, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({ token: bootstrapToken }),
