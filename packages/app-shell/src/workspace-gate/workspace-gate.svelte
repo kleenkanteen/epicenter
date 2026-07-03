@@ -17,7 +17,7 @@
 	</script>
 
 	<WorkspaceGate
-		pending={honeycrisp.idb.whenLoaded}
+		pending={honeycrisp.storage.whenLoaded}
 		onForgetDevice={() => honeycrisp.wipe()}
 		onSignOut={() => auth.signOut()}
 	>
