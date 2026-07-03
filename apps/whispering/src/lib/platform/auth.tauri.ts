@@ -15,6 +15,8 @@ import type { PlatformAuth } from './types';
 
 const log = createLogger('whispering/platform/auth');
 
+// Allowlisted in `KEYRING_ACCOUNTS` (src-tauri/src/keyring_storage.rs); Rust
+// rejects any account name not on that list.
 const KEYRING_ACCOUNT = 'auth-grant';
 
 /**
