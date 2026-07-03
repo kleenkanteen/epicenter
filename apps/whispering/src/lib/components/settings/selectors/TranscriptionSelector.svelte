@@ -89,15 +89,15 @@
 				return deviceConfig.get(service.endpointConfigKey);
 			case 'local':
 				return deviceConfig.get(service.modelConfigKey);
-			case 'account':
+			case 'star':
 				return undefined;
 		}
 	}
 
-	// Hosted Epicenter STT is a network provider, available on web and desktop
+	// Epicenter (star) STT is a network provider, available on web and desktop
 	// alike, so it is never gated on tauri the way local engines are.
-	const accountServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'account'),
+	const starServices = $derived(
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'star'),
 	);
 
 	const cloudServices = $derived(
@@ -226,9 +226,9 @@
 			<Command.List class="max-h-[40vh]">
 				<Command.Empty>No service found.</Command.Empty>
 
-				{#if accountServices.length > 0}
+				{#if starServices.length > 0}
 					<Command.Group heading="Epicenter">
-						{#each accountServices as service (service.id)}
+						{#each starServices as service (service.id)}
 							{@const isSelected = getSelectedServiceId() === service.id}
 							{@const isConfigured = isTranscriptionServiceConfigured(service)}
 

@@ -52,7 +52,7 @@ export function isTranscriptionServiceConfigured(
 	service: TranscriptionProviderEntry,
 ): boolean {
 	switch (service.access) {
-		case 'account':
+		case 'star':
 			// No key to configure: the credential is the signed-in session, so
 			// "configured" is "signed in". Metering and top-up live on the star.
 			return auth.state.status === 'signed-in';
@@ -91,7 +91,7 @@ export function getTranscriptionReadiness(): TranscriptionReadiness {
 	if (!isTranscriptionServiceConfigured(service)) {
 		const primaryIssue = (
 			{
-				account: 'Sign in to Epicenter to use hosted transcription.',
+				star: 'Sign in to Epicenter to use hosted transcription.',
 				byok: `Add your ${service.label} API key.`,
 				endpoint: `Set your ${service.label} endpoint and model ID.`,
 				local: `Download or select a ${service.label} model.`,

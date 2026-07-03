@@ -94,8 +94,8 @@ const TranscriptionOperationError = defineErrors({
  *
  * The transport is a `resolve` thunk, not static connection data, so each wire entry
  * owns how it becomes a transport (ADR-0060): a `byok`/`endpoint` entry resolves a
- * `{ baseUrl, apiKey }` over `customFetch`, while the `account` Epicenter entry closes
- * over the signed-in account's session `fetch` (never connection data). The switch
+ * `{ baseUrl, apiKey }` over `customFetch`, while the `star` Epicenter entry closes
+ * over the signed-in session `fetch` (never connection data). The switch
  * therefore never branches on what kind of transport it got.
  *
  * A bespoke entry closes over its own key and model (from the literal `PROVIDERS.X`
@@ -143,10 +143,11 @@ function secretApiKey(key: SecretKey): string | undefined {
  * Token`, ElevenLabs' `xi-api-key`, Mistral's `context_bias`); ADR-0060 blesses it.
  */
 const UPLOAD_DISPATCH = {
-	// Hosted Epicenter STT: the transport is the signed-in account's session fetch
-	// against its star (`auth.baseURL`, so a self-hosted instance's own gateway is
-	// used when connected to one), never a stored key. Metering happens server-side
-	// on the hosted cloud (ADR-0100); the model is fixed by the gateway.
+	// Epicenter (star) STT: the transport is the signed-in session fetch against the
+	// star you are bonded to (`auth.baseURL`, so a self-hosted instance's own gateway
+	// is used when connected to one), never a stored key. Both deployables mount this
+	// gateway on their house key; a hosted star meters it (ADR-0100), a self-host star
+	// does not. The model is fixed by the gateway.
 	epicenter: {
 		kind: 'wire',
 		resolve: () => ({
@@ -496,9 +497,10 @@ async function transcribeViaUpload(
 				language: spokenLanguage === 'auto' ? undefined : spokenLanguage,
 				prompt: prompt || undefined,
 			});
-			// The hosted gateway is the only wire that meters credits, so a 402 there
-			// is `InsufficientCredits` (ADR-0100). Remap it to a credit-aware message;
-			// every other wire's 402 (none expected) stays a raw RequestFailed.
+			// Only the `star` wire can meter credits, and only when bonded to a hosted
+			// star, so a 402 there is `InsufficientCredits` (ADR-0100). Remap it to a
+			// credit-aware message; every other wire's 402 (none expected) stays a raw
+			// RequestFailed. A self-host star never meters, so it never 402s here.
 			if (
 				selectedService === 'epicenter' &&
 				result.error?.name === 'RequestFailed' &&

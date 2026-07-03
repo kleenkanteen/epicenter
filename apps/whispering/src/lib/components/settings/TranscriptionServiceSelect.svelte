@@ -31,8 +31,8 @@
 		recommendedServiceId?: TranscriptionServiceId | null;
 	} = $props();
 
-	const hostedServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'account'),
+	const starServices = $derived(
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'star'),
 	);
 
 	const localServices = $derived(
@@ -51,7 +51,7 @@
 
 	const selectedService = $derived(
 		[
-			...hostedServices,
+			...starServices,
 			...localServices,
 			...cloudServices,
 			...selfHostedServices,
@@ -87,10 +87,10 @@
 			</div>
 		</Select.Trigger>
 		<Select.Content class="max-h-[400px]">
-			{#if hostedServices.length > 0}
+			{#if starServices.length > 0}
 				<Select.Group>
 					<Select.GroupHeading>Epicenter</Select.GroupHeading>
-					{#each hostedServices as service (service.id)}
+					{#each starServices as service (service.id)}
 						<Select.Item value={service.id} label={service.label}>
 							<div class="flex items-start gap-3 py-1">
 								<div class="mt-0.5">{@render renderServiceIcon(service)}</div>
@@ -112,7 +112,7 @@
 			{/if}
 
 			{#if localServices.length > 0}
-				{#if hostedServices.length > 0}
+				{#if starServices.length > 0}
 					<Select.Separator />
 				{/if}
 				<Select.Group>
@@ -144,7 +144,7 @@
 			{/if}
 
 			{#if cloudServices.length > 0}
-				{#if hostedServices.length > 0 || localServices.length > 0}
+				{#if starServices.length > 0 || localServices.length > 0}
 					<Select.Separator />
 				{/if}
 				<Select.Group>

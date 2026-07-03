@@ -27,17 +27,23 @@ type CloudModel = { name: string; description: string; cost: string };
 /**
  * `access` names how a provider is reached and credentialed, the one facet every
  * dispatcher, selector, and readiness check branches on. It is deliberately not
- * "where the compute runs": a `byok` provider (OpenAI) and an `account` provider
- * (Epicenter) can both be in the cloud, and an `account` provider can be a
- * self-hosted Epicenter instance. What actually differs is the credential the user
- * supplies, which is exactly what `isTranscriptionServiceConfigured` reads:
+ * "where the compute runs": a `byok` provider (OpenAI) and the `star` provider
+ * (Epicenter) can both be in the cloud, and the `star` can itself be a self-hosted
+ * Epicenter instance. What actually differs is the credential the user supplies,
+ * which is exactly what `isTranscriptionServiceConfigured` reads:
  *
  *   - `byok`     the user's own API key (a secret)         -> OpenAI, Groq, ...
  *   - `endpoint` a server URL + model id the user runs     -> Speaches
- *   - `account`  nothing; the signed-in session is the key -> Epicenter
+ *   - `star`     nothing; the session with the Epicenter   -> Epicenter
+ *                deployment you are bonded to is the key
  *   - `local`    an on-device model file, no network       -> whispercpp, ...
+ *
+ * `star` follows the platform's own STAR-vs-SERVICES split (ADR-0068/0069/0070):
+ * it is the Epicenter deployment that also holds your synced data, reached by your
+ * session, on that deployment's house key. Hosted stars meter it (AI credits);
+ * self-host stars proxy it unmetered. `byok`/`endpoint` are external services.
  */
-type ProviderAccess = 'byok' | 'endpoint' | 'account' | 'local';
+type ProviderAccess = 'byok' | 'endpoint' | 'star' | 'local';
 
 type ByokProvider = {
 	access: Extract<ProviderAccess, 'byok'>;
@@ -96,18 +102,23 @@ type EndpointProvider = {
 };
 
 /**
- * Epicenter's own transcription, reached through the signed-in account. Unlike a
+ * Transcription through the Epicenter star this install is bonded to. Unlike a
  * `byok` provider it carries no key or endpoint config: the transport is the
- * account's audience-scoped session fetch (`auth.fetch`), resolved in the
- * dispatcher against whichever star it is signed into, and the gateway pins its
- * own house model server-side (ADR-0100). So the only fact this entry holds is
- * the single `model` string the wire requires. "Configured" means signed in, not
- * "has a key" (see `transcription-validation.ts`). Whether the call spends AI
- * credits is a property of the star (metered on the hosted cloud, free on a
- * self-hosted instance), surfaced at runtime, never fixed here.
+ * star session's audience-scoped fetch (`auth.fetch`), resolved in the dispatcher
+ * against `auth.baseURL` (the hosted cloud by default, or a self-host instance if
+ * the user pointed there), and the gateway pins its own house model server-side
+ * (ADR-0100). So the only fact this entry holds is the single `model` string the
+ * wire requires. "Configured" means signed in, not "has a key" (see
+ * `transcription-validation.ts`).
+ *
+ * The same `/v1/audio/transcriptions` gateway runs on every star (both deployables
+ * mount it on the deployment's house key), so this is genuinely star-neutral.
+ * Whether a call spends AI credits is a property of the star, surfaced at runtime:
+ * a hosted star meters it (402 when out of credits); a self-host star proxies it
+ * unmetered (or 503 until the operator sets a house key). Never fixed here.
  */
-type AccountProvider = {
-	access: Extract<ProviderAccess, 'account'>;
+type StarProvider = {
+	access: Extract<ProviderAccess, 'star'>;
 	label: string;
 	description: string;
 	capabilities: Capabilities;
@@ -120,11 +131,11 @@ type TranscriptionProvider =
 	| ByokProvider
 	| LocalProvider
 	| EndpointProvider
-	| AccountProvider;
+	| StarProvider;
 
 export const PROVIDERS = {
 	epicenter: {
-		access: 'account',
+		access: 'star',
 		label: 'Epicenter',
 		description: 'Transcription through your Epicenter account. Sign in required.',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
