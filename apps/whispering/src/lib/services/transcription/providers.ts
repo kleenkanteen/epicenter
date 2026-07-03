@@ -282,9 +282,9 @@ export type CloudProviderId = {
 }[TranscriptionServiceId];
 
 /**
- * The ids of local engines, derived the same way. `isLocalProviderId` is the
- * one narrowing boundary callers use before reading local-only fields or
- * touching the engine's models folder.
+ * The ids of the local provider, derived the same way. `isLocalProviderId` is
+ * the one narrowing boundary callers use before reading local-only fields like
+ * the selected model's catalog id.
  */
 export type LocalProviderId = {
 	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['location'] extends 'local'
