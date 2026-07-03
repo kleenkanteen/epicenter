@@ -275,9 +275,125 @@ jobs:
           New-Item -ItemType Directory -Force -Path $workspaceBundleDir | Out-Null
           Copy-Item -Path (Join-Path $bundleDir "*") -Destination $workspaceBundleDir -Recurse -Force
 
+      # Static artifact audit: prove the transcribe-cpp shared library + the CPU
+      # ggml backend actually land in every shipped Windows installer, not just
+      # in build.rs's staging dir. build.rs asserts copied>0 at staging time,
+      # which does NOT prove an installer carries them; without them a relocated
+      # build registers zero compute devices. bundle.targets is "all", so Windows
+      # ships BOTH a WiX .msi and an NSIS .exe, packaged independently; the
+      # greenfield rule is to audit each shipped artifact, not assume one proves
+      # the other. Presence-only; vcomp140 staging and a runtime devices() smoke
+      # are follow-ups that need real-runner proof.
+      - name: Audit Windows installers contain transcribe-cpp runtime DLLs
+        if: ${{ matrix.os == 'windows' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script:fail = $false
+
+          # The CPU backend module (ggml-cpu*.dll) is what keeps a machine with
+          # no usable GPU from registering zero devices, so it is the load-bearing
+          # invariant, not "any ggml DLL". dynamic-backends sets GGML_BACKEND_DL,
+          # which builds the CPU backend as its own loadable module (the Linux
+          # audit asserts the same via libggml-cpu*.so). transcribe.dll is the
+          # shared runtime itself.
+          function Assert-Runtime([string]$label, [string[]]$dllNames) {
+            Write-Host "${label}: $($dllNames -join ', ')"
+            if ($dllNames -notcontains 'transcribe.dll') {
+              Write-Host "::error::$label is missing transcribe.dll"; $script:fail = $true
+            }
+            if (-not ($dllNames | Where-Object { $_ -like 'ggml-cpu*.dll' })) {
+              Write-Host "::error::$label is missing a ggml-cpu*.dll backend"; $script:fail = $true
+            }
+          }
+          function Dlls([string]$dir) {
+            @(Get-ChildItem $dir -Recurse -Filter *.dll -ErrorAction SilentlyContinue | ForEach-Object Name)
+          }
+
+          # 1) build.rs staging dir. Keyed on CARGO_MANIFEST_DIR, so it is here
+          #    even though CARGO_TARGET_DIR is redirected off-workspace on Windows.
+          Assert-Runtime 'staged transcribe-libs' (Dlls 'apps/whispering/src-tauri/transcribe-libs')
+
+          $bundle = Join-Path $env:GITHUB_WORKSPACE 'target/release/bundle'
+
+          # 2) WiX MSI: administrative extract (no elevation), mirroring Handy.
+          $msi = Get-ChildItem $bundle -Recurse -Filter *.msi -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $msi) { Write-Host "::error::no .msi produced under $bundle"; exit 1 }
+          $msiDir = Join-Path $env:RUNNER_TEMP 'msi-audit'
+          $msiLog = Join-Path $env:RUNNER_TEMP 'msi-audit.log'
+          Start-Process msiexec.exe -ArgumentList "/a `"$($msi.FullName)`" /qn /L*v `"$msiLog`" TARGETDIR=`"$msiDir`"" -Wait -NoNewWindow
+          Assert-Runtime "MSI ($($msi.Name))" (Dlls $msiDir)
+
+          # 3) NSIS .exe: 7-Zip reads NSIS installers directly, so we inspect the
+          #    real payload without running the installer (no execution, no
+          #    registry side effects, no NSIS /D= space caveats). 7z ships on the
+          #    Windows runner images.
+          $exe = Get-ChildItem $bundle -Recurse -Filter *-setup.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { $exe = Get-ChildItem $bundle -Recurse -Filter *.exe -ErrorAction SilentlyContinue | Select-Object -First 1 }
+          if (-not $exe) { Write-Host "::error::no NSIS .exe produced under $bundle"; exit 1 }
+          $nsisDir = Join-Path $env:RUNNER_TEMP 'nsis-audit'
+          & 7z x "-o$nsisDir" $exe.FullName -y > $null
+          # 7z exit 1 is a non-fatal warning (e.g. the NSIS $PLUGINSDIR stubs);
+          # 2+ is fatal. Tolerate warnings and let Assert-Runtime below be the
+          # real gate on the extracted payload.
+          if ($LASTEXITCODE -ge 2) { Write-Host "::error::7z failed to extract NSIS installer $($exe.Name) (exit $LASTEXITCODE)"; exit 1 }
+          Assert-Runtime "NSIS ($($exe.Name))" (Dlls $nsisDir)
+
+          if ($script:fail) { Write-Host "::error::transcribe-cpp runtime DLLs missing from a Windows installer"; exit 1 }
+          Write-Host "Windows staging dir, MSI, and NSIS installer all contain transcribe.dll + a ggml-cpu backend."
+
       - name: Process AppImage (Linux only)
         if: ${{ matrix.os == 'linux' }}
         uses: ./.github/actions/process-whispering-appimage
+
+      # Static artifact audit: every Linux package is built from the same
+      # bundle.linux.*.files mapping ({"/usr/lib": "transcribe-libs"}), so each
+      # must carry libtranscribe.so plus a CPU ggml backend. Without the CPU
+      # backend, a machine with no usable GPU registers zero compute devices.
+      # Assert presence in the actual artifacts, not just the staging dir. Runs
+      # after AppImage post-processing so it inspects the shipped AppImage.
+      - name: Audit Linux packages contain transcribe-cpp runtime libs
+        if: ${{ matrix.os == 'linux' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="apps/whispering/src-tauri/target/release/bundle"
+          fail=0
+
+          # $1 = human label, $2 = newline-separated listing of package contents
+          assert_has() {
+            local label="$1" listing="$2"
+            if ! grep -Eq '/usr/lib/libtranscribe\.so' <<<"$listing"; then
+              echo "::error::$label is missing /usr/lib/libtranscribe.so"; fail=1
+            fi
+            if ! grep -Eq '/usr/lib/libggml-cpu[^/]*\.so' <<<"$listing"; then
+              echo "::error::$label is missing a libggml-cpu*.so backend"; fail=1
+            fi
+          }
+
+          # deb: dpkg-deb ships on every ubuntu runner.
+          DEB=$(find "$BUNDLE/deb" -name '*.deb' | head -1)
+          test -n "$DEB" || { echo "::error::no .deb produced"; exit 1; }
+          assert_has "deb ($(basename "$DEB"))" "$(dpkg-deb --contents "$DEB" | awk '{print $NF}')"
+
+          # rpm: rpm2cpio comes from the small `rpm` package.
+          RPM=$(find "$BUNDLE/rpm" -name '*.rpm' | head -1)
+          test -n "$RPM" || { echo "::error::no .rpm produced"; exit 1; }
+          command -v rpm2cpio >/dev/null || sudo apt-get install -y rpm
+          assert_has "rpm ($(basename "$RPM"))" "$(rpm2cpio "$RPM" | cpio -t 2>/dev/null)"
+
+          # AppImage: the post-processed artifact users download. Extract and
+          # inspect its internal usr/lib. --appimage-extract needs no FUSE mount.
+          APPIMAGE=$(find "$BUNDLE/appimage" -name '*.AppImage' | head -1)
+          test -n "$APPIMAGE" || { echo "::error::no .AppImage produced"; exit 1; }
+          WORK=$(mktemp -d)
+          cp "$APPIMAGE" "$WORK/app.AppImage"; chmod +x "$WORK/app.AppImage"
+          ( cd "$WORK" && ./app.AppImage --appimage-extract >/dev/null )
+          assert_has "AppImage ($(basename "$APPIMAGE"))" "$(find "$WORK/squashfs-root" -type f)"
+          rm -rf "$WORK"
+
+          test "$fail" -eq 0 || { echo "::error::transcribe-cpp runtime libs missing from a Linux package"; exit 1; }
+          echo "All Linux packages contain libtranscribe + a libggml-cpu backend."
 
       # Only trusted runs upload. Fork PRs are compile checks: their green/red status
       # is the signal, and they never produce a signed build, so there is nothing
