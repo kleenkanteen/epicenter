@@ -6,7 +6,7 @@
  * callback by hand, and serves mock Google token/profile endpoints.
  *
  * Key behaviors:
- * - Consent URL requests gmail.readonly only
+ * - Consent URL requests gmail.modify
  * - Token exchange authenticates the desktop client with form parameters
  * - The connected Gmail profile supplies the token-store account key
  */
@@ -33,6 +33,7 @@ function config(overrides: Partial<AppConfig>): AppConfig {
 		pageSize: 100,
 		credentialsPath: '/tmp/local-mail-oauth-test/credentials.json',
 		account: null,
+		readOnly: false,
 		...overrides,
 	};
 }
@@ -99,7 +100,7 @@ test('runAuthorizationFlow exchanges a PKCE callback and stores the connected Gm
 
 	const url = new URL(await waitFor(() => authorizeUrl));
 	expect(url.searchParams.get('scope')).toBe(
-		'https://www.googleapis.com/auth/gmail.readonly',
+		'https://www.googleapis.com/auth/gmail.modify',
 	);
 	expect(url.searchParams.get('code_challenge_method')).toBe('S256');
 	expect(url.searchParams.get('access_type')).toBe('offline');
