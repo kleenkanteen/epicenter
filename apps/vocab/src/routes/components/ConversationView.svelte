@@ -3,8 +3,13 @@
 		AgentChatThread,
 		type ConversationHandle,
 	} from '@epicenter/app-shell/agent-chat';
+	import { complete } from '@epicenter/client';
+	import { Button } from '@epicenter/ui/button';
 	import { Markdown } from '@epicenter/ui/markdown';
+	import { VOCAB_MODEL } from '@epicenter/vocab';
 	import { agentMessageText } from '@epicenter/workspace/agent';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import { buildHarvestPrompt, parseHarvestCandidates } from '$lib/harvest';
 	import { pinyinRomanizer } from '$lib/romanize/pinyin';
 	import { auth } from '$platform/auth';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
@@ -77,6 +82,51 @@
 		saveAffordance = null;
 	}
 
+	/** Cap the harvested spans so a long answer cannot build a runaway tray. */
+	const HARVEST_CAP = 20;
+
+	/** The transient harvest for one settled message: the model's proposed spans,
+	 * held in component memory only. Nothing here is persisted; a chosen span
+	 * reaches the pool solely through `termsState.save` (ADR-0100). One open at a
+	 * time, like the selection affordance above. */
+	let harvest = $state<{
+		messageId: string;
+		status: 'loading' | 'ready' | 'error';
+		candidates: string[];
+	} | null>(null);
+
+	/** Ask the model for the notable spans in one settled message and open the
+	 * tray with them. It is a one-shot completion (`complete`), so it writes no
+	 * transcript turn and stores no gloss or provenance: the response lives only in
+	 * `harvest.candidates` until the user saves or dismisses it. */
+	async function harvestMessage(messageId: string, passage: string) {
+		harvest = { messageId, status: 'loading', candidates: [] };
+		const connection = inferenceConnections.resolveOrHosted(VOCAB_MODEL);
+		const { data, error } = await complete(connection, {
+			model: VOCAB_MODEL,
+			systemPrompt: buildHarvestPrompt(),
+			userPrompt: passage,
+		});
+		// A dismiss or a harvest of another message may have superseded this request
+		// while it was in flight; drop the stale result rather than overwrite.
+		if (harvest?.messageId !== messageId) return;
+		if (error) {
+			harvest = { messageId, status: 'error', candidates: [] };
+			return;
+		}
+		harvest = {
+			messageId,
+			status: 'ready',
+			candidates: parseHarvestCandidates(data).slice(0, HARVEST_CAP),
+		};
+	}
+
+	/** Whether a candidate is already in the pool, derived from terms so it is
+	 * never stored on the candidate and reflects a save immediately. */
+	function isTermSaved(text: string): boolean {
+		return termsState.terms.some((term) => term.text === text);
+	}
+
 	/** Land a dictated transcript in the draft for review, appended to whatever is
 	 * already typed. Guarded so it is a no-op if the conversation went away. */
 	function appendTranscript(text: string) {
@@ -123,6 +173,72 @@
 						showReadings={showPinyin}
 					/>
 				</div>
+
+				{#if harvest?.messageId === msg.id}
+					<div class="mt-2 rounded-md border bg-muted/40 p-2">
+						{#if harvest.status === 'loading'}
+							<p class="text-xs text-muted-foreground">Harvesting terms...</p>
+						{:else if harvest.status === 'error'}
+							<div class="flex items-center justify-between gap-2">
+								<p class="text-xs text-muted-foreground">
+									Couldn't read terms from this message.
+								</p>
+								<div class="flex gap-1">
+									<Button
+										variant="ghost"
+										size="sm"
+										onclick={() => harvestMessage(msg.id, agentMessageText(msg))}
+									>
+										Try again
+									</Button>
+									<Button variant="ghost" size="sm" onclick={() => (harvest = null)}>
+										Dismiss
+									</Button>
+								</div>
+							</div>
+						{:else if harvest.candidates.length === 0}
+							<div class="flex items-center justify-between gap-2">
+								<p class="text-xs text-muted-foreground">No terms found here.</p>
+								<Button variant="ghost" size="sm" onclick={() => (harvest = null)}>
+									Dismiss
+								</Button>
+							</div>
+						{:else}
+							<div class="mb-1.5 flex items-center justify-between">
+								<span class="text-xs text-muted-foreground">
+									Tap a term to save it
+								</span>
+								<Button variant="ghost" size="sm" onclick={() => (harvest = null)}>
+									Dismiss
+								</Button>
+							</div>
+							<div class="flex flex-wrap gap-1.5">
+								{#each harvest.candidates as candidate (candidate)}
+									{@const saved = isTermSaved(candidate)}
+									<button
+										type="button"
+										class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-sm {saved
+											? 'text-muted-foreground'
+											: 'hover:bg-accent'}"
+										disabled={saved}
+										onclick={() => termsState.save(candidate)}
+									>
+										{#if saved}<CheckIcon class="size-3" />{/if}
+										{candidate}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{:else}
+					<button
+						type="button"
+						class="mt-1.5 text-xs text-muted-foreground hover:text-foreground"
+						onclick={() => harvestMessage(msg.id, agentMessageText(msg))}
+					>
+						Harvest terms
+					</button>
+				{/if}
 			{/if}
 		{/snippet}
 		{#snippet emptyState()}
