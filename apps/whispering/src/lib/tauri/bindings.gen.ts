@@ -718,7 +718,6 @@ export type ShortcutTriggerEvent = {
 
 export type TranscriptionError =
 	| { name: 'AudioReadError'; message: string }
-	| { name: 'GpuError'; message: string }
 	| { name: 'ModelLoadError'; message: string }
 	| { name: 'TranscriptionError'; message: string }
 	/**
