@@ -138,16 +138,6 @@
 			: (connections.hostedModels.find((m) => m.id === model)?.label ?? model),
 	);
 
-	// Whether the selected model is served by a local (localhost) custom
-	// connection, so the closed trigger flags it with a HardDrive icon and a local
-	// Ollama pick reads differently from a hosted one at a glance.
-	const selectedIsLocal = $derived(
-		!!model &&
-			connections.custom.some(
-				(c) => isLocal(c.baseUrl) && (c.models ?? []).includes(model),
-			),
-	);
-
 	function selectModel(id: string) {
 		onSelectModel(id);
 		open = false;
@@ -247,12 +237,7 @@
 				aria-expanded={open}
 				class="max-w-56 justify-between gap-2 font-normal"
 			>
-				<span class="flex min-w-0 items-center gap-2">
-					{#if selectedIsLocal}
-						<HardDrive class="size-4 shrink-0 opacity-70" />
-					{/if}
-					<span class="truncate">{triggerLabel}</span>
-				</span>
+				<span class="truncate">{triggerLabel}</span>
 				<ChevronsUpDown class="size-4 shrink-0 opacity-50" />
 			</Button>
 		{/snippet}
