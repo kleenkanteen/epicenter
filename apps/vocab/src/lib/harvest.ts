@@ -6,13 +6,13 @@
  * model to surface the notable spans inside a passage the user just read, so a
  * whole answer can be triaged into the term pool without dragging a selection
  * over each phrase. Its reason to exist is spans a local segmenter cannot reach
- * (multi-character phrases, chengyu), which is exactly why ADR-0100 retired
+ * (multi-character phrases, chengyu), which is exactly why ADR-0102 retired
  * tap-capture.
  *
  * Nothing here is persisted. The model's output is transient: it becomes a list
  * of candidate strings the user chooses from, and only the chosen `text` flows
  * through the one term writer (`termsState.save`). No gloss, no meaning, no
- * provenance, no language, and no candidate metadata is ever stored (ADR-0100).
+ * provenance, no language, and no candidate metadata is ever stored (ADR-0102).
  *
  * Deliberately language-neutral, like {@link buildPracticePrompt}: it names no
  * target or source language and lets the tutor persona own which language is
@@ -27,7 +27,7 @@
  * instruction that turns any passage into a bare, one-span-per-line list.
  *
  * It asks for spans only, no glosses, because the meaning lives in the chat the
- * span came from, never in a stored definition (ADR-0100). The parser
+ * span came from, never in a stored definition (ADR-0102). The parser
  * ({@link parseHarvestCandidates}) recovers spans even when the model disobeys
  * and adds numbering or a gloss anyway, so this stays a request, not a contract.
  */

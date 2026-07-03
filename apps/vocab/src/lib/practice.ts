@@ -10,7 +10,7 @@
  *
  * It reads only term text and writes nothing. The compiled passage is an
  * ordinary assistant turn in the human-owned transcript, never term metadata
- * (ADR-0100): no term is marked practiced, and nothing is auto-saved back.
+ * (ADR-0102): no term is marked practiced, and nothing is auto-saved back.
  */
 export function buildPracticePrompt(termTexts: string[]): string {
 	const list = termTexts.map((text) => `- ${text}`).join('\n');

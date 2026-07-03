@@ -1,23 +1,17 @@
 /**
- * The browser side of the Super Chat session: one WebSocket to `/ws`, one
- * startup fetch of `/api/tools`, and a `$state`-backed view the components
- * read. The server snapshot is the only transcript state; every `snapshot`
- * event replaces it wholesale, so the client never accumulates a second
- * transcript that could drift.
+ * The browser side of the Super Chat session: one startup fetch of
+ * `/api/session`, one WebSocket to `/api/session/stream`, and a `$state`-backed
+ * view the components read. The server snapshot is the only transcript state;
+ * every initial payload and `snapshot` event replaces it wholesale, so the
+ * client never accumulates a second transcript that could drift.
  *
  * Server types are imported type-only so no server runtime code (Hono, Bun
  * WebSocket glue) enters the browser bundle.
  */
 
 import type { ConversationSnapshot } from '@epicenter/workspace/agent';
-import type { ClientCommand, ServerEvent } from '../server.ts';
-
-export type ToolSummary = {
-	name: string;
-	kind: string;
-	title?: string;
-	description?: string;
-};
+import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from '../routes.ts';
+import type { ClientCommand, ServerEvent, SessionResponse } from '../server.ts';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 
@@ -32,22 +26,28 @@ export function createSession({ token }: { token: string }) {
 		error: null,
 	});
 	let connection = $state<ConnectionStatus>('connecting');
-	let tools = $state<ToolSummary[]>([]);
+	let tools = $state<SessionResponse['tools']>([]);
 
 	let socket: WebSocket | undefined;
 	let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	let disposed = false;
 
-	async function fetchTools() {
+	async function hydrate() {
 		try {
-			const response = await fetch('/api/tools', {
+			const response = await fetch(SESSION_ROUTE.url(location.origin), {
 				headers: { authorization: `Bearer ${token}` },
 			});
-			if (!response.ok) return;
-			const body = (await response.json()) as { tools: ToolSummary[] };
+			if (!response.ok) {
+				connection = 'closed';
+				return false;
+			}
+			const body = (await response.json()) as SessionResponse;
 			tools = body.tools;
+			snapshot = body.snapshot;
+			return true;
 		} catch {
-			// The tool list is informational; the chat works without it.
+			connection = 'closed';
+			return false;
 		}
 	}
 
@@ -56,10 +56,8 @@ export function createSession({ token }: { token: string }) {
 		connection = 'connecting';
 		// The browser WebSocket constructor cannot set headers, so the token
 		// rides the query string (the server gate accepts either).
-		const url = new URL(
-			`/ws?token=${encodeURIComponent(token)}`,
-			location.href,
-		);
+		const url = new URL(SESSION_STREAM_ROUTE.url(location.origin));
+		url.searchParams.set('token', token);
 		// Match the page's scheme: plain ws: against the loopback origin, wss:
 		// when a remote overlay proxy serves this page over https.
 		url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -94,8 +92,9 @@ export function createSession({ token }: { token: string }) {
 		return true;
 	}
 
-	void fetchTools();
-	connect();
+	void hydrate().then((ready) => {
+		if (ready) connect();
+	});
 
 	return {
 		get snapshot() {

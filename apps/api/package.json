@@ -38,7 +38,7 @@
 		"@epicenter/workspace": "workspace:*",
 		"@hono/standard-validator": "catalog:",
 		"arktype": "catalog:",
-		"autumn-js": "^1.0.7",
+		"autumn-js": "^1.2.34",
 		"better-auth": "catalog:",
 		"drizzle-orm": "catalog:",
 		"hono": "catalog:",

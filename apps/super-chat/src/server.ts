@@ -22,6 +22,7 @@ import type {
 import { Hono } from 'hono';
 import { createBunWebSocket } from 'hono/bun';
 import type { SuperChatHost } from './host.ts';
+import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from './routes.ts';
 
 /** What a WebSocket client may ask of the one chat session. */
 export type ClientCommand =
@@ -31,6 +32,16 @@ export type ClientCommand =
 
 /** What the server pushes: the full render state, on every loop change. */
 export type ServerEvent = { type: 'snapshot'; snapshot: ConversationSnapshot };
+
+export type SessionResponse = {
+	tools: Array<{
+		name: string;
+		kind: string;
+		title?: string;
+		description?: string;
+	}>;
+	snapshot: ConversationSnapshot;
+};
 
 export type SuperChatServerOptions = {
 	host: SuperChatHost;
@@ -81,10 +92,15 @@ export function createSuperChatServer({
 		return c.html(page);
 	});
 
-	app.get('/api/tools', (c) => c.json(listTools(host.tools)));
+	app.get(SESSION_ROUTE.pattern, (c) =>
+		c.json({
+			tools: listTools(host.tools),
+			snapshot: host.conversation.snapshot(),
+		} satisfies SessionResponse),
+	);
 
 	app.get(
-		'/ws',
+		SESSION_STREAM_ROUTE.pattern,
 		upgradeWebSocket(() => {
 			let unsubscribe: (() => void) | undefined;
 			const push = (ws: { send(data: string): void }) => {
@@ -134,15 +150,13 @@ function tokensMatch(candidate: string, expected: string): boolean {
 	return timingSafeEqual(a, b);
 }
 
-function listTools(tools: ToolCatalog) {
-	return {
-		tools: tools.definitions().map(({ name, kind, title, description }) => ({
-			name,
-			kind,
-			...(title !== undefined && { title }),
-			...(description !== undefined && { description }),
-		})),
-	};
+function listTools(tools: ToolCatalog): SessionResponse['tools'] {
+	return tools.definitions().map(({ name, kind, title, description }) => ({
+		name,
+		kind,
+		...(title !== undefined && { title }),
+		...(description !== undefined && { description }),
+	}));
 }
 
 function parseCommand(data: unknown): ClientCommand | undefined {

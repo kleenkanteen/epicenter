@@ -86,7 +86,7 @@
 
 	/** The transient harvest for one settled message: the model's proposed spans,
 	 * held in component memory only. Nothing here is persisted; a chosen span
-	 * reaches the pool solely through `termsState.save` (ADR-0100). One open at a
+	 * reaches the pool solely through `termsState.save` (ADR-0102). One open at a
 	 * time, like the selection affordance above. */
 	let harvest = $state<{
 		messageId: string;

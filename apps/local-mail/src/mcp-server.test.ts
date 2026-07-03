@@ -60,7 +60,13 @@ function seedMirror(dir: string): void {
 	};
 	const db = openMailDb({ dataDir: dir, accountEmail: ACCOUNT });
 	db.ingestFullPullPage([message], '2026-07-01T00:00:00.000Z');
-	db.ingestLabels([{ id: 'INBOX', name: 'INBOX', type: 'system' }], 's1');
+	db.ingestLabels(
+		[
+			{ id: 'INBOX', name: 'INBOX', type: 'system' },
+			{ id: 'Label_1', name: 'Work', type: 'user' },
+		],
+		's1',
+	);
 	db.finishFullPull('1000', '2026-07-01T00:00:00.000Z');
 	db.close();
 }
@@ -182,88 +188,255 @@ test('mcp: tools/list, body query, status, errors, and a clean stream', async ()
 		LOCAL_MAIL_ACCOUNT: ACCOUNT,
 	});
 
-	const list = await mcp.request('tools/list');
-	const tools = (list.result?.tools ?? []) as Array<{
-		name: string;
-		description?: string;
-		inputSchema: { type: string; properties?: Record<string, unknown> };
-		annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
-	}>;
-	const names = tools.map((tool) => tool.name).sort();
-	expect(names).toEqual(['query', 'status', 'sync']);
-	const query = tools.find((tool) => tool.name === 'query');
-	expect(query?.description).toContain('messages(id, raw JSON');
-	expect(query?.description).toContain('labels(id, raw JSON');
-	expect(query?.description).toContain('json_each(messages.label_ids)');
-	expect(query?.description).toContain('capped at 1000 rows');
-	expect(query?.inputSchema.properties).toHaveProperty('sql');
-	expect(query?.annotations?.readOnlyHint).toBe(true);
-	const sync = tools.find((tool) => tool.name === 'sync');
-	expect(sync?.annotations?.readOnlyHint).toBe(false);
-	expect(sync?.annotations?.destructiveHint).toBe(false);
+	try {
+		const list = await mcp.request('tools/list');
+		const tools = (list.result?.tools ?? []) as Array<{
+			name: string;
+			description?: string;
+			inputSchema: { type: string; properties?: Record<string, unknown> };
+			annotations?: {
+				readOnlyHint?: boolean;
+				destructiveHint?: boolean;
+				idempotentHint?: boolean;
+			};
+		}>;
+		const names = tools.map((tool) => tool.name).sort();
+		expect(names).toEqual(['modify_labels', 'query', 'status', 'sync']);
+		const query = tools.find((tool) => tool.name === 'query');
+		expect(query?.description).toContain('messages(id, raw JSON');
+		expect(query?.description).toContain('labels(id, raw JSON');
+		expect(query?.description).toContain('json_each(messages.label_ids)');
+		expect(query?.description).toContain('capped at 1000 rows');
+		expect(query?.inputSchema.properties).toHaveProperty('sql');
+		expect(query?.annotations?.readOnlyHint).toBe(true);
+		const sync = tools.find((tool) => tool.name === 'sync');
+		expect(sync?.annotations?.readOnlyHint).toBe(false);
+		expect(sync?.annotations?.destructiveHint).toBe(false);
+		const modifyLabels = tools.find((tool) => tool.name === 'modify_labels');
+		expect(modifyLabels?.inputSchema.properties).toHaveProperty('ids');
+		expect(modifyLabels?.inputSchema.properties).toHaveProperty('addLabels');
+		expect(modifyLabels?.inputSchema.properties).toHaveProperty('removeLabels');
+		expect(modifyLabels?.annotations).toMatchObject({
+			readOnlyHint: false,
+			destructiveHint: false,
+			idempotentHint: true,
+		});
 
-	const ok = await mcp.request('tools/call', {
-		name: 'query',
-		arguments: {
-			sql: "SELECT subject, body_text FROM messages WHERE body_text LIKE '%launch budget%'",
+		const ok = await mcp.request('tools/call', {
+			name: 'query',
+			arguments: {
+				sql: "SELECT subject, body_text FROM messages WHERE body_text LIKE '%launch budget%'",
+			},
+		});
+		expect(ok.result?.isError).toBeFalsy();
+		const data = ok.result?.structuredContent as {
+			rows: Array<{ subject: string; body_text: string }>;
+			rowCount: number;
+		};
+		expect(data.rowCount).toBe(1);
+		expect(data.rows[0]?.body_text).toContain('launch budget');
+
+		const status = await mcp.request('tools/call', {
+			name: 'status',
+			arguments: {},
+		});
+		const statusData = status.result?.structuredContent as {
+			accountEmail: string;
+			mirror: string;
+			historyId: string;
+			rows: { messages: number; labels: number };
+		};
+		expect(statusData.accountEmail).toBe(ACCOUNT);
+		expect(statusData.mirror).toBe('ready');
+		expect(statusData.historyId).toBe('1000');
+		expect(statusData.rows).toEqual({ messages: 1, labels: 2 });
+
+		const syncWithoutToken = await mcp.request('tools/call', {
+			name: 'sync',
+			arguments: {},
+		});
+		expect(syncWithoutToken.error).toBeUndefined();
+		expect(syncWithoutToken.result?.isError).toBe(true);
+
+		const unknown = await mcp.request('tools/call', {
+			name: 'does_not_exist',
+			arguments: {},
+		});
+		expect(unknown.error?.code).toBe(-32601);
+
+		const badSql = await mcp.request('tools/call', {
+			name: 'query',
+			arguments: { sql: 'SELECT * FROM missing_table' },
+		});
+		expect(badSql.error).toBeUndefined();
+		expect(badSql.result?.isError).toBe(true);
+
+		const badArgs = await mcp.request('tools/call', {
+			name: 'query',
+			arguments: { sql: 123 },
+		});
+		expect(badArgs.error?.code).toBe(-32602);
+
+		for (const line of mcp.stdoutLines) {
+			const parsed = JSON.parse(line);
+			expect(parsed.jsonrpc).toBe('2.0');
+		}
+	} finally {
+		mcp.stop();
+		tmp.cleanup();
+	}
+});
+
+test('mcp: LOCAL_MAIL_READ_ONLY hides mutation tools but leaves reads and sync listed', async () => {
+	const tmp = tempDir();
+	seedMirror(tmp.dir);
+	const mcp = await connect({
+		LOCAL_MAIL_DIR: tmp.dir,
+		LOCAL_MAIL_ACCOUNT: ACCOUNT,
+		LOCAL_MAIL_READ_ONLY: '1',
+	});
+
+	try {
+		const list = await mcp.request('tools/list');
+		const tools = (list.result?.tools ?? []) as Array<{ name: string }>;
+		expect(tools.map((tool) => tool.name).sort()).toEqual([
+			'query',
+			'status',
+			'sync',
+		]);
+
+		const hidden = await mcp.request('tools/call', {
+			name: 'modify_labels',
+			arguments: {
+				ids: ['m1'],
+				addLabels: ['Work'],
+			},
+		});
+		expect(hidden.error?.code).toBe(-32601);
+	} finally {
+		mcp.stop();
+		tmp.cleanup();
+	}
+});
+
+test('mcp: modify_labels folds Gmail labels and keeps per-id rejections structured', async () => {
+	const tmp = tempDir();
+	seedMirror(tmp.dir);
+	await seedToken(tmp.dir);
+	const requests: Array<{ method: string; pathname: string; body: unknown }> =
+		[];
+	const apiServer = Bun.serve({
+		hostname: '127.0.0.1',
+		port: 0,
+		async fetch(request) {
+			const url = new URL(request.url);
+			const body = request.method === 'POST' ? await request.json() : null;
+			requests.push({ method: request.method, pathname: url.pathname, body });
+			if (url.pathname === '/gmail/v1/users/me/labels') {
+				return Response.json({
+					labels: [
+						{ id: 'INBOX', name: 'INBOX', type: 'system' },
+						{ id: 'Label_1', name: 'Work', type: 'user' },
+						{ id: 'BAD', name: 'Bad label', type: 'user' },
+					],
+				});
+			}
+			if (url.pathname === '/gmail/v1/users/me/messages/m1/modify') {
+				return Response.json({
+					id: 'm1',
+					threadId: 't1',
+					labelIds: ['Label_1'],
+				});
+			}
+			if (url.pathname === '/gmail/v1/users/me/messages/m2/modify') {
+				return Response.json(
+					{
+						error: {
+							errors: [{ reason: 'invalidArgument' }],
+							message: 'Invalid label: BAD',
+						},
+					},
+					{ status: 400 },
+				);
+			}
+			return new Response('not found', { status: 404 });
 		},
 	});
-	expect(ok.result?.isError).toBeFalsy();
-	const data = ok.result?.structuredContent as {
-		rows: Array<{ subject: string; body_text: string }>;
-		rowCount: number;
-	};
-	expect(data.rowCount).toBe(1);
-	expect(data.rows[0]?.body_text).toContain('launch budget');
-
-	const status = await mcp.request('tools/call', {
-		name: 'status',
-		arguments: {},
+	const mcp = await connect({
+		LOCAL_MAIL_DIR: tmp.dir,
+		LOCAL_MAIL_ACCOUNT: ACCOUNT,
+		LOCAL_MAIL_GMAIL_API_BASE: `http://127.0.0.1:${apiServer.port}`,
 	});
-	const statusData = status.result?.structuredContent as {
-		accountEmail: string;
-		mirror: string;
-		historyId: string;
-		rows: { messages: number; labels: number };
-	};
-	expect(statusData.accountEmail).toBe(ACCOUNT);
-	expect(statusData.mirror).toBe('ready');
-	expect(statusData.historyId).toBe('1000');
-	expect(statusData.rows).toEqual({ messages: 1, labels: 1 });
 
-	const syncWithoutToken = await mcp.request('tools/call', {
-		name: 'sync',
-		arguments: {},
-	});
-	expect(syncWithoutToken.error).toBeUndefined();
-	expect(syncWithoutToken.result?.isError).toBe(true);
+	try {
+		const ok = await mcp.request('tools/call', {
+			name: 'modify_labels',
+			arguments: {
+				ids: ['m1'],
+				addLabels: ['Work'],
+				removeLabels: ['INBOX'],
+			},
+		});
+		expect(ok.error).toBeUndefined();
+		expect(ok.result?.isError).toBeFalsy();
 
-	const unknown = await mcp.request('tools/call', {
-		name: 'does_not_exist',
-		arguments: {},
-	});
-	expect(unknown.error?.code).toBe(-32601);
+		const query = await mcp.request('tools/call', {
+			name: 'query',
+			arguments: {
+				sql: "SELECT label_ids FROM messages WHERE id = 'm1'",
+			},
+		});
+		const data = query.result?.structuredContent as {
+			rows: Array<{ label_ids: string }>;
+		};
+		expect(JSON.parse(data.rows[0]?.label_ids ?? '[]')).toEqual(['Label_1']);
+		expect(ok.result?.structuredContent).toMatchObject({
+			results: [{ id: 'm1', labelIds: ['Label_1'], folded: true, error: null }],
+			aborted: null,
+		});
 
-	const badSql = await mcp.request('tools/call', {
-		name: 'query',
-		arguments: { sql: 'SELECT * FROM missing_table' },
-	});
-	expect(badSql.error).toBeUndefined();
-	expect(badSql.result?.isError).toBe(true);
+		// A per-id Gmail rejection is not the error channel: it rides inside the
+		// structured results so the model can retry that id and keep the others.
+		const rejected = await mcp.request('tools/call', {
+			name: 'modify_labels',
+			arguments: {
+				ids: ['m2'],
+				addLabels: ['BAD'],
+			},
+		});
+		expect(rejected.error).toBeUndefined();
+		expect(rejected.result?.isError).toBeFalsy();
+		const rejectedData = rejected.result?.structuredContent as {
+			results: Array<{
+				id: string;
+				error: { name: string; message: string } | null;
+			}>;
+			aborted: unknown;
+		};
+		expect(rejectedData.aborted).toBeNull();
+		expect(rejectedData.results[0]?.id).toBe('m2');
+		expect(rejectedData.results[0]?.error?.message).toContain(
+			'Gmail API returned 400',
+		);
+		expect(rejectedData.results[0]?.error?.message).toContain(
+			'Invalid label: BAD',
+		);
 
-	const badArgs = await mcp.request('tools/call', {
-		name: 'query',
-		arguments: { sql: 123 },
-	});
-	expect(badArgs.error?.code).toBe(-32602);
-
-	for (const line of mcp.stdoutLines) {
-		const parsed = JSON.parse(line);
-		expect(parsed.jsonrpc).toBe('2.0');
+		expect(requests).toContainEqual({
+			method: 'POST',
+			pathname: '/gmail/v1/users/me/messages/m1/modify',
+			body: { addLabelIds: ['Label_1'], removeLabelIds: ['INBOX'] },
+		});
+		expect(requests).toContainEqual({
+			method: 'POST',
+			pathname: '/gmail/v1/users/me/messages/m2/modify',
+			body: { addLabelIds: ['BAD'], removeLabelIds: [] },
+		});
+	} finally {
+		mcp.stop();
+		apiServer.stop(true);
+		tmp.cleanup();
 	}
-
-	mcp.stop();
-	tmp.cleanup();
 });
 
 test('mcp: failed sync pass returns isError instead of a successful outcome payload', async () => {
