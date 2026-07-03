@@ -4,7 +4,7 @@
  * Verifies the Audio-stage locality rules the Processing surface reports.
  *
  * Key behaviors:
- * - Local engines transcribe in-process and never leave the device
+ * - The local runtime transcribes in-process and never leaves the device
  * - Locality follows the resolved endpoint host (loopback), not the provider's
  *   `location` label, so a self-hosted or cloud endpoint at localhost is on-device
  * - A remote self-hosted server reads as the user's own server, not a cloud vendor
@@ -18,10 +18,10 @@ function config(values: Partial<Record<DeviceConfigKey, string>>) {
 }
 
 describe('describeTranscriptionDestinationFromConfig', () => {
-	test('local engine keeps audio on device', () => {
+	test('local runtime keeps audio on device', () => {
 		expect(
 			describeTranscriptionDestinationFromConfig({
-				service: 'parakeet',
+				service: 'local',
 				getDeviceConfig: config({}),
 			}),
 		).toEqual({ onDevice: true, summary: 'Audio stays on this device.' });
