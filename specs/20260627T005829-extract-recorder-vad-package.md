@@ -227,10 +227,10 @@ Each wave is one independently-green commit (`bun typecheck` clean repo-wide). W
 
 ### Phase 4: Vocab consumes it (payoff)
 
-- [ ] **4.1** Add a vocab dictation surface (button + `createVadRecorder` or push-to-talk via `createBrowserRecorder`).
-- [ ] **4.2** Wire `transcribe()` from `@epicenter/client`; drop the result into the chat input.
-- [ ] **4.3** Serve the VAD assets from vocab; read a transcription connection from vocab's own config (vault is out of scope here).
-- [ ] **4.4** `bun typecheck`; smoke vocab dictation end to end.
+- [x] **4.1** Add a vocab dictation surface (button + `createVadRecorder` or push-to-talk via `createBrowserRecorder`). Went with `createVadRecorder` as one continuous session (tap to open, each pause-delimited phrase transcribes and lands, tap to close); vocab's in-app push-to-talk `recorder.svelte.ts` is deleted, not kept beside it.
+- [x] **4.2** Wire `transcribe()` from `@epicenter/client`; drop the result into the chat input.
+- [x] **4.3** Serve the VAD assets from vocab; read a transcription connection from vocab's own config (vault is out of scope here).
+- [ ] **4.4** `bun typecheck`; smoke vocab dictation end to end. Typecheck is green repo-wide and all four `/vad/*` assets serve 200 from the built app; the live mic-to-input smoke still needs a human with a microphone.
 
 ## Edge Cases
 
@@ -271,11 +271,11 @@ The browser recorder picks a supported `mimeType` from a priority list via `Medi
 
 ## Success Criteria
 
-- [ ] `@epicenter/recorder` exists; `bun typecheck` is clean repo-wide.
+- [x] `@epicenter/recorder` exists; `bun typecheck` is clean repo-wide.
 - [ ] Whispering browser recording, Tauri recording, and VAD all behave identically (manual smoke).
 - [ ] Whispering imports recorder primitives from the package; no moved files remain in-app (straggler sweep).
-- [ ] Vocab has a working dictation surface using the package + `transcribe()`, with text landing in the chat input.
-- [ ] VAD assets are served by both Whispering and vocab.
+- [ ] Vocab has a working dictation surface using the package + `transcribe()`, with text landing in the chat input. (Built; live mic smoke pending.)
+- [x] VAD assets are served by both Whispering and vocab.
 
 ## References
 
