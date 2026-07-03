@@ -182,7 +182,10 @@
       "version": "0.0.1",
       "dependencies": {
         "@epicenter/constants": "workspace:*",
+        "@hono/standard-validator": "catalog:",
         "@modelcontextprotocol/sdk": "catalog:",
+        "arktype": "catalog:",
+        "hono": "catalog:",
         "oauth4webapi": "catalog:",
         "typebox": "catalog:",
         "wellcrafted": "catalog:",
@@ -198,8 +201,10 @@
       "dependencies": {
         "@epicenter/constants": "workspace:*",
         "@tanstack/svelte-query": "catalog:",
+        "hono": "catalog:",
       },
       "devDependencies": {
+        "@epicenter/local-mail": "workspace:*",
         "@epicenter/ui": "workspace:*",
         "@lucide/svelte": "catalog:",
         "@sveltejs/adapter-static": "catalog:",

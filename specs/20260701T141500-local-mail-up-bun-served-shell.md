@@ -2,12 +2,13 @@
 
 **Date**: 2026-07-01
 **Status**: Draft
+**Note (2026-07-03):** the verb shipped as `local-mail app` (renamed from `up`); this spec's body still says `up` in places as historical context.
 **Owner**: Braden
 **Relates**: ADR-0084 (the pattern's origin: Super Chat's shell is a Bun-hosted local server), ADR-0098 (`docs/adr/0098-local-mail-state-round-trips-through-gmail.md`, Accepted: every human-actionable Local Mail concept round-trips through Gmail state), ADR-0080 (desktop host; phone = remote session, not per-app reach), ADR-0082 (poll-only mirror), ADR-0066 (`bun build --compile` binary + Tauri sidecar shape; now the distribution wave, not a v1 gate), `specs/20260701T140000-local-mail-phase-2-engine.md` (prerequisite engine work), `specs/20260630T150000-local-mail-tauri-cdc-mirror.md` (parent spec; its Phase 4 assumed a Tauri shell, this spec replaces that assumption)
 
 ## One Sentence
 
-`local-mail up` runs one Bun process that both syncs the Gmail mirror and serves the mail UI as a same-origin SPA on `127.0.0.1` behind a per-launch session bearer; the v1 product is the engine plus stdio MCP, and the UI ships read-write or not at all (Phase C gates on Phase D write-through), because a read-only mail client actively desynchronizes triage.
+`local-mail app` runs one Bun process that both syncs the Gmail mirror and serves the mail UI as a same-origin SPA on `127.0.0.1` behind a per-launch session bearer; the v1 product is the engine plus stdio MCP, and the UI ships read-write or not at all (Phase C gates on Phase D write-through), because a read-only mail client actively desynchronizes triage.
 
 ## How to read this spec
 
@@ -31,7 +32,7 @@ This creates problems with the old Phase 4 framing:
 
 ```sh
 local-mail connect      # once per device
-local-mail up           # sync loop + UI server; prints http://127.0.0.1:PORT/#token=...
+local-mail app          # sync loop + UI server; prints http://127.0.0.1:PORT/#token=...
                         # and opens the browser; the tab is the app
 local-mail mcp          # agents (unchanged)
 ```

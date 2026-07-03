@@ -1,19 +1,15 @@
 import { API_ROUTES } from '@epicenter/constants/api-routes';
-import type {
-	MailboxStatus,
-	MailLabel,
-	MessageDetail,
-	MessageSummary,
-	ModifyMessageLabelsOutcome,
-	SyncOutcome,
-} from './types';
+import type { ApiApp } from '@epicenter/local-mail/http/api';
+import { hc } from 'hono/client';
 
-// The same-origin `/api` client. The bearer lives in sessionStorage: it
-// survives F5 within the tab, dies with the tab, and is unreadable by any
-// sandboxed mail-body frame. In production the SPA earns the bearer once by
-// exchanging the single-use bootstrap token carried in the URL fragment; in dev
-// the Vite proxy injects a fixed bearer, so no exchange runs and no credential
-// touches the browser.
+// The same-origin `/api` client, typed end to end by `hc<ApiApp>`: its request
+// and response shapes are inferred from the Hono routes in
+// `apps/local-mail/src/http/api.ts`, so the wire contract cannot drift from the
+// server. The bearer lives in sessionStorage: it survives F5 within the tab,
+// dies with the tab, and is unreadable by any sandboxed mail-body frame. In
+// production the SPA earns the bearer once by exchanging the single-use
+// bootstrap token carried in the URL fragment; in dev the Vite proxy injects a
+// fixed bearer, so no exchange runs and no credential touches the browser.
 
 const BEARER_KEY = 'local-mail:session-bearer';
 
@@ -54,23 +50,38 @@ function ensureSession(): Promise<void> {
 	return sessionReady;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+// Every hc request routes through this: ensure the session exists, then attach
+// the per-launch bearer. The bootstrap exchange above uses a raw fetch, so it
+// never re-enters here. Typed with an explicit signature rather than `typeof
+// fetch` so it does not have to restate Bun's `fetch.preconnect`.
+const authedFetch = async (
+	input: RequestInfo | URL,
+	init?: RequestInit,
+): Promise<Response> => {
 	await ensureSession();
 	const headers = new Headers(init?.headers);
-	headers.set('content-type', 'application/json');
 	const bearer = readBearer();
 	if (bearer) headers.set('authorization', `Bearer ${bearer}`);
-	const res = await fetch(path, { ...init, headers });
-	if (!res.ok) {
-		const body = (await res.json().catch(() => null)) as {
-			error?: string;
-		} | null;
-		throw new Error(body?.error ?? `Request failed (${res.status}).`);
-	}
-	return res.json() as Promise<T>;
+	return fetch(input, { ...init, headers });
+};
+
+// Same-origin: hc needs an absolute base for URL construction, and this module
+// only ever executes in the browser (the SPA is `ssr: false`, `prerender:
+// false`). The localhost fallback keeps a stray import from throwing at load.
+const base =
+	typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
+const client = hc<ApiApp>(base, { fetch: authedFetch });
+
+async function toError(res: Response): Promise<Error> {
+	// Errors arrive as wellcrafted's envelope `{ data: null, error: { name,
+	// message, status } }` from the `/api` app's `defineErrors` variants.
+	const body = (await res.json().catch(() => null)) as {
+		error?: { message?: string };
+	} | null;
+	return new Error(body?.error?.message ?? `Request failed (${res.status}).`);
 }
 
-export type MessageQuery = {
+type MessageQuery = {
 	label?: string;
 	search?: string;
 	limit?: number;
@@ -78,29 +89,45 @@ export type MessageQuery = {
 };
 
 export const api = {
-	status: () => request<MailboxStatus>('/api/status'),
-	labels: () => request<{ labels: MailLabel[] }>('/api/labels'),
-	messages: (query: MessageQuery = {}) => {
-		const params = new URLSearchParams();
-		if (query.label) params.set('label', query.label);
-		if (query.search) params.set('q', query.search);
-		if (query.limit) params.set('limit', String(query.limit));
-		if (query.offset) params.set('offset', String(query.offset));
-		const qs = params.toString();
-		return request<{ messages: MessageSummary[] }>(
-			`/api/messages${qs ? `?${qs}` : ''}`,
-		);
+	status: async () => {
+		const res = await client.api.status.$get();
+		if (!res.ok) throw await toError(res);
+		return res.json();
 	},
-	message: (id: string) =>
-		request<MessageDetail>(`/api/messages/${encodeURIComponent(id)}`),
-	sync: () => request<SyncOutcome>('/api/sync', { method: 'POST' }),
-	modify: (input: {
+	labels: async () => {
+		const res = await client.api.labels.$get();
+		if (!res.ok) throw await toError(res);
+		return res.json();
+	},
+	messages: async (query: MessageQuery = {}) => {
+		const res = await client.api.messages.$get({
+			query: {
+				...(query.label ? { label: query.label } : {}),
+				...(query.search ? { q: query.search } : {}),
+				...(query.limit != null ? { limit: String(query.limit) } : {}),
+				...(query.offset != null ? { offset: String(query.offset) } : {}),
+			},
+		});
+		if (!res.ok) throw await toError(res);
+		return res.json();
+	},
+	message: async (id: string) => {
+		const res = await client.api.messages[':id'].$get({ param: { id } });
+		if (!res.ok) throw await toError(res);
+		return res.json();
+	},
+	sync: async () => {
+		const res = await client.api.sync.$post();
+		if (!res.ok) throw await toError(res);
+		return res.json();
+	},
+	modify: async (input: {
 		ids: string[];
 		addLabels?: string[];
 		removeLabels?: string[];
-	}) =>
-		request<ModifyMessageLabelsOutcome>('/api/messages/modify', {
-			method: 'POST',
-			body: JSON.stringify(input),
-		}),
+	}) => {
+		const res = await client.api.messages.modify.$post({ json: input });
+		if (!res.ok) throw await toError(res);
+		return res.json();
+	},
 };
