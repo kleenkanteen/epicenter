@@ -66,17 +66,17 @@ export type RecorderError = InferErrors<typeof RecorderError>;
  * caller callbacks are not config and travel separately in
  * {@link RecordingCallbacks}.
  */
-type BaseRecordingParams = {
+export type BaseRecordingParams = {
 	selectedDeviceId: DeviceIdentifier | null;
 	recordingId: string;
 };
 
 /**
  * Live callbacks supplied by the caller at the moment of starting, kept
- * separate from the settings-derived {@link CpalRecordingParams} /
- * {@link NavigatorRecordingParams} config because a callback is not a persisted
- * setting. They are passed alongside the resolved params, never merged into
- * them.
+ * separate from the settings-derived params config (a {@link BaseRecordingParams}
+ * extension such as {@link NavigatorRecordingParams}) because a callback is not
+ * a persisted setting. They are passed alongside the resolved params, never
+ * merged into them.
  */
 export type RecordingCallbacks = {
 	/**
@@ -89,13 +89,6 @@ export type RecordingCallbacks = {
 	 * callbacks.
 	 */
 	onLevel: (level: number) => void;
-};
-
-/**
- * Native (e.g. Rust/CPAL) recording parameters.
- */
-export type CpalRecordingParams = BaseRecordingParams & {
-	sampleRate: string;
 };
 
 /**

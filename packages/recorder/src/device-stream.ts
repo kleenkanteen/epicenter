@@ -12,10 +12,11 @@ import {
 } from './devices';
 
 /**
- * Whisper API recommended media track constraints: mono channel at 16kHz for
- * optimal transcription. Applied to every `getUserMedia` call this module makes.
+ * Speech-transcription-friendly capture constraints (mono, 16 kHz), the shape
+ * Whisper-style STT APIs recommend. Applied to every `getUserMedia` call this
+ * module makes.
  */
-export const WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS = {
+const TRANSCRIPTION_MEDIA_TRACK_CONSTRAINTS = {
 	channelCount: { ideal: 1 },
 	sampleRate: { ideal: 16_000 },
 } satisfies MediaTrackConstraints;
@@ -56,7 +57,7 @@ export async function enumerateDevices(): Promise<
 			// device labels; we only need it long enough to enumerate, so stop it
 			// in `finally` even when enumeration throws.
 			const stream = await navigator.mediaDevices.getUserMedia({
-				audio: WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS,
+				audio: TRANSCRIPTION_MEDIA_TRACK_CONSTRAINTS,
 			});
 			try {
 				const devices = await navigator.mediaDevices.enumerateDevices();
@@ -94,7 +95,7 @@ export async function getRecordingStream({
 			try: () =>
 				navigator.mediaDevices.getUserMedia({
 					audio: {
-						...WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS,
+						...TRANSCRIPTION_MEDIA_TRACK_CONSTRAINTS,
 						deviceId: { exact: selectedDeviceId },
 					},
 				}),
@@ -122,7 +123,7 @@ export async function getRecordingStream({
 	const { data: stream, error } = await tryAsync({
 		try: () =>
 			navigator.mediaDevices.getUserMedia({
-				audio: WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS,
+				audio: TRANSCRIPTION_MEDIA_TRACK_CONSTRAINTS,
 			}),
 		catch: (error) => {
 			const name = error instanceof DOMException ? error.name : '';

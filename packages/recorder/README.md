@@ -15,7 +15,6 @@ import {
   getRecordingStream,
   enumerateDevices,
   cleanupRecordingStream,
-  WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS,
   DeviceStreamError,
 
   // Manual recorder (MediaRecorder)
@@ -34,8 +33,8 @@ import {
 
 Types: `RecorderService`, `RecordingSession`, `RecorderStopResult`
 (`artifact | blob`), `RecordingArtifact`, `RecorderError`, `RecordingState`,
-`Device`, `DeviceIdentifier`, `DeviceAcquisitionOutcome`, `VadState`,
-`VadRecorder`, `VadRecorderError`.
+`BaseRecordingParams`, `Device`, `DeviceIdentifier`, `DeviceAcquisitionOutcome`,
+`VadState`, `VadRecorder`, `VadRecorderError`.
 
 The core is callback and `Result` based, with no framework reactivity. A Svelte
 app that wants reactive state wraps the core in its own thin runes layer (see

@@ -90,7 +90,12 @@ export function createBrowserRecorder(): RecorderService<NavigatorRecordingParam
 			},
 
 			cancel: async () => {
-				mediaRecorder.stop();
+				// stop() throws if the recorder is already inactive; a cancel discards
+				// the recording anyway, so swallow it and always tear down.
+				trySync({
+					try: () => mediaRecorder.stop(),
+					catch: () => Ok(undefined),
+				});
 				teardown();
 
 				return Ok(undefined);
@@ -162,12 +167,22 @@ export function createBrowserRecorder(): RecorderService<NavigatorRecordingParam
 				if (event.data.size) recordedChunks.push(event.data);
 			});
 
-			mediaRecorder.start(TIMESLICE_MS);
+			// MediaRecorder.start can throw synchronously (e.g. NotSupportedError);
+			// without this the stream would leak with the mic indicator stuck on.
+			const { data: stopLevelMeter, error: startError } = trySync({
+				try: () => {
+					mediaRecorder.start(TIMESLICE_MS);
+					// Tap the same stream for the caller's meter. Independent of the
+					// MediaRecorder (both can read one stream), torn down with the session.
+					return startMicLevelMeter(stream, onLevel);
+				},
+				catch: (error) => RecorderError.StartFailed({ cause: error }),
+			});
+			if (startError) {
+				cleanupRecordingStream(stream);
+				return Err(startError);
+			}
 			const startedAtMs = Date.now();
-
-			// Tap the same stream for the caller's meter. Independent of the
-			// MediaRecorder (both can read one stream), torn down with the session.
-			const stopLevelMeter = startMicLevelMeter(stream, onLevel);
 
 			const session = buildSession({
 				recordingId,

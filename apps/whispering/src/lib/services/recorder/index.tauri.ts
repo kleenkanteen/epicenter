@@ -1,6 +1,6 @@
 import {
 	asDeviceIdentifier,
-	type CpalRecordingParams,
+	type BaseRecordingParams,
 	type Device,
 	type DeviceAcquisitionOutcome,
 	RecorderError,
@@ -19,6 +19,14 @@ import { commands } from '$lib/tauri/commands';
 import { tauriOnly } from '$lib/tauri.tauri';
 
 const log = createLogger('whispering/recorder/cpal');
+
+/**
+ * Native (Rust/CPAL) recording parameters. Whispering-owned: the package
+ * defines only the base params; the native sample-rate knob is this app's.
+ */
+export type CpalRecordingParams = BaseRecordingParams & {
+	sampleRate: string;
+};
 
 async function getMicrophonePermissionStatus(): Promise<
 	Result<boolean, RecorderError>
