@@ -165,7 +165,7 @@ export function mountSessionApp<E extends Env = Env>(
 ### Phase 2: client fetch + cache
 
 - [ ] **2.1** A `fetchKeyring` client reader beside `readApiSession` (auth-owned fetch, bearer attached, `credentials: 'omit'`).
-- [ ] **2.2** Device cache: desktop keychain entry (`vault-keyring` account via the existing `keyring_read`/`keyring_write` commands), web `localStorage` key. Refresh on every successful fetch; delete on sign-out.
+- [ ] **2.2** Device cache: desktop keychain entry (`vault-keyring` account via the existing `keyring_read`/`keyring_write` commands), web `localStorage` key. Refresh on every successful fetch; delete on sign-out. Note: `keyring_read`/`keyring_write` were narrowed alongside the auth-grant keychain migration, the service string is now hardcoded to `whispering` in Rust (`keyring_storage.rs`), and the webview may only pass an account name from a fixed allowlist that today contains just `auth-grant`. This wave must add `'vault-keyring'` to that Rust `KEYRING_ACCOUNTS` allowlist before the desktop cache can call these commands.
 - [ ] **2.3** Offline boot path: cached keyring hydrates activation before the first fetch resolves.
 
 ### Phase 3: vault doc + facade wire (Whispering first)
