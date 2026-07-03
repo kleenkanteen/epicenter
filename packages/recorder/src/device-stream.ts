@@ -4,15 +4,23 @@ import {
 	type InferErrors,
 } from 'wellcrafted/error';
 import { Err, Ok, type Result, tryAsync } from 'wellcrafted/result';
-import { WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS } from '$lib/constants/audio';
-import type {
-	Device,
-	DeviceAcquisitionOutcome,
-	DeviceIdentifier,
-} from '$lib/services/recorder/types';
-import { asDeviceIdentifier } from '$lib/services/recorder/types';
+import {
+	asDeviceIdentifier,
+	type Device,
+	type DeviceAcquisitionOutcome,
+	type DeviceIdentifier,
+} from './devices';
 
-const DeviceStreamError = defineErrors({
+/**
+ * Browser microphone capture constraints for speech audio. Applied to every
+ * `getUserMedia` call this module makes.
+ */
+const SPEECH_MEDIA_TRACK_CONSTRAINTS = {
+	channelCount: { ideal: 1 },
+	sampleRate: { ideal: 16_000 },
+} satisfies MediaTrackConstraints;
+
+export const DeviceStreamError = defineErrors({
 	PermissionDenied: ({ cause }: { cause: unknown }) => ({
 		message: `We need permission to see your microphones. Check your browser settings and try again. ${extractErrorMessage(cause)}`,
 		cause,
@@ -37,7 +45,7 @@ const DeviceStreamError = defineErrors({
 			"We couldn't connect to any microphones. Make sure they're plugged in and try again!",
 	}),
 });
-type DeviceStreamError = InferErrors<typeof DeviceStreamError>;
+export type DeviceStreamError = InferErrors<typeof DeviceStreamError>;
 
 export async function enumerateDevices(): Promise<
 	Result<Device[], DeviceStreamError>
@@ -48,7 +56,7 @@ export async function enumerateDevices(): Promise<
 			// device labels; we only need it long enough to enumerate, so stop it
 			// in `finally` even when enumeration throws.
 			const stream = await navigator.mediaDevices.getUserMedia({
-				audio: WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS,
+				audio: SPEECH_MEDIA_TRACK_CONSTRAINTS,
 			});
 			try {
 				const devices = await navigator.mediaDevices.enumerateDevices();
@@ -86,7 +94,7 @@ export async function getRecordingStream({
 			try: () =>
 				navigator.mediaDevices.getUserMedia({
 					audio: {
-						...WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS,
+						...SPEECH_MEDIA_TRACK_CONSTRAINTS,
 						deviceId: { exact: selectedDeviceId },
 					},
 				}),
@@ -114,7 +122,7 @@ export async function getRecordingStream({
 	const { data: stream, error } = await tryAsync({
 		try: () =>
 			navigator.mediaDevices.getUserMedia({
-				audio: WHISPER_RECOMMENDED_MEDIA_TRACK_CONSTRAINTS,
+				audio: SPEECH_MEDIA_TRACK_CONSTRAINTS,
 			}),
 		catch: (error) => {
 			const name = error instanceof DOMException ? error.name : '';

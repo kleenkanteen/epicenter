@@ -1,32 +1,34 @@
-import { Err, Ok, type Result, tryAsync, trySync } from 'wellcrafted/result';
-import {
-	TIMESLICE_MS,
-	type WhisperingRecordingState,
-} from '$lib/constants/audio';
 import {
 	cleanupRecordingStream,
 	enumerateDevices,
 	getRecordingStream,
-} from '$lib/services/device-stream';
-import { categorizeBrowserStreamError } from './categorize-error';
-import type {
-	NavigatorRecordingParams,
-	RecorderService,
-	RecordingCallbacks,
-	RecordingSession,
-} from './types';
-import { RecorderError } from './types';
+} from '@epicenter/recorder';
+import { Err, Ok, type Result, tryAsync, trySync } from 'wellcrafted/result';
+import {
+	type NavigatorRecordingParams,
+	RecorderError,
+	type RecorderService,
+	type RecordingCallbacks,
+	type RecordingSession,
+	type RecordingState,
+} from '$lib/services/recorder/contract';
 
 /**
- * Navigator recorder service that uses the MediaRecorder API.
- * Used for web manual recording. Desktop manual recording resolves to the
- * CPAL implementation in `index.tauri.ts`; desktop VAD uses `device-stream`
- * directly and does not go through this service.
- *
- * Constructed via a factory so per-session lifecycle
- * (stop/cancel/subscribe) lives on the returned `RecordingSession`.
+ * How often the MediaRecorder emits a `dataavailable` chunk while recording.
  */
-function createNavigatorRecorder() {
+const TIMESLICE_MS = 1000;
+
+/**
+ * Browser branch of the `#platform/recorder` seam: a recorder service backed
+ * by the MediaRecorder API, on top of `@epicenter/recorder`'s stream
+ * acquisition. The Tauri branch (`index.tauri.ts`) exports the same
+ * `ManualRecorderLive` name backed by CPAL, so `manual-recorder.svelte.ts`
+ * consumes one shape regardless of platform.
+ *
+ * Constructed via a factory so per-session lifecycle (stop/cancel/subscribe)
+ * lives on the returned `RecordingSession`.
+ */
+function createBrowserRecorder(): RecorderService<NavigatorRecordingParams> {
 	function buildSession(args: {
 		recordingId: string;
 		stream: MediaStream;
@@ -43,10 +45,10 @@ function createNavigatorRecorder() {
 			startedAtMs,
 			stopLevelMeter,
 		} = args;
-		const subscribers = new Set<(s: WhisperingRecordingState) => void>();
-		let currentState: WhisperingRecordingState = 'RECORDING';
+		const subscribers = new Set<(s: RecordingState) => void>();
+		let currentState: RecordingState = 'RECORDING';
 
-		const notify = (state: WhisperingRecordingState) => {
+		const notify = (state: RecordingState) => {
 			// Idempotent: same-state notifications collapse to a no-op. Keeps
 			// the teardown safe to call from multiple paths without double
 			// firing 'IDLE' (e.g. an external listener and an explicit
@@ -90,7 +92,12 @@ function createNavigatorRecorder() {
 			},
 
 			cancel: async () => {
-				mediaRecorder.stop();
+				// stop() throws if the recorder is already inactive; a cancel discards
+				// the recording anyway, so swallow it and always tear down.
+				trySync({
+					try: () => mediaRecorder.stop(),
+					catch: () => Ok(undefined),
+				});
 				teardown();
 
 				return Ok(undefined);
@@ -114,7 +121,7 @@ function createNavigatorRecorder() {
 		resumeActiveSession: async (): Promise<
 			Result<RecordingSession | null, RecorderError>
 		> => {
-			// Navigator state lives in this closure, so a JS reload zeroes it out;
+			// Browser state lives in this closure, so a JS reload zeroes it out;
 			// the MediaStream/MediaRecorder are also gone in that case.
 			return Ok(null);
 		},
@@ -162,12 +169,22 @@ function createNavigatorRecorder() {
 				if (event.data.size) recordedChunks.push(event.data);
 			});
 
-			mediaRecorder.start(TIMESLICE_MS);
+			// MediaRecorder.start can throw synchronously (e.g. NotSupportedError);
+			// without this the stream would leak with the mic indicator stuck on.
+			const { data: stopLevelMeter, error: startError } = trySync({
+				try: () => {
+					mediaRecorder.start(TIMESLICE_MS);
+					// Tap the same stream for the caller's meter. Independent of the
+					// MediaRecorder (both can read one stream), torn down with the session.
+					return startMicLevelMeter(stream, onLevel);
+				},
+				catch: (error) => RecorderError.StartFailed({ cause: error }),
+			});
+			if (startError) {
+				cleanupRecordingStream(stream);
+				return Err(startError);
+			}
 			const startedAtMs = Date.now();
-
-			// Tap the same stream for the pill's meter. Independent of the
-			// MediaRecorder (both can read one stream), torn down with the session.
-			const stopLevelMeter = startMicLevelMeter(stream, onLevel);
 
 			const session = buildSession({
 				recordingId,
@@ -183,16 +200,12 @@ function createNavigatorRecorder() {
 	} satisfies RecorderService<NavigatorRecordingParams>;
 }
 
-export const ManualRecorderLive: RecorderService<NavigatorRecordingParams> =
-	createNavigatorRecorder();
-
 /**
  * Tap a live MediaStream and report raw mic loudness (RMS) each animation frame,
- * so the web pill's meter reacts to the actual voice instead of sitting flat.
- * Emits the same quantity the VAD recorder does (`computeFrameRms`) and the Rust
- * CPAL worker does on desktop, so all three feed the pill one quantity and the
- * shared `foldMicLevel` curve renders identically. Returns a stop function that
- * tears down the audio graph; call it when the recording ends.
+ * so the caller's meter reacts to the actual voice instead of sitting flat.
+ * Emits the same quantity the VAD recorder does, so both feed a meter one
+ * quantity and the shared `foldMicLevel` curve renders identically. Returns a
+ * stop function that tears down the audio graph; call it when the recording ends.
  */
 function startMicLevelMeter(
 	stream: MediaStream,
@@ -254,3 +267,35 @@ function getSupportedAudioMimeType(): string {
 	}
 	return 'audio/webm';
 }
+
+/**
+ * Map a browser recording-stream cause (a getUserMedia `DOMException` or a
+ * `DeviceStreamError` from `@epicenter/recorder`) to a cross-cutting
+ * `RecorderError`, or `null` to let the call site apply its own verb. Browser
+ * causes carry a `name` tag rather than a Rust enum.
+ */
+function categorizeBrowserStreamError(cause: unknown) {
+	if (!(cause && typeof cause === 'object' && 'name' in cause)) return null;
+	const name = (cause as { name: unknown }).name;
+
+	// getUserMedia DOMException codes.
+	if (name === 'NotAllowedError' || name === 'SecurityError') {
+		return RecorderError.MicrophonePermissionDenied({ cause });
+	}
+	if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+		return RecorderError.NoInputDevice({ cause });
+	}
+	// device-stream's own tags (re-categorized so the toast layer can branch on
+	// RecorderError variants without importing DeviceStreamError).
+	if (name === 'PermissionDenied') {
+		return RecorderError.MicrophonePermissionDenied({ cause });
+	}
+	if (name === 'NoDevicesFound') {
+		return RecorderError.NoInputDevice({ cause });
+	}
+
+	return null;
+}
+
+export const ManualRecorderLive: RecorderService<NavigatorRecordingParams> =
+	createBrowserRecorder();

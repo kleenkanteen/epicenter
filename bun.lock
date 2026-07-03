@@ -467,6 +467,7 @@
         "@epicenter/client": "workspace:*",
         "@epicenter/constants": "workspace:*",
         "@epicenter/field": "workspace:*",
+        "@epicenter/recorder": "workspace:*",
         "@epicenter/svelte": "workspace:*",
         "@epicenter/ui": "workspace:*",
         "@epicenter/workspace": "workspace:*",
@@ -491,6 +492,7 @@
         "tailwindcss": "catalog:",
         "typescript": "catalog:",
         "vite": "catalog:",
+        "vite-plugin-static-copy": "^4.1.1",
       },
     },
     "apps/whispering": {
@@ -505,11 +507,11 @@
         "@epicenter/client": "workspace:*",
         "@epicenter/constants": "workspace:*",
         "@epicenter/field": "workspace:*",
+        "@epicenter/recorder": "workspace:*",
         "@epicenter/svelte": "workspace:*",
         "@epicenter/workspace": "workspace:*",
         "@google/generative-ai": "^0.24.1",
         "@mistralai/mistralai": "^1.9.18",
-        "@ricky0123/vad-web": "^0.0.30",
         "@standard-schema/spec": "catalog:",
         "@tanstack/svelte-query": "catalog:",
         "@tanstack/svelte-table": "catalog:",
@@ -830,6 +832,18 @@
         "typescript": "catalog:",
       },
     },
+    "packages/recorder": {
+      "name": "@epicenter/recorder",
+      "version": "0.0.1",
+      "dependencies": {
+        "@ricky0123/vad-web": "catalog:",
+        "wellcrafted": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/server": {
       "name": "@epicenter/server",
       "version": "0.1.1",
@@ -1058,6 +1072,7 @@
     "@hono/standard-validator": "^0.2.2",
     "@lucide/svelte": "^0.561.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@ricky0123/vad-web": "^0.0.30",
     "@sindresorhus/slugify": "^3.0.0",
     "@standard-schema/spec": "^1.1.0",
     "@sveltejs/adapter-auto": "^6.1.0",
@@ -1364,6 +1379,8 @@
     "@epicenter/matter-core": ["@epicenter/matter-core@workspace:packages/matter-core"],
 
     "@epicenter/posthog-reverse-proxy": ["@epicenter/posthog-reverse-proxy@workspace:apps/posthog-reverse-proxy"],
+
+    "@epicenter/recorder": ["@epicenter/recorder@workspace:packages/recorder"],
 
     "@epicenter/reddit": ["@epicenter/reddit@workspace:apps/reddit"],
 
