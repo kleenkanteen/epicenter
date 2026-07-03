@@ -42,7 +42,7 @@ satisfiesWorkspace()
 ```
 
 The app-facing path is `defineWorkspace({ id, tables, kv, actions }).connect(...)`.
-`open()` returns only the root document for daemon composition. The connection
+`create()` returns only the root document for daemon and test composition. The connection
 is the boot decision: `connect(null)` adds bare browser storage, wipe, and
 table child-doc openers with no relay; `connect(connection)` adds principal-scoped
 browser storage, root sync, wipe, and table child-doc openers.
@@ -78,6 +78,7 @@ const posts = defineTable({
 
 const blogWorkspace = defineWorkspace({
 	id: 'epicenter-blog',
+	name: 'Blog',
 	tables: { posts },
 	kv: {},
 });
@@ -112,7 +113,7 @@ That example uses the current public API end to end:
 
 - `defineTable(...)` with a real schema
 - a direct `openBlog()` builder function that calls `blogWorkspace.connect(null)`
-- `defineWorkspace(...)` for the shared contract and `open()` for the live root
+- `defineWorkspace(...)` for the shared contract and `connect(null)` for the live local bundle
 - direct property access via `blog.tables.posts`
 - `set`, `get`, `update`, `delete`, `scan`, and `observe`
 
@@ -171,6 +172,7 @@ const items = defineTable({
 
 export const myAppWorkspace = defineWorkspace({
 	id: 'epicenter.my-app',
+	name: 'My App',
 	tables: { items },
 	kv: {},
 	actions: ({ tables }) =>
@@ -258,7 +260,7 @@ That split is not cosmetic. It lets you share definitions across modules, infer 
 ### Inline composition is the extension system
 
 There is no builder chain. Runtime-specific extras are composed inline in
-`open(connection, compose)`, after principal-scoped local storage and before
+`connect(connection, compose)`, after principal-scoped local storage and before
 collaboration starts:
 
 ```typescript
@@ -298,8 +300,8 @@ function openBlogDaemon() {
 }
 ```
 
-Ordering is explicit: root-only `open()` callers choose every attachment, while
-browser `open(connection, compose)` callers receive the base runtime and return
+Ordering is explicit: root-only `create()` callers choose every attachment, while
+browser `connect(connection, compose)` callers receive the base runtime and return
 named extras. There is no magic `client.extensions` namespace; each attachment
 is whatever you named it in the returned bundle.
 
@@ -462,7 +464,7 @@ KV entries are for settings and scalar preferences. They are keyed by string and
 
 "Extensions" in Epicenter are just `attach*` calls inside your builder or runtime composer. There is no `.withExtension` chain, no extension registry, no priority flag: just lexical scope.
 
-- Call the relevant `attach*` or `open*` function inside `open()` daemon composition or `open(connection, compose)` browser composition, then include the handle in the returned bundle.
+- Call the relevant `attach*` or `open*` function inside `create()` daemon composition or `connect(connection, compose)` browser composition, then include the handle in the returned bundle.
 - Order matters only through lexical scope: later `attach*` calls see earlier handles directly.
 - For browser per-row content docs, declare a child-doc layout on the table and open it from the connected table handle. Daemon projections can use the same guid grammar to read one doc snapshot.
 
@@ -472,7 +474,7 @@ Actions are callable functions with metadata.
 
 - `defineQuery(...)` creates a read action
 - `defineMutation(...)` creates a write action
-- Include isomorphic actions in `defineWorkspace({ actions })`. Runtime-specific actions belong in `open(connection, compose)`, where the final registry is exposed on the workspace bundle. `defineActions` enforces snake_case ASCII keys at compile time and runtime; consumers index by string or iterate with `Object.entries`.
+- Include isomorphic actions in `defineWorkspace({ actions })`. Runtime-specific actions belong in `connect(connection, compose)`, where the final registry is exposed on the workspace bundle. `defineActions` enforces snake_case ASCII keys at compile time and runtime; consumers index by string or iterate with `Object.entries`.
 
 Handlers close over `tables`, `kv`, and anything else the builder has in scope through normal JavaScript closure. They do not receive a framework context object.
 
@@ -635,7 +637,7 @@ separate from this server-owned presence channel.
 
 Per-row content (one Y.Doc per file/note/entry) is declared on the table and
 opened from the connected table handle. The root workspace holds the metadata
-row; `open(connection)` owns live content Y.Docs, local storage, sync, and wipe.
+row; `connect(connection)` owns live content Y.Docs, local storage, sync, and wipe.
 The workspace owns guid derivation: every `.docs.<field>` exposes
 `guid(rowId)`, available on the unconnected root too, so a daemon one-shot
 reader derives the same guid with `workspace.tables.files.docs.content.guid(id)`
@@ -659,6 +661,7 @@ const files = defineTable({
 
 export const filesWorkspace = defineWorkspace({
 	id: 'epicenter.files',
+	name: 'Files',
 	tables: { files },
 	kv: {},
 });
