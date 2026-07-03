@@ -30,7 +30,7 @@ type Cached = Option<CachedModel>;
 #[derive(Clone)]
 pub struct ModelCache {
     /// The currently-resident model and the path it was loaded from. The mutex
-    /// is held across `load` and the inference closure inside `run_loaded` so
+    /// is held across `load` and the inference call inside `run_loaded` so
     /// concurrent transcribe calls serialize (one model fits in memory, and
     /// transcribe.cpp 0.x permits one in-flight run per model).
     cached: Arc<Mutex<Cached>>,
@@ -103,9 +103,7 @@ impl ModelCache {
         let model_path = resolve_model_path(&spec.model_id)
             .map_err(|message| TranscriptionError::ConfigError { message })?;
         let inference_started = Instant::now();
-        let transcript = self.run_loaded(&spec, model_path, |model| {
-            run_gguf(model, &samples, &spec)
-        })?;
+        let transcript = self.run_loaded(&spec, model_path, &samples)?;
 
         info!(
             "[Transcription] GGUF transcription complete: characters={} elapsed_ms={}",
@@ -185,20 +183,20 @@ impl ModelCache {
         Ok(guard)
     }
 
-    /// Run inference on the resident model for `spec`, loading it first if
-    /// needed. Holds the cache lock across load and use.
-    fn run_loaded<T>(
+    /// Run one batch transcription on the resident model for `spec`, loading it
+    /// first if needed. Holds the cache lock across load and inference.
+    fn run_loaded(
         &self,
         spec: &TranscriptionSpec,
         model_path: PathBuf,
-        use_model: impl FnOnce(&Model) -> Result<T, TranscriptionError>,
-    ) -> Result<T, TranscriptionError> {
+        samples: &[f32],
+    ) -> Result<String, TranscriptionError> {
         self.touch_activity();
         let guard = self.ensure_loaded(spec, model_path)?;
 
         let model = &guard.as_ref().expect("cache slot populated above").model;
         let started = Instant::now();
-        let result = use_model(model);
+        let result = run_gguf(model, samples, spec);
         let elapsed_ms = started.elapsed().as_millis() as u64;
         crate::timing_note!("model.inference {elapsed_ms}ms model={}", spec.model_id);
         self.touch_activity();
