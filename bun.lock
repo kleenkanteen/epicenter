@@ -165,7 +165,10 @@
         "local-books": "./src/bin.ts",
       },
       "dependencies": {
+        "@hono/standard-validator": "catalog:",
         "@modelcontextprotocol/sdk": "catalog:",
+        "arktype": "catalog:",
+        "hono": "catalog:",
         "ms": "catalog:",
         "oauth4webapi": "catalog:",
         "typebox": "catalog:",
@@ -175,6 +178,31 @@
         "@types/bun": "catalog:",
         "@types/ms": "catalog:",
         "typescript": "catalog:",
+      },
+    },
+    "apps/local-books/ui": {
+      "name": "@epicenter/local-books-ui",
+      "version": "0.0.1",
+      "dependencies": {
+        "@tanstack/svelte-query": "catalog:",
+        "hono": "catalog:",
+      },
+      "devDependencies": {
+        "@epicenter/local-books": "workspace:*",
+        "@epicenter/ui": "workspace:*",
+        "@lucide/svelte": "catalog:",
+        "@sveltejs/adapter-static": "catalog:",
+        "@sveltejs/kit": "catalog:",
+        "@sveltejs/vite-plugin-svelte": "catalog:",
+        "@tailwindcss/vite": "catalog:",
+        "@types/bun": "catalog:",
+        "mode-watcher": "catalog:",
+        "svelte": "catalog:",
+        "svelte-check": "catalog:",
+        "svelte-sonner": "catalog:",
+        "tailwindcss": "catalog:",
+        "typescript": "catalog:",
+        "vite": "catalog:",
       },
     },
     "apps/local-mail": {
@@ -1402,6 +1430,8 @@
     "@epicenter/landing": ["@epicenter/landing@workspace:apps/landing"],
 
     "@epicenter/local-books": ["@epicenter/local-books@workspace:apps/local-books"],
+
+    "@epicenter/local-books-ui": ["@epicenter/local-books-ui@workspace:apps/local-books/ui"],
 
     "@epicenter/local-mail": ["@epicenter/local-mail@workspace:apps/local-mail"],
 
