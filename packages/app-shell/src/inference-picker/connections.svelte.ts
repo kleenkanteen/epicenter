@@ -177,9 +177,7 @@ export function createInferenceConnections({
 		 * Best effort: on failure the previously discovered ids stand, so a transient
 		 * outage never empties the group. Connect-time `add` still owns first
 		 * discovery; this is the one path that refreshes a stale list in place. */
-		async refresh(
-			baseUrl: string,
-		): Promise<Result<string[], ListModelsError>> {
+		async refresh(baseUrl: string): Promise<Result<string[], ListModelsError>> {
 			const connection = stored.current.find((c) => c.baseUrl === baseUrl);
 			if (!connection) return Ok([]);
 			const { data, error } = await listModels(resolveConnection(connection));
