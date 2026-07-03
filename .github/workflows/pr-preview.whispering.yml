@@ -84,13 +84,9 @@ jobs:
             rustTargets: 'aarch64-apple-darwin'
 
           # macOS Intel (x86_64): cross-compiled from the Apple Silicon runner
-          # above. Neither Microsoft nor pyke publishes a prebuilt x86_64 macOS
-          # ONNX Runtime, so the ORT step below pulls a community build from
-          # Handy's blob. Because trusted runs SIGN AND NOTARIZE this build (our
-          # Developer ID vouches for the bundled dylib to Gatekeeper), the blob is
-          # pinned by SHA-256 below: we attest to specific verified bytes, not to
-          # whatever that URL serves on a given day. Do NOT copy this row into
-          # release.whispering.yml until we host our own verified x86_64 ORT build.
+          # above. The build is pure Rust now (transcribe-cpp GGUF, no ONNX
+          # Runtime), so this needs no dylib provisioning; the verify step below
+          # just confirms the cross-compile actually produced an x86_64 binary.
           - platform: 'blacksmith-6vcpu-macos-15'
             os: 'macos'
             tauriArgs: '--target x86_64-apple-darwin'
@@ -125,43 +121,6 @@ jobs:
           rust-targets: ${{ matrix.rustTargets }}
           windows-runner: ${{ matrix.platform }}
 
-      # macOS Intel only: provision a dynamically linked x86_64 ONNX Runtime and
-      # bundle it into the .app. The `ort` crate (2.0.0-rc.12, via transcribe-rs)
-      # targets ONNX Runtime 1.24.2, but no official x86_64 macOS build exists, so
-      # this pulls a community build. ORT_LIB_LOCATION + ORT_PREFER_DYNAMIC_LINK
-      # make ort-sys link against it dynamically; the jq patch embeds the dylib in
-      # the bundle so it resolves at runtime.
-      #
-      # The blob is pinned by SHA-256 and verified fail-closed before use: a trusted
-      # run signs and notarizes over this dylib, so we only ever sign bytes we have
-      # vouched for. To roll the version, download the new tarball, run
-      # `shasum -a 256`, and update EXPECTED_ORT_SHA256.
-      - name: Provision x86_64 ONNX Runtime (macOS Intel only)
-        if: ${{ matrix.artifactSuffix == 'macos-intel' }}
-        shell: bash
-        env:
-          ORT_VERSION: '1.24.2'
-          EXPECTED_ORT_SHA256: '590cee05699047b85e4a8115b4cec792073c2972ce78de383356a552a296a9c4'
-        run: |
-          set -euo pipefail
-          URL="https://blob.handy.computer/onnxruntime-osx-x86_64-${ORT_VERSION}.tgz"
-          curl -fSL -o ort.tgz "$URL"
-          ACTUAL=$(shasum -a 256 ort.tgz | awk '{print $1}')
-          if [ "$ACTUAL" != "$EXPECTED_ORT_SHA256" ]; then
-            echo "::error::ORT blob hash mismatch; refusing to sign unverified bytes. expected=$EXPECTED_ORT_SHA256 actual=$ACTUAL"
-            exit 1
-          fi
-          echo "ORT blob verified against pinned SHA-256."
-          tar xzf ort.tgz
-          ORT_DIR="$PWD/onnxruntime-osx-x86_64-${ORT_VERSION}"
-          echo "ORT_LIB_LOCATION=$ORT_DIR/lib" >> "$GITHUB_ENV"
-          echo "ORT_PREFER_DYNAMIC_LINK=1" >> "$GITHUB_ENV"
-          DYLIB="$ORT_DIR/lib/libonnxruntime.${ORT_VERSION}.dylib"
-          test -f "$DYLIB" || { echo "::error::expected dylib not found: $DYLIB"; ls -la "$ORT_DIR/lib"; exit 1; }
-          file "$DYLIB"
-          CONF="apps/whispering/src-tauri/tauri.conf.json"
-          jq --arg lib "$DYLIB" '.bundle.macOS.frameworks = [$lib]' "$CONF" > "$CONF.tmp" && mv "$CONF.tmp" "$CONF"
-
       # Previews never hit the update feed (see the workflow header), so no preview
       # should produce updater artifacts. tauri.conf turns createUpdaterArtifacts on
       # for releases; left on here, a signed macOS preview tries to sign the updater
@@ -170,7 +129,7 @@ jobs:
       # this currently rescues, but "previews do not auto-update" holds for all of
       # them, so disable it unconditionally rather than special-casing macOS. On
       # Linux and Windows this is a verified no-op (their deb/rpm/AppImage and
-      # msi/nsis bundles are unchanged). Same jq-on-config pattern as the ONNX step.
+      # msi/nsis bundles are unchanged).
       - name: Disable updater artifacts (previews never auto-update)
         shell: bash
         run: |
@@ -202,10 +161,9 @@ jobs:
           # as falsy, which would break the usual `cond && '' || x` form).
           args: ${{ matrix.tauriArgs }} ${{ (matrix.os != 'macos' || env.IS_TRUSTED != 'true') && '--no-sign' || '' }}
 
-      # macOS Intel only: confirm the build is actually x86_64 and that the
-      # onnxruntime dylib is both linked and bundled into the .app. Fails loudly
-      # if the cross-compile silently produced an arm64 binary or dropped the dylib.
-      - name: Verify x86_64 build and ONNX Runtime bundling (macOS Intel only)
+      # macOS Intel only: confirm the cross-compile actually produced an x86_64
+      # binary and not a silently-arm64 one.
+      - name: Verify x86_64 build (macOS Intel only)
         if: ${{ matrix.artifactSuffix == 'macos-intel' }}
         shell: bash
         run: |
@@ -215,10 +173,7 @@ jobs:
           BIN="$APP/Contents/MacOS/Whispering"
           echo "Binary architecture:"; file "$BIN"
           file "$BIN" | grep -q 'x86_64' || { echo "::error::binary is not x86_64"; exit 1; }
-          echo "Frameworks bundled:"; ls -la "$APP/Contents/Frameworks/" || true
-          echo "onnxruntime linkage:"; otool -L "$BIN" | grep -i onnxruntime || { echo "::error::binary not linked against onnxruntime"; exit 1; }
-          ls "$APP/Contents/Frameworks/" | grep -qi onnxruntime || { echo "::error::onnxruntime dylib missing from Frameworks/"; exit 1; }
-          echo "macOS Intel ONNX Runtime bundling verified."
+          echo "macOS Intel x86_64 build verified."
 
       # Trusted macOS only: prove the build will actually open on a downloader's
       # Mac. This is the gate that prevents a "looks signed but isn't notarized"
