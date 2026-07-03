@@ -1,7 +1,7 @@
 <!--
 	Render one settled assistant message with its deterministic reading overlay.
 
-	Readings are a client-side derived view (ADR-0104): the message is stored and
+	Readings are a client-side derived view (ADR-0105): the message is stored and
 	fed back to the model as clean text, and this component renders pronunciation
 	on top. It loads the deterministic providers whose script appears in the
 	passage (pinyin for Han today) and composes them into one synchronous

@@ -1,5 +1,5 @@
 /**
- * Japanese romaji over kana (ADR-0104).
+ * Japanese romaji over kana (ADR-0105).
  *
  * Kana is a syllabary, perfectly phonetic, so romaji is a trivial deterministic
  * mapping (`wanakana.toRomaji`). Kana-only by design: this reads は as `wa` but

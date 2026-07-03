@@ -1,5 +1,5 @@
 /**
- * Chinese pinyin: the flagship deterministic reading provider (ADR-0104).
+ * Chinese pinyin: the flagship deterministic reading provider (ADR-0105).
  *
  * Han is not phonetic, but it is lexically complete: each character has a fixed
  * reading a dictionary resolves (heteronyms by frequency and context, which

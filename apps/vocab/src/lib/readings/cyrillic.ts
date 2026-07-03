@@ -1,5 +1,5 @@
 /**
- * Cyrillic to Latin transliteration (ADR-0104).
+ * Cyrillic to Latin transliteration (ADR-0105).
  *
  * Cyrillic is alphabetic and close to 1:1 with sound, so a rule-based
  * transliteration (`transliteration.transliterate`) is a genuine pronunciation

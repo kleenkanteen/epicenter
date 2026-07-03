@@ -1,4 +1,4 @@
-# 0104. Vocab is a multilingual tutor and readings are a client-side derived view
+# 0105. Vocab is a multilingual tutor and readings are a client-side derived view
 
 - **Status:** Accepted
 - **Date:** 2026-07-03

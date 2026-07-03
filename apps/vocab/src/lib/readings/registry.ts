@@ -1,6 +1,6 @@
 /**
  * The reading overlay: a small ordered registry of deterministic, per-script
- * romanizers (ADR-0104).
+ * romanizers (ADR-0105).
  *
  * A reading (pinyin over Han, romaji over kana, ...) is a client-side derived
  * view over clean message text: the tutor writes plain prose, the message is
@@ -49,7 +49,7 @@ export type ReadingProvider = {
  * lightweight package clears the "a wrong reading is worse than none" bar
  * (Korean RR needs cross-syllable assimilation the small packages get wrong;
  * Greek γ is unreliable in every phonetic library tried). Japanese kanji
- * (kuroshiro + kuromoji, ~12MB dict) is deferred as the heavy case. See ADR-0104
+ * (kuroshiro + kuromoji, ~12MB dict) is deferred as the heavy case. See ADR-0105
  * for the per-script reasoning. An AI-annotation provider for under-specifying
  * scripts is a deliberately refused, earned-later entry: it would be the only
  * provider needing a network call, so it is added only if an

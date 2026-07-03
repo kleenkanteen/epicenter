@@ -1,5 +1,5 @@
 /**
- * Shared run-walker for whole-run reading providers (ADR-0104).
+ * Shared run-walker for whole-run reading providers (ADR-0105).
  *
  * Most scripts take a reading over a whole run of the script at once (a kana
  * word to its romaji, a Cyrillic word to its transliteration). This walks the
