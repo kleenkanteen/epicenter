@@ -15,6 +15,9 @@
 	"bin": {
 		"local-books": "./src/bin.ts"
 	},
+	"exports": {
+		"./http/api": "./src/http/api.ts"
+	},
 	"scripts": {
 		"local-books": "bun run src/bin.ts",
 		"auth:remote": "infisical run --env=prod --path=/apps/local-books -- bun run src/bin.ts auth --qb-env production",
@@ -25,7 +28,10 @@
 		"build:binary": "bun build --compile --outfile dist/local-books src/bin.ts"
 	},
 	"dependencies": {
+		"@hono/standard-validator": "catalog:",
 		"@modelcontextprotocol/sdk": "catalog:",
+		"arktype": "catalog:",
+		"hono": "catalog:",
 		"ms": "catalog:",
 		"oauth4webapi": "catalog:",
 		"typebox": "catalog:",

@@ -352,6 +352,54 @@ export function openBooksDb(
 
 		readRealmState,
 
+		/**
+		 * A page of an entity's rows, newest first, for the browse surface. Returns
+		 * the id, the bookkeeping columns, and this entity's extracted scalar columns
+		 * (not `raw`, which is heavy and only the detail view needs), plus the total
+		 * row count so a caller can page. An entity with no table yet is empty, not an
+		 * error. The column list is built from the registry def, so every name is a
+		 * static identifier; SQLite sorts NULL `updated_at` last under DESC, so
+		 * never-dated rows fall to the bottom.
+		 */
+		pageRows(
+			def: EntityDef,
+			{ limit, offset }: { limit: number; offset: number },
+		): { rows: Record<string, unknown>[]; total: number } {
+			const table = def.table;
+			if (!tableExists(def.table)) return { rows: [], total: 0 };
+			const total =
+				db
+					.query<{ n: number }, []>(`SELECT count(*) AS n FROM ${table}`)
+					.get()?.n ?? 0;
+			const cols = [
+				'id',
+				'updated_at',
+				'synced_at',
+				'deleted',
+				...def.columns.map((c) => c.name),
+			].join(', ');
+			const rows = db
+				.query(
+					`SELECT ${cols} FROM ${table} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
+				)
+				.all(limit, offset) as Record<string, unknown>[];
+			return { rows, total };
+		},
+
+		/**
+		 * One row by id with its verbatim `raw` blob, for the detail view. Unlike
+		 * `getLiveRaw`, this returns soft-deleted rows too (the mirror still holds the
+		 * last-known blob), so the UI can show a removed record. `null` when the table
+		 * or the row does not exist.
+		 */
+		getRow(def: EntityDef, id: string): Record<string, unknown> | null {
+			if (!tableExists(def.table)) return null;
+			const row = db
+				.query(`SELECT * FROM ${def.table} WHERE id = ?`)
+				.get(id);
+			return (row as Record<string, unknown>) ?? null;
+		},
+
 		/** Whether this entity has had its first full pull, i.e. its table exists. */
 		isInitialized(def: EntityDef): boolean {
 			return tableExists(def.table);
