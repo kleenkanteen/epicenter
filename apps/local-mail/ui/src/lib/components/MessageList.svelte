@@ -22,7 +22,7 @@
 		selectedId,
 		loading,
 		error,
-		isFiltered,
+		mirrorEmpty,
 		onSelect,
 	}: {
 		messages: MessageSummary[];
@@ -30,13 +30,22 @@
 		selectedId: string | null;
 		loading: boolean;
 		error: string | null;
-		isFiltered: boolean;
+		mirrorEmpty: boolean;
 		onSelect: (id: string) => void;
 	} = $props();
 
 	const nameOf = $derived(
 		new Map(labels.map((l) => [l.id, labelDisplayName(l.id, l.name)])),
 	);
+
+	// Keep the keyboard-selected row visible: when the selection moves off the
+	// visible slice (j/k paging past the fold), scroll it just into view.
+	$effect(() => {
+		if (!selectedId) return;
+		document
+			.querySelector(`[data-message-id="${selectedId}"]`)
+			?.scrollIntoView({ block: 'nearest' });
+	});
 </script>
 
 <div class="flex min-w-0 flex-1 flex-col border-r border-border">
@@ -63,19 +72,19 @@
 	{:else if messages.length === 0}
 		<Empty.Root class="flex-1 border-0">
 			<Empty.Media variant="icon">
-				{#if isFiltered}
-					<SearchXIcon class="size-5" />
-				{:else}
+				{#if mirrorEmpty}
 					<InboxIcon class="size-5" />
+				{:else}
+					<SearchXIcon class="size-5" />
 				{/if}
 			</Empty.Media>
 			<Empty.Title>
-				{isFiltered ? 'No messages match' : 'No messages mirrored'}
+				{mirrorEmpty ? 'No messages mirrored' : 'No messages match'}
 			</Empty.Title>
 			<Empty.Description>
-				{isFiltered
-					? 'Try a different label or search term.'
-					: 'Run local-mail sync --full to populate the mirror.'}
+				{mirrorEmpty
+					? 'Run local-mail sync --full to populate the mirror.'
+					: 'Try a different label or search term.'}
 			</Empty.Description>
 		</Empty.Root>
 	{:else}
@@ -86,6 +95,7 @@
 				{@const chips = chipLabelIds(message.labelIds)}
 				<li>
 					<button
+						data-message-id={message.id}
 						class={cn(
 							'flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors',
 							selectedId === message.id

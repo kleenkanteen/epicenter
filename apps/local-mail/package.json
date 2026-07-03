@@ -16,7 +16,7 @@
 	},
 	"scripts": {
 		"test": "bun test",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit && tsc --noEmit -p test-support/tsconfig.json"
 	},
 	"dependencies": {
 		"@epicenter/constants": "workspace:*",
