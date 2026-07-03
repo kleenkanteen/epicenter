@@ -218,9 +218,13 @@
 		preview: string;
 		wordCount: number;
 	} {
-		const text = doc.textContent;
-		const firstNewline = text.indexOf('\n');
-		const firstLine = firstNewline === -1 ? text : text.slice(0, firstNewline);
+		// The title is the first block's text (the "first line"): `doc.textContent`
+		// joins every block with no separator, so a `\n` search never finds a break
+		// and the title would swallow the whole note. `textBetween` with a space
+		// separator keeps words from adjacent blocks from merging in the preview and
+		// word count.
+		const firstLine = doc.firstChild?.textContent ?? '';
+		const text = doc.textBetween(0, doc.content.size, ' ');
 		const trimmed = text.trim();
 		return {
 			title: firstLine.slice(0, 80).trim(),
@@ -350,9 +354,15 @@
 				class:
 					'prose dark:prose-invert max-w-none focus:outline-none min-h-full',
 			},
-			dispatchTransaction(tr) {
-				const newState = currentView.state.apply(tr);
-				currentView.updateState(newState);
+			// `this` is the EditorView (ProseMirror calls
+			// `dispatchTransaction.call(view, tr)`), which is the only handle that
+			// exists during the synchronous `ySyncPlugin` init render: that first
+			// dispatch fires from inside `new EditorView(...)`, before `currentView`
+			// has been assigned, so reading `currentView.state` here would throw and
+			// abort construction. Reading `this.state` is safe at every point.
+			dispatchTransaction(this: EditorView, tr) {
+				const newState = this.state.apply(tr);
+				this.updateState(newState);
 				updateActiveFormats(newState);
 				if (tr.docChanged) {
 					onContentChange(extractTitleAndPreview(newState.doc));
