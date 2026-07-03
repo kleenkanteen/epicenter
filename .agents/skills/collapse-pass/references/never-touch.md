@@ -22,7 +22,7 @@ Used by the browser-side workspace runtime (`packages/workspace/src/document/loc
 
 Used by the sync hub to address rooms (`packages/server/src/owner.ts`, `doName()`). Same shape on the wire: `/api/owners/:ownerId/rooms/:roomId`. Changing the format breaks the routing contract between client and hub.
 
-In personal mode `ownerId` is the signed-in user's id; in shared mode it is the literal `SHARED_OWNER_ID` (`'shared'`). The path is uniform across modes.
+In the per-user topology `ownerId` is the signed-in user's id; in the instance topology it is the literal `INSTANCE_OWNER_ID` (`'instance'`). The path is uniform across topologies.
 
 ### Public arktype schemas
 
@@ -30,13 +30,14 @@ Other apps validate inputs against these by name and shape. Renaming a field or 
 
 - `PersistedAuth` (`packages/auth/src/auth-types.ts`)
 - `ApiSessionResponse` (`packages/auth/src/auth-types.ts`)
-- `OwnerId`, `SHARED_OWNER_ID` (`packages/identity/src/identity.ts`); `UserId` (`packages/auth`)
+- `OwnerId`, `INSTANCE_OWNER_ID` (`packages/identity/src/identity.ts`); `UserId` (`packages/auth`)
 
 The ownership rule (`OwnershipRule` in `packages/server/src/ownership.ts`, a
-`'personal' | 'shared'` discriminated union built via `personal()` /
-`shared()`) is intentionally NOT in this list: it carries no arktype validator
-and never crosses the wire. It is server-internal deployment config, so
-renaming a variant (as the `team` -> `shared` rename did) is safe.
+`'perUser' | 'instance'` discriminated union selected via the exported
+`perUser` / `instance` constants) is intentionally NOT in this list: it carries
+no arktype validator and never crosses the wire. It is server-internal
+deployment config, so renaming a variant (as the `shared` -> `instance` and
+`personal` -> `perUser` renames did) is safe.
 
 ### Identity strings inside documents
 

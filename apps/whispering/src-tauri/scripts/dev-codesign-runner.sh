@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Tauri dev `build.runner` for macOS: build, codesign, then BECOME the app.
+# Tauri dev `build.runner` for macOS: build, codesign, then become the app.
 #
 # Why this exists
 # ---------------
@@ -15,15 +15,14 @@
 # cargo with a custom `build.runner` that it invokes as `<runner> run <args>`
 # and then treats as the long-lived app process (it kills this PID to restart
 # on file changes). So this runner does the one thing dev is missing: it builds,
-# re-signs the binary with a STABLE identity + identifier (constant designated
-# requirement across relinks, so the TCC grant sticks), then `exec`s the binary
-# so Tauri's monitored PID is the app itself.
+# overwrites the ad-hoc signature with a fixed identifier-only designated
+# requirement, then `exec`s the binary so Tauri's monitored PID is the app
+# itself.
 #
-# The signing identity is the only stable code-signing cert on the machine; a
-# DISTINCT identifier (so.epicenter.whispering.dev, not the production
-# so.epicenter.whispering) keeps dev and production as separate TCC entries, so
-# granting one never touches the other. Override the cert with
-# WHISPERING_DEV_SIGNING_IDENTITY if you have a dedicated one.
+# The fixed identifier (so.epicenter.whispering.dev, not the production
+# so.epicenter.whispering) keeps dev and production as separate TCC entries. The
+# explicit requirement keeps the dev TCC grant tied to the identifier instead of
+# the changing cdhash.
 #
 # This runner is wired in only on macOS (see scripts/launch-dev.ts); other
 # platforms run plain `tauri dev`.
@@ -76,24 +75,10 @@ while [ "$index" -lt "${#cargo_flags[@]}" ]; do
 done
 binary="$target_dir/${triple:+$triple/}$profile/whispering"
 
-# Pick the signing identity: an explicit override, else the first real cert
-# (Developer ID or Apple Development). A stable cert is what makes the grant
-# survive rebuilds; ad-hoc ("-") cannot, so say so loudly rather than pretend.
-identity="${WHISPERING_DEV_SIGNING_IDENTITY:-}"
-if [ -z "$identity" ]; then
-	identity="$(security find-identity -v -p codesigning \
-		| awk -F'"' '/Developer ID Application|Apple Development/ { print $2; exit }')"
-fi
-if [ -z "$identity" ]; then
-	echo "dev-codesign-runner: no stable signing identity found; falling back to ad-hoc." >&2
-	echo "dev-codesign-runner: the Accessibility grant will NOT persist across rebuilds." >&2
-	echo "dev-codesign-runner: set WHISPERING_DEV_SIGNING_IDENTITY or install a codesigning cert." >&2
-	identity="-"
-fi
-
 codesign --force \
-	--sign "$identity" \
+	--sign - \
 	--identifier "$DEV_IDENTIFIER" \
+	--requirements "=designated => identifier \"$DEV_IDENTIFIER\"" \
 	--entitlements "$SRC_TAURI/entitlements.plist" \
 	"$binary"
 

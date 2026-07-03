@@ -188,7 +188,7 @@ const cloudAssets = new Hono<Env>()
   .on(
     cloudAssetsAuthedMethods,
     '/owners/:ownerId/assets/*',
-    requireCookieOrBearerUser,
+    requireCookieOrBearerPrincipal,
     requireUrlOwnerIdMatchesAuth,
     attachOwner,
     autumnStorageGate,
@@ -196,16 +196,16 @@ const cloudAssets = new Hono<Env>()
   .on(
     ['POST'],
     '/owners/:ownerId/assets',
-    requireCookieOrBearerUser,
+    requireCookieOrBearerPrincipal,
     requireUrlOwnerIdMatchesAuth,
     attachOwner,
     autumnStorageGate,
   )
   // List + usage GETs need auth too:
   .use(cloudAssetsAuthedListGets[0],
-       requireCookieOrBearerUser, requireUrlOwnerIdMatchesAuth, attachOwner)
+       requireCookieOrBearerPrincipal, requireUrlOwnerIdMatchesAuth, attachOwner)
   .use(cloudAssetsAuthedListGets[1],
-       requireCookieOrBearerUser, requireUrlOwnerIdMatchesAuth, attachOwner)
+       requireCookieOrBearerPrincipal, requireUrlOwnerIdMatchesAuth, attachOwner)
   // GET /:id falls through to the library handler with NO auth above.
   // The handler runs auth conditionally based on row.visibility.
   .route('/', assets);
@@ -249,7 +249,7 @@ export function createAssetReadRoute(mode: OwnershipMode): Hono<Env> {
         });
         const sessionOwnerId = isPersonal
           ? session?.user?.id
-          : (session ? TEAM_OWNER_ID : undefined);
+          : (session ? INSTANCE_OWNER_ID : undefined);
         if (sessionOwnerId !== urlOwnerId) {
           return c.json(AssetError.Unauthorized(), 401);
         }
@@ -484,7 +484,7 @@ packages/server/src/middleware/attach-owner.ts
 apps/api/src/index.ts
   - split assets middleware by HTTP method:
       * POST/PATCH/DELETE on /owners/:ownerId/assets and
-        /owners/:ownerId/assets/*: requireCookieOrBearerUser,
+        /owners/:ownerId/assets/*: requireCookieOrBearerPrincipal,
         requireUrlOwnerIdMatchesAuth, attachOwner, autumnStorageGate
       * GET on /owners/:ownerId/assets (list) and /assets/usage:
         same chain (auth required)

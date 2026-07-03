@@ -35,8 +35,8 @@
 		"./links": "./src/links.ts",
 		"./document/keys": "./src/document/keys.ts",
 		"./document/presence": "./src/document/presence-protocol.ts",
-		"./document/dispatch-protocol": "./src/document/dispatch-protocol.ts",
 		"./document/y-keyvalue/y-keyvalue-lww": "./src/document/y-keyvalue/y-keyvalue-lww.ts",
+		"./shared/y-keyvalue/y-keyvalue-lww-encrypted": "./src/shared/y-keyvalue/y-keyvalue-lww-encrypted.ts",
 		"./document/attach-timeline": "./src/document/attach-timeline/index.ts"
 	},
 	"license": "MIT",
@@ -47,10 +47,11 @@
 	},
 	"dependencies": {
 		"@epicenter/agent-protocol": "workspace:*",
+		"@epicenter/encryption": "workspace:*",
 		"@epicenter/field": "workspace:*",
 		"@epicenter/identity": "workspace:*",
-		"@hono/standard-validator": "catalog:",
 		"@epicenter/sync": "workspace:*",
+		"@hono/standard-validator": "catalog:",
 		"@sindresorhus/slugify": "catalog:",
 		"@types/bun": "catalog:",
 		"arkregex": "catalog:",
@@ -74,7 +75,6 @@
 	},
 	"devDependencies": {
 		"@noble/ciphers": "^2.1.1",
-		"@noble/hashes": "^2.0.1",
 		"@types/diff": "^8.0.0",
 		"@types/node": "catalog:",
 		"fake-indexeddb": "^6.2.5",

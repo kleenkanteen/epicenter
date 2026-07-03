@@ -4,6 +4,8 @@ export {
 } from './app-auth-client.js';
 export type {
 	AuthClient,
+	AuthConnection,
+	AuthConnectionState,
 	AuthFetch,
 	AuthState,
 	SyncAuthClient,
@@ -11,9 +13,7 @@ export type {
 export * from './auth-errors.js';
 export {
 	ApiSessionResponse,
-	AuthUser,
-	asUserId,
-	UserId,
+	Principal,
 } from './auth-types.js';
 export {
 	type CreateOAuthAppAuthConfig,
@@ -21,7 +21,7 @@ export {
 } from './create-oauth-app-auth.js';
 export {
 	type Instance,
-	InstanceError,
+	InstanceUrlError,
 	normalizeInstanceUrl,
 } from './instance.js';
 export {
@@ -29,6 +29,16 @@ export {
 	type InstanceSetting,
 	loadInstanceSetting,
 } from './instance-setting.js';
+// The pure pieces of the single-partition instance bearer (self-host; ADR-0075):
+// `generateInstanceToken` mints a strong token (`gen-token`), `assertStrongToken`
+// is the boot entropy gate. They live here (not `@epicenter/server`) so a token
+// can be generated and validated without the server graph. The resolver side
+// (`createEnvTokenResolver`) stays in `@epicenter/server`.
+export {
+	assertStrongToken,
+	generateInstanceToken,
+	MIN_INSTANCE_TOKEN_CHARS,
+} from './instance-token.js';
 export {
 	type CreateInstanceTokenAuthConfig,
 	createInstanceTokenAuth,

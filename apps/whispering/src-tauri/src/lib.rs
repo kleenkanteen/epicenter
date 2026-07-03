@@ -30,6 +30,9 @@ use command::{
 pub mod download;
 use download::{cancel_download, DownloadManager};
 
+pub mod keyring_storage;
+use keyring_storage::{keyring_read, keyring_write};
+
 pub mod media;
 use media::{pause_playback, resume_playback};
 
@@ -90,6 +93,8 @@ fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             cancel_download,
             pause_playback,
             resume_playback,
+            keyring_read,
+            keyring_write,
             keyboard::commands::set_keyboard_shortcuts,
             keyboard::commands::set_auto_paste_enabled,
             keyboard::commands::set_keyboard_capturing,
@@ -253,6 +258,7 @@ pub async fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .manage(Mutex::new(Recorder::new()))
         // Registry of in-flight model downloads; `cancel_download` aborts them.
         .manage(DownloadManager::default())
@@ -282,6 +288,15 @@ pub async fn run() {
             // (hidden); the frontend shows it when recording starts.
             #[cfg(target_os = "macos")]
             overlay::create_recording_overlay(app.handle());
+
+            // Register the `epicenter-whispering://` scheme at runtime on
+            // Windows and Linux (macOS registers it from the bundle plist).
+            // Lets the OAuth sign-in deep-link callback reach the running app.
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                app.deep_link().register_all()?;
+            }
 
             Ok(())
         });

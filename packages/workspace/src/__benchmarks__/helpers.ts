@@ -84,7 +84,7 @@ export function makeHeavyRow(id: string, contentChars: number) {
 }
 
 export const sampleEventPayload = JSON.stringify({
-	userId: 'usr-001',
+	principalId: 'principal-001',
 	action: 'click',
 	target: 'button.submit',
 	metadata: { page: '/dashboard', sessionId: 'sess-abc123' },

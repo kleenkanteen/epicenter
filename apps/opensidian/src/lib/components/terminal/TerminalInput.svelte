@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 
-	const opensidian = requireOpensidian();
 	let value = $state('');
 	let inputEl: HTMLInputElement | undefined = $state();
 

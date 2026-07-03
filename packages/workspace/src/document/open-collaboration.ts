@@ -1,50 +1,23 @@
 /**
  * `openCollaboration`: the one collaboration primitive on a document.
  *
- * Connects a Yjs document to the relay, derives per-peer liveness and action
- * manifests from the server-owned presence channel, and wires inbound dispatch
- * text frames to the local action registry. Caller-side dispatch also rides
- * this socket: it sends `dispatch_request` and resolves from `dispatch_result`.
+ * Connects a Yjs document to the relay and derives per-peer liveness from the
+ * server-owned presence channel.
  *
  * Two wire surfaces ride one auth context:
  *
  *   binary WS frames  -> standard y-protocols SYNC.
- *   text WS frames    -> server -> client: presence (the full peer list
- *                        including each peer's action manifest, sent on
- *                        every membership or manifest change);
+ *   text WS frames    -> server -> client: presence (the full peer list, sent on
+ *                        every membership change);
  *                        client -> server: presence_publish (this node's
- *                        manifest, sent once per connect) and
- *                        dispatch_request / dispatch_response;
- *                        server -> client: dispatch_inbound / dispatch_result.
+ *                        identity: agent designation), sent once per connect.
  *
  * The Y.Doc holds durable workspace state; presence lives on the relay's
- * `connections` map; dispatch lives on the authenticated WebSocket.
- *
- * Content docs (rich-text bodies, attachments, nested independently-syncing
- * docs) use the same primitive with `actions: {}`: dispatch handlers stay
- * inert, the published manifest is empty, presence still flows in over the
- * socket for online discovery.
+ * `connections` map. Actions live on the workspace bundle, not collaboration.
  */
 
 import type { Logger } from 'wellcrafted/logger';
-import type { Result } from 'wellcrafted/result';
 import type * as Y from 'yjs';
-import {
-	ACTION_KEY_PATTERN,
-	type ActionManifest,
-	type ActionRegistry,
-	toActionMeta,
-} from '../shared/actions.js';
-import {
-	DispatchError,
-	type DispatchRequest,
-	interpretDispatchResult,
-	runInboundDispatch,
-} from './dispatch.js';
-import {
-	checkDispatchResultFrame,
-	type DispatchRequestFrame,
-} from './dispatch-protocol.js';
 import {
 	createSyncSupervisor,
 	type OpenWebSocketFn,
@@ -54,8 +27,6 @@ import {
 	type Peer,
 	type PresencePublishFrame,
 } from './presence-protocol.js';
-
-const DISPATCH_RESPONSE_CEILING_MS = 90_000;
 
 // ════════════════════════════════════════════════════════════════════════════
 // PUBLIC TYPES
@@ -76,7 +47,7 @@ export type { OpenWebSocketFn };
  */
 export type OnReconnectSignal = (fn: () => void) => () => void;
 
-export type OpenCollaborationConfig<TActions extends ActionRegistry> = {
+export type OpenCollaborationConfig = {
 	/**
 	 * WebSocket URL the supervisor connects to, used verbatim. Callers
 	 * build it via {@link roomWsUrl} (or any custom builder); the wire
@@ -107,14 +78,6 @@ export type OpenCollaborationConfig<TActions extends ActionRegistry> = {
 	 */
 	connectDeadlineMs?: number;
 	log?: Logger;
-	/**
-	 * Injected local action registry. Collaboration publishes this registry to
-	 * peers and uses it for inbound dispatch, but the caller remains the
-	 * registry owner. Pass `{}` for content docs and consume-only participants.
-	 * When the registry is empty, inbound `dispatch_inbound` frames always reply
-	 * with `ActionNotFound`.
-	 */
-	actions: TActions;
 	/**
 	 * The catalog agent this peer answers as (ADR-0025), published in presence so
 	 * peers can see which agent ids are live. Set only by a resident agent mount
@@ -151,112 +114,59 @@ function withConnectDeadline(
 	});
 }
 
-export function openCollaboration<TActions extends ActionRegistry>(
+export function openCollaboration(
 	ydoc: Y.Doc,
-	config: OpenCollaborationConfig<TActions>,
+	config: OpenCollaborationConfig,
 ) {
-	const userActions = config.actions;
-
-	for (const key of Object.keys(userActions)) {
-		if (!ACTION_KEY_PATTERN.test(key)) {
-			throw new Error(
-				`Invalid action key "${key}". Action keys must match ${ACTION_KEY_PATTERN.source} (snake_case ASCII, starting with a letter, max 64 chars).`,
-			);
-		}
-	}
-
-	const pendingDispatches = new Map<
-		string,
-		(result: Result<unknown, DispatchError>) => void
-	>();
-
-	function settlePendingDispatches(cause: unknown): void {
-		const pending = [...pendingDispatches.values()];
-		for (const settle of pending) {
-			settle(DispatchError.NetworkFailed({ cause }));
-		}
-	}
-
 	// Server-owned presence: the relay pushes the full peer list as a
-	// `presence` text frame on every membership or manifest change. Each entry
-	// carries the peer's nodeId, connectedAt, and published action
-	// manifest. The client stores the latest list and notifies subscribers;
+	// `presence` text frame on every membership or identity change. Each entry
+	// carries the peer's nodeId, connectedAt, and optional identity fields. The
+	// client stores the latest list and notifies subscribers;
 	// there is no delta protocol and no client-side reassembly. The relay
 	// dedupes multi-tab same-node (newest-wins by connectedAt) and excludes
 	// the receiver's own node, so the client stores `peers` verbatim.
 	let remotePeers: Peer[] = [];
 	const presenceListeners = new Set<(peers: Peer[]) => void>();
 
-	// Returns true if `text` was a recognized `presence` frame (and thus
-	// consumed); false if the caller should route it elsewhere (dispatch).
-	function handlePresenceFrame(text: string): boolean {
+	// Store the latest peer list from a recognized `presence` frame; ignore
+	// any other text frame.
+	function handlePresenceFrame(text: string): void {
 		let parsed: unknown;
 		try {
 			parsed = JSON.parse(text);
 		} catch {
-			return false;
+			return;
 		}
-		if (!checkPresenceFrame.Check(parsed)) return false;
+		if (!checkPresenceFrame.Check(parsed)) return;
 		remotePeers = parsed.peers;
 		for (const listener of presenceListeners) listener(remotePeers);
-		return true;
 	}
 
-	// Build the manifest once at construction time. The action registry is
-	// fixed for the lifetime of this Collaboration, so we cache the JSON form
-	// and publish it on every (re)connect.
-	const ownManifest: ActionManifest = {};
-	for (const [key, action] of Object.entries(userActions)) {
-		ownManifest[key] = toActionMeta(action);
-	}
+	// This node publishes only its identity in presence. Actions stay local; the
+	// wire carries no action manifest (ADR-0073 deleted the in-room dispatch
+	// subsystem).
 	const presencePublishFrame = JSON.stringify({
 		type: 'presence_publish',
-		actions: ownManifest,
 		agentId: config.agentId,
 	} satisfies PresencePublishFrame);
-
-	function handleDispatchResultFrame(text: string): boolean {
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(text);
-		} catch {
-			return false;
-		}
-		if (!checkDispatchResultFrame.Check(parsed)) return false;
-		const settle = pendingDispatches.get(parsed.id);
-		if (!settle) return true;
-		settle(interpretDispatchResult(parsed.result));
-		return true;
-	}
 
 	const supervisor = createSyncSupervisor(ydoc, {
 		url: config.url,
 		waitFor: config.waitFor,
 		openWebSocket: config.openWebSocket,
 		log: config.log,
-		// Text frames carry two unrelated server-to-client channels:
-		// presence (the full peer list) and dispatch. Try presence first,
-		// then caller-side dispatch results, then recipient-side inbound calls.
+		// Text frames carry the server-owned presence channel.
 		onTextFrame(text) {
-			if (handlePresenceFrame(text)) return;
-			if (handleDispatchResultFrame(text)) return;
-			void runInboundDispatch({ rawFrame: text, actions: userActions }).then(
-				(response) => {
-					if (response !== null) supervisor.send(response);
-				},
-			);
+			handlePresenceFrame(text);
 		},
 	});
 
 	const unsubscribeStatusListener = supervisor.onStatusChange((status) => {
+		// Publish this node's presence identity on every (re)connect. The relay
+		// stores it against the new socket and rebroadcasts presence so peers see it.
 		if (status.phase === 'connected') {
-			// Publish this node's action manifest on every (re)connect. The
-			// relay stores it against the new socket and rebroadcasts presence
-			// so peers see it.
 			supervisor.send(presencePublishFrame);
-			return;
 		}
-		settlePendingDispatches(new Error('Dispatch connection lost'));
 	});
 
 	// Reconnect wake: tell the live socket to retry whenever the caller signals
@@ -271,7 +181,6 @@ export function openCollaboration<TActions extends ActionRegistry>(
 	void supervisor.whenDisposed.then(() => {
 		unsubscribeStatusListener();
 		unsubscribeReconnectSignal();
-		settlePendingDispatches(new Error('Dispatch connection disposed'));
 	});
 
 	// `peers` reads the latest relay-pushed presence list directly.
@@ -295,10 +204,6 @@ export function openCollaboration<TActions extends ActionRegistry>(
 			: withConnectDeadline(supervisor.whenConnected, config.connectDeadlineMs);
 
 	return {
-		/** Local action registry published through this collaboration handle. */
-		get actions() {
-			return userActions;
-		},
 		/** Current sync lifecycle status. */
 		get status() {
 			return supervisor.status;
@@ -318,69 +223,6 @@ export function openCollaboration<TActions extends ActionRegistry>(
 		get peers() {
 			return peers;
 		},
-		/**
-		 * Fire a dispatch over the collaboration WebSocket. Always returns
-		 * `Result<unknown, DispatchError>`.
-		 */
-		dispatch(req: DispatchRequest): Promise<Result<unknown, DispatchError>> {
-			if (req.signal?.aborted) {
-				return Promise.resolve(
-					DispatchError.Cancelled({ reason: req.signal.reason }),
-				);
-			}
-			if (supervisor.status.phase !== 'connected') {
-				return Promise.resolve(
-					DispatchError.NetworkFailed({
-						cause: {
-							reason: 'dispatch socket is not connected',
-							phase: supervisor.status.phase,
-						},
-					}),
-				);
-			}
-
-			const id = crypto.randomUUID();
-			return new Promise<Result<unknown, DispatchError>>((resolve) => {
-				let settle: (result: Result<unknown, DispatchError>) => void;
-				const onAbort = () => {
-					settle(DispatchError.Cancelled({ reason: req.signal?.reason }));
-				};
-				const ceiling = setTimeout(() => {
-					settle(
-						DispatchError.NetworkFailed({
-							cause: {
-								reason: 'no dispatch result from relay before ceiling',
-								timeoutMs: DISPATCH_RESPONSE_CEILING_MS,
-							},
-						}),
-					);
-				}, DISPATCH_RESPONSE_CEILING_MS);
-
-				settle = (result) => {
-					if (!pendingDispatches.delete(id)) return;
-					clearTimeout(ceiling);
-					req.signal?.removeEventListener('abort', onAbort);
-					resolve(result);
-				};
-
-				pendingDispatches.set(id, settle);
-				req.signal?.addEventListener('abort', onAbort, { once: true });
-
-				try {
-					supervisor.send(
-						JSON.stringify({
-							type: 'dispatch_request',
-							id,
-							to: req.to,
-							action: req.action,
-							input: req.input,
-						} satisfies DispatchRequestFrame),
-					);
-				} catch (cause) {
-					settle(DispatchError.NetworkFailed({ cause }));
-				}
-			});
-		},
 		/** Destroy the Y.Doc, cascading teardown to attached primitives. */
 		[Symbol.dispose]() {
 			ydoc.destroy();
@@ -388,5 +230,4 @@ export function openCollaboration<TActions extends ActionRegistry>(
 	};
 }
 
-export type Collaboration<TActions extends ActionRegistry = ActionRegistry> =
-	ReturnType<typeof openCollaboration<TActions>>;
+export type Collaboration = ReturnType<typeof openCollaboration>;

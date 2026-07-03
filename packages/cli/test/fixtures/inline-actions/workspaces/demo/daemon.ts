@@ -50,8 +50,9 @@ const collaboration = {
 		list: () => [],
 		subscribe: () => () => {},
 	},
-	dispatch: async () => {
-		throw new Error('fixture does not dispatch');
+	textPort: {
+		send: () => {},
+		subscribe: () => () => {},
 	},
 	[Symbol.dispose]() {
 		ydoc.destroy();

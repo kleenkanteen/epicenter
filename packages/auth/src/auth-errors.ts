@@ -30,3 +30,25 @@ export const AuthError = defineErrors({
 });
 
 export type AuthError = InferErrors<typeof AuthError>;
+
+/**
+ * Thrown (not returned) by `SyncAuthClient.openWebSocket` when no usable
+ * bearer can be attached: a protected socket is never opened credential-less.
+ * The error object conforms to the `OpenWebSocketDenial` contract in
+ * `@epicenter/sync`, which the sync supervisor classifies: `'permanent'`
+ * parks sync until the auth state changes, `'transient'` backs off and
+ * retries.
+ */
+export const OpenWebSocketDenied = defineErrors({
+	OpenWebSocketDenied: ({
+		permanence,
+		code,
+	}: {
+		permanence: 'permanent' | 'transient';
+		code: string;
+	}) => ({
+		message: `No usable bearer for the WebSocket upgrade (${code}).`,
+		permanence,
+		code,
+	}),
+}).OpenWebSocketDenied;

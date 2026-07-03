@@ -3,11 +3,10 @@
 	import { ScrollArea } from '@epicenter/ui/scroll-area';
 	import { Separator } from '@epicenter/ui/separator';
 	import { X } from '@lucide/svelte';
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 	import TerminalInput from './TerminalInput.svelte';
 	import TerminalOutput from './TerminalOutput.svelte';
 
-	const opensidian = requireOpensidian();
 	let inputRef: ReturnType<typeof TerminalInput> | undefined = $state();
 	let viewportRef: HTMLElement | null = $state(null);
 

@@ -236,23 +236,26 @@ async function makeRoom(): Promise<{ room: RoomLike; ctx: StubCtx }> {
 	return { room, ctx };
 }
 
-function upgradeRequest(nodeId: string, userId = 'user-test'): Request {
-	return new Request(`https://relay.test/?userId=${userId}&nodeId=${nodeId}`, {
-		method: 'GET',
-		headers: {
-			Upgrade: 'websocket',
-			'sec-websocket-protocol': 'epicenter',
+function upgradeRequest(nodeId: string, principalId = 'user-test'): Request {
+	return new Request(
+		`https://relay.test/?principalId=${principalId}&nodeId=${nodeId}`,
+		{
+			method: 'GET',
+			headers: {
+				Upgrade: 'websocket',
+				'sec-websocket-protocol': 'epicenter',
+			},
 		},
-	});
+	);
 }
 
 /** Drive an upgrade end-to-end and return the server-side socket. */
 async function upgrade(
 	room: RoomLike,
 	nodeId: string,
-	userId = 'user-test',
+	principalId = 'user-test',
 ): Promise<StubWebSocket> {
-	const response = await room.fetch(upgradeRequest(nodeId, userId));
+	const response = await room.fetch(upgradeRequest(nodeId, principalId));
 	expect(response.status).toBe(101);
 	// In real CF the response carries the CLIENT socket on `response.webSocket`;
 	// Bun's `Response` ignores the field but the server socket is the
@@ -265,7 +268,6 @@ async function upgrade(
 type WirePeer = {
 	nodeId: string;
 	connectedAt: number;
-	actions: Record<string, unknown>;
 	agentId?: string;
 };
 type PresenceFrame = { type: 'presence'; peers: WirePeer[] };
@@ -295,7 +297,7 @@ function presenceFrames(ws: StubWebSocket): PresenceFrame[] {
 }
 
 /** Project a presence frame down to just its nodeIds, for assertions
- *  that don't care about connectedAt timestamps or action manifests. */
+ *  that don't care about connectedAt timestamps. */
 function nodeIds(frame: PresenceFrame): string[] {
 	return frame.peers.map((d) => d.nodeId);
 }
@@ -343,7 +345,7 @@ describe('Room presence: directed frame on upgrade', () => {
 		expect(nodeIds(presenceFrames(ws)[0]!)).toEqual(['B']);
 	});
 
-	test('directed frame entries include connectedAt and an empty actions manifest by default', async () => {
+	test('directed frame entries include connectedAt and carry no action manifest', async () => {
 		const { room } = await makeRoom();
 		await upgrade(room, 'A');
 		const ws = await upgrade(room, 'B');
@@ -353,7 +355,7 @@ describe('Room presence: directed frame on upgrade', () => {
 		expect(nodeA).toBeDefined();
 		expect(nodeA!.nodeId).toBe('A');
 		expect(typeof nodeA!.connectedAt).toBe('number');
-		expect(nodeA!.actions).toEqual({});
+		expect(nodeA).not.toHaveProperty('actions');
 	});
 });
 
@@ -365,7 +367,6 @@ describe('Room presence: agent designation', () => {
 			daemonWs,
 			JSON.stringify({
 				type: 'presence_publish',
-				actions: {},
 				agentId: 'vocab-home',
 			}),
 		);
@@ -657,186 +658,11 @@ describe('Room connection lifetime', () => {
 	});
 });
 
-describe('Room sync: HTTP sync RPC', () => {
-	test('a malformed sync body resolves to Err(MalformedSyncBody)', async () => {
-		const { room } = await makeRoom();
-		// A length prefix claiming 10 payload bytes that are not present:
-		// lib0 readVarUint8Array underflows inside decodeSyncRequest.
-		const { error } = await room.sync(new Uint8Array([10]));
-
-		expect(error?.name).toBe('MalformedSyncBody');
-	});
-});
-
 // ────────────────────────────────────────────────────────────────────────────
-// DISPATCH
+// TEXT FRAMES
 // ────────────────────────────────────────────────────────────────────────────
 
-describe('Room dispatch: relay round trip', () => {
-	test('dispatch_request routes dispatch_inbound to the recipient', async () => {
-		const { room } = await makeRoom();
-		const callerWs = await upgrade(room, 'caller');
-		const recipientWs = await upgrade(room, 'recipient');
-
-		await room.webSocketMessage(
-			callerWs,
-			JSON.stringify({
-				type: 'dispatch_request',
-				id: 'd1',
-				to: 'recipient',
-				action: 'noop_ping',
-				input: { x: 1 },
-			}),
-		);
-
-		const inbound = jsonFrames(recipientWs, 'dispatch_inbound');
-		expect(inbound).toHaveLength(1);
-		expect(inbound[0]).toMatchObject({
-			id: 'd1',
-			action: 'noop_ping',
-			input: { x: 1 },
-		});
-	});
-
-	test('dispatch_response routes a dispatch_result back to the caller', async () => {
-		const { room } = await makeRoom();
-		const callerWs = await upgrade(room, 'caller');
-		const recipientWs = await upgrade(room, 'recipient');
-
-		await room.webSocketMessage(
-			callerWs,
-			JSON.stringify({
-				type: 'dispatch_request',
-				id: 'd2',
-				to: 'recipient',
-				action: 'noop_ping',
-			}),
-		);
-		await room.webSocketMessage(
-			recipientWs,
-			JSON.stringify({
-				type: 'dispatch_response',
-				id: 'd2',
-				result: { data: 'pong', error: null },
-			}),
-		);
-
-		const results = jsonFrames(callerWs, 'dispatch_result');
-		expect(results).toHaveLength(1);
-		expect(results[0]).toMatchObject({
-			id: 'd2',
-			result: { data: 'pong', error: null },
-		});
-	});
-
-	test('dispatch_response from a non-recipient socket is ignored', async () => {
-		const { room } = await makeRoom();
-		const callerWs = await upgrade(room, 'caller');
-		const recipientWs = await upgrade(room, 'recipient');
-		const impostorWs = await upgrade(room, 'impostor');
-
-		await room.webSocketMessage(
-			callerWs,
-			JSON.stringify({
-				type: 'dispatch_request',
-				id: 'd3',
-				to: 'recipient',
-				action: 'noop_ping',
-			}),
-		);
-		// A peer that is not the dispatch target cannot forge the result, even
-		// if it learns the id.
-		await room.webSocketMessage(
-			impostorWs,
-			JSON.stringify({
-				type: 'dispatch_response',
-				id: 'd3',
-				result: { data: 'spoofed', error: null },
-			}),
-		);
-		expect(jsonFrames(callerWs, 'dispatch_result')).toHaveLength(0);
-
-		// The real recipient still resolves it: the pending entry survived the
-		// impostor.
-		await room.webSocketMessage(
-			recipientWs,
-			JSON.stringify({
-				type: 'dispatch_response',
-				id: 'd3',
-				result: { data: 'pong', error: null },
-			}),
-		);
-		const results = jsonFrames(callerWs, 'dispatch_result');
-		expect(results).toHaveLength(1);
-		expect(results[0]).toMatchObject({
-			id: 'd3',
-			result: { data: 'pong', error: null },
-		});
-	});
-});
-
-describe('Room dispatch: recipient offline', () => {
-	test('no live socket for `to`: immediate RecipientOffline result', async () => {
-		const { room } = await makeRoom();
-		const callerWs = await upgrade(room, 'caller');
-
-		await room.webSocketMessage(
-			callerWs,
-			JSON.stringify({
-				type: 'dispatch_request',
-				id: 'd3',
-				to: 'ghost',
-				action: 'noop_ping',
-			}),
-		);
-
-		const results = jsonFrames(callerWs, 'dispatch_result');
-		expect(results).toHaveLength(1);
-		expect(results[0]).toMatchObject({
-			id: 'd3',
-			result: { error: { name: 'RecipientOffline', to: 'ghost' } },
-		});
-	});
-
-	test('recipient socket closing mid-dispatch fails the caller', async () => {
-		const { room } = await makeRoom();
-		const callerWs = await upgrade(room, 'caller');
-		const recipientWs = await upgrade(room, 'recipient');
-
-		await room.webSocketMessage(
-			callerWs,
-			JSON.stringify({
-				type: 'dispatch_request',
-				id: 'd4',
-				to: 'recipient',
-				action: 'noop_ping',
-			}),
-		);
-		await room.webSocketClose(recipientWs, 1000, 'bye', true);
-
-		const results = jsonFrames(callerWs, 'dispatch_result');
-		expect(results).toHaveLength(1);
-		expect(results[0]).toMatchObject({
-			id: 'd4',
-			result: { error: { name: 'RecipientOffline' } },
-		});
-	});
-});
-
-describe('Room dispatch: malformed frames', () => {
-	test('a dispatch_request missing fields is dropped, the socket stays open', async () => {
-		const { room } = await makeRoom();
-		const callerWs = await upgrade(room, 'caller');
-
-		await room.webSocketMessage(
-			callerWs,
-			JSON.stringify({ type: 'dispatch_request', id: 'd5' }),
-		);
-
-		expect(callerWs.closeCalls).toHaveLength(0);
-		expect(jsonFrames(callerWs, 'dispatch_result')).toHaveLength(0);
-	});
-
+describe('Room: malformed text frames', () => {
 	test('an unknown text frame type closes the socket with 4400', async () => {
 		const { room } = await makeRoom();
 		const callerWs = await upgrade(room, 'caller');

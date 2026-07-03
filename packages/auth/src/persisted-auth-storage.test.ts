@@ -12,8 +12,7 @@ const cell = PersistedAuth.assert({
 		refreshToken: 'refresh',
 		accessTokenExpiresAt: 1_000_000,
 	},
-	userId: 'user-1',
-	ownerId: 'user-1',
+	principalId: 'user-1',
 });
 
 describe('createWebStoragePersistedAuthStorage', () => {

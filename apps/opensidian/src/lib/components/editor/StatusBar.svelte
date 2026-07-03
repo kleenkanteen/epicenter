@@ -5,13 +5,9 @@
 	import * as Popover from '@epicenter/ui/popover';
 	import { Switch } from '@epicenter/ui/switch';
 	import * as Tooltip from '@epicenter/ui/tooltip';
-	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import TerminalIcon from '@lucide/svelte/icons/terminal';
-	import { requireOpensidian } from '$lib/session';
-
-	const opensidian = requireOpensidian();
-	let { chatOpen = $bindable(false) }: { chatOpen: boolean } = $props();
+	import { opensidian } from '$lib/opensidian';
 
 	let popoverOpen = $state(false);
 </script>
@@ -49,23 +45,6 @@
 					{/snippet}
 				</Tooltip.Trigger>
 				<Tooltip.Content>Toggle terminal (⌘`)</Tooltip.Content>
-			</Tooltip.Root>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<Button
-							{...props}
-							variant={chatOpen ? 'secondary': 'ghost'}
-							size="sm"
-							class="h-5 gap-1 px-1.5 text-xs text-muted-foreground"
-							onclick={() => (chatOpen = !chatOpen)}
-						>
-							<MessageSquareIcon class="size-3" />
-							AI Chat
-						</Button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content>Toggle AI chat (⌘⇧L)</Tooltip.Content>
 			</Tooltip.Root>
 		</Tooltip.Provider>
 

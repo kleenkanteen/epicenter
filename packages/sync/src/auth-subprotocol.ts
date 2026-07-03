@@ -35,3 +35,47 @@ export function parseSubprotocols(header: string | null): string[] {
 	if (!header) return [];
 	return header.split(',').map((s) => s.trim());
 }
+
+/**
+ * Rejection an auth-owned `openWebSocket` throws when it refuses to open a
+ * socket because no usable bearer can be attached right now.
+ *
+ * `permanence` carries the same semantics as the server's auth close codes,
+ * so the sync supervisor makes one park-or-backoff decision for both failure
+ * carriers:
+ *
+ * - `'permanent'` (like close 4401): only an auth state change can produce a
+ *   credential (signed out, reauth required). Park; `auth.onStateChange` is
+ *   the wake signal.
+ * - `'transient'` (like close 4503): credential verification was unreachable;
+ *   the grant may be perfectly good. Back off and retry.
+ *
+ * `code` names the specific refusal (`'signed-out'`, `'reauth-required'`,
+ * `'auth-unavailable'`) for status surfaces and logs; consumers branch on
+ * `permanence`, not `code`.
+ *
+ * Declared here, beside the subprotocol carrier, because it is the other half
+ * of the same client-side transport contract: `@epicenter/auth` constructs it
+ * and the sync supervisor classifies it, and both already depend on this
+ * package.
+ */
+export type OpenWebSocketDenial = {
+	name: 'OpenWebSocketDenied';
+	message: string;
+	permanence: 'permanent' | 'transient';
+	code: string;
+};
+
+/** Classify an unknown rejection as an {@link OpenWebSocketDenial}. */
+export function isOpenWebSocketDenial(
+	value: unknown,
+): value is OpenWebSocketDenial {
+	if (typeof value !== 'object' || value === null) return false;
+	const candidate = value as Partial<OpenWebSocketDenial>;
+	return (
+		candidate.name === 'OpenWebSocketDenied' &&
+		(candidate.permanence === 'permanent' ||
+			candidate.permanence === 'transient') &&
+		typeof candidate.code === 'string'
+	);
+}

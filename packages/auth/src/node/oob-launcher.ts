@@ -8,8 +8,7 @@
  * containing a 3-field `OAuthTokenGrant`.
  *
  * The launcher is concerned only with the OAuth dance. The caller pairs the
- * returned grant with `GET /api/session` to fill in the `userId` and `ownerId`
- * fields of `PersistedAuth`.
+ * returned grant with `GET /api/session` to fill in the persisted `principalId`.
  */
 
 import { spawn } from 'node:child_process';

@@ -12,6 +12,7 @@
  * See spec: `20260429T004302-workspace-as-daemon-transport.md` § Phase 2.
  */
 
+import { once } from 'wellcrafted/function';
 import { Ok, type Result, tryAsync, trySync } from 'wellcrafted/result';
 
 import { buildDaemonApp } from './app.js';
@@ -35,7 +36,6 @@ function createDaemonServer({
 	server: ReturnType<typeof bindUnixSocket>;
 	socketPath: string;
 }) {
-	let isClosed = false;
 	return {
 		/** Filesystem path of the unix socket this server binds. */
 		socketPath,
@@ -44,15 +44,13 @@ function createDaemonServer({
 		 * itself; this method also sweeps any leftover socket file as a guard
 		 * for hard-error paths. Idempotent.
 		 */
-		async close() {
-			if (isClosed) return;
-			isClosed = true;
+		close: once(async () => {
 			await tryAsync({
 				try: () => server.stop(true),
 				catch: () => Ok(undefined),
 			});
 			unlinkSocketFile(socketPath);
-		},
+		}),
 	};
 }
 

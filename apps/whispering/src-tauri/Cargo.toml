@@ -39,6 +39,7 @@ specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 tauri = { version = "2", features = ["protocol-asset", "macos-private-api", "image-png", "tray-icon"] }
+tauri-plugin-deep-link = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-dialog = "2"
@@ -53,6 +54,11 @@ enigo = "0.5.0"
 cpal = "0.18.1"
 tracing = "0.1.41"
 thiserror = "2.0.12"
+# OS credential store for the persisted OAuth grant (src/keyring_storage.rs):
+# Keychain Services on macOS, Credential Manager on Windows, Secret Service
+# (via zbus, pure Rust) on Linux. The default `v1` feature already selects the
+# right native backend per platform, so no per-OS feature flags are needed.
+keyring = "4"
 hound = "3.5"
 lazy_static = "1.4"
 tempfile = "3.8"
@@ -132,7 +138,9 @@ zbus = { version = "5", default-features = false, features = ["tokio"] }
 # and modifier-only holds (which it cannot express) fall to the Tier-1 tap in
 # `src/keyboard/`.
 tauri-plugin-global-shortcut = "2"
-tauri-plugin-single-instance = "2"
+# `deep-link` feature lets the running instance receive OAuth callback URLs on
+# Linux/Windows, where the second launch forwards them through single-instance.
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-updater = "2"
 # Low-level global keyboard listener for the desktop trigger backend
 # (`src/keyboard/`). The rustdesk fork (not the unmaintained upstream) is what

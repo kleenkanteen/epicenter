@@ -34,12 +34,16 @@ export type AgentToolCallPart = {
 	input: JsonValue;
 };
 
-/** The outcome of running a tool call, flagged when it is an error. */
+/**
+ * The outcome of running a tool call. `content` is what the model re-reads;
+ * `details` is optional structured JSON for renderers.
+ */
 export type AgentToolResultPart = {
 	type: 'tool-result';
 	toolCallId: string;
 	toolName: string;
-	output: JsonValue;
+	content: string;
+	details?: JsonValue;
 	isError: boolean;
 };
 
@@ -122,10 +126,7 @@ export function toModelMessages(messages: AgentMessage[]): ModelMessage[] {
 				role: 'tool',
 				toolCallId: part.toolCallId,
 				name: part.toolName,
-				content:
-					typeof part.output === 'string'
-						? part.output
-						: JSON.stringify(part.output),
+				content: part.content,
 			});
 		}
 	}

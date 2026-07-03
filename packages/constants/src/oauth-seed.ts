@@ -2,13 +2,13 @@ import type { SchemaClient } from '@better-auth/oauth-provider';
 import { APPS, appOrigins } from '#apps';
 import {
 	EPICENTER_CLI_OAUTH_CLIENT_ID,
-	EPICENTER_FUJI_OAUTH_CLIENT_ID,
-	EPICENTER_FUJI_TAURI_OAUTH_REDIRECT_URI,
 	EPICENTER_HONEYCRISP_OAUTH_CLIENT_ID,
 	EPICENTER_OAUTH_SCOPES,
 	EPICENTER_OPENSIDIAN_OAUTH_CLIENT_ID,
 	EPICENTER_TAB_MANAGER_OAUTH_CLIENT_ID,
 	EPICENTER_VOCAB_OAUTH_CLIENT_ID,
+	EPICENTER_WHISPERING_OAUTH_CLIENT_ID,
+	EPICENTER_WHISPERING_TAURI_OAUTH_REDIRECT_URI,
 } from './oauth-clients.js';
 import { OAUTH_ROUTES } from './oauth-routes.js';
 
@@ -50,8 +50,7 @@ const AUTH_CALLBACK_PATH = '/auth/callback';
 /**
  * Every redirect URI for an app that owns its origin: each origin the app
  * answers on ({@link appOrigins}, i.e. dev plus prod) joined to
- * {@link AUTH_CALLBACK_PATH}. Used by Fuji, Honeycrisp, Opensidian, and
- * Vocab.
+ * {@link AUTH_CALLBACK_PATH}. Used by Honeycrisp, Opensidian, and Vocab.
  */
 function appCallbacks(app: {
 	port: number;
@@ -64,7 +63,7 @@ function appCallbacks(app: {
 /**
  * Build the checked-in trusted public OAuth clients for a specific
  * deployment. Each client's `redirectUris` resolve against either the app's
- * own origins (Fuji, Honeycrisp, etc.) or the deployment's API base URL
+ * own origins (Honeycrisp, Opensidian, etc.) or the deployment's API base URL
  * (the CLI, which lives on the API origin). A self-host at
  * `https://api.acme.com` and `wrangler dev` on a custom port each register
  * their own callbacks without anyone editing this file.
@@ -78,12 +77,12 @@ export function buildTrustedOAuthClients(apiBaseURL: string) {
 	// it is deliberately absent from this trusted-client set.
 	return [
 		{
-			clientId: EPICENTER_FUJI_OAUTH_CLIENT_ID,
-			name: 'Fuji',
+			clientId: EPICENTER_WHISPERING_OAUTH_CLIENT_ID,
+			name: 'Whispering',
 			type: 'user-agent-based',
 			redirectUris: [
-				...appCallbacks(APPS.FUJI),
-				EPICENTER_FUJI_TAURI_OAUTH_REDIRECT_URI,
+				...appCallbacks(APPS.WHISPERING),
+				EPICENTER_WHISPERING_TAURI_OAUTH_REDIRECT_URI,
 			],
 		},
 		{

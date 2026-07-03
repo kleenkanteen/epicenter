@@ -8,6 +8,7 @@
  * touches `c.env.ROOM` directly.
  */
 
+import { MAIN_SUBPROTOCOL } from '@epicenter/sync';
 import type { ResolvedRoom, Rooms } from '../../contracts';
 import type { Room } from './durable-object';
 
@@ -16,7 +17,7 @@ import type { Room } from './durable-object';
  * Object stubs.
  *
  * The returned `get(name)` is cheap (one `idFromName` + one `get`);
- * the stub itself is lazy until an RPC or `fetch` is invoked on it.
+ * the stub itself is lazy until `fetch` is invoked on it.
  *
  * @param namespace - The `ROOM` binding from `wrangler.jsonc`, typed via
  *   the generated `worker-configuration.d.ts`.
@@ -27,28 +28,24 @@ export function createDurableObjectRooms(
 	return {
 		/**
 		 * Resolve a room by its host-owned opaque name (built by
-		 * `doName(ownerId, roomId)`, producing `owners/<ownerId>/rooms/<roomId>`
-		 * in both modes: in personal mode `ownerId === user.id`, in shared mode
-		 * `ownerId === 'shared'`).
+		 * `doName(principalId, roomId)`, producing
+		 * `principals/<principalId>/rooms/<roomId>`.
 		 *
-		 * Returns a {@link ResolvedRoom} whose methods forward to the DO
-		 * stub: RPC for `sync` and `getDoc`, and `fetch` for the
-		 * WebSocket upgrade (the only path that needs HTTP semantics).
+		 * Returns a {@link ResolvedRoom} whose `handleUpgrade` forwards to the
+		 * DO stub's `fetch` (a 101-returning upgrade).
 		 */
 		get(name: string): ResolvedRoom {
 			const stub = namespace.get(namespace.idFromName(name));
 			return {
-				sync: (body) => stub.sync(body),
-				getDoc: () => stub.getDoc(),
-				// The DO reads `userId`/`nodeId` from the forwarded request URL.
+				// The DO reads `principalId`/`nodeId` from the forwarded request URL.
 				// `nodeId` already rides the client's URL; stamp the server-resolved
-				// `userId` over any client-supplied value, then forward to the stub
+				// `principalId` over any client-supplied value, then forward to the stub
 				// (a 101-returning `fetch`). Reconstructing the request is fine here
 				// because Cloudflare matches the socket by the DO it routes to, not
 				// by request-object identity the way Bun's `server.upgrade` does.
-				handleUpgrade: ({ request, userId }) => {
+				handleUpgrade: ({ request, principalId }) => {
 					const url = new URL(request.url);
-					url.searchParams.set('userId', userId);
+					url.searchParams.set('principalId', principalId);
 					return stub.fetch(new Request(url.toString(), request));
 				},
 			} satisfies ResolvedRoom;
@@ -58,10 +55,16 @@ export function createDurableObjectRooms(
 		 * detached socket pair, accepts the server half, and closes it with
 		 * `code`/`reason` so the browser receives a readable close code. This is
 		 * a Worker-level reject: no Durable Object is instantiated for an
-		 * unauthenticated upgrade, and `request` is unused (the pair needs no
-		 * inbound request). `WebSocketPair` is the Cloudflare-only global that
-		 * makes a detached pair; it lives here, in the Cloudflare backend, never
-		 * in shared auth code (ADR-0066).
+		 * unauthenticated upgrade. `WebSocketPair` is the Cloudflare-only global
+		 * that makes a detached pair; it lives here, in the Cloudflare backend,
+		 * never in shared auth code (ADR-0066).
+		 *
+		 * The 101 must echo the main subprotocol: a compliant browser that
+		 * offered subprotocols fails the connection when the 101 selects none,
+		 * which would swallow the close code and make a 4401 park signal look
+		 * like a network blip. The auth layer only takes this socket-close path
+		 * for clients that offered the main subprotocol, so echoing it
+		 * unconditionally is always a valid selection.
 		 */
 		rejectUpgrade: ({ code, reason }) => {
 			const pair = new WebSocketPair();
@@ -69,7 +72,11 @@ export function createDurableObjectRooms(
 			server.accept();
 			server.close(code, reason);
 			return Promise.resolve(
-				new Response(null, { status: 101, webSocket: client }),
+				new Response(null, {
+					status: 101,
+					webSocket: client,
+					headers: { 'sec-websocket-protocol': MAIN_SUBPROTOCOL },
+				}),
 			);
 		},
 	} satisfies Rooms;

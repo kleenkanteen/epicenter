@@ -2,6 +2,7 @@
 	import { Badge } from '@epicenter/ui/badge';
 	import { Button } from '@epicenter/ui/button';
 	import { Markdown } from '@epicenter/ui/markdown';
+	import { cn } from '@epicenter/ui/utils';
 	import AlertCircleIcon from '@lucide/svelte/icons/circle-alert';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ShieldAlertIcon from '@lucide/svelte/icons/shield-alert';
@@ -55,6 +56,15 @@
 	}
 </script>
 
+{#snippet toolTranscript(text: string, muted = false)}
+	<pre
+		class={cn(
+			'mt-1 whitespace-pre-wrap break-all rounded-md bg-muted/50 p-2 font-mono text-xs',
+			muted && 'text-muted-foreground',
+		)}
+	>{text}</pre>
+{/snippet}
+
 {#snippet toolCall(part: AgentToolCallPart)}
 	{@const awaitingApproval =
 		part.toolCallId === conversation.pendingApprovalCallId}
@@ -105,25 +115,19 @@
 				>
 					Arguments
 				</summary>
-				<pre
-					class="mt-1 whitespace-pre-wrap break-all rounded-md bg-muted/50 p-2 font-mono text-[11px]"
-				>{argumentsText}</pre>
+				{@render toolTranscript(argumentsText)}
 			</details>
 		{/if}
 	</div>
 {/snippet}
 
 {#snippet toolResult(part: AgentToolResultPart)}
-	{@const outputText =
-		typeof part.output === 'string'
-			? part.output
-			: JSON.stringify(part.output, null, 2)}
 	{#if part.isError}
 		<div
 			class="flex items-start gap-1.5 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive"
 		>
 			<AlertCircleIcon class="mt-0.5 size-3 shrink-0" />
-			<span class="whitespace-pre-wrap break-all">{outputText}</span>
+			<span class="whitespace-pre-wrap break-all">{part.content}</span>
 		</div>
 	{:else}
 		<details class="pl-[1.125rem]">
@@ -133,9 +137,10 @@
 				<CheckIcon class="size-3 text-emerald-500" />
 				Result
 			</summary>
-			<pre
-				class="mt-1 whitespace-pre-wrap break-all rounded-md bg-muted/50 p-2 font-mono text-[11px]"
-			>{outputText}</pre>
+			{@render toolTranscript(part.content)}
+			{#if part.details !== undefined}
+				{@render toolTranscript(JSON.stringify(part.details, null, 2), true)}
+			{/if}
 		</details>
 	{/if}
 {/snippet}

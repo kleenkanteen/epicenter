@@ -2,12 +2,22 @@
 	import { Toaster } from '@epicenter/ui/sonner';
 	import { QueryClientProvider } from '@tanstack/svelte-query';
 	import { ModeWatcher } from 'mode-watcher';
+	import { onMount } from 'svelte';
+	import { auth } from '#platform/auth';
 	import { onNavigate } from '$app/navigation';
+	import { reloadOnPrincipalChange } from '@epicenter/svelte/auth';
 	import { queryClient } from '$lib/rpc/client';
 	import '@epicenter/ui/app.css';
+	// Whispering's brand overrides, layered after the shared theme so they win.
+	// Keep this import last among the stylesheets.
+	import '../app.css';
 	import * as Tooltip from '@epicenter/ui/tooltip';
 
 	let { children } = $props();
+
+	// Option A: the active preset is picked once at boot; a
+	// principal identity change reloads so the next boot rebuilds the right doc.
+	onMount(() => reloadOnPrincipalChange(auth));
 
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return;
