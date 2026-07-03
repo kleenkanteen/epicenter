@@ -8,6 +8,7 @@ import { resolveAndModifyMessageLabels } from '../modify.ts';
 import type { LocalMailRuntime } from '../runtime.ts';
 import { readMailStatus } from '../status.ts';
 import { type SyncDeps, syncMailbox } from '../sync.ts';
+import { ApiError } from './api-errors.ts';
 
 /**
  * The `/api` surface of `local-mail app`, as a Hono app. It owns routing, the
@@ -97,22 +98,26 @@ export function createApiApp(deps: ApiDeps) {
 				? header.slice('Bearer '.length)
 				: null;
 			if (!bearer || !sessionBearers.has(bearer)) {
-				return c.json({ error: 'Unauthorized. Restart local-mail app.' }, 401);
+				const err = ApiError.Unauthorized();
+				return c.json(err, err.error.status);
 			}
 			return next();
 		})
 		// The one unauthenticated mutation: exchange the bootstrap for a bearer.
 		.post(API_ROUTES.session.pattern, sValidator('json', SessionBody), (c) => {
 			if (bootstrapToken === null) {
-				return c.json({ error: 'No bootstrap token is outstanding.' }, 401);
+				const err = ApiError.NoBootstrapToken();
+				return c.json(err, err.error.status);
 			}
 			if (failedExchanges >= MAX_FAILED_EXCHANGES) {
-				return c.json({ error: 'Too many exchange attempts.' }, 429);
+				const err = ApiError.TooManyExchanges();
+				return c.json(err, err.error.status);
 			}
 			const { token } = c.req.valid('json');
 			if (token !== bootstrapToken) {
 				failedExchanges += 1;
-				return c.json({ error: 'Invalid bootstrap token.' }, 401);
+				const err = ApiError.InvalidBootstrapToken();
+				return c.json(err, err.error.status);
 			}
 			const bearer = mintToken();
 			sessionBearers.add(bearer);
@@ -147,7 +152,10 @@ export function createApiApp(deps: ApiDeps) {
 		// Hono already URL-decodes path params, so no manual decodeURIComponent.
 		.get('/api/messages/:id', (c) => {
 			const detail = db.getMessageDetail(c.req.param('id'));
-			if (!detail) return c.json({ error: 'Message not found.' }, 404);
+			if (!detail) {
+				const err = ApiError.MessageNotFound();
+				return c.json(err, err.error.status);
+			}
 			return c.json(detail);
 		})
 		.post('/api/sync', async (c) => {
@@ -165,10 +173,16 @@ export function createApiApp(deps: ApiDeps) {
 				removeLabels: removeLabels ?? [],
 				readOnly,
 			});
-			if (error) return c.json({ error: error.message }, 400);
+			if (error) {
+				const err = ApiError.ModifyFailed({ message: error.message });
+				return c.json(err, err.error.status);
+			}
 			return c.json(data);
 		})
-		.notFound((c) => c.json({ error: 'Not found.' }, 404));
+		.notFound((c) => {
+			const err = ApiError.NotFound();
+			return c.json(err, err.error.status);
+		});
 
 	return app;
 }

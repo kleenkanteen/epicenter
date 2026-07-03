@@ -73,10 +73,12 @@ const base =
 const client = hc<ApiApp>(base, { fetch: authedFetch });
 
 async function toError(res: Response): Promise<Error> {
+	// Errors arrive as wellcrafted's envelope `{ data: null, error: { name,
+	// message, status } }` from the `/api` app's `defineErrors` variants.
 	const body = (await res.json().catch(() => null)) as {
-		error?: string;
+		error?: { message?: string };
 	} | null;
-	return new Error(body?.error ?? `Request failed (${res.status}).`);
+	return new Error(body?.error?.message ?? `Request failed (${res.status}).`);
 }
 
 type MessageQuery = {
