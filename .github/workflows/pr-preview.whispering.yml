@@ -361,28 +361,31 @@ jobs:
           fail=0
 
           # $1 = human label, $2 = newline-separated listing of package contents.
-          # Tauri's linux files mapping copies the transcribe-libs DIRECTORY under
-          # /usr/lib without flattening, so the libs land in /usr/lib/transcribe-libs/
-          # (matching the $ORIGIN/../lib/transcribe-libs rpath baked in build.rs), NOT
-          # flat in /usr/lib. Assert that exact location.
+          # Tauri's linux files mapping copies the CONTENTS of the transcribe-libs
+          # directory into /usr/lib (flat), which is where the $ORIGIN/../lib rpath
+          # resolves them. Anchor usr/lib at a path boundary (^ or /) so it matches
+          # whether the listing is package-rooted (deb: ./usr/lib/...) or absolute
+          # (AppImage extract: /tmp/.../usr/lib/...), and never a stray *usr/lib.
           assert_has() {
             local label="$1" listing="$2"
             # Diagnostic: show where the runtime libs actually landed, so a path
             # mismatch shows up in the log instead of being a guess.
             echo "  [$label] transcribe/ggml entries:"
             grep -E 'transcribe|ggml' <<<"$listing" | sed 's/^/    /' || echo "    (none)"
-            if ! grep -Eq '/usr/lib/transcribe-libs/libtranscribe\.so' <<<"$listing"; then
-              echo "::error::$label is missing /usr/lib/transcribe-libs/libtranscribe.so"; fail=1
+            if ! grep -Eq '(^|/)usr/lib/libtranscribe\.so' <<<"$listing"; then
+              echo "::error::$label is missing usr/lib/libtranscribe.so"; fail=1
             fi
-            if ! grep -Eq '/usr/lib/transcribe-libs/libggml-cpu[^/]*\.so' <<<"$listing"; then
-              echo "::error::$label is missing a /usr/lib/transcribe-libs/libggml-cpu*.so backend"; fail=1
+            if ! grep -Eq '(^|/)usr/lib/libggml-cpu[^/]*\.so' <<<"$listing"; then
+              echo "::error::$label is missing a usr/lib/libggml-cpu*.so backend"; fail=1
             fi
           }
 
-          # deb: dpkg-deb ships on every ubuntu runner.
+          # deb: list via the fsys tarfile so every entry is a clean, full path.
+          # (`dpkg-deb --contents | awk '{print $NF}'` drops the /usr prefix on this
+          # runner and mangles symlink `-> target` lines; the tarfile avoids both.)
           DEB=$(find "$BUNDLE/deb" -name '*.deb' | head -1)
           test -n "$DEB" || { echo "::error::no .deb produced"; exit 1; }
-          assert_has "deb ($(basename "$DEB"))" "$(dpkg-deb --contents "$DEB" | awk '{print $NF}')"
+          assert_has "deb ($(basename "$DEB"))" "$(dpkg-deb --fsys-tarfile "$DEB" | tar -tf -)"
 
           # rpm: rpm2cpio comes from the small `rpm` package.
           RPM=$(find "$BUNDLE/rpm" -name '*.rpm' | head -1)
