@@ -13,7 +13,10 @@
 	}: {
 		/** Called with the recognized text once a spoken phrase transcribes. */
 		onTranscript: (text: string) => void;
-		/** Lock the mic, e.g. while a turn is generating. */
+		/**
+		 * Lock opening the mic, e.g. while a turn is generating. An open session
+		 * can always be stopped: never trap a live mic behind a disabled button.
+		 */
 		disabled?: boolean;
 	} = $props();
 
@@ -56,7 +59,7 @@
 	size="icon-lg"
 	type="button"
 	onclick={toggle}
-	disabled={disabled || (dictation.status === 'idle' && dictation.isTranscribing)}
+	disabled={dictation.status === 'idle' && (disabled || dictation.isTranscribing)}
 	aria-label={dictation.status === 'idle'
 		? 'Dictate a message'
 		: 'Stop dictating'}
