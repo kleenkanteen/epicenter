@@ -31,6 +31,7 @@
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Plus from '@lucide/svelte/icons/plus';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import type { InferenceConnections } from './connections.svelte.js';
 
@@ -64,6 +65,10 @@
 	// A tailored, per-variant message when discovery fails (401 vs unreachable vs
 	// malformed), or null when discovery has not failed.
 	let discoveryError = $state<string | null>(null);
+
+	// Which connection is re-discovering its models right now (one at a time), for
+	// the per-group refresh spinner. Null when idle.
+	let refreshingBaseUrl = $state<string | null>(null);
 
 	// Clear all of the connect form's working state. Called on close so a user who
 	// connected one provider lands back on the preset chooser (not a stale sub-form
@@ -134,6 +139,14 @@
 	function selectModel(id: string) {
 		onSelectModel(id);
 		open = false;
+	}
+
+	// Re-discover a connected endpoint's models in place. Best effort: the group's
+	// list updates reactively when the fresh ids land, and stands on error.
+	async function refreshConnection(baseUrl: string) {
+		refreshingBaseUrl = baseUrl;
+		await connections.refresh(baseUrl);
+		refreshingBaseUrl = null;
 	}
 
 	function choosePreset(id: PresetId | 'custom') {
@@ -286,6 +299,17 @@
 									</span>
 								</Command.Item>
 							{/each}
+							<Command.Item
+								value="refresh {connection.baseUrl}"
+								onSelect={() => refreshConnection(connection.baseUrl)}
+							>
+								{#if refreshingBaseUrl === connection.baseUrl}
+									<LoaderCircle class="size-4 animate-spin" />
+								{:else}
+									<RefreshCw class="size-4" />
+								{/if}
+								<span class="text-xs">Refresh {connectionLabel(connection)}</span>
+							</Command.Item>
 							<Command.Item
 								value="remove {connection.baseUrl}"
 								onSelect={() => connections.remove(connection.baseUrl)}
