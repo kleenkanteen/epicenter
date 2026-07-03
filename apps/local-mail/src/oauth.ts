@@ -237,7 +237,10 @@ export async function runAuthorizationFlow(
 			client,
 			response,
 		);
-		const { data: accountEmail, error } = await fetchAccountEmail(config, grant);
+		const { data: accountEmail, error } = await fetchAccountEmail(
+			config,
+			grant,
+		);
 		if (error) return { data: null, error };
 		return tokenSetFromGrant(grant, {
 			accountEmail,

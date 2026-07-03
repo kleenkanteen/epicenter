@@ -17,10 +17,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
 	type MailDb,
-	SCHEMA_VERSION,
 	mailDbPath,
 	openMailDb,
 	openMailDbReadonly,
+	SCHEMA_VERSION,
 } from './db.ts';
 import type { GmailMessage } from './schema.ts';
 

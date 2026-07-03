@@ -238,7 +238,9 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 		   synced_at = excluded.synced_at`,
 	);
 	const deleteMessageStmt = db.query(`DELETE FROM messages WHERE id = ?`);
-	const sweepMessagesStmt = db.query(`DELETE FROM messages WHERE synced_at < ?`);
+	const sweepMessagesStmt = db.query(
+		`DELETE FROM messages WHERE synced_at < ?`,
+	);
 	const getMessageRawStmt = db.query<{ raw: string }, [string]>(
 		`SELECT raw FROM messages WHERE id = ?`,
 	);
@@ -263,9 +265,7 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 	const recentMessagesStmt = db.query<
 		{ subject: string | null; sender: string | null },
 		[number]
-	>(
-		`SELECT subject, sender FROM messages ORDER BY internal_date DESC LIMIT ?`,
-	);
+	>(`SELECT subject, sender FROM messages ORDER BY internal_date DESC LIMIT ?`);
 
 	function readRealmState(): RealmState {
 		return {
@@ -386,8 +386,7 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 			const tx = db.transaction(() => {
 				for (const message of messagesToUpsert)
 					upsertMessage(message, syncedAt);
-				for (const id of messagesToDelete)
-					deleteMessageStmt.run(id);
+				for (const id of messagesToDelete) deleteMessageStmt.run(id);
 				for (const { messageId, labelIds } of labelPatches) {
 					const row = getMessageRawStmt.get(messageId);
 					if (!row) continue;
@@ -452,9 +451,7 @@ export function openMailDbReadonly({ dataDir, accountEmail }: MailDbLocation) {
 			return {
 				messages:
 					db
-						.query<{ n: number }, []>(
-							`SELECT count(*) AS n FROM messages`,
-						)
+						.query<{ n: number }, []>(`SELECT count(*) AS n FROM messages`)
 						.get()?.n ?? 0,
 				labels:
 					db.query<{ n: number }, []>(`SELECT count(*) AS n FROM labels`).get()

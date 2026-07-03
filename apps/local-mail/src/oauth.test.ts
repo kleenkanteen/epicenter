@@ -12,7 +12,7 @@
  */
 
 import { expect, test } from 'bun:test';
-import { loadConfig, type AppConfig } from './config.ts';
+import { type AppConfig, loadConfig } from './config.ts';
 import {
 	redeemRefreshToken,
 	refreshAccessToken,

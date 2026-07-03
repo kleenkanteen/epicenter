@@ -309,7 +309,9 @@ async function incrementalPoll(
 
 	const labels = await client.listLabels();
 	if (labels.error) {
-		log(`labels.list failed during incremental refresh: ${labels.error.message}`);
+		log(
+			`labels.list failed during incremental refresh: ${labels.error.message}`,
+		);
 	} else {
 		db.ingestLabels(labels.data, syncedAt);
 	}
@@ -377,29 +379,15 @@ export async function syncMailbox(
 
 		const profile = await deps.client.getProfile();
 		if (profile.error) {
-			return failedOutcome(
-				'FULL',
-				fullReason,
-				cursorBefore,
-				profile.error,
-			);
+			return failedOutcome('FULL', fullReason, cursorBefore, profile.error);
 		}
 
 		const { upserted, failure } = await fullPull(deps, syncedAt);
 		if (failure) {
-			return failedOutcome(
-				'FULL',
-				fullReason,
-				cursorBefore,
-				failure,
-				upserted,
-			);
+			return failedOutcome('FULL', fullReason, cursorBefore, failure, upserted);
 		}
 
-		const messagesDeleted = db.finishFullPull(
-			profile.data.historyId,
-			syncedAt,
-		);
+		const messagesDeleted = db.finishFullPull(profile.data.historyId, syncedAt);
 		return {
 			mode: 'FULL',
 			reason: fullReason,
