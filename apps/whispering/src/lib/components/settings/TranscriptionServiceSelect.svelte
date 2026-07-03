@@ -3,7 +3,6 @@
 	import { Label } from '@epicenter/ui/label';
 	import * as Select from '@epicenter/ui/select';
 	import { cn } from '@epicenter/ui/utils';
-	import type { Snippet } from 'svelte';
 	import {
 		TRANSCRIPTION_PROVIDERS,
 		type TranscriptionProviderEntry,
@@ -15,19 +14,11 @@
 		id = 'transcription-service',
 		label = 'Transcription Service',
 		selected = $bindable(),
-		class: className,
-		disabled = false,
-		hideLabel = false,
-		description,
 		recommendedServiceId = tauri ? 'local' : 'OpenAI',
 	}: {
 		id?: string;
 		label?: string;
 		selected: TranscriptionServiceId;
-		class?: string;
-		disabled?: boolean;
-		hideLabel?: boolean;
-		description?: string | Snippet;
 		recommendedServiceId?: TranscriptionServiceId | null;
 	} = $props();
 
@@ -67,11 +58,11 @@
 {/snippet}
 
 <div class="flex flex-col gap-2">
-	<Label class={cn('text-sm', hideLabel && 'sr-only')} for={id}>
+	<Label class="text-sm" for={id}>
 		{label}
 	</Label>
-	<Select.Root type="single" bind:value={selected} {disabled}>
-		<Select.Trigger class={cn('w-full', className)} {id}>
+	<Select.Root type="single" bind:value={selected}>
+		<Select.Trigger class="w-full" {id}>
 			<div class="flex items-center gap-2">
 				{#if selectedService}
 					{@render renderServiceIcon(selectedService)}
@@ -180,13 +171,4 @@
 			{/if}
 		</Select.Content>
 	</Select.Root>
-	{#if description}
-		<div class="text-muted-foreground text-sm">
-			{#if typeof description === 'string'}
-				{description}
-			{:else}
-				{@render description()}
-			{/if}
-		</div>
-	{/if}
 </div>
