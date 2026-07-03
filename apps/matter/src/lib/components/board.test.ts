@@ -91,3 +91,77 @@ test('boardColumnsFor groups ordered in-memory rows and projects card fields', (
 		{ field: field(model, 'platform'), value: 'mobile' },
 	]);
 });
+
+test('boardColumnsFor orders cards within a column by orderedStems', () => {
+	const model = contract();
+	const conformance = classifyRows(model.fields, [
+		row('alpha.md', { title: 'Alpha', status: 'todo' }),
+		row('bravo.md', { title: 'Bravo', status: 'todo' }),
+		row('charlie.md', { title: 'Charlie', status: 'todo' }),
+	]);
+
+	// All three rows land in the same `todo` bucket, so the only thing that can
+	// distinguish output is the stem order. Reverse the natural order to prove
+	// orderedStems actually drives the card sequence rather than being a no-op.
+	const columns = boardColumnsFor({
+		conformance,
+		fields: model.fields,
+		projection: board,
+		orderedStems: ['charlie', 'alpha', 'bravo'],
+	});
+
+	const todo = columns.find((column) => column.value === 'todo');
+	expect(todo?.cards.map((card) => card.row.fileName)).toEqual([
+		'charlie.md',
+		'alpha.md',
+		'bravo.md',
+	]);
+});
+
+test('boardColumnsFor defaults to up to three non-group fields when card is omitted', () => {
+	// A wider contract than the shared one: five fields so the fallback has to both
+	// drop the groupBy field AND cap at three, proving the slice is not a no-op.
+	const { data: model, error } = validateContract({
+		fields: {
+			title: { type: 'string' },
+			status: { type: 'string', enum: ['todo', 'doing', 'done'] },
+			platform: { type: 'string' },
+			owner: { type: 'string' },
+			priority: { type: 'string' },
+		},
+	});
+	if (error) throw new Error(error.message);
+
+	const conformance = classifyRows(model.fields, [
+		row('alpha.md', {
+			title: 'Alpha',
+			status: 'todo',
+			platform: 'web',
+			owner: 'ada',
+			priority: 'high',
+		}),
+	]);
+
+	// No `card`, so the fallback picks every field except the `status` groupBy, in
+	// contract order, capped at three: title, platform, owner. `priority` is dropped
+	// by the cap even though it is a non-group field.
+	const projection: ViewSpec = {
+		id: 'default-cards',
+		type: 'board',
+		groupBy: 'status',
+		columns: ['todo', 'doing', 'done'],
+	};
+
+	const columns = boardColumnsFor({
+		conformance,
+		fields: model.fields,
+		projection,
+	});
+
+	const todo = columns.find((column) => column.value === 'todo');
+	expect(todo?.cards[0]?.fields).toEqual([
+		{ field: field(model, 'title'), value: 'Alpha' },
+		{ field: field(model, 'platform'), value: 'web' },
+		{ field: field(model, 'owner'), value: 'ada' },
+	]);
+});

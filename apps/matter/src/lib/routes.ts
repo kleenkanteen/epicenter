@@ -57,6 +57,18 @@ export function resolveVaultSurface(
 	return projection ? { kind: 'projection', projection } : { kind: 'grid' };
 }
 
+/**
+ * The `goto` options every switcher pairs with `routes.table`/`projection`/`panel`. A table or view
+ * switch is a render selection, not navigation: `replaceState` so each click does not stack a history
+ * entry, `keepFocus`/`noScroll` so the switcher stays put and the pane does not jump. One owner so the
+ * vault shell and the table pane cannot drift.
+ */
+export const SWITCH_NAV = {
+	replaceState: true,
+	keepFocus: true,
+	noScroll: true,
+} as const;
+
 export const routes = {
 	/** The onboarding index, shown only when no vault is open. */
 	home: () => '/',

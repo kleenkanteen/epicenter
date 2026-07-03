@@ -7,7 +7,7 @@
 	import KanbanIcon from '@lucide/svelte/icons/kanban';
 	import type { ViewSpec } from '@epicenter/matter-core';
 	import { goto } from '$app/navigation';
-	import { routes } from '$lib/routes';
+	import { routes, SWITCH_NAV } from '$lib/routes';
 	import BoardView from '$lib/components/BoardView.svelte';
 	import TableGrid from '$lib/components/TableGrid.svelte';
 	import type { TableHandle } from '$lib/table.svelte';
@@ -42,12 +42,6 @@
 	// construction safe.
 	// svelte-ignore state_referenced_locally - VaultShell keys this pane on the active table, so it remounts (not re-renders) when the table changes; capturing the construction-time table is the intent.
 	const query = createTableQuery(vault.mirror, () => table.folderName);
-
-	const switchNav = {
-		replaceState: true,
-		keepFocus: true,
-		noScroll: true,
-	} as const;
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col">
@@ -65,7 +59,8 @@
 			<div class="flex min-h-10 items-center gap-1 overflow-x-auto border-b px-3 py-1">
 				<button
 					type="button"
-					onclick={() => goto(routes.table(table.folderName), switchNav)}
+					aria-current={projection === undefined ? 'true' : undefined}
+					onclick={() => goto(routes.table(table.folderName), SWITCH_NAV)}
 					class={[
 						'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition',
 						projection === undefined
@@ -79,7 +74,8 @@
 				{#each table.read.view.contract.views as view (view.id)}
 					<button
 						type="button"
-						onclick={() => goto(routes.projection(table.folderName, view.id), switchNav)}
+						aria-current={projection?.id === view.id ? 'true' : undefined}
+						onclick={() => goto(routes.projection(table.folderName, view.id), SWITCH_NAV)}
 						class={[
 							'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition',
 							projection?.id === view.id

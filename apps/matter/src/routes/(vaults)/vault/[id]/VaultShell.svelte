@@ -11,6 +11,7 @@
 	import {
 		resolveVaultSurface,
 		routes,
+		SWITCH_NAV,
 		TABLE_PARAM,
 		type VaultPanel,
 	} from '$lib/routes';
@@ -43,19 +44,11 @@
 	);
 
 	// The rendered vault surface: a vault-wide panel from `?panel`, a table-scoped projection from
-	// `?view`, or the default grid. Wave 2A only splits the route grammar, so projections still render
-	// through the grid until the board renderer lands.
+	// `?view`, or the default grid. A resolved projection renders through BoardView (see TablePane);
+	// the grid stays the default surface when no projection is selected.
 	const activeSurface = $derived(
 		resolveVaultSurface(page.url.searchParams, activeTable?.read.view),
 	);
-
-	// A table or view switch is a render selection, not navigation: replaceState so each click does not
-	// stack a history entry, keepFocus/noScroll so the switcher stays put and the pane does not jump.
-	const switchNav = {
-		replaceState: true,
-		keepFocus: true,
-		noScroll: true,
-	} as const;
 
 	// Opening a panel keeps `?table` so the console defaults to the table you were on (the Database
 	// panel is table-agnostic, so it just ignores it). `?panel` owns vault-wide panels; `?view` is
@@ -116,7 +109,8 @@
 							activeTable?.folderName === table.folderName}
 						<button
 							type="button"
-							onclick={() => goto(routes.table(table.folderName), switchNav)}
+							aria-current={active ? 'true' : undefined}
+							onclick={() => goto(routes.table(table.folderName), SWITCH_NAV)}
 							class={[
 								'shrink-0 rounded-md px-2.5 py-1 text-sm transition',
 								active
@@ -133,7 +127,11 @@
 				<div class="flex shrink-0 items-center gap-1 border-l pl-1">
 					<button
 						type="button"
-						onclick={() => goto(panelHref('sql'), switchNav)}
+						aria-current={activeSurface.kind === 'panel' &&
+						activeSurface.panel === 'sql'
+							? 'true'
+							: undefined}
+						onclick={() => goto(panelHref('sql'), SWITCH_NAV)}
 						class={[
 							'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition',
 							activeSurface.kind === 'panel' && activeSurface.panel === 'sql'
@@ -146,7 +144,11 @@
 					</button>
 					<button
 						type="button"
-						onclick={() => goto(panelHref('db'), switchNav)}
+						aria-current={activeSurface.kind === 'panel' &&
+						activeSurface.panel === 'db'
+							? 'true'
+							: undefined}
+						onclick={() => goto(panelHref('db'), SWITCH_NAV)}
 						class={[
 							'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition',
 							activeSurface.kind === 'panel' && activeSurface.panel === 'db'
