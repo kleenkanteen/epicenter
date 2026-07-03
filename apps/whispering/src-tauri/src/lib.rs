@@ -16,8 +16,8 @@ use recorder::recorder::Recorder;
 
 pub mod transcription;
 use transcription::{
-    delete_model, download_model, get_transcription_state, list_models, prewarm_model,
-    set_unload_policy, transcribe_recording, ModelCache, ModelStateEvent,
+    delete_model, download_model, list_models, prewarm_model, set_unload_policy,
+    transcribe_recording, ModelCache,
 };
 
 pub mod command;
@@ -82,7 +82,6 @@ fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             get_microphone_permission,
             request_microphone_permission,
             set_unload_policy,
-            get_transcription_state,
             list_models,
             download_model,
             delete_model,
@@ -103,7 +102,6 @@ fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         // `CommandBinding` / `Modifier` / `Key`. `run` must call
         // `mount_events` so `Event::emit` and the generated listeners resolve.
         .events(tauri_specta::collect_events![
-            ModelStateEvent,
             keyboard::ShortcutTriggerEvent,
             keyboard::ShortcutCaptureEvent,
             keyboard::DictationCapabilityEvent,
@@ -244,7 +242,7 @@ pub async fn run() {
             // events, so it cannot be constructed at builder-time (no app handle
             // exists yet). Move construction into setup; everything that needs it
             // reads via `app.state::<ModelCache>()`.
-            let cache = ModelCache::new(app.handle().clone());
+            let cache = ModelCache::new();
             cache.start_idle_watcher();
             app.manage(cache);
 

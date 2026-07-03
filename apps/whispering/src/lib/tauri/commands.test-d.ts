@@ -10,9 +10,6 @@ import type { Result } from 'wellcrafted/result';
 import type {
 	commands,
 	IpcRecorderError,
-	LocalModelState,
-	ModelStateEvent,
-	ModelStatus,
 	RecordingArtifact,
 	TranscriptionError,
 	TranscriptionSpec,
@@ -71,50 +68,6 @@ type _SetUnloadPolicyArg = Expect<
 	Equal<
 		Parameters<typeof commands.setUnloadPolicy>,
 		['never' | 'immediately' | 'after_5_minutes' | 'after_30_minutes']
-	>
->;
-
-// get_transcription_state: infallible snapshot for late-mounted observers.
-type _GetTranscriptionState = Expect<
-	Equal<
-		ReturnType<typeof commands.getTranscriptionState>,
-		Promise<LocalModelState>
-	>
->;
-
-type _ModelStateEventShape = Expect<
-	Equal<
-		ModelStateEvent,
-		| { kind: 'loading_started'; state: LocalModelState }
-		| {
-				kind: 'loading_completed';
-				state: LocalModelState;
-				elapsedMs: number;
-		  }
-		| { kind: 'loading_failed'; state: LocalModelState; error: string }
-		| { kind: 'inference_started'; state: LocalModelState }
-		| {
-				kind: 'inference_completed';
-				state: LocalModelState;
-				elapsedMs: number;
-		  }
-		| { kind: 'inference_failed'; state: LocalModelState; error: string }
-		| {
-				kind: 'unloaded';
-				state: LocalModelState;
-				reason: { kind: 'immediate' } | { kind: 'idle'; idleSecs: number };
-		  }
-	>
->;
-
-type _ModelStatusShape = Expect<
-	Equal<
-		ModelStatus,
-		| { kind: 'idle' }
-		| { kind: 'loading' }
-		| { kind: 'ready' }
-		| { kind: 'inferring' }
-		| { kind: 'error'; message: string }
 	>
 >;
 

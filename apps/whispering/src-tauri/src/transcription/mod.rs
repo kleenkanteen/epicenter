@@ -1,13 +1,11 @@
 mod catalog;
 mod config;
 mod error;
-mod events;
 mod model_cache;
 
 pub use catalog::{delete_model, download_model, list_models, CatalogError, ModelInfo};
 pub use config::{TranscriptionSpec, UnloadPolicy};
 pub use error::TranscriptionError;
-pub use events::{LocalModelState, ModelStateEvent};
 pub use model_cache::ModelCache;
 
 use crate::recorder::read_artifact_samples;
@@ -21,18 +19,6 @@ use tauri::{AppHandle, State};
 #[specta::specta]
 pub fn set_unload_policy(policy: UnloadPolicy, model_cache: State<'_, ModelCache>) {
     model_cache.set_unload_policy(policy);
-}
-
-/// Snapshot the current model state. Used by late-mounted observers (a
-/// second window, the settings panel re-opening, etc.) to catch up to
-/// the current lifecycle state without waiting for the next event on
-/// `transcription://model-state`.
-///
-/// Reads the status plus resident model identity, if any.
-#[tauri::command]
-#[specta::specta]
-pub fn get_transcription_state(model_cache: State<'_, ModelCache>) -> LocalModelState {
-    model_cache.snapshot()
 }
 
 /// Canonical transcribe-by-id path. Resolves the audio file under

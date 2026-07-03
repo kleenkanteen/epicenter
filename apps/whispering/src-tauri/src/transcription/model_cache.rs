@@ -1,14 +1,11 @@
 use super::catalog::resolve_model_path;
 use super::config::{TranscriptionSpec, UnloadPolicy};
 use super::error::TranscriptionError;
-use super::events::{LocalModelState, ModelStateEvent, ModelStatus, UnloadReason};
 use log::{debug, info, warn};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Once, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::AppHandle;
-use tauri_specta::Event;
 use transcribe_cpp::{
     Backend, Feature, Model, ModelOptions, RunExtension, RunOptions, WhisperRunOptions,
 };
@@ -22,17 +19,14 @@ use transcribe_cpp::{
 struct CachedModel {
     path: PathBuf,
     disk_identity: Option<DiskIdentity>,
-    model_id: String,
     model: Model,
 }
 
 type Cached = Option<CachedModel>;
 
-/// Owns the resident model's lifecycle and the state observers see while it
-/// runs. The frontend owns transcription settings; this cache owns native
-/// mechanism only: the loaded model, the unload-policy clock, the status
-/// snapshot, and lifecycle event emission. They share the struct because they
-/// share the lifecycle.
+/// Owns the resident model's lifecycle: the loaded model and the unload-policy
+/// clock. The frontend owns transcription settings; this cache owns native
+/// mechanism only. They share the struct because they share the lifecycle.
 #[derive(Clone)]
 pub struct ModelCache {
     /// The currently-resident model and the path it was loaded from. The mutex
@@ -51,23 +45,14 @@ pub struct ModelCache {
     /// per-call transcription spec, so it reaches Rust whether or not a model
     /// is selected.
     unload_policy: Arc<RwLock<UnloadPolicy>>,
-
-    /// Status field readable without the cache mutex. Mutated by load,
-    /// inference, and eviction paths; never held across a long operation.
-    status: Arc<RwLock<ModelStatus>>,
-
-    /// Handle used for `Emitter::emit` on the lifecycle event channel.
-    app: AppHandle,
 }
 
 impl ModelCache {
-    pub fn new(app: AppHandle) -> Self {
+    pub fn new() -> Self {
         Self {
             cached: Arc::new(Mutex::new(None)),
             last_activity_ms: Arc::new(AtomicU64::new(now_millis())),
             unload_policy: Arc::new(RwLock::new(UnloadPolicy::DEFAULT)),
-            status: Arc::new(RwLock::new(ModelStatus::Idle)),
-            app,
         }
     }
 
@@ -84,40 +69,11 @@ impl ModelCache {
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = policy;
     }
 
-    fn read_status(&self) -> ModelStatus {
-        self.status
-            .read()
-            .map(|g| g.clone())
-            .unwrap_or_else(|poisoned| poisoned.into_inner().clone())
-    }
-
     fn current_policy(&self) -> UnloadPolicy {
         *self
             .unload_policy
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-    }
-
-    // ── Snapshot ──────────────────────────────────────────────────────
-
-    /// Read-only view of the resident model and status. New windows call this
-    /// on mount to catch up to current state without waiting for the next
-    /// event. Reports identity from the resident model (if any), since the
-    /// per-call spec is no longer retained between transcriptions.
-    pub fn snapshot(&self) -> LocalModelState {
-        let status = self.read_status();
-        let cached = lock_cached(&self.cached);
-        LocalModelState {
-            model_id: cached.as_ref().map(|cached| cached.model_id.clone()),
-            status,
-        }
-    }
-
-    fn set_status(&self, status: ModelStatus) {
-        match self.status.write() {
-            Ok(mut g) => *g = status,
-            Err(poisoned) => *poisoned.into_inner() = status,
-        }
     }
 
     // ── Transcribe ────────────────────────────────────────────────────
@@ -166,8 +122,7 @@ impl ModelCache {
     /// the next transcribe finds it warm. Idempotent: a no-op when the exact
     /// model is already resident. Called at capture start (manual record / VAD
     /// listen) to overlap the cold load with the user's speech. Shares the one
-    /// load path (`ensure_loaded`) with transcribe, and emits the same
-    /// `Loading`/`Ready` lifecycle events, so the model-state UI reflects it.
+    /// load path (`ensure_loaded`) with transcribe.
     pub fn prewarm(&self, spec: &TranscriptionSpec) -> Result<(), TranscriptionError> {
         let model_path = resolve_model_path(&spec.model_id)
             .map_err(|message| TranscriptionError::ConfigError { message })?;
@@ -179,10 +134,6 @@ impl ModelCache {
     /// Hold the cache lock across load. If `(path, identity)` matches the cache,
     /// reuse; otherwise drop and load fresh under the same lock. The model loads
     /// lazily here, on the transcription that needs it.
-    ///
-    /// Holding the cache lock across `emit` is safe: Tauri's emit is sync and FE
-    /// handlers run on the JS event loop, so no Rust caller can re-enter and
-    /// contend on this mutex.
     fn ensure_loaded(
         &self,
         spec: &TranscriptionSpec,
@@ -210,9 +161,6 @@ impl ModelCache {
         }
 
         let _ = guard.take();
-        self.publish(spec, ModelStatus::Loading, |state| {
-            ModelStateEvent::LoadingStarted { state }
-        });
         let started = Instant::now();
         match load_gguf_model(&model_path) {
             Ok(model) => {
@@ -226,24 +174,10 @@ impl ModelCache {
                 *guard = Some(CachedModel {
                     path: model_path,
                     disk_identity: current_identity,
-                    model_id: spec.model_id.clone(),
                     model,
-                });
-                self.publish(spec, ModelStatus::Ready, |state| {
-                    ModelStateEvent::LoadingCompleted { state, elapsed_ms }
                 });
             }
             Err(message) => {
-                self.publish(
-                    spec,
-                    ModelStatus::Error {
-                        message: message.clone(),
-                    },
-                    |state| ModelStateEvent::LoadingFailed {
-                        state,
-                        error: message.clone(),
-                    },
-                );
                 return Err(TranscriptionError::ModelLoadError { message });
             }
         }
@@ -252,8 +186,7 @@ impl ModelCache {
     }
 
     /// Run inference on the resident model for `spec`, loading it first if
-    /// needed. Holds the cache lock across load and use, emitting semantic
-    /// inference events around the user closure.
+    /// needed. Holds the cache lock across load and use.
     fn run_loaded<T>(
         &self,
         spec: &TranscriptionSpec,
@@ -264,38 +197,13 @@ impl ModelCache {
         let guard = self.ensure_loaded(spec, model_path)?;
 
         let model = &guard.as_ref().expect("cache slot populated above").model;
-        self.publish(spec, ModelStatus::Inferring, |state| {
-            ModelStateEvent::InferenceStarted { state }
-        });
         let started = Instant::now();
         let result = use_model(model);
         let elapsed_ms = started.elapsed().as_millis() as u64;
         crate::timing_note!("model.inference {elapsed_ms}ms model={}", spec.model_id);
         self.touch_activity();
-        match &result {
-            Ok(_) => {
-                self.publish(spec, ModelStatus::Ready, |state| {
-                    ModelStateEvent::InferenceCompleted { state, elapsed_ms }
-                });
-            }
-            Err(e) => {
-                // Don't clear the cache on inference failure: the model is still
-                // loaded and the next call may succeed (transient FFI or input
-                // issue). The status reflects the last result; a successful next
-                // call flips it back to Ready.
-                let message = e.to_string();
-                self.publish(
-                    spec,
-                    ModelStatus::Error {
-                        message: message.clone(),
-                    },
-                    |state| ModelStateEvent::InferenceFailed {
-                        state,
-                        error: message,
-                    },
-                );
-            }
-        }
+        // An inference failure leaves the model resident so the next call can
+        // reuse it (the failure may be a transient FFI or input issue).
         result
     }
 
@@ -307,29 +215,23 @@ impl ModelCache {
     /// Called at the end of every successful transcription.
     fn evict_if_immediate(&self) {
         if matches!(self.current_policy(), UnloadPolicy::Immediately) {
-            self.evict(UnloadReason::Immediate);
+            self.evict();
         }
     }
 
-    /// Drop the resident model and emit an `Unloaded` event with the given
-    /// reason, leaving status `Idle`. Uses `try_lock` so it never blocks behind
-    /// an in-flight transcription: a busy cache keeps its model, which the next
+    /// Drop the resident model. Uses `try_lock` so it never blocks behind an
+    /// in-flight transcription: a busy cache keeps its model, which the next
     /// transcription reloads against its per-call spec anyway. A no-op when the
     /// cache is already empty.
-    fn evict(&self, reason: UnloadReason) {
+    fn evict(&self) {
         let Ok(mut guard) = self.cached.try_lock() else {
             return;
         };
         if let Some(cached) = guard.take() {
             debug!(
-                "[Transcription] unloaded model ({:?}): {}",
-                reason,
+                "[Transcription] unloaded model (immediate): {}",
                 cached.path.display()
             );
-            drop(guard);
-            self.set_status(ModelStatus::Idle);
-            let state = state_for_model(cached.model_id, ModelStatus::Idle);
-            self.emit(ModelStateEvent::Unloaded { state, reason });
         }
     }
 
@@ -364,39 +266,12 @@ impl ModelCache {
             return;
         };
         if let Some(cached) = guard.take() {
-            let idle_secs = idle.as_secs();
             debug!(
                 "[Transcription] unloaded model (idle {}s): {}",
-                idle_secs,
+                idle.as_secs(),
                 cached.path.display()
             );
-            drop(guard);
-            self.set_status(ModelStatus::Idle);
-            self.emit(ModelStateEvent::Unloaded {
-                state: state_for_model(cached.model_id, ModelStatus::Idle),
-                reason: UnloadReason::Idle { idle_secs },
-            });
         }
-    }
-
-    // ── Event emission ────────────────────────────────────────────────
-
-    fn emit(&self, event: ModelStateEvent) {
-        if let Err(err) = event.emit(&self.app) {
-            warn!("[Transcription] failed to emit model-state event: {}", err);
-        }
-    }
-
-    /// Set the resident status and emit the matching lifecycle event built
-    /// from the current per-call spec and that status.
-    fn publish(
-        &self,
-        spec: &TranscriptionSpec,
-        status: ModelStatus,
-        build_event: impl FnOnce(LocalModelState) -> ModelStateEvent,
-    ) {
-        self.set_status(status.clone());
-        self.emit(build_event(state_for_spec(spec, status)));
     }
 }
 
@@ -503,18 +378,6 @@ fn default_backend() -> Backend {
     )))]
     {
         Backend::Cpu
-    }
-}
-
-/// Build a `LocalModelState` from a per-call spec and status.
-fn state_for_spec(spec: &TranscriptionSpec, status: ModelStatus) -> LocalModelState {
-    state_for_model(spec.model_id.clone(), status)
-}
-
-fn state_for_model(model_id: String, status: ModelStatus) -> LocalModelState {
-    LocalModelState {
-        model_id: Some(model_id),
-        status,
     }
 }
 
@@ -675,20 +538,5 @@ mod tests {
         let path = std::env::temp_dir().join("whispering-id-missing-does-not-exist");
         std::fs::remove_file(&path).ok();
         assert!(disk_identity(&path).is_none());
-    }
-
-    #[test]
-    fn state_for_spec_uses_captured_model_identity() {
-        let spec = TranscriptionSpec {
-            model_id: "handy-computer/parakeet-tdt-0.6b-v3-gguf@main/parakeet-tdt-0.6b-v3-Q4_K_M.gguf"
-                .to_string(),
-            language: Some("en".to_string()),
-            initial_prompt: None,
-        };
-
-        let state = state_for_spec(&spec, ModelStatus::Inferring);
-
-        assert_eq!(state.model_id, Some(spec.model_id));
-        assert_eq!(state.status, ModelStatus::Inferring);
     }
 }
