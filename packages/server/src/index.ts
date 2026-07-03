@@ -37,8 +37,8 @@ export { rateLimit } from './middleware/rate-limit.js';
 // deployment's own scripts (`apps/api` `oauth:seed:*`), not in this barrel, so
 // `pg` and the drizzle query-builder graph stay out of the worker's module and
 // type programs. The seed builds rows from `projectTrustedOAuthClientToRow` in
-// `@epicenter/constants/oauth` (beside `buildTrustedOAuthClients`, its input),
-// so it never imports this request-path auth barrel.
+// `@epicenter/constants/oauth-seed` (beside `buildTrustedOAuthClients`, its
+// input), so it never imports this request-path auth barrel.
 //
 // Auth middleware + the cloud's OAuth bearer resolver. A deployment passes one of
 // these as the `auth` for each protected mount (the cloud passes

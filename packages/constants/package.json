@@ -1,6 +1,6 @@
 {
 	"name": "@epicenter/constants",
-	"description": "Shared URLs, ports, and version info for the Epicenter monorepo",
+	"description": "Shared Epicenter platform contracts: app origins and ports, API and OAuth route surfaces, first-party OAuth clients and their seed projection, Vite build URLs, and the model catalog",
 	"version": "0.1.1",
 	"type": "module",
 	"imports": {
