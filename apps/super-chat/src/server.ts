@@ -15,6 +15,7 @@
  */
 
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { API_ROUTES } from '@epicenter/constants/api-routes';
 import type {
 	ConversationSnapshot,
 	ToolCatalog,
@@ -91,7 +92,7 @@ export function createSuperChatServer({
 		return c.html(page);
 	});
 
-	app.get('/api/session', (c) =>
+	app.get(API_ROUTES.session.pattern, (c) =>
 		c.json({
 			tools: listTools(host.tools),
 			snapshot: host.conversation.snapshot(),
@@ -99,7 +100,7 @@ export function createSuperChatServer({
 	);
 
 	app.get(
-		'/api/session/stream',
+		API_ROUTES.session.stream.pattern,
 		upgradeWebSocket(() => {
 			let unsubscribe: (() => void) | undefined;
 			const push = (ws: { send(data: string): void }) => {

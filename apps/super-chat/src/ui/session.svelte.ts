@@ -9,6 +9,7 @@
  * WebSocket glue) enters the browser bundle.
  */
 
+import { API_ROUTES } from '@epicenter/constants/api-routes';
 import type { ConversationSnapshot } from '@epicenter/workspace/agent';
 import type { ClientCommand, ServerEvent, SessionResponse } from '../server.ts';
 
@@ -33,7 +34,7 @@ export function createSession({ token }: { token: string }) {
 
 	async function hydrate() {
 		try {
-			const response = await fetch('/api/session', {
+			const response = await fetch(API_ROUTES.session.url(location.origin), {
 				headers: { authorization: `Bearer ${token}` },
 			});
 			if (!response.ok) {
@@ -55,10 +56,8 @@ export function createSession({ token }: { token: string }) {
 		connection = 'connecting';
 		// The browser WebSocket constructor cannot set headers, so the token
 		// rides the query string (the server gate accepts either).
-		const url = new URL(
-			`/api/session/stream?token=${encodeURIComponent(token)}`,
-			location.href,
-		);
+		const url = new URL(API_ROUTES.session.stream.url(location.origin));
+		url.searchParams.set('token', token);
 		// Match the page's scheme: plain ws: against the loopback origin, wss:
 		// when a remote overlay proxy serves this page over https.
 		url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
