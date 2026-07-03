@@ -18,10 +18,6 @@ export const ModifyMessageLabelsError = defineErrors({
 	EmptyLabelMutation: () => ({
 		message: 'At least one label id must be added or removed.',
 	}),
-	ReadOnlyGrant: () => ({
-		message:
-			'This account was connected read-only. Run "local-mail connect" again to grant Gmail write access, then retry.',
-	}),
 });
 export type ModifyMessageLabelsError = InferErrors<
 	typeof ModifyMessageLabelsError
@@ -71,36 +67,10 @@ function summarizeError(error: {
 	return { name: error.name, message: error.message };
 }
 
-function errorReason(body: string): string | null {
-	try {
-		const parsed = JSON.parse(body) as {
-			error?: { errors?: { reason?: string }[]; status?: string };
-		};
-		return parsed.error?.errors?.[0]?.reason ?? parsed.error?.status ?? null;
-	} catch {
-		return null;
-	}
-}
-
-function isReadOnlyGrant(error: GmailClientError): boolean {
-	return (
-		error.name === 'Http' &&
-		error.status === 403 &&
-		errorReason(error.body) === 'insufficientPermissions'
-	);
-}
-
 function isPerIdError(error: GmailClientError): boolean {
 	return (
 		error.name === 'Http' && (error.status === 400 || error.status === 404)
 	);
-}
-
-function abortSummary(error: GmailClientError): ErrorSummary {
-	if (isReadOnlyGrant(error)) {
-		return summarizeError(ModifyMessageLabelsError.ReadOnlyGrant().error);
-	}
-	return summarizeError(error);
 }
 
 function tryFoldMessageLabels({
@@ -189,9 +159,8 @@ export async function modifyMessageLabels({
 				results.push({ id, labelIds: null, folded: false, error: summary });
 				continue;
 			}
-			const aborted = abortSummary(error);
-			results.push({ id, labelIds: null, folded: false, error: aborted });
-			return Ok({ results, aborted });
+			results.push({ id, labelIds: null, folded: false, error: summary });
+			return Ok({ results, aborted: summary });
 		}
 
 		if (!message.labelIds) {

@@ -43,6 +43,7 @@ import {
 import { type Static, type TObject, Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { Err, Ok, type Result } from 'wellcrafted/result';
+import { modifyMessageLabels, resolveLabelIds } from './modify.ts';
 import { queryMail } from './query.ts';
 import {
 	type LocalMailRuntime,
@@ -60,7 +61,7 @@ type ToolDescriptor = {
 	title: string;
 	description: string;
 	input: TObject;
-	tier: 'read' | 'write';
+	tier: 'read' | 'write' | 'mutation';
 	run: (
 		ctx: LocalMailRuntime,
 		args: Record<string, unknown>,
@@ -72,7 +73,7 @@ function defineMcpTool<S extends TObject>(tool: {
 	title: string;
 	description: string;
 	input: S;
-	tier: 'read' | 'write';
+	tier: 'read' | 'write' | 'mutation';
 	run: (ctx: LocalMailRuntime, args: Static<S>) => Promise<ToolOutcome>;
 }): ToolDescriptor {
 	return { ...tool, run: (ctx, args) => tool.run(ctx, args as Static<S>) };
@@ -142,6 +143,78 @@ const TOOLS: ToolDescriptor[] = [
 			}
 		},
 	}),
+	defineMcpTool({
+		name: 'modify_labels',
+		title: 'Modify message labels',
+		description:
+			'Add or remove Gmail labels on 1 to 100 messages. Pass Gmail label ids or exact label names; UNREAD marks unread, removing UNREAD marks read, removing INBOX archives, and adding INBOX unarchives. Gmail accepts or rejects each mutation before the local mirror is folded.',
+		input: Type.Object({
+			ids: Type.Array(Type.String({ minLength: 1 }), {
+				minItems: 1,
+				maxItems: 100,
+				description: 'Gmail message ids to mutate serially.',
+			}),
+			addLabelIds: Type.Optional(
+				Type.Array(Type.String({ minLength: 1 }), {
+					maxItems: 100,
+					description: 'Gmail label ids or exact names to add.',
+				}),
+			),
+			removeLabelIds: Type.Optional(
+				Type.Array(Type.String({ minLength: 1 }), {
+					maxItems: 100,
+					description: 'Gmail label ids or exact names to remove.',
+				}),
+			),
+		}),
+		tier: 'mutation',
+		async run(ctx, args) {
+			const { data: session, error } = await openSyncSession(ctx);
+			if (error) return Err(error);
+			try {
+				const addLabels = args.addLabelIds ?? [];
+				const removeLabels = args.removeLabelIds ?? [];
+				if (ctx.config.readOnly) {
+					return await modifyMessageLabels({
+						deps: session.deps,
+						input: {
+							ids: args.ids,
+							addLabelIds: addLabels,
+							removeLabelIds: removeLabels,
+						},
+						readOnly: true,
+					});
+				}
+
+				const { data: resolvedLabels, error: labelError } =
+					await resolveLabelIds({
+						deps: session.deps,
+						labels: [...addLabels, ...removeLabels],
+					});
+				if (labelError) return Err(labelError);
+
+				const { data, error } = await modifyMessageLabels({
+					deps: session.deps,
+					input: {
+						ids: args.ids,
+						addLabelIds: resolvedLabels.slice(0, addLabels.length),
+						removeLabelIds: resolvedLabels.slice(addLabels.length),
+					},
+					readOnly: ctx.config.readOnly,
+				});
+				if (error) return Err(error);
+				if (
+					data.aborted ||
+					data.results.some((result) => result.error !== null)
+				) {
+					return Err({ message: JSON.stringify(data) });
+				}
+				return Ok(data);
+			} finally {
+				session.close();
+			}
+		},
+	}),
 ];
 
 function toCallResult({ data, error }: ToolOutcome): CallToolResult {
@@ -170,9 +243,12 @@ export async function runMcpServer(): Promise<number> {
 		{ name: 'local-mail', version: VERSION },
 		{ capabilities: { tools: {} } },
 	);
+	const tools = TOOLS.filter(
+		(tool) => tool.tier !== 'mutation' || !runtime.config.readOnly,
+	);
 
 	server.setRequestHandler(ListToolsRequestSchema, async () => ({
-		tools: TOOLS.map((tool) => ({
+		tools: tools.map((tool) => ({
 			name: tool.name,
 			title: tool.title,
 			description: tool.description,
@@ -180,12 +256,13 @@ export async function runMcpServer(): Promise<number> {
 			annotations: {
 				readOnlyHint: tool.tier === 'read',
 				destructiveHint: false,
+				...(tool.tier === 'mutation' ? { idempotentHint: true } : {}),
 			},
 		})),
 	}));
 
 	server.setRequestHandler(CallToolRequestSchema, async (req) => {
-		const tool = TOOLS.find((candidate) => candidate.name === req.params.name);
+		const tool = tools.find((candidate) => candidate.name === req.params.name);
 		if (!tool) {
 			throw new McpError(
 				ErrorCode.MethodNotFound,

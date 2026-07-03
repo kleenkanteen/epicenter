@@ -38,10 +38,9 @@ Use `--client-id <id>` to override `GMAIL_CLIENT_ID` for the connect command.
 secret and the token exchange sends it as a form parameter.
 
 Local Mail requests `gmail.modify` so write-through label changes can round-trip
-through Gmail. Older tokens minted with the previous read-only scope can still
-read and sync; the first write will ask you to run `local-mail connect` again.
-Although Google grants send at the same OAuth layer, Local Mail does not expose
-send, reply, compose, drafts, trash, untrash, or delete in this phase.
+through Gmail. Although Google grants send at the same OAuth layer, Local Mail
+does not expose send, reply, compose, drafts, trash, untrash, or delete in this
+phase.
 
 Headless bootstrap is still available. The refresh token is redeemed
 immediately (one refresh grant plus a profile read), so a dead token fails

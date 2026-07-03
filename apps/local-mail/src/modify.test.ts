@@ -487,42 +487,6 @@ describe('modifyMessageLabels', () => {
 		cleanup();
 	});
 
-	test('readonly-era insufficientPermissions aborts with reconnect messaging', async () => {
-		const { db, cleanup } = tempDb();
-		const client = createFakeGmailClient(
-			new Map([
-				[
-					'm1',
-					{
-						error: GmailApiError.Http({
-							status: 403,
-							body: JSON.stringify({
-								error: {
-									errors: [{ reason: 'insufficientPermissions' }],
-								},
-							}),
-						}).error,
-					},
-				],
-			]),
-		);
-
-		const result = await modifyMessageLabels({
-			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
-			input: { ...input, ids: ['m1', 'm2'] },
-			readOnly: false,
-		});
-
-		const outcome = expectOk(result);
-		expect(outcome.aborted).toEqual({
-			name: 'ReadOnlyGrant',
-			message:
-				'This account was connected read-only. Run "local-mail connect" again to grant Gmail write access, then retry.',
-		});
-		expect(client.modifyCalls.map((call) => call.id)).toEqual(['m1']);
-		cleanup();
-	});
-
 	test('fold SQLITE_BUSY reports folded false without failing Gmail success', async () => {
 		const { db, cleanup } = tempDb();
 		const busyDb: MailDb = {
