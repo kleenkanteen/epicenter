@@ -17,11 +17,15 @@
 		activeConversationId,
 		onCreate,
 		onSwitch,
+		onPractice,
+		generating,
 	}: {
 		conversations: ConversationHandle[];
 		activeConversationId: ConversationId | null;
 		onCreate: () => void;
 		onSwitch: (conversationId: ConversationId) => void;
+		onPractice: (termTexts: string[]) => void;
+		generating: boolean;
 	} = $props();
 </script>
 
@@ -85,7 +89,7 @@
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 
-		<TermsPanel />
+		<TermsPanel {onPractice} {generating} />
 	</Sidebar.Content>
 
 	<Sidebar.Rail />
