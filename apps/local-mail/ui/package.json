@@ -1,0 +1,34 @@
+{
+	"name": "@epicenter/local-mail-ui",
+	"description": "Local Mail triage SPA, served same-origin by `local-mail up`",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync || echo ''",
+		"typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+	},
+	"devDependencies": {
+		"@epicenter/ui": "workspace:*",
+		"@lucide/svelte": "catalog:",
+		"@sveltejs/adapter-static": "catalog:",
+		"@sveltejs/kit": "catalog:",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@tailwindcss/vite": "catalog:",
+		"@types/bun": "catalog:",
+		"mode-watcher": "catalog:",
+		"svelte": "catalog:",
+		"svelte-check": "catalog:",
+		"svelte-sonner": "catalog:",
+		"tailwindcss": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:"
+	},
+	"dependencies": {
+		"@tanstack/svelte-query": "catalog:"
+	},
+	"license": "AGPL-3.0-or-later"
+}

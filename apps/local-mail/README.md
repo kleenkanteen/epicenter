@@ -93,6 +93,30 @@ Any per-id rejection or a systemic abort exits nonzero, so
 `LOCAL_MAIL_READ_ONLY` refuses every write while leaving `query`/`status`/`sync`
 available.
 
+Serve the triage UI and its API from one loopback process:
+
+```sh
+bun run src/bin.ts up
+```
+
+`up` runs the sync loop and serves the triage SPA (`ui/`) plus a same-origin
+`/api` on `127.0.0.1`, then prints `http://127.0.0.1:PORT/#token=...` and opens
+it. The tab is the app. Security is the up-shell spec's: a single-use bootstrap
+token rides in the URL fragment and is exchanged once at `POST /api/session`
+for a per-launch session bearer (kept in sessionStorage); every request is
+Host-checked first; the write route is the one `POST /api/messages/modify`
+(`{ ids, addLabels, removeLabels }` -> `ModifyMessageLabelsOutcome`) over the
+same core the CLI verbs and MCP tool use, so archive/read/label all desugar to
+add/remove sets client-side. `LOCAL_MAIL_READ_ONLY` disables writes end to end;
+`LOCAL_MAIL_NO_OPEN=1` prints the URL without launching a browser.
+
+Develop the UI against a running `up`:
+
+```sh
+LOCAL_MAIL_DEV=1 LOCAL_MAIL_TOKEN=devtoken LOCAL_MAIL_PORT=4177 bun run src/bin.ts up
+LOCAL_MAIL_TOKEN=devtoken bun run --cwd ui dev   # same token: Vite proxies /api to up, injecting this bearer
+```
+
 Serve tools to an MCP host:
 
 ```sh
@@ -122,6 +146,10 @@ Tools:
 - `LOCAL_MAIL_TOKEN_FILE`: token file override.
 - `LOCAL_MAIL_GMAIL_API_BASE`: test plumbing only; points the Gmail client at
   a mock server in the MCP subprocess test.
+- `LOCAL_MAIL_PORT`: pin the `up` server port (default: ephemeral).
+- `LOCAL_MAIL_DEV` / `LOCAL_MAIL_TOKEN`: dev-mode `up`; the Vite proxy injects
+  the fixed bearer. `bearerAuth` is never disabled in any mode.
+- `LOCAL_MAIL_NO_OPEN`: `up` prints the launch URL without opening a browser.
 
 ## Testing
 
@@ -138,10 +166,13 @@ stdio subprocess for the agent-facing protocol surface.
 
 ## Not built yet
 
-- HTTP and UI surfaces for the write-through actions. When they land, the UI
-  calls one `POST /api/messages/modify` adapter over the same core the CLI and
-  MCP use, not per-intent routes.
+- HTML mail-body rendering. The detail pane shows the pre-extracted plain-text
+  body; rich HTML rendering (the sanitizer + sandboxed srcdoc + CSP + show-images
+  proxy) is deferred, which is why the SPA has no mail-body iframe yet.
+- Compile-embed distribution (`bun build --compile`) and the Tauri wrapper. `up`
+  serves `ui/dist` from disk; the route table is the seam the distribution wave
+  swaps for embedded assets later.
 - Send, reply, compose, drafts, trash, untrash, and permanent delete.
+- Thread-level modify and `messages.batchModify`. Triage is message-level.
 - FTS5. `LIKE` over `body_text` is enough for the current mirror size.
-- Push/Pub/Sub.
-- The `up` local server and UI.
+- Push/Pub/Sub and any LAN or remote exposure (the server binds `127.0.0.1`).
