@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from '@epicenter/ui/button';
 	import { CopyButton } from '@epicenter/ui/copy-button';
 	import * as InputGroup from '@epicenter/ui/input-group';
 	import { recordings } from '$lib/state/recordings.svelte';
@@ -15,8 +16,12 @@
 	 */
 	let { recordingId }: { recordingId: string } = $props();
 
+	let showOriginal = $state(false);
 	const recording = $derived(recordings.get(recordingId));
-	const transcript = $derived(recording?.raw ?? '');
+	const hasResult = $derived(!!recording?.result);
+	const transcript = $derived(
+		showOriginal ? (recording?.raw ?? '') : (recording?.result ?? recording?.raw ?? ''),
+	);
 	const hasTranscript = $derived(!!transcript.trim());
 </script>
 
@@ -39,6 +44,23 @@
 			{/snippet}
 		</RecordingDetailModal>
 		{#if hasTranscript}
+			{#if hasResult}
+				<InputGroup.Addon align="inline-end">
+					<Button
+						variant="ghost"
+						size="sm"
+						tooltip={showOriginal
+							? 'Show delivered transcript'
+							: 'Show original transcript'}
+						onclick={(e) => {
+							e.stopPropagation();
+							showOriginal = !showOriginal;
+						}}
+					>
+						{showOriginal ? 'Result' : 'Original'}
+					</Button>
+				</InputGroup.Addon>
+			{/if}
 			<InputGroup.Addon align="inline-end">
 				<CopyButton
 					text={transcript}

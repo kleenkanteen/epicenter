@@ -89,6 +89,8 @@
 		enabled: isDialogOpen,
 	}));
 
+	const deliveredTranscript = $derived(workingCopy.result ?? workingCopy.raw);
+
 	function promptUserConfirmLeave() {
 		if (!isWorkingCopyDirty) {
 			isDialogOpen = false;
@@ -177,8 +179,29 @@
 				></audio>
 			{/if}
 
+			{#if workingCopy.result}
+				<div class="space-y-2">
+					<div class="flex items-center justify-between gap-2">
+						<Label for="delivered-transcript">Delivered transcript</Label>
+						<CopyButton
+							text={workingCopy.result}
+							copyFn={createCopyFn('delivered transcript')}
+							variant="outline"
+						/>
+					</div>
+					<Textarea
+						id="delivered-transcript"
+						value={workingCopy.result}
+						readonly
+						rows={6}
+					/>
+				</div>
+			{/if}
+
 			<div class="space-y-2">
-				<Label for="transcript">Transcript</Label>
+				<Label for="transcript">
+					{workingCopy.result ? 'Original transcript' : 'Transcript'}
+				</Label>
 				<Textarea
 					id="transcript"
 					value={workingCopy.raw}
@@ -275,11 +298,11 @@
 				Close
 			</Button>
 			<CopyButton
-				text={workingCopy.raw}
+				text={deliveredTranscript}
 				copyFn={createCopyFn('transcript')}
 				variant="outline"
 				size="default"
-				disabled={!workingCopy.raw.trim()}
+				disabled={!deliveredTranscript.trim()}
 			>
 				Copy
 			</CopyButton>

@@ -61,10 +61,12 @@ export type DeliveryResult = {
 };
 
 /**
- * Delivers transcript to the user according to their text output preferences
- * (copy to clipboard, write to cursor, simulate enter). Returns the structured
- * outcome plus a human notice; it does not toast. The dictation path reads the
- * outcome to drive the pill; file import and row actions show the notice.
+ * Delivers transcript to the user through the Dictate resolver. Cursor intent
+ * writes to the focused field; otherwise the recordings row is the ledger
+ * destination. Clipboard remains the cursor fallback and optional tee. Returns
+ * the structured outcome plus a human notice; it does not toast. The dictation
+ * path reads the outcome to drive the pill; file import and row actions show
+ * the notice.
  */
 export async function deliverTranscriptionResult({
 	text,
@@ -73,10 +75,19 @@ export async function deliverTranscriptionResult({
 	text: string;
 	source?: TranscriptionSource;
 }): Promise<DeliveryResult> {
-	return deliverResult({
+	const sink = resolveDictateSink({
+		// Phase 1 has no focused-field probe yet. The existing cursor setting is
+		// the observable "try to write into the focused field" intent until a
+		// native focus resolver exists.
+		focusedField: settings.get('output.transcription.cursor'),
+		keepOnClipboard: settings.get('output.transcription.clipboard'),
+		pressEnter: settings.get('output.transcription.enter'),
+	});
+
+	return deliverToSink({
 		text,
 		successCopy: TRANSCRIPTION_SUCCESS_COPY[source],
-		settingsScope: 'transcription',
+		sink,
 		// A transcription always belongs to a recording, so its history is reachable.
 		linkedRecording: true,
 	});
@@ -96,23 +107,51 @@ export async function deliverRecipeResult({
 	text: string;
 	recordingId: string | null;
 }): Promise<DeliveryResult> {
-	return deliverResult({
+	return deliverToSink({
 		text,
 		successCopy: '🔄 Recipe complete',
-		settingsScope: 'recipe',
+		sink: resolveSettingsSink('recipe'),
 		linkedRecording: recordingId !== null,
 	});
 }
 
-async function deliverResult({
+function resolveDictateSink({
+	focusedField,
+	keepOnClipboard,
+	pressEnter,
+}: {
+	focusedField: boolean;
+	keepOnClipboard: boolean;
+	pressEnter: boolean;
+}): Sink {
+	return focusedField
+		? createCursorSink({ keepOnClipboard, pressEnter })
+		: ledgerSink;
+}
+
+function resolveSettingsSink(settingsScope: OutputScope): Sink {
+	const cursorRequested = settings.get(`output.${settingsScope}.cursor`);
+	const clipboardRequested = settings.get(`output.${settingsScope}.clipboard`);
+
+	return cursorRequested
+		? createCursorSink({
+				keepOnClipboard: clipboardRequested,
+				pressEnter: settings.get(`output.${settingsScope}.enter`),
+			})
+		: clipboardRequested
+			? clipboardSink
+			: ledgerSink;
+}
+
+async function deliverToSink({
 	text,
 	successCopy,
-	settingsScope,
+	sink,
 	linkedRecording,
 }: {
 	text: string;
 	successCopy: string;
-	settingsScope: OutputScope;
+	sink: Sink;
 	linkedRecording: boolean;
 }): Promise<DeliveryResult> {
 	const recordingsAction = linkedRecording
@@ -121,20 +160,6 @@ async function deliverResult({
 				onClick: () => goto(WHISPERING_RECORDINGS_PATHNAME),
 			}
 		: undefined;
-
-	// Resolve one sink from settings: cursor beats clipboard beats the ledger.
-	// Nothing configured still reaches history, since the recordings row is
-	// itself the destination (ledgerSink).
-	const cursorRequested = settings.get(`output.${settingsScope}.cursor`);
-	const clipboardRequested = settings.get(`output.${settingsScope}.clipboard`);
-	const sink: Sink = cursorRequested
-		? createCursorSink({
-				keepOnClipboard: clipboardRequested,
-				pressEnter: settings.get(`output.${settingsScope}.enter`),
-			})
-		: clipboardRequested
-			? clipboardSink
-			: ledgerSink;
 
 	const reach = await sink.deliver(text);
 

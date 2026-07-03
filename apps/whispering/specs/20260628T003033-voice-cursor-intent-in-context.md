@@ -143,7 +143,7 @@ interface Sink {
 }
 ```
 
-`delivery.ts` resolves settings into exactly one sink per capture (cursor > clipboard > ledger today) and persists the observed outcome onto the row (a cursor sink that fell back records `clipboard`). A pure structural resolver `(intent, operand, focusedField) -> Sink` replaces the settings-priority pick in Phase 1. The `vault` sink (a markdown note) is the Phase 3 seam and the entire on-ramp to a personal corpus; it is designed-for, not built.
+`delivery.ts` resolves exactly one sink per capture and persists the observed outcome onto the row (a cursor sink that fell back records `clipboard`). Phase 1 routes Dictate through a structural resolver; Recipes keep the existing settings-priority pick. The `vault` sink (a markdown note) is the Phase 3 seam and the entire on-ramp to a personal corpus; it is designed-for, not built.
 
 ## Implementation Plan
 
@@ -155,9 +155,11 @@ interface Sink {
 
 ### Phase 1: the result becomes visible (low-regret, committed)
 
-- [ ] **1.1** History shows `result` (the delivered text) with a one-tap "show original" reading `raw`. This gives `result` its first reader and fixes the dead-`polishedTranscript` bug.
-- [ ] **1.2** Route Dictate delivery through the structural resolver (focused field -> cursor; nothing -> ledger), replacing the settings-priority pick.
-- [ ] **1.3** Verify clipboard-restore behavior after cursor paste (both comparables snapshot and restore). If absent, decide whether to add it here or defer; it is a Class 1 evidence question first.
+- [x] **1.1** History shows `result` (the delivered text) with a one-tap "show original" reading `raw`. This gives `result` its first reader and fixes the dead-`polishedTranscript` bug.
+- [x] **1.2** Route Dictate delivery through the structural resolver (focused field -> cursor; nothing -> ledger), replacing the settings-priority pick.
+  > **Note**: Phase 1 has no native focused-field probe yet, so the resolver uses the existing `output.transcription.cursor` setting as the observable "write into the focused field" intent. Clipboard remains a cursor fallback and optional tee, not Dictate's primary sink.
+- [x] **1.3** Verify clipboard-restore behavior after cursor paste (both comparables snapshot and restore). If absent, decide whether to add it here or defer; it is a Class 1 evidence question first.
+  > **Evidence**: `src-tauri/src/lib.rs::write_text` snapshots the clipboard when `keep_on_clipboard == false`, writes the transcript as the paste transport, waits for paste consumption, then restores the snapshot. macOS uses native `NSPasteboard` save/restore from `src-tauri/src/clipboard.rs`; other desktop platforms restore the prior text clipboard. If paste cannot run or fails, the transcript intentionally stays on the clipboard as the reduced-reach fallback.
 
 Opportunistic in Phase 1, not required: retry-transcription from a history row and a "saved/pinned" retention exemption (both Handy-validated, both cheap, both independent of the primitive).
 
@@ -189,7 +191,7 @@ Whispering also runs on web with no Tauri (`captureSelection`/`writeToCursor` re
 ## Success Criteria
 
 - [x] **Phase 0**: every pre-upgrade recording still appears in history (`scan().nonconforming` empty for migrated rows); new rows carry `intent`/`operand`/`sink`; Dictate's delivery outcome is persisted on the row; no visible change; typecheck and the migration test green.
-- [ ] **Phase 1**: history shows `result` with "show original" one tap away; Dictate delivery flows through the resolver; the clipboard-restore question is answered with evidence.
+- [x] **Phase 1**: history shows `result` with "show original" one tap away; Dictate delivery flows through the resolver; the clipboard-restore question is answered with evidence.
 - [ ] **Phase 2 (if go)**: Instruct-on-selection edits in place under Accessibility (clipboard + notice fallback otherwise); Instruct with no operand generates; the untrusted-operand scaffold mitigates representative injection strings; Instruct cancel leaves the original untouched and delivers nothing; Dictate-with-selection replaces it; routing makes zero LLM calls and a unit test proves the same inputs always route the same way.
 
 ## Relationship to ADR-0098

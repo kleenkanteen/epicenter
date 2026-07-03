@@ -98,6 +98,10 @@
 		() => rpc.transcription.transcribeRecordings.options,
 	);
 
+	function displayTranscript(recording: Recording): string {
+		return recording.result ?? recording.raw;
+	}
+
 	const columns = [
 		{
 			id: 'select',
@@ -113,10 +117,10 @@
 			enableHiding: false,
 			filterFn: (row, _columnId, filterValue) => {
 				const title = String(row.getValue('title'));
-				const raw = String(row.getValue('raw'));
+				const transcript = displayTranscript(row.original);
 				return (
 					title.toLowerCase().includes(filterValue.toLowerCase()) ||
-					raw.toLowerCase().includes(filterValue.toLowerCase())
+					transcript.toLowerCase().includes(filterValue.toLowerCase())
 				);
 			},
 		},
@@ -155,7 +159,8 @@
 			cell: formattedCell((recording) => recording.recordedAtZone),
 		},
 		{
-			accessorKey: 'raw',
+			id: 'transcript',
+			accessorFn: displayTranscript,
 			meta: { label: 'Transcript' },
 			header: ({ column }) =>
 				renderComponent(SortableTableHeader, {
@@ -307,7 +312,7 @@
 		table.getFilteredSelectedRowModel().rows,
 	);
 
-	let template = $state('{{recordedAt}} {{raw}}');
+	let template = $state('{{recordedAt}} {{transcript}}');
 	let delimiter = $state('\n\n');
 
 	let isDialogOpen = $state(false);
@@ -315,9 +320,10 @@
 	const joinedTranscriptionsText = $derived.by(() => {
 		const transcriptions = selectedRecordingRows
 			.map(({ original }) => original)
-			.filter((recording) => recording.raw !== '')
+			.filter((recording) => displayTranscript(recording) !== '')
 			.map((recording) =>
 				template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+					if (key === 'transcript') return displayTranscript(recording);
 					if (key in recording) {
 						const value = recording[key as keyof Recording];
 						return typeof value === 'string' ? value : '';
@@ -445,8 +451,8 @@
 							<Modal.Header>
 								<Modal.Title>Copy Transcripts</Modal.Title>
 								<Modal.Description>
-									Make changes to your profile here. Click save when you're
-									done.
+									Choose the template and delimiter for the selected
+									transcripts.
 								</Modal.Description>
 							</Modal.Header>
 							<div class="grid gap-4 py-4">
