@@ -14,6 +14,7 @@ import type { KeyBinding } from '$lib/tauri/commands';
 
 import { RECORDING_TRIGGERS } from '$lib/constants/audio/recording-triggers';
 import { INFERENCE_PROVIDER_IDS } from '$lib/constants/inference';
+import { SUPPORTED_LANGUAGES } from '$lib/constants/languages';
 import {
 	PROVIDERS,
 	TRANSCRIPTION_SERVICE_IDS,
@@ -204,7 +205,10 @@ function defineTranscriptionSettings(
 			field.string(),
 			() => PROVIDERS.Mistral.defaultModel as string,
 		),
-		'transcription.language': defineKv(field.string(), () => 'auto'),
+		'transcription.language': defineKv(
+			field.select(SUPPORTED_LANGUAGES),
+			() => 'auto' as const,
+		),
 		'transcription.prompt': defineKv(field.string(), () => ''),
 	} as const;
 }
