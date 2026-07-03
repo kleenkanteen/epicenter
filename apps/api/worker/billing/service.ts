@@ -185,6 +185,14 @@ export function createBillingService(
 	 * properties). Called after the gateway answered 200, off the after-response
 	 * queue. A small overspend is possible: the one call that tips a near-empty
 	 * wallet negative. The pre-call `checkAiCredits` gate keeps it to that call.
+	 *
+	 * Enqueued with `async: true`: Autumn records the event and returns 202 with
+	 * no `balances` in the body. SDK response validation still runs, but with no
+	 * balance map there is nothing for it to reject, so this post-success path
+	 * cannot throw on the null-balance drift the `autumn-js` bump also fixes.
+	 * Fire-and-forget matches the settle-after contract: the user's transcription
+	 * already succeeded, and a metering enqueue failure is logged at the adapter,
+	 * never surfaced to the client.
 	 */
 	async function trackAiTranscription(input: {
 		seconds: number;
@@ -202,6 +210,7 @@ export function createBillingService(
 				customerId: identity.principalId,
 				featureId: FEATURE_IDS.aiUsage,
 				value: credits,
+				async: true,
 				properties: {
 					model: input.model,
 					provider: input.provider,
