@@ -18,6 +18,8 @@
 		content,
 		romanizer = identityRomanizer,
 		showReadings = true,
+		onTermTap,
+		termActionLabel,
 		class: className,
 	}: {
 		content: string;
@@ -25,6 +27,10 @@
 		romanizer?: Romanizer;
 		/** When false, readings are skipped (the identity romanizer is used). */
 		showReadings?: boolean;
+		/** Called with a segment's `term` when its rendered tap target is clicked. */
+		onTermTap?: (term: string) => void;
+		/** Accessible label for tappable term segments. */
+		termActionLabel?: string;
 		class?: string;
 	} = $props();
 
@@ -33,5 +39,5 @@
 </script>
 
 <div class={cn('prose prose-sm', className)}>
-	{#each tokens as token, i (i)}<MarkdownNode {token} romanizer={activeRomanizer} />{/each}
+	{#each tokens as token, i (i)}<MarkdownNode {token} romanizer={activeRomanizer} {onTermTap} {termActionLabel} />{/each}
 </div>

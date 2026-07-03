@@ -20,4 +20,13 @@ describe('pinyinRomanizer', () => {
 		const chinese = pinyinRomanizer('你好').filter((s) => s.reading);
 		expect(chinese.map((s) => s.text)).toEqual(['你', '好']);
 	});
+
+	test('Chinese characters carry their containing word as the tap term', () => {
+		const segments = pinyinRomanizer('我学习中文');
+		const xue = segments.find((s) => s.text === '学');
+		const xi = segments.find((s) => s.text === '习');
+
+		expect(xue?.term).toBe('学习');
+		expect(xi?.term).toBe('学习');
+	});
 });

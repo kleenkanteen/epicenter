@@ -17,7 +17,19 @@
 	import type { Romanizer } from './romanizer.js';
 	import Ruby from './ruby.svelte';
 
-	let { token, romanizer }: { token: Token; romanizer: Romanizer } = $props();
+	let {
+		token,
+		romanizer,
+		onTermTap,
+		termActionLabel,
+	}: {
+		token: Token;
+		romanizer: Romanizer;
+		/** Called with a segment's `term` when its rendered tap target is clicked. */
+		onTermTap?: (term: string) => void;
+		/** Accessible label for tappable term segments. */
+		termActionLabel?: string;
+	} = $props();
 
 	// Schemes that execute when followed. The tree itself is inert DOM, so these
 	// attribute values are the only injection surface (an assistant can echo a
@@ -29,7 +41,7 @@
 	const imageSrc = (src: string) => (DANGEROUS_SRC.test(src) ? '' : src);
 </script>
 
-{#snippet children(tokens: Token[])}{#each tokens as child, i (i)}<MarkdownNode token={child} {romanizer} />{/each}{/snippet}
+{#snippet children(tokens: Token[])}{#each tokens as child, i (i)}<MarkdownNode token={child} {romanizer} {onTermTap} {termActionLabel} />{/each}{/snippet}
 
 {#if token.type === 'paragraph'}
 	<p>{@render children(token.tokens ?? [])}</p>
@@ -82,7 +94,7 @@
 {:else if token.type === 'text'}
 	<!-- A `text` token is either a container (recurse) or a leaf to romanize.
 	     The each body stays tight so adjacent segments never gain a space. -->
-	{#if token.tokens}{@render children(token.tokens)}{:else}{#each romanizer(token.text) as segment, i (i)}<Ruby {segment} />{/each}{/if}
+	{#if token.tokens}{@render children(token.tokens)}{:else}{#each romanizer(token.text) as segment, i (i)}<Ruby {segment} {onTermTap} {termActionLabel} />{/each}{/if}
 {:else if token.type === 'html' || token.type === 'tag'}
 	<!-- Render raw HTML as visible text, never as live markup. -->
 	{token.text}

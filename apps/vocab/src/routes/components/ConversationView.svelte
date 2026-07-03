@@ -3,11 +3,12 @@
 		AgentChatThread,
 		type ConversationHandle,
 	} from '@epicenter/app-shell/agent-chat';
-	import { Markdown } from '@epicenter/ui/markdown';
+	import { Markdown, type Romanizer } from '@epicenter/ui/markdown';
 	import { agentMessageText } from '@epicenter/workspace/agent';
 	import { pinyinRomanizer } from '$lib/romanize/pinyin';
 	import { auth } from '$platform/auth';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
+	import { wordsState } from '$lib/state/words.svelte';
 	import DictationButton from './DictationButton.svelte';
 
 	let {
@@ -19,6 +20,16 @@
 	// `{#if active}` guard), so the input accessory reads these instead of the
 	// handle directly.
 	const isGenerating = $derived(active?.isLoading ?? false);
+
+	/** Hiding pinyin drops the readings but keeps the tap targets: no-pinyin is
+	 * a recognition drill, and tapping an unrecognized word to save it is
+	 * exactly the move it must keep. (Passing `showReadings={false}` instead
+	 * would swap in the identity romanizer and strip the `term` stamps too.) */
+	const termsOnlyRomanizer: Romanizer = (text) =>
+		pinyinRomanizer(text).map((segment) => ({
+			text: segment.text,
+			term: segment.term,
+		}));
 
 	/** Land a dictated transcript in the draft for review, appended to whatever is
 	 * already typed. Guarded so it is a no-op if the conversation went away. */
@@ -47,8 +58,9 @@
 			{:else}
 				<Markdown
 					content={agentMessageText(msg)}
-					romanizer={pinyinRomanizer}
-					showReadings={showPinyin}
+					romanizer={showPinyin ? pinyinRomanizer : termsOnlyRomanizer}
+					onTermTap={(term) => wordsState.capture(term)}
+					termActionLabel="Save word"
 				/>
 			{/if}
 		{/snippet}

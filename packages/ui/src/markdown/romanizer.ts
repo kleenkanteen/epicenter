@@ -13,8 +13,12 @@
  * so reading-less runs (Latin, punctuation, whitespace) pass through verbatim.
  */
 
-/** One run of text, with a `reading` when it romanizes (absent = render as-is). */
-export type Segment = { text: string; reading?: string };
+/**
+ * One run of text, with a `reading` when it romanizes (absent = render as-is).
+ * `term` names the tappable capture unit this segment belongs to (for CJK,
+ * the containing word); a segment without one renders inert (no tap target).
+ */
+export type Segment = { text: string; reading?: string; term?: string };
 
 /** Split text into segments, attaching a reading to the ones that have one. */
 export type Romanizer = (text: string) => Segment[];

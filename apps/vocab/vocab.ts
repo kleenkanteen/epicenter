@@ -15,9 +15,18 @@
 
 import { conversationsTable } from '@epicenter/chat';
 import type { ServableModel } from '@epicenter/constants/ai-providers';
-import { defineKv, defineWorkspace } from '@epicenter/workspace';
+import { field } from '@epicenter/field';
+import {
+	defineKv,
+	defineTable,
+	defineWorkspace,
+	generateId,
+	type Id,
+	type InferTableRow,
+} from '@epicenter/workspace';
 import type { AgentMessage } from '@epicenter/workspace/agent';
 import { Type } from 'typebox';
+import type { Brand } from 'wellcrafted/brand';
 
 /**
  * Vocab runs a single Chinese-tuned model. It is an app constant, not a
@@ -85,6 +94,32 @@ export const VOCAB_DICTATION_LANGUAGE = 'en';
 export type VocabMessage = AgentMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Words
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Branded word id: a nanoid minted when a word is captured. */
+export type WordId = Id & Brand<'WordId'>;
+
+/** Mint a unique {@link WordId}. */
+export const generateWordId = (): WordId => generateId<WordId>();
+
+/**
+ * The words table: the user-curated word store. One pool, no decks. `status`
+ * is the one mastery signal a learner tracks (new/learning/known); `notes` and
+ * `lastPracticedAt` arrive in later phases as additive versioned migrations.
+ */
+export const wordsTable = defineTable({
+	id: field.string<WordId>(),
+	term: field.string(),
+	gloss: field.string(),
+	status: field.select(['new', 'learning', 'known']),
+	createdAt: field.instant(),
+});
+
+/** One word row. */
+export type Word = InferTableRow<typeof wordsTable>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Workspace Factory
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -102,6 +137,7 @@ export const vocabWorkspace = defineWorkspace({
 	name: 'vocab',
 	tables: {
 		conversations: conversationsTable,
+		words: wordsTable,
 	},
 	kv: {
 		showPinyin: defineKv(Type.Boolean(), () => true),
