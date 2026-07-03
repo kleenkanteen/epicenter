@@ -1,5 +1,5 @@
 import type { ApiApp } from '@epicenter/local-books/http/api';
-import { hc } from 'hono/client';
+import { hc, type InferRequestType } from 'hono/client';
 
 // The same-origin `/api` client, typed end to end by `hc<ApiApp>`: its request and
 // response shapes are inferred from the Hono routes in
@@ -78,26 +78,16 @@ async function toError(res: Response): Promise<Error> {
 	return new Error(body?.error ?? `Request failed (${res.status}).`);
 }
 
-export type ReportInput = {
-	report:
-		| 'ProfitAndLoss'
-		| 'BalanceSheet'
-		| 'CashFlow'
-		| 'AgedReceivables'
-		| 'AgedPayables'
-		| 'TrialBalance';
-	start_date?: string;
-	end_date?: string;
-	accounting_method?: 'Cash' | 'Accrual';
-};
-
-export type RecategorizeInput = {
-	entity: 'Purchase' | 'Bill';
-	id: string;
-	account_id: string;
-	account_name?: string;
-	line_id?: string;
-};
+// Request shapes derived from the hono client, so they cannot drift from the
+// server's arktype `ReportBody` / `RecategorizeBody`. Changing a server schema now
+// surfaces here as a type error rather than silently diverging from a hand union.
+// `ReportPanel` and `RowDetail` import these.
+export type ReportInput = InferRequestType<
+	typeof client.api.report.$post
+>['json'];
+export type RecategorizeInput = InferRequestType<
+	typeof client.api.recategorize.$post
+>['json'];
 
 export const api = {
 	status: async () => {
