@@ -109,9 +109,7 @@
 	);
 
 	const localServiceSearchKeywords = {
-		whispercpp: 'whisper cpp ggml gguf local offline',
-		parakeet: 'nvidia nemo onnx parakeet local offline',
-		moonshine: 'usefulsensors onnx moonshine local offline',
+		local: 'local offline whisper parakeet gguf ggml on-device private',
 	} satisfies Record<
 		Extract<TranscriptionProviderEntry, { location: 'local' }>['id'],
 		string

@@ -106,7 +106,7 @@ describe('resolveCompletionState', () => {
 });
 
 describe('describePolishDestination', () => {
-	const onDevice = { onDevice: true, name: 'Parakeet' } as const;
+	const onDevice = { onDevice: true, name: 'Local Model' } as const;
 	const cloud = { onDevice: false, name: 'OpenAI' } as const;
 	const selfHosted = {
 		onDevice: false,
@@ -150,6 +150,16 @@ describe('describePolishDestination', () => {
 		);
 	});
 
+	test('on-device audio and loopback override keeps audio and text on device', () => {
+		expect(
+			describePolishDestination(onDevice, 'OpenAI', {
+				target: { baseUrl: 'http://localhost:1234/v1', apiKey: undefined },
+				canRun: true,
+				textStaysOnDevice: true,
+			}),
+		).toBe('Audio and transcript text both stay on this device.');
+	});
+
 	test('cloud audio and cloud Polish names both providers', () => {
 		expect(
 			describePolishDestination(cloud, 'Google', {
@@ -183,6 +193,11 @@ describe('describePolishDestination', () => {
 	test('on-device audio ships raw instead of claiming Polish sends text when not ready', () => {
 		expect(
 			describePolishDestination(onDevice, 'Google', {
+||||||| parent of 3f46ca407f (feat(whispering): make transcribe-cpp GGUF the only local transcription runtime)
+			describePolishDestination('parakeet', 'Google', {
+=======
+			describePolishDestination('local', 'Google', {
+>>>>>>> 3f46ca407f (feat(whispering): make transcribe-cpp GGUF the only local transcription runtime)
 				target: {
 					baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
 					apiKey: undefined,
@@ -200,7 +215,13 @@ describe('describePolishDestination', () => {
 		// sentence must name the resolved host, exactly as the Processing surface
 		// does. Both surfaces resolve the same fact, so they never disagree.
 		expect(
+<<<<<<< HEAD
 			describePolishDestination(onDevice, 'Custom', {
+||||||| parent of 3f46ca407f (feat(whispering): make transcribe-cpp GGUF the only local transcription runtime)
+			describePolishDestination('parakeet', 'Custom', {
+=======
+			describePolishDestination('local', 'Custom', {
+>>>>>>> 3f46ca407f (feat(whispering): make transcribe-cpp GGUF the only local transcription runtime)
 				target: { baseUrl: 'https://completion.example/v1', apiKey: undefined },
 				canRun: true,
 				textStaysOnDevice: false,

@@ -7,27 +7,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptionSpec {
-    pub engine: Engine,
-    /// Entry name inside the engine's models directory (a single file or
-    /// directory name, never a path). `ModelCache` resolves it under
-    /// `{app_data}/models/{engine}/` at load time, so a path never exists
-    /// as data anywhere in the system.
-    pub model_name: String,
+    /// The selected model's stable catalog id (`"{repo_id}@{revision}/{filename}"`).
+    /// `ModelCache` resolves it to a shared-HF-cache path at load time via
+    /// `catalog::resolve_model_path`, so a path never exists as data here.
+    pub model_id: String,
     #[serde(default)]
     pub language: Option<String>,
     #[serde(default)]
     pub initial_prompt: Option<String>,
-}
-
-/// Local transcription engine. Wire tags match the frontend
-/// `transcription.service` enum (`whispercpp` / `parakeet` / `moonshine`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, specta::Type)]
-#[serde(rename_all = "lowercase")]
-pub enum Engine {
-    #[serde(rename = "whispercpp")]
-    Whispercpp,
-    Parakeet,
-    Moonshine,
 }
 
 /// How long after the last transcription the resident model should be

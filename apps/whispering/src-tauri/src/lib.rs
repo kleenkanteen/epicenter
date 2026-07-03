@@ -16,8 +16,7 @@ use recorder::recorder::Recorder;
 
 pub mod transcription;
 use transcription::{
-    delete_model_entry, download_model, get_transcription_state, link_local_model,
-    list_model_entries, prewarm_model, resolve_model_files, reveal_models_folder,
+    delete_model, download_model, get_transcription_state, list_models, prewarm_model,
     set_unload_policy, transcribe_recording, ModelCache, ModelStateEvent,
 };
 
@@ -84,12 +83,9 @@ fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             request_microphone_permission,
             set_unload_policy,
             get_transcription_state,
-            link_local_model,
-            list_model_entries,
-            delete_model_entry,
-            resolve_model_files,
+            list_models,
             download_model,
-            reveal_models_folder,
+            delete_model,
             cancel_download,
             pause_playback,
             resume_playback,
@@ -188,29 +184,6 @@ pub async fn run() {
 
         previous_hook(panic_info);
     }));
-
-    // ONNX Runtime accelerator for Parakeet and Moonshine. `OrtAccelerator::Auto`
-    // picks the best provider that's compiled in (CoreML on macOS, CPU on Linux),
-    // but it deliberately excludes DirectML because DirectML needs sequential ORT
-    // session settings that would penalize other backends. So on Windows we
-    // select DirectML explicitly to honor the compiled-in `ort-directml` feature.
-    // transcribe-rs always appends CPU to the EP list, so a CoreML or DirectML
-    // init failure degrades to CPU rather than failing the transcription. Set
-    // `ORT_LOG_SEVERITY_LEVEL=0` to confirm which EP ORT actually selected.
-    #[cfg(target_os = "windows")]
-    transcribe_rs::accel::set_ort_accelerator(transcribe_rs::accel::OrtAccelerator::DirectMl);
-
-    // On macOS, force the CPU execution provider for the ONNX engines
-    // (Parakeet, Moonshine). The default `Auto` selects CoreML, but our models
-    // are int8-quantized and CoreML cannot run the int8 ops (ConvInteger,
-    // DynamicQuantizeLinear): it silently falls back to CPU for them anyway,
-    // then adds Metal context setup plus partition-boundary copies on top.
-    // Benchmarks on parakeet-tdt-0.6b-v3-int8 measured CPU at ~3.5 us/sample
-    // versus ~12 us/sample warm on CoreML (about 3x faster), and CPU also
-    // silences the macOS "Context leak detected" GPU log spam. Prefer an fp16
-    // model if you ever want genuine CoreML or Neural Engine acceleration.
-    #[cfg(target_os = "macos")]
-    transcribe_rs::accel::set_ort_accelerator(transcribe_rs::accel::OrtAccelerator::CpuOnly);
 
     let log_plugin = tauri_plugin_log::Builder::new()
         .level(log::LevelFilter::Info)

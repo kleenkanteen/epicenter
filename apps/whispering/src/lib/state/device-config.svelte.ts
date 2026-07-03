@@ -130,17 +130,14 @@ const DEVICE_DEFINITIONS = {
 		'16000',
 	),
 
-	// ── Local model paths ─────────────────────────────────────────────
+	// ── Local model selection ─────────────────────────────────────────
 	/**
-	 * The engine's selected model as an entry name inside its models folder
-	 * (e.g. "ggml-tiny.bin", "parakeet-tdt-0.6b-v3-int8"), never a path. The
-	 * folder under appdata is the single source of truth for where models
-	 * live; `$lib/services/transcription/local-model-folder.ts` resolves
-	 * names back to paths.
+	 * The selected local model's catalog id (`"{repoId}@{revision}/{filename}"`),
+	 * never a path. Rust owns the GGUF catalog and resolves the id to a
+	 * shared-HF-cache path at load time (`transcription::catalog`). Device-local
+	 * because the download lives on this machine's Hugging Face cache.
 	 */
-	'transcription.whispercpp.model': defineEntry(type('string'), ''),
-	'transcription.parakeet.model': defineEntry(type('string'), ''),
-	'transcription.moonshine.model': defineEntry(type('string'), ''),
+	'transcription.local.selectedModel': defineEntry(type('string'), ''),
 
 	// ── Local model lifecycle (per device: memory pressure is physical) ─
 	/**

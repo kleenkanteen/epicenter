@@ -1,4 +1,3 @@
-use super::config::Engine;
 use serde::{Deserialize, Serialize};
 
 /// Snapshot of everything observable about the resident model. Every event
@@ -9,10 +8,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalModelState {
-    pub engine: Option<Engine>,
-    /// Entry name inside the engine's models directory, mirroring
-    /// `TranscriptionSpec::model_name`.
-    pub model_name: Option<String>,
+    /// The resident model's catalog id, mirroring `TranscriptionSpec::model_id`;
+    /// `None` when no model is resident.
+    pub model_id: Option<String>,
     pub status: ModelStatus,
 }
 
@@ -25,15 +23,15 @@ pub enum ModelStatus {
     /// No model resident and none loading. Initial state, and reached after
     /// `Unloaded`.
     Idle,
-    /// `with_engine` is currently inside the `load(&model_path)` call.
+    /// `with_model` is currently inside the `load(&model_path)` call.
     Loading,
     /// A model is resident and not currently in use.
     Ready,
-    /// `with_engine` is currently inside the user closure (transcribe call).
+    /// `with_model` is currently inside the user closure (transcribe call).
     /// The cache lock is held; `snapshot()` reports this without contending.
     Inferring,
     /// The last attempt to load or transcribe failed. Inference failures may
-    /// leave the engine resident so a later transcription can reuse it.
+    /// leave the model resident so a later transcription can reuse it.
     Error { message: String },
 }
 
@@ -111,8 +109,7 @@ mod tests {
     fn event_wire_shape_uses_snake_case_kinds_and_camel_case_fields() {
         let event = ModelStateEvent::InferenceCompleted {
             state: LocalModelState {
-                engine: Some(Engine::Whispercpp),
-                model_name: Some("ggml-tiny.bin".to_string()),
+                model_id: Some("handy-computer/whisper-small-gguf@main/whisper-small-Q4_K_M.gguf".to_string()),
                 status: ModelStatus::Ready,
             },
             elapsed_ms: 123,
@@ -123,8 +120,7 @@ mod tests {
             json!({
                 "kind": "inference_completed",
                 "state": {
-                    "engine": "whispercpp",
-                    "modelName": "ggml-tiny.bin",
+                    "modelId": "handy-computer/whisper-small-gguf@main/whisper-small-Q4_K_M.gguf",
                     "status": { "kind": "ready" }
                 },
                 "elapsedMs": 123
