@@ -338,12 +338,12 @@ impl ModelCache {
     /// Start the background idle watcher. Spawns one task on the Tauri
     /// async runtime; safe to call once at setup.
     pub fn start_idle_watcher(&self) {
-        let this = self.clone();
+        let cache = self.clone();
         tauri::async_runtime::spawn(async move {
             let tick = Duration::from_secs(10);
             loop {
                 tokio::time::sleep(tick).await;
-                this.tick_idle();
+                cache.tick_idle();
             }
         });
     }
