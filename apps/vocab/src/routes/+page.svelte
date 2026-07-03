@@ -5,6 +5,7 @@
 	import * as Sidebar from '@epicenter/ui/sidebar';
 	import { VOCAB_MODEL, VOCAB_SYSTEM_PROMPT } from '@epicenter/vocab';
 	import { onDestroy } from 'svelte';
+	import { buildPracticePrompt } from '$lib/practice';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
 	import { vocab } from '$lib/vocab';
 	import ConversationView from './components/ConversationView.svelte';
@@ -27,6 +28,15 @@
 	});
 
 	onDestroy(() => chat[Symbol.dispose]());
+
+	/** Compile the chosen terms into a practice turn and send it. Focus lands in
+	 * the active conversation, opening one only when none exists. The passage
+	 * comes back under the tutor system prompt; nothing is written to the terms. */
+	function practice(termTexts: string[]) {
+		if (termTexts.length === 0) return;
+		if (!chat.active) chat.createConversation();
+		chat.active?.sendMessage(buildPracticePrompt(termTexts));
+	}
 </script>
 
 <Sidebar.Provider>
@@ -35,6 +45,8 @@
 		activeConversationId={chat.activeConversationId}
 		onCreate={() => chat.createConversation()}
 		onSwitch={(conversationId) => chat.switchTo(conversationId)}
+		onPractice={practice}
+		generating={chat.active?.isLoading ?? false}
 	/>
 
 	<main class="flex h-dvh flex-1 flex-col">
