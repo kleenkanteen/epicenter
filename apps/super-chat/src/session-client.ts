@@ -15,8 +15,8 @@
  * Run: bun run apps/super-chat/src/session-client.ts ws://127.0.0.1:<port> <token>
  */
 
-import type { AgentMessage } from '@epicenter/workspace/agent';
 import { API_ROUTES } from '@epicenter/constants/api-routes';
+import type { AgentMessage } from '@epicenter/workspace/agent';
 import type { ServerEvent } from './server.ts';
 
 const [, , origin, token] = process.argv;
