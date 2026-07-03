@@ -226,8 +226,9 @@ export const deviceConfig = createPersistedMap({
 
 // Nothing here is migrated from a legacy format; both prior formats take a clean
 // break. Local model selections once lived under `transcription.*.modelPath` as
-// filesystem paths: that key is simply orphaned now and the `transcription.*.model`
-// entry reads its default. Global shortcuts once stored accelerator strings under
+// filesystem paths: those keys are simply orphaned now and the
+// `transcription.local.selectedModel` entry reads its default (empty). Global
+// shortcuts once stored accelerator strings under
 // the same key: a legacy value fails the `globalBinding` schema on read and falls
 // back to the default (see `createPersistedMap`). Either way upgrading users get
 // the new defaults, and we carry no parser for a format nothing writes anymore.
