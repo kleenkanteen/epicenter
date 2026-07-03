@@ -33,6 +33,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { InferenceConnections } from './connections.svelte.js';
 
 	type Props = {
@@ -67,9 +68,9 @@
 	let discoveryError = $state<string | null>(null);
 
 	// Connections currently re-discovering their models, for per-group refresh
-	// spinners. Usually one entry, but keep the state per URL so overlapping refreshes
-	// cannot clear each other's loading state.
-	let refreshingBaseUrls = $state<string[]>([]);
+	// spinners. Usually one entry, but keep the set keyed per URL so overlapping
+	// refreshes cannot clear each other's loading state.
+	const refreshingBaseUrls = new SvelteSet<string>();
 
 	// Clear all of the connect form's working state. Called on close so a user who
 	// connected one provider lands back on the preset chooser (not a stale sub-form
@@ -145,12 +146,12 @@
 	// Re-discover a connected endpoint's models in place. Best effort: the group's
 	// list updates reactively when the fresh ids land, and stands on error.
 	async function refreshConnection(baseUrl: string) {
-		if (refreshingBaseUrls.includes(baseUrl)) return;
-		refreshingBaseUrls = [...refreshingBaseUrls, baseUrl];
+		if (refreshingBaseUrls.has(baseUrl)) return;
+		refreshingBaseUrls.add(baseUrl);
 		try {
 			await connections.refresh(baseUrl);
 		} finally {
-			refreshingBaseUrls = refreshingBaseUrls.filter((url) => url !== baseUrl);
+			refreshingBaseUrls.delete(baseUrl);
 		}
 	}
 
@@ -306,10 +307,10 @@
 							{/each}
 							<Command.Item
 								value="refresh {connection.baseUrl}"
-								disabled={refreshingBaseUrls.includes(connection.baseUrl)}
+								disabled={refreshingBaseUrls.has(connection.baseUrl)}
 								onSelect={() => refreshConnection(connection.baseUrl)}
 							>
-								{#if refreshingBaseUrls.includes(connection.baseUrl)}
+								{#if refreshingBaseUrls.has(connection.baseUrl)}
 									<LoaderCircle class="size-4 animate-spin" />
 								{:else}
 									<RefreshCw class="size-4" />
