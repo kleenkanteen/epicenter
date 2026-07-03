@@ -29,6 +29,7 @@
 		"packages": [
 			"apps/*",
 			"apps/api/ui",
+			"apps/local-mail/ui",
 			"packages/*",
 			"examples/*"
 		],
