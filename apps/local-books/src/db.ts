@@ -158,9 +158,9 @@ export function openBooksDb(
 		setMetaStmt.run('schema_version', SCHEMA_VERSION);
 	}
 
-	// Prepared-statement caches, keyed by table.
-	const upsertStmts = new Map<string, ReturnType<typeof db.query>>();
-	const deleteStmts = new Map<string, ReturnType<typeof db.query>>();
+	// `db.query()` caches the compiled statement by SQL text, so the per-table
+	// statements below are prepared once and reused on repeat calls without a
+	// hand-rolled cache.
 
 	function ensureEntityTable(def: EntityDef): void {
 		const table = def.table;
@@ -186,8 +186,6 @@ export function openBooksDb(
 	}
 
 	function upsertStmtFor(def: EntityDef) {
-		const cached = upsertStmts.get(def.table);
-		if (cached) return cached;
 		const table = def.table;
 		// Monotonic upsert: a row only ever moves forward. The DO UPDATE applies only
 		// when the incoming object is at least as new as the stored one (by QB
@@ -196,7 +194,7 @@ export function openBooksDb(
 		// ingested a newer bookkeeper edit. A missing timestamp on either side falls
 		// back to last-writer-wins (nothing to order on). The extracted columns are
 		// generated from `raw`, so the upsert writes only the blob and its bookkeeping.
-		const stmt = db.query(
+		return db.query(
 			`INSERT INTO ${table} (id, raw, updated_at, synced_at, deleted)
 			 VALUES (?, ?, ?, ?, 0)
 			 ON CONFLICT(id) DO UPDATE SET
@@ -208,19 +206,15 @@ export function openBooksDb(
 			    OR ${table}.updated_at IS NULL
 			    OR excluded.updated_at >= ${table}.updated_at`,
 		);
-		upsertStmts.set(def.table, stmt);
-		return stmt;
 	}
 
 	function deleteStmtFor(def: EntityDef) {
-		const cached = deleteStmts.get(def.table);
-		if (cached) return cached;
 		const table = def.table;
 		// On conflict, only flip the flag + timestamps and keep the existing blob (a
 		// CDC delete payload is just a stub); the generated columns keep projecting
 		// that preserved blob, so the last-known scalars survive. Same monotonic guard
 		// as the upsert: a stale delete cannot override a newer live update.
-		const stmt = db.query(
+		return db.query(
 			`INSERT INTO ${table} (id, raw, updated_at, synced_at, deleted)
 			 VALUES (?, ?, ?, ?, 1)
 			 ON CONFLICT(id) DO UPDATE SET
@@ -231,8 +225,6 @@ export function openBooksDb(
 			    OR ${table}.updated_at IS NULL
 			    OR excluded.updated_at >= ${table}.updated_at`,
 		);
-		deleteStmts.set(def.table, stmt);
-		return stmt;
 	}
 
 	function tableExists(name: string): boolean {
