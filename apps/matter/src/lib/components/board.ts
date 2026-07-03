@@ -97,14 +97,12 @@ export function boardColumnsFor({
 
 /**
  * Decide the write a card drop should make, or `null` when the drop should do
- * nothing. `columns` is the board as currently rendered, so the decision is made
- * against real cards, not the raw drag payload:
+ * nothing. `card` is a card the board actually rendered, handed straight from the
+ * drag it started: the dragged card's identity is held in component state, never
+ * serialized through the drag payload and re-looked-up, so "the drop only writes a
+ * card on this board" is structural (only a rendered card can start a drag), not a
+ * refusal against an arbitrary browser payload.
  *
- * - A `fileName` that names no card on this board is refused. A drag payload can be
- *   anything the browser hands us (a plain-text selection, an off-board element via
- *   the `text/plain` fallback), so a name is only allowed to write once it matches a
- *   card actually on the board. Without this, an arbitrary payload could write to (and
- *   create) a stray file in the vault folder.
  * - A drop onto the column the card already sits in is a no-op, so a card released
  *   where it started never issues a redundant same-value write (and watcher echo).
  * - Unassigned clears the field (`value: undefined`, the nullish contract: delete the
@@ -112,20 +110,15 @@ export function boardColumnsFor({
  *   column) is refused.
  */
 export function boardDropEditFor({
-	columns,
-	fileName,
+	card,
 	groupByField,
 	columnValue,
 }: {
-	columns: readonly BoardColumn[];
-	fileName: string;
+	card: BoardCard;
 	groupByField: ContractField;
 	columnValue: string | null;
 }): BoardDropEdit | null {
-	const card = columns
-		.flatMap((column) => column.cards)
-		.find((candidate) => candidate.row.fileName === fileName);
-	if (!card) return null;
+	const fileName = card.row.fileName;
 	// Match the bucketing in `groupRowsByField`: a nullish cell is Unassigned, and a
 	// present value keys by its string form, so the no-op check compares like with like.
 	const current = card.row.frontmatter[groupByField.name];

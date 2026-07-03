@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from '@epicenter/ui/button';
 	import { confirmationDialog } from '@epicenter/ui/confirmation-dialog';
 	import { FileDropZone } from '@epicenter/ui/file-drop-zone';
 	import * as Kbd from '@epicenter/ui/kbd';
@@ -10,10 +11,8 @@
 	import { defineErrors, extractErrorMessage } from 'wellcrafted/error';
 	import { tryAsync } from 'wellcrafted/result';
 	import DictationCapabilityNotice from '$lib/components/DictationCapabilityNotice.svelte';
-	import {
-		TranscriptionRuntimeConfig,
-		TranscriptionSelector,
-	} from '$lib/components/settings';
+	import { TranscriptionSelector } from '$lib/components/settings';
+	import ProviderConfigFields from '$lib/components/settings/ProviderConfigFields.svelte';
 	import ManualDeviceSelector from '$lib/components/settings/selectors/ManualDeviceSelector.svelte';
 	import VadDeviceSelector from '$lib/components/settings/selectors/VadDeviceSelector.svelte';
 	import {
@@ -32,7 +31,10 @@
 	import { selectCaptureSurface } from '$lib/operations/recording';
 	import { report } from '$lib/report';
 	import { services } from '$lib/services';
-	import { getTranscriptionReadiness } from '$lib/settings/transcription-validation';
+	import {
+		getSelectedTranscriptionProvider,
+		getTranscriptionReadiness,
+	} from '$lib/settings/transcription-validation';
 	import { captureSurface } from '$lib/state/capture-surface.svelte';
 	import { dictationCapability } from '$lib/state/dictation-capability.svelte';
 	import { recordings } from '$lib/state/recordings.svelte';
@@ -52,6 +54,17 @@
 
 	const latestRecording = $derived(recordings.sorted[0]);
 	const transcriptionReadiness = $derived(getTranscriptionReadiness());
+	// Home is onboarding, not configuration: when transcription is not ready, ask
+	// for only the one required credential inline. A cloud provider needs a single
+	// API key, so we render just that field (via `secretsOnly`) and delegate the
+	// full provider/model/endpoint choice to Privacy & Processing. Local and
+	// self-hosted setups (a model download, a server URL and model id) are too
+	// heavy for the record screen, so those route to Privacy & Processing instead
+	// of rendering a second setup surface here.
+	const inlineKeyProvider = $derived.by(() => {
+		const provider = getSelectedTranscriptionProvider();
+		return provider?.access === 'byok' ? provider : null;
+	});
 	// The verb fragments the hint drops around each key, per mode. `here` and
 	// `anywhere` annotate the in-app and global keys with their reach; `fresh` is the
 	// bare prompt shown when nothing is bound at all.
@@ -266,11 +279,18 @@
 						'Choose how Whispering turns your speech into text.'}
 				</p>
 			</div>
-			<TranscriptionRuntimeConfig
-				id="home-transcription-service"
-				label="Service"
-				showAdvanced={false}
-			/>
+			{#if inlineKeyProvider}
+				<ProviderConfigFields provider={inlineKeyProvider.id} secretsOnly />
+				<p class="text-muted-foreground text-sm">
+					<Link href="/settings/processing">
+						Change provider, model, or endpoint in Privacy &amp; Processing
+					</Link>
+				</p>
+			{:else}
+				<Button href="/settings/processing" variant="outline" class="w-full">
+					Set up in Privacy &amp; Processing
+				</Button>
+			{/if}
 		</div>
 	{:else}
 		<ToggleGroup.Root

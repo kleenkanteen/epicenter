@@ -10,6 +10,8 @@ import {
 	resolveCompletionState,
 } from '$lib/operations/completion';
 import { describePolishDestination } from '$lib/operations/completion-target';
+import { resolveTranscriptionLocalityFromConfig } from '$lib/operations/transcription-target';
+import { deviceConfig } from '$lib/state/device-config.svelte';
 import { settings } from '$lib/state/settings.svelte';
 
 export const RunPolishError = defineErrors({
@@ -56,7 +58,10 @@ export function polishStatus(): PolishStatus {
  */
 export function polishDestination(): string {
 	return describePolishDestination(
-		settings.get('transcription.service'),
+		resolveTranscriptionLocalityFromConfig({
+			service: settings.get('transcription.service'),
+			getDeviceConfig: deviceConfig.get,
+		}),
 		settings.get('completion.provider'),
 		resolveCompletionState(),
 	);

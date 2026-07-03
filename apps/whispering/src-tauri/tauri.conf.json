@@ -19,10 +19,10 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		],
-		"resources": [
-			"recorder-state-icons/studio_microphone.png",
-			"recorder-state-icons/red_large_square.png"
-		],
+		"resources": {
+			"recorder-state-icons/studio_microphone.png": "recorder-state-icons/studio_microphone.png",
+			"recorder-state-icons/red_large_square.png": "recorder-state-icons/red_large_square.png"
+		},
 		"longDescription": "Seamlessly integrate speech-to-text transcriptions anywhere on your desktop. Powered by OpenAI's Whisper API.",
 		"shortDescription": "Press shortcut → speak → get text. Free and open source ❤️",
 		"createUpdaterArtifacts": true,
@@ -33,8 +33,21 @@
 			"signingIdentity": "Developer ID Application: Braden Wong (3C7J97QA5Z)"
 		},
 		"linux": {
+			"deb": {
+				"files": {
+					"/usr/lib": "transcribe-libs"
+				}
+			},
+			"rpm": {
+				"files": {
+					"/usr/lib": "transcribe-libs"
+				}
+			},
 			"appimage": {
-				"bundleMediaFramework": true
+				"bundleMediaFramework": true,
+				"files": {
+					"/usr/lib": "transcribe-libs"
+				}
 			}
 		},
 		"windows": {

@@ -12,8 +12,6 @@ import epicenterIcon from '$lib/constants/icons/epicenter.svg?raw';
 import ggmlIcon from '$lib/constants/icons/ggml.svg?raw';
 import groqIcon from '$lib/constants/icons/groq.svg?raw';
 import mistralIcon from '$lib/constants/icons/mistral.svg?raw';
-import moonshineIcon from '$lib/constants/icons/moonshine.svg?raw';
-import nvidiaIcon from '$lib/constants/icons/nvidia.svg?raw';
 import openaiIcon from '$lib/constants/icons/openai.svg?raw';
 import speachesIcon from '$lib/constants/icons/speaches.svg?raw';
 import { PROVIDERS, type TranscriptionServiceId } from './providers';
@@ -25,9 +23,7 @@ export const PROVIDER_ICONS = {
 	ElevenLabs: { icon: elevenlabsIcon, invertInDarkMode: true },
 	Deepgram: { icon: deepgramIcon, invertInDarkMode: true },
 	Mistral: { icon: mistralIcon, invertInDarkMode: false },
-	whispercpp: { icon: ggmlIcon, invertInDarkMode: true },
-	parakeet: { icon: nvidiaIcon, invertInDarkMode: false },
-	moonshine: { icon: moonshineIcon, invertInDarkMode: false },
+	local: { icon: ggmlIcon, invertInDarkMode: true },
 	speaches: { icon: speachesIcon, invertInDarkMode: false },
 } as const satisfies Record<
 	TranscriptionServiceId,
@@ -36,9 +32,9 @@ export const PROVIDER_ICONS = {
 
 /**
  * One provider's registry data joined with its icon, discriminated by id:
- * narrowing on `location` (or `id`) narrows every field together, `id`
+ * narrowing on `access` (or `id`) narrows every field together, `id`
  * included. A plain `Object.entries(...).map(...)` type would cross the full
- * id union with the full provider union, so narrowing `location` would leave
+ * id union with the full provider union, so narrowing `access` would leave
  * `id` broad; the mapped type keeps each id paired with its own shape.
  */
 export type TranscriptionProviderEntry = {

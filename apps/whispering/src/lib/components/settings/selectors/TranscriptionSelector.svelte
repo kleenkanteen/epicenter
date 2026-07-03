@@ -21,6 +21,7 @@
 		isTranscriptionServiceConfigured,
 	} from '$lib/settings/transcription-validation';
 	import { deviceConfig } from '$lib/state/device-config.svelte';
+	import { localModels } from '$lib/state/local-models.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { tauri } from '#platform/tauri';
 
@@ -87,8 +88,13 @@
 				return settings.get(service.modelSettingKey);
 			case 'byoe':
 				return deviceConfig.get(service.endpointConfigKey);
-			case 'onDevice':
-				return deviceConfig.get(service.modelConfigKey);
+			case 'onDevice': {
+				// Resolve the opaque catalog id ("{repo}@{rev}/{file}") to its friendly
+				// name so the On-device group's selection subtext reads as a model, not
+				// an HF coordinate. Falls back to the id if the store has not loaded yet.
+				const id = deviceConfig.get(service.modelConfigKey);
+				return localModels.find(id)?.name ?? id;
+			}
 			case 'star':
 				return undefined;
 		}
@@ -115,9 +121,7 @@
 	);
 
 	const onDeviceServiceSearchKeywords = {
-		whispercpp: 'whisper cpp ggml gguf local offline',
-		parakeet: 'nvidia nemo onnx parakeet local offline',
-		moonshine: 'usefulsensors onnx moonshine local offline',
+		local: 'local offline whisper parakeet gguf ggml on-device private',
 	} satisfies Record<
 		Extract<TranscriptionProviderEntry, { access: 'onDevice' }>['id'],
 		string
@@ -412,7 +416,7 @@
 				<Command.Item
 					value="settings"
 					onSelect={() => {
-						goto('/settings/transcription');
+						goto('/settings/processing');
 						combobox.closeAndFocusTrigger();
 					}}
 					class="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground"

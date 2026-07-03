@@ -36,7 +36,7 @@ type CloudModel = { name: string; description: string; cost: string };
  *   - `byoe`     a server URL + model id the user runs     -> Speaches
  *   - `star`     nothing; the session with the Epicenter   -> Epicenter
  *                deployment you are bonded to is the key
- *   - `onDevice` an on-device model file, no network       -> whispercpp, ...
+ *   - `onDevice` an on-device model file, no network       -> Local
  *
  * `byok` and `byoe` are the matched "bring your own X" pair: both hand a
  * `{ baseUrl, apiKey? }` to an external OpenAI-compatible box, differing only in
@@ -85,14 +85,14 @@ type OnDeviceProvider = {
 	access: Extract<ProviderAccess, 'onDevice'>;
 	label: string;
 	description: string;
-	capabilities: Capabilities;
 	/**
-	 * The device config key holding the engine's selected model: a folder
-	 * entry name inside the engine's models folder, never a path.
+	 * The device config key holding the selected model's catalog id
+	 * (`"{repoId}@{revision}/{filename}"`), never a path. Rust owns the catalog
+	 * and resolves the id to a shared-HF-cache path at load time. No static
+	 * `capabilities` here: local capability is per-GGUF, read from the Rust
+	 * `ModelInfo` (honest asymmetry vs. provider-wide cloud capability).
 	 */
 	modelConfigKey: DeviceConfigKey;
-	/** Whether the engine's model is a single file or a directory. */
-	modelKind: 'file' | 'directory';
 };
 
 type ByoeProvider = {
@@ -312,30 +312,11 @@ export const PROVIDERS = {
 		],
 	},
 
-	whispercpp: {
+	local: {
 		access: 'onDevice',
-		label: 'Whisper C++',
-		description: 'Fast local transcription with no internet required',
-		capabilities: { supportsPrompt: true, supportsLanguage: true },
-		modelConfigKey: 'transcription.whispercpp.model',
-		modelKind: 'file',
-	},
-	parakeet: {
-		access: 'onDevice',
-		label: 'Parakeet',
-		description:
-			'Recommended fast local transcription with automatic language detection',
-		capabilities: { supportsPrompt: false, supportsLanguage: false },
-		modelConfigKey: 'transcription.parakeet.model',
-		modelKind: 'directory',
-	},
-	moonshine: {
-		access: 'onDevice',
-		label: 'Moonshine',
-		description: 'Small English-only local transcription',
-		capabilities: { supportsPrompt: false, supportsLanguage: false },
-		modelConfigKey: 'transcription.moonshine.model',
-		modelKind: 'directory',
+		label: 'Local',
+		description: 'Private on-device transcription, no internet required',
+		modelConfigKey: 'transcription.local.selectedModel',
 	},
 
 	speaches: {
@@ -363,9 +344,10 @@ export type ByokProviderId = {
 }[TranscriptionServiceId];
 
 /**
- * The ids of on-device engines, derived the same way. `isOnDeviceProviderId` is
- * the one narrowing boundary callers use before reading on-device-only fields or
- * touching the engine's models folder.
+ * The ids of on-device providers, derived the same way. Today this is the
+ * single local GGUF runtime; `isOnDeviceProviderId` is the one narrowing
+ * boundary callers use before reading on-device-only fields like the selected
+ * model's catalog id.
  */
 export type OnDeviceProviderId = {
 	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['access'] extends 'onDevice'
@@ -391,3 +373,37 @@ export type UploadProviderId = Exclude<TranscriptionServiceId, OnDeviceProviderI
 export const TRANSCRIPTION_SERVICE_IDS = Object.keys(
 	PROVIDERS,
 ) as TranscriptionServiceId[];
+
+// Persisted `transcription.service` values from the removed multi-engine local
+// runtime. These are not providers anymore; the settings facade rewrites them
+// to `local` on read so old synced workspaces keep their on-device intent.
+export const LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS = [
+	'whispercpp',
+	'parakeet',
+	'moonshine',
+] as const;
+
+export type LegacyOnDeviceTranscriptionServiceId =
+	(typeof LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS)[number];
+
+export const PERSISTED_TRANSCRIPTION_SERVICE_IDS = [
+	...TRANSCRIPTION_SERVICE_IDS,
+	...LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS,
+] as const;
+
+export function isLegacyOnDeviceTranscriptionServiceId(
+	value: unknown,
+): value is LegacyOnDeviceTranscriptionServiceId {
+	return (
+		typeof value === 'string' &&
+		(
+			LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS as readonly string[]
+		).includes(value)
+	);
+}
+
+export function normalizePersistedTranscriptionServiceId(
+	value: TranscriptionServiceId | LegacyOnDeviceTranscriptionServiceId,
+): TranscriptionServiceId {
+	return isLegacyOnDeviceTranscriptionServiceId(value) ? 'local' : value;
+}

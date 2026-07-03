@@ -17,6 +17,8 @@ export type ParsedArgs = {
 	full: boolean;
 	watch: boolean;
 	watchIntervalMs?: number;
+	noOpen: boolean;
+	port?: number;
 	clientId?: string;
 	addLabels: string[];
 	removeLabels: string[];
@@ -37,6 +39,7 @@ Usage:
   local-mail query "<sql>"
   local-mail archive|unarchive|mark-read|mark-unread <id...> [--json]
   local-mail label <id...> [--add <label>...] [--remove <label>...] [--json]
+  local-mail app [--no-open] [--port <n>]
   local-mail mcp
 
 Commands:
@@ -52,6 +55,7 @@ Commands:
   mark-read    Mark messages read by removing UNREAD.
   mark-unread  Mark messages unread by adding UNREAD.
   label        Add or remove Gmail labels by exact name or id.
+  app          Open your mail: keep the mirror fresh and serve the triage UI + API on 127.0.0.1, then open it in your browser.
   mcp          Serve query/status/sync/modify_labels tools over stdio.
 
 Options:
@@ -60,6 +64,8 @@ Options:
   --watch [intervalMs]  Keep syncing on a loop. Default: 30000.
   --add <label>         Add a Gmail label by exact name or id. Repeatable.
   --remove <label>      Remove a Gmail label by exact name or id. Repeatable.
+  --no-open             Print the launch URL instead of opening a browser (app only).
+  --port <n>            Pin the app server port (app only; default: ephemeral).
   --json                Print typed JSON instead of human text. query is
                         always JSON, so --json is a no-op there.
   -h, --help            Show this help.
@@ -108,6 +114,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		positionals: [],
 		full: false,
 		watch: false,
+		noOpen: false,
 		addLabels: [],
 		removeLabels: [],
 		json: false,
@@ -152,6 +159,19 @@ export function parseArgs(argv: string[]): ParsedArgs {
 					i += 1;
 					args.watchIntervalMs = parseWatchInterval(next);
 				}
+				break;
+			}
+			case '--no-open':
+				args.noOpen = true;
+				break;
+			case '--port': {
+				const value = Number(takeValue());
+				if (!Number.isInteger(value) || value < 0) {
+					throw new Error(
+						`--port must be a non-negative integer, got "${value}"`,
+					);
+				}
+				args.port = value;
 				break;
 			}
 			case '--add':
@@ -480,6 +500,10 @@ export async function runCli(argv: string[]): Promise<number> {
 				removeLabels: args.removeLabels,
 				done: 'labels updated',
 			});
+		case 'app': {
+			const { runApp } = await import('./app.ts');
+			return runApp({ noOpen: args.noOpen, port: args.port });
+		}
 		case 'mcp': {
 			const { runMcpServer } = await import('./mcp.ts');
 			return runMcpServer();

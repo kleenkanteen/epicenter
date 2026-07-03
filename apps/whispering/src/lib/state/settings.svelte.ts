@@ -1,5 +1,9 @@
 import { SvelteMap } from 'svelte/reactivity';
 import { whispering } from '#platform/whispering';
+import {
+	isLegacyOnDeviceTranscriptionServiceId,
+	normalizePersistedTranscriptionServiceId,
+} from '$lib/services/transcription/providers';
 
 type Kv = typeof whispering.kv;
 
@@ -18,13 +22,25 @@ export type BooleanSettingKey = {
 	[K in keyof SettingsValues]: SettingsValues[K] extends boolean ? K : never;
 }[keyof SettingsValues];
 
+function normalizeSettingValue(key: string, value: unknown) {
+	if (
+		key === 'transcription.service' &&
+		isLegacyOnDeviceTranscriptionServiceId(value)
+	) {
+		const normalized = normalizePersistedTranscriptionServiceId(value);
+		whispering.kv.set('transcription.service', normalized);
+		return normalized;
+	}
+	return value;
+}
+
 function createSettings() {
 	const map = new SvelteMap<string, unknown>();
 
 	// Initialize SvelteMap with current values for ALL KV keys.
 	// kv.get() always returns a valid value (stored value or defaultValue).
 	for (const key of whispering.kv.keys) {
-		map.set(key, whispering.kv.get(key));
+		map.set(key, normalizeSettingValue(key, whispering.kv.get(key)));
 	}
 
 	// Single observer for ALL KV changes (local or remote).
@@ -32,7 +48,7 @@ function createSettings() {
 	whispering.kv.observeAll((changes) => {
 		for (const [key, change] of changes) {
 			if (change.type === 'set') {
-				map.set(key, change.value);
+				map.set(key, normalizeSettingValue(key, change.value));
 			} else if (change.type === 'delete') {
 				// On delete, restore default value so map always has a value
 				map.set(key, whispering.kv.get(key));
