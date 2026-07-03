@@ -24,8 +24,8 @@ import { ElevenLabsTranscriptionServiceLive } from '$lib/services/transcription/
 import { MistralTranscriptionServiceLive } from '$lib/services/transcription/cloud/mistral';
 import {
 	isLocalProviderId,
+	type LocalProviderId,
 	PROVIDERS,
-	type TranscriptionServiceId,
 	type UploadProviderId,
 } from '$lib/services/transcription/providers';
 import { deviceConfig } from '$lib/state/device-config.svelte';
@@ -46,9 +46,6 @@ import { commands } from '$lib/tauri/commands';
 export type TranscriptionError = AnyTaggedError;
 
 const TranscriptionOperationError = defineErrors({
-	NoTranscriptionServiceSelected: () => ({
-		message: 'Please select a transcription service in settings.',
-	}),
 	LocalTranscriptionUnavailableOnWeb: () => ({
 		message:
 			'Local transcription is only available in the desktop app. Choose a cloud or self-hosted provider on web.',
@@ -226,10 +223,12 @@ export async function transcribeAudio(
 		provider: selectedService,
 	});
 
-	const transcriptionResult =
-		PROVIDERS[selectedService].location === 'local'
-			? await transcribeLocally(recordingId, selectedService)
-			: await transcribeViaUpload(recordingId, selectedService);
+	// Narrow the id here, once. The type guard splits `selectedService` into the
+	// local vs upload id sets, so each path receives an already-narrowed id and
+	// neither has to re-check the case the other owns.
+	const transcriptionResult = isLocalProviderId(selectedService)
+		? await transcribeLocally(recordingId, selectedService)
+		: await transcribeViaUpload(recordingId, selectedService);
 
 	const duration = Date.now() - startTime;
 	if (transcriptionResult.error) {
@@ -328,14 +327,10 @@ function withDictionaryTerms(prompt: string, dictionary: string[]): string {
 
 async function transcribeLocally(
 	recordingId: string,
-	selectedService: TranscriptionServiceId,
+	selectedService: LocalProviderId,
 ): Promise<Result<string, TranscriptionError>> {
 	if (!tauri) {
 		return TranscriptionOperationError.LocalTranscriptionUnavailableOnWeb();
-	}
-
-	if (!isLocalProviderId(selectedService)) {
-		return TranscriptionOperationError.NoTranscriptionServiceSelected();
 	}
 
 	// Rust owns model resolution and validation: it resolves this catalog id to a
@@ -365,15 +360,8 @@ async function transcribeLocally(
 
 async function transcribeViaUpload(
 	recordingId: string,
-	selectedService: TranscriptionServiceId,
+	selectedService: UploadProviderId,
 ): Promise<Result<string, TranscriptionError>> {
-	// `transcribeAudio` routes local providers to `transcribeLocally`, so a local id
-	// is the impossible case here; this guard also narrows `selectedService` off the
-	// local ids so it indexes `UPLOAD_DISPATCH`.
-	if (isLocalProviderId(selectedService)) {
-		return TranscriptionOperationError.NoTranscriptionServiceSelected();
-	}
-
 	const { data: audio, error: loadError } =
 		await loadForCloudUpload(recordingId);
 	if (loadError) return Err(loadError);
