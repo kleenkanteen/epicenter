@@ -214,10 +214,8 @@ test('mcp: tools/list, body query, status, errors, and a clean stream', async ()
 		expect(sync?.annotations?.destructiveHint).toBe(false);
 		const modifyLabels = tools.find((tool) => tool.name === 'modify_labels');
 		expect(modifyLabels?.inputSchema.properties).toHaveProperty('ids');
-		expect(modifyLabels?.inputSchema.properties).toHaveProperty('addLabelIds');
-		expect(modifyLabels?.inputSchema.properties).toHaveProperty(
-			'removeLabelIds',
-		);
+		expect(modifyLabels?.inputSchema.properties).toHaveProperty('addLabels');
+		expect(modifyLabels?.inputSchema.properties).toHaveProperty('removeLabels');
 		expect(modifyLabels?.annotations).toMatchObject({
 			readOnlyHint: false,
 			destructiveHint: false,
@@ -311,7 +309,7 @@ test('mcp: LOCAL_MAIL_READ_ONLY hides mutation tools but leaves reads and sync l
 			name: 'modify_labels',
 			arguments: {
 				ids: ['m1'],
-				addLabelIds: ['Work'],
+				addLabels: ['Work'],
 			},
 		});
 		expect(hidden.error?.code).toBe(-32601);
@@ -321,7 +319,7 @@ test('mcp: LOCAL_MAIL_READ_ONLY hides mutation tools but leaves reads and sync l
 	}
 });
 
-test('mcp: modify_labels folds Gmail labels and uses isError for Gmail rejection', async () => {
+test('mcp: modify_labels folds Gmail labels and keeps per-id rejections structured', async () => {
 	const tmp = tempDir();
 	seedMirror(tmp.dir);
 	await seedToken(tmp.dir);
@@ -375,8 +373,8 @@ test('mcp: modify_labels folds Gmail labels and uses isError for Gmail rejection
 			name: 'modify_labels',
 			arguments: {
 				ids: ['m1'],
-				addLabelIds: ['Work'],
-				removeLabelIds: ['INBOX'],
+				addLabels: ['Work'],
+				removeLabels: ['INBOX'],
 			},
 		});
 		expect(ok.error).toBeUndefined();
@@ -397,18 +395,32 @@ test('mcp: modify_labels folds Gmail labels and uses isError for Gmail rejection
 			aborted: null,
 		});
 
+		// A per-id Gmail rejection is not the error channel: it rides inside the
+		// structured results so the model can retry that id and keep the others.
 		const rejected = await mcp.request('tools/call', {
 			name: 'modify_labels',
 			arguments: {
 				ids: ['m2'],
-				addLabelIds: ['BAD'],
+				addLabels: ['BAD'],
 			},
 		});
 		expect(rejected.error).toBeUndefined();
-		expect(rejected.result?.isError).toBe(true);
-		const content = rejected.result?.content as Array<{ text: string }>;
-		expect(content[0]?.text).toContain('Gmail API returned 400');
-		expect(content[0]?.text).toContain('Invalid label: BAD');
+		expect(rejected.result?.isError).toBeFalsy();
+		const rejectedData = rejected.result?.structuredContent as {
+			results: Array<{
+				id: string;
+				error: { name: string; message: string } | null;
+			}>;
+			aborted: unknown;
+		};
+		expect(rejectedData.aborted).toBeNull();
+		expect(rejectedData.results[0]?.id).toBe('m2');
+		expect(rejectedData.results[0]?.error?.message).toContain(
+			'Gmail API returned 400',
+		);
+		expect(rejectedData.results[0]?.error?.message).toContain(
+			'Invalid label: BAD',
+		);
 
 		expect(requests).toContainEqual({
 			method: 'POST',

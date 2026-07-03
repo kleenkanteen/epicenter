@@ -54,7 +54,13 @@ import { readMailStatus } from './status.ts';
 import { syncMailbox } from './sync.ts';
 import { VERSION } from './version.ts';
 
-type ToolOutcome = Result<unknown, { message: string }>;
+/**
+ * A tool that ran to completion but failed can still carry its structured
+ * outcome: `modify_labels` sets `structured` on a systemic abort so the model
+ * reads the per-id results even while `isError` flags the abort.
+ */
+type ToolFailure = { message: string; structured?: unknown };
+type ToolOutcome = Result<unknown, ToolFailure>;
 
 type ToolDescriptor = {
 	name: string;
@@ -154,13 +160,13 @@ const TOOLS: ToolDescriptor[] = [
 				maxItems: 100,
 				description: 'Gmail message ids to mutate serially.',
 			}),
-			addLabelIds: Type.Optional(
+			addLabels: Type.Optional(
 				Type.Array(Type.String({ minLength: 1 }), {
 					maxItems: 100,
 					description: 'Gmail label ids or exact names to add.',
 				}),
 			),
-			removeLabelIds: Type.Optional(
+			removeLabels: Type.Optional(
 				Type.Array(Type.String({ minLength: 1 }), {
 					maxItems: 100,
 					description: 'Gmail label ids or exact names to remove.',
@@ -176,16 +182,22 @@ const TOOLS: ToolDescriptor[] = [
 					await resolveAndModifyMessageLabels({
 						deps: session.deps,
 						ids: args.ids,
-						addLabels: args.addLabelIds ?? [],
-						removeLabels: args.removeLabelIds ?? [],
+						addLabels: args.addLabels ?? [],
+						removeLabels: args.removeLabels ?? [],
 						readOnly: ctx.config.readOnly,
 					});
-				if (modifyError) return Err(modifyError);
-				if (
-					data.aborted ||
-					data.results.some((result) => result.error !== null)
-				) {
-					return Err({ message: JSON.stringify(data) });
+				// A whole-request refusal (read-only, empty sets, unknown label)
+				// never ran, so it is a plain error with no structured payload.
+				if (modifyError) return Err({ message: modifyError.message });
+				// A systemic abort (token, throttle, network) ran partway: flag
+				// isError but keep the per-id results so the model sees what
+				// succeeded. Per-id Gmail rejections are NOT an error channel;
+				// they ride inside the structured results for per-id self-repair.
+				if (data.aborted) {
+					return Err({
+						message: `Modify aborted after ${data.results.length} of ${args.ids.length} id(s): ${data.aborted.message}`,
+						structured: data,
+					});
 				}
 				return Ok(data);
 			} finally {
@@ -197,7 +209,14 @@ const TOOLS: ToolDescriptor[] = [
 
 function toCallResult({ data, error }: ToolOutcome): CallToolResult {
 	if (error) {
-		return { content: [{ type: 'text', text: error.message }], isError: true };
+		const result: CallToolResult = {
+			content: [{ type: 'text', text: error.message }],
+			isError: true,
+		};
+		if (error.structured !== undefined) {
+			result.structuredContent = error.structured as Record<string, unknown>;
+		}
+		return result;
 	}
 	return {
 		content: [{ type: 'text', text: JSON.stringify(data) }],

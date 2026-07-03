@@ -98,17 +98,18 @@ Google now serves these under `developers.google.com/workspace/gmail/...`; old U
 | Label input | 3 taste | The core takes Gmail label ids only. Adapters (CLI, MCP) resolve names to ids through one shared helper: exact-name lookup in the mirrored `labels` table, one fresh `labels.list` on miss, error if still missing | The user default. Ids stay the only identity; names are an adapter courtesy. No local label identity is ever invented. |
 | Return shape | 2 coherence | An operation summary per id: `{ id, labelIds (Gmail's post-state or null), folded }` plus per-id errors; never the raw Gmail response, never a mirror row | Mirrors `RecategorizeResult`. The raw response is an unstable wire shape; a mirror row would imply the mirror is the authority the caller should read. |
 | Local precondition checks | 2 coherence | Only two: non-empty add/remove sets, and name resolution. No system-label blocklist | "Gmail accepts or rejects the mutation" is the model; a local `DRAFT`/`SENT` blocklist would drift and duplicate Gmail's authority. |
-| MCP surface | 2 coherence | One `modify_labels` mutation tool; no per-intent tools | Same collapse as the core. The tool description documents the `UNREAD`/`INBOX` vocabulary. Per-intent sugar tools can come later if models fumble it. |
+| MCP surface | 2 coherence | One `modify_labels` mutation tool; no per-intent tools. Input fields are `addLabels`/`removeLabels` (they accept ids or exact names). A per-id Gmail rejection rides inside the structured `results`; only a systemic abort (token/throttle/network) sets `isError` (and still carries the structured outcome) | Same collapse as the core. The tool description documents the `UNREAD`/`INBOX` vocabulary. Per-id errors are data a model self-corrects per id, not a transport failure. Per-intent sugar tools can come later if models fumble the vocabulary. |
 | Trust boundary | 1 evidence | Copy local-books exactly: three-tier `'read' | 'write' | 'mutation'`, `LOCAL_MAIL_READ_ONLY` unlists mutation tools AND is enforced in the core (required argument), host approval prompt is the interactive boundary | ADR-0073 invariant 1; local-books `mcp.ts:239` (catalog filter) and `recategorize.ts` (core gate). A server-side auth gate adds nothing: anything that can spawn `local-mail mcp` runs as the user and can already read the 0600 credentials file. |
 | Annotations | 1 evidence | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true` on `modify_labels` | MCP spec: "destructive" means irreversible; every Phase 3 op is a reversible, idempotent label flip (add-present/remove-absent are observed no-ops). Deliberate divergence from local-books' per-tier `destructiveHint` mapping: its one mutation moves money. Annotate per-tool truth. Trash/send, when they arrive, get `destructiveHint: true`. |
-| CLI verb | 3 taste | One `modify` verb: `local-mail modify <id...> [--read|--unread|--archive|--unarchive] [--add <label>...] [--remove <label>...]`; intent flags desugar to add/remove sets | One verb = one surface to test and document. Six top-level verbs are ergonomic sugar an implementer may add later without design impact. |
+| CLI verb | 3 taste | Product verbs, not one primitive-with-flags: `archive`, `unarchive`, `mark-read`, `mark-unread` (each desugars to a fixed add/remove set) plus `label <id...> [--add <name\|id>...] [--remove <name\|id>...]` as the transparent primitive. All five run the one core through `resolveAndModifyMessageLabels`. Human output by default, `--json` for the typed `ModifyMessageLabelsOutcome`; any per-id failure or systemic abort exits nonzero | The CLI is human-first (agents have MCP), so it should teach the product vocabulary a person thinks in ("archive"), not the Gmail label mechanic ("remove INBOX"). `label` keeps the mechanic reachable and is where composition lives. One core, five thin surfaces: no new Gmail behavior, only argument mapping. Superseded the earlier single-`modify`-verb decision before any UI bound to it. |
 
 ## Architecture
 
 ```txt
-CLI `modify` ----\
-MCP `modify_labels` --> resolveLabelIds (names->ids; the core takes ids only)
-                          |
+CLI archive|unarchive|mark-read|mark-unread|label --\
+MCP `modify_labels` -------------------------------> resolveAndModifyMessageLabels
+                          |                            (adapter: resolveLabelIds names->ids,
+                          |                             then the core; the core takes ids only)
                           v
                  modifyMessageLabels(core)          src/modify.ts (new)
                    readOnly? -> refuse, zero network
@@ -257,7 +258,7 @@ UI (shell spec Phases C and D) starts only when all of:
 2. The stale-grant path is settled: a readonly-era token surfaces Gmail's raw 403, and `connect` requests the write-capable `gmail.modify` grant.
 3. The failure surfacing is settled as data (this spec's `ModifyOutcome` and error names), so UI work binds to a stable shape instead of inventing one.
 
-Nothing in this spec adds HTTP endpoints; the shell spec's `POST /api/messages/:id/...` adapters are Phase D work that wraps `modifyMessageLabels` the same way the CLI does.
+Nothing in this spec adds HTTP endpoints. When the shell spec's Phase D lands, the UI calls one `POST /api/messages/modify` adapter (body: `{ ids, addLabels, removeLabels }`, returning `ModifyMessageLabelsOutcome`) over `resolveAndModifyMessageLabels`, the same core the CLI and MCP use. Not per-intent routes: the UI's archive/mark-read buttons desugar to add/remove sets client-side, exactly as the CLI verbs do, so one result contract is shared across CLI, MCP, and HTTP.
 
 ## Open questions
 

@@ -22,6 +22,7 @@ import { GmailApiError, type GmailClient } from './gmail-client.ts';
 import {
 	type ModifyMessageLabelsInput,
 	modifyMessageLabels,
+	resolveAndModifyMessageLabels,
 	resolveLabelIds,
 } from './modify.ts';
 import type { GmailLabel, GmailMessage, HistoryPage } from './schema.ts';
@@ -540,6 +541,66 @@ describe('modifyMessageLabels', () => {
 		});
 		expect(client.modifyCalls.map((call) => call.id)).toEqual(['m1']);
 		expect(messageRaw(db, 'm1')).toBeNull();
+		cleanup();
+	});
+
+	test('resolveAndModifyMessageLabels refuses read-only before any network', async () => {
+		const { db, cleanup } = tempDb();
+		const client = createFakeGmailClient(
+			new Map([['m1', { data: message('m1', { labelIds: ['INBOX'] }) }]]),
+			[{ id: 'Label_work', name: 'Work', type: 'user' }],
+		);
+
+		const result = await resolveAndModifyMessageLabels({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			ids: ['m1'],
+			addLabels: ['Work'],
+			removeLabels: [],
+			readOnly: true,
+		});
+
+		expect(result.error?.name).toBe('ReadOnly');
+		expect(client.listLabelsCalls).toBe(0);
+		expect(client.modifyCalls).toHaveLength(0);
+		cleanup();
+	});
+
+	test('resolveAndModifyMessageLabels resolves a label name then folds Gmail bytes', async () => {
+		const { db, cleanup } = tempDb();
+		db.ingestFullPullPage([message('m1')], 's1');
+		db.ingestLabels([{ id: 'Label_work', name: 'Work', type: 'user' }], 's1');
+		const client = createFakeGmailClient(
+			new Map([
+				['m1', { data: message('m1', { labelIds: ['INBOX', 'Label_work'] }) }],
+			]),
+			[{ id: 'Label_work', name: 'Work', type: 'user' }],
+		);
+
+		const result = await resolveAndModifyMessageLabels({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			ids: ['m1'],
+			addLabels: ['Work'],
+			removeLabels: [],
+			readOnly: false,
+		});
+
+		const outcome = expectOk(result);
+		expect(outcome.results[0]).toEqual({
+			id: 'm1',
+			labelIds: ['INBOX', 'Label_work'],
+			folded: true,
+			error: null,
+		});
+		// The core sees the resolved id, never the name.
+		expect(client.modifyCalls[0]).toEqual({
+			id: 'm1',
+			addLabelIds: ['Label_work'],
+			removeLabelIds: [],
+		});
+		expect(JSON.parse(messageRaw(db, 'm1') ?? '{}').labelIds).toEqual([
+			'INBOX',
+			'Label_work',
+		]);
 		cleanup();
 	});
 });
