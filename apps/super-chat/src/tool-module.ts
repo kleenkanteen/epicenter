@@ -32,7 +32,10 @@ export type ToolHost<TWorkspaces extends ToolWorkspaces = ToolWorkspaces> = {
  */
 export type ToolModuleResult = ActionRegistry | ToolCatalog;
 
-/** Default export contract for `~/.epicenter/super-chat/tools/*.ts`. */
+/**
+ * Default export contract for trusted tool modules scanned at startup from the
+ * host's tools directory (`<dataDir>/tools/*.ts`; see `tool-loader.ts`).
+ */
 export type ToolModule<TWorkspaces extends ToolWorkspaces = ToolWorkspaces> = (
 	host: ToolHost<TWorkspaces>,
 ) => ToolModuleResult | Promise<ToolModuleResult>;
