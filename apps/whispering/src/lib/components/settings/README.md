@@ -29,16 +29,26 @@ Components in this directory:
 
 ```
 settings/
-├── ProviderConfigFields.svelte # Per-provider API key and endpoint fields (deviceConfig)
-├── selectors/              # Various selector components
+├── TranscriptionRuntimeConfig.svelte # Audio stage: transcription service + its config (propless)
+├── CompletionRuntimeConfig.svelte    # Text stage: Polish/Recipes AI provider + its config (propless)
+├── ProviderConfigFields.svelte       # Per-provider API key and endpoint fields (deviceConfig)
+├── TranscriptionServiceSelect.svelte # Grouped local/cloud/self-hosted service picker
+├── LocalModelSelector.svelte         # Local GGUF model picker (deviceConfig)
+├── AdvancedDisclosure.svelte         # Collapsible wrapper for advanced fields
+├── SettingSelect.svelte              # Shared select bound to a settings key
+├── SettingSwitch.svelte              # Shared switch bound to a settings key
+├── selectors/                        # Various selector components
+│   ├── CaptureSurfaceSelector.svelte
 │   ├── ManualDeviceSelector.svelte
-│   ├── VadDeviceSelector.svelte
 │   ├── TranscriptionSelector.svelte
-│   └── CaptureSurfaceSelector.svelte
-├── LocalModelSelector.svelte
-├── TranscriptionServiceSelect.svelte
-└── README.md               # This file
+│   └── VadDeviceSelector.svelte
+└── README.md                         # This file
 ```
+
+The two runtime-config components (`TranscriptionRuntimeConfig`,
+`CompletionRuntimeConfig`) are the Privacy & Processing page's two stages. Each
+owns its own routing decision and takes **no props**, so the page renders them
+as `<TranscriptionRuntimeConfig />` and `<CompletionRuntimeConfig />`.
 
 ## Usage Examples
 

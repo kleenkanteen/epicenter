@@ -22,7 +22,7 @@
 			<Field.Description>
 				Where your recording is turned into text.
 			</Field.Description>
-			<TranscriptionRuntimeConfig label="Service" />
+			<TranscriptionRuntimeConfig />
 		</Field.Set>
 
 		<Field.Separator />
