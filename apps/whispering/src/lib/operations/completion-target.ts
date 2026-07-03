@@ -59,7 +59,8 @@ export function resolveCompletionStateFromConfig({
 		? getDeviceConfig(endpointConfigKey).trim()
 		: '';
 	const baseUrl = override || defaultBaseUrl;
-	if (!baseUrl) return { target: null, canRun: false, textStaysOnDevice: false };
+	if (!baseUrl)
+		return { target: null, canRun: false, textStaysOnDevice: false };
 	const apiKey = getDeviceConfig(apiKeyConfigKey).trim() || undefined;
 	return {
 		target: { baseUrl, apiKey },
