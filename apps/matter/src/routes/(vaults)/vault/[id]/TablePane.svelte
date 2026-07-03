@@ -3,6 +3,12 @@
 	import * as Empty from '@epicenter/ui/empty';
 	import { Loading } from '@epicenter/ui/loading';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+	import Grid2x2Icon from '@lucide/svelte/icons/grid-2x2';
+	import KanbanIcon from '@lucide/svelte/icons/kanban';
+	import type { ViewSpec } from '@epicenter/matter-core';
+	import { goto } from '$app/navigation';
+	import { routes } from '$lib/routes';
+	import BoardView from '$lib/components/BoardView.svelte';
 	import TableGrid from '$lib/components/TableGrid.svelte';
 	import type { TableHandle } from '$lib/table.svelte';
 	import { createTableQuery } from '$lib/table-query.svelte';
@@ -12,7 +18,15 @@
 	// watcher lifetime) and owns the shared `.matter` mirror the query reads; this pane just
 	// renders it. VaultShell keys this component on the active table, so switching tables remounts
 	// the pane with a fresh query and its own effect.
-	let { vault, table }: { vault: VaultHandle; table: TableHandle } = $props();
+	let {
+		vault,
+		table,
+		projection,
+	}: {
+		vault: VaultHandle;
+		table: TableHandle;
+		projection?: ViewSpec;
+	} = $props();
 
 	// This table's slice of the vault-wide integrity, selected from the one live model the
 	// IntegrityPanel also reads, so the grid's reference chips and the panel's findings agree by
@@ -28,6 +42,12 @@
 	// construction safe.
 	// svelte-ignore state_referenced_locally - VaultShell keys this pane on the active table, so it remounts (not re-renders) when the table changes; capturing the construction-time table is the intent.
 	const query = createTableQuery(vault.mirror, () => table.folderName);
+
+	const switchNav = {
+		replaceState: true,
+		keepFocus: true,
+		noScroll: true,
+	} as const;
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col">
@@ -41,7 +61,43 @@
 				</Alert.Description>
 			</Alert.Root>
 		{/if}
-		<TableGrid {table} {query} {assessment} />
+		{#if table.read.view.mode === 'typed' && table.read.view.contract.views.length}
+			<div class="flex min-h-10 items-center gap-1 overflow-x-auto border-b px-3 py-1">
+				<button
+					type="button"
+					onclick={() => goto(routes.table(table.folderName), switchNav)}
+					class={[
+						'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition',
+						projection === undefined
+							? 'bg-muted font-medium text-foreground'
+							: 'text-muted-foreground hover:bg-muted/50',
+					]}
+				>
+					<Grid2x2Icon class="size-4" />
+					Grid
+				</button>
+				{#each table.read.view.contract.views as view (view.id)}
+					<button
+						type="button"
+						onclick={() => goto(routes.projection(table.folderName, view.id), switchNav)}
+						class={[
+							'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition',
+							projection?.id === view.id
+								? 'bg-muted font-medium text-foreground'
+								: 'text-muted-foreground hover:bg-muted/50',
+						]}
+					>
+						<KanbanIcon class="size-4" />
+						{view.title ?? view.id}
+					</button>
+				{/each}
+			</div>
+		{/if}
+		{#if projection}
+			<BoardView {table} {projection} {query} />
+		{:else}
+			<TableGrid {table} {query} {assessment} />
+		{/if}
 	{:catch error}
 		<Empty.Root class="flex-1 border-0">
 			<Empty.Media variant="icon"><FolderOpenIcon /></Empty.Media>

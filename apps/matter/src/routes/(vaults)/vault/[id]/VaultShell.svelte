@@ -165,7 +165,13 @@
 				<DatabaseTab {vault} />
 			{:else if activeTable}
 				{#key activeTable}
-					<TablePane {vault} table={activeTable} />
+					<TablePane
+						{vault}
+						table={activeTable}
+						projection={activeSurface.kind === 'projection'
+							? activeSurface.projection
+							: undefined}
+					/>
 				{/key}
 			{/if}
 			<IntegrityPanel integrity={vault.integrity} />
