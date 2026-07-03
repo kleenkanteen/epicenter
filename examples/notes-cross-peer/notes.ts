@@ -2,15 +2,15 @@
  * Shared workspace shape for the two-peer cross-peer sync repro.
  *
  * Each peer's mount module calls `openNotes` with its ctx `nodeId` so both
- * peers agree on the workspace id, the table schema, and the action set; the
- * only thing that differs between peers is the `nodeId`. The daemon resolves
- * that id per Epicenter root, so the two peer folders get distinct ids
- * automatically and neither peer has to hard-code an identity.
+ * peers agree on the workspace id and table schema; each runtime owns its local
+ * action set separately. The only thing that differs between peers is the
+ * `nodeId`. The daemon resolves that id per Epicenter root, so the two peer
+ * folders get distinct ids automatically and neither peer has to hard-code an
+ * identity.
  */
 
 import { EPICENTER_API_URL } from '@epicenter/constants/apps';
 import { field } from '@epicenter/field';
-import type { OwnerId } from '@epicenter/identity';
 import {
 	createWorkspace,
 	defineMutation,
@@ -33,12 +33,10 @@ const Note = defineTable({
 
 export function openNotes({
 	nodeId,
-	ownerId,
 	openWebSocket,
 	onReconnectSignal,
 }: {
 	nodeId: NodeId;
-	ownerId: OwnerId;
 	openWebSocket: OpenWebSocketFn;
 	onReconnectSignal: OnReconnectSignal;
 }) {
@@ -65,13 +63,11 @@ export function openNotes({
 	const collaboration = openCollaboration(ydoc, {
 		url: roomWsUrl({
 			baseURL: EPICENTER_API_URL,
-			ownerId,
 			guid: ydoc.guid,
 			nodeId,
 		}),
 		openWebSocket,
 		onReconnectSignal,
-		actions,
 	});
 
 	return {

@@ -1,0 +1,31 @@
+{
+	"name": "@epicenter/super-chat",
+	"description": "One local desktop chat session composing installed apps' verbs into one catalog, hosted by a Bun loopback server.",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"exports": {
+		".": "./src/host.ts"
+	},
+	"scripts": {
+		"start": "bun run src/main.ts",
+		"test": "bun test",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@epicenter/client": "workspace:*",
+		"@epicenter/honeycrisp": "workspace:*",
+		"@epicenter/todos": "workspace:*",
+		"@epicenter/workspace": "workspace:*",
+		"@modelcontextprotocol/sdk": "catalog:",
+		"hono": "catalog:",
+		"typebox": "catalog:",
+		"wellcrafted": "catalog:",
+		"yjs": "catalog:"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"typescript": "catalog:"
+	},
+	"license": "AGPL-3.0-or-later"
+}

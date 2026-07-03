@@ -26,16 +26,9 @@
  *   [ok] Project selection through `-C <p>`.
  *        Covered by the lifecycle tests that start, query, log, and stop the
  *        fixture from a resolved project directory.
- *   [ok] Invariant 6: `run --peer` wait cap + hint.
- *        Covered by `run-peer-errors.test.ts`.
- *   [gap] Cross-peer `run --peer` against a real warm peer
- *        (steps 5-7 of the brief's pseudocode). Infra gap. This requires
- *        a y-websocket-compatible fake relay; none exists in `packages/sync/`
- *        or `packages/cli/`, and writing one is a separate spec
- *        (`specs/20260427T000000-execute-cli-up-long-lived-peer.md`
- *        § "Wave 8 isn't a commit"). The lifecycle tests below stand in for
- *        that coverage, exercising every CLI verb against a fixture with fake
- *        peer attachments.
+ *   [n/a] Cross-device `run --peer` was refused and deleted (ADR-0078). The
+ *        lifecycle tests below exercise every surviving CLI verb against a
+ *        fixture with fake peer attachments.
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -46,10 +39,8 @@ import {
 	mkdtempSync,
 	readdirSync,
 	rmSync,
-	writeFileSync,
 } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { machineAuthFilePath } from '@epicenter/auth/node';
+import { join } from 'node:path';
 
 const FIXTURE_DIR = join(import.meta.dir, 'fixtures/inline-actions');
 const BIN_PATH = join(import.meta.dir, '..', 'src', 'bin.ts');
@@ -70,22 +61,11 @@ function makeEnv(): EnvOverrides {
 	const home = mkdtempSync('/tmp/eps-e2e-home-');
 	const runtimeDir = mkdtempSync('/tmp/eps-e2e-rt-');
 	const dataDir = mkdtempSync('/tmp/eps-e2e-data-');
-	const authPath = machineAuthFilePath({ dataDir });
 	mkdirSync(runtimeDir, { recursive: true });
-	mkdirSync(dirname(authPath), { recursive: true, mode: 0o700 });
-	writeFileSync(
-		authPath,
-		JSON.stringify({
-			grant: {
-				accessToken: 'access-stored',
-				refreshToken: 'refresh-stored',
-				accessTokenExpiresAt: Date.now() + 3_600_000,
-			},
-			userId: 'user-1',
-			ownerId: 'user-1',
-		}),
-		{ mode: 0o600 },
-	);
+	// No machine-auth grant is written, so the daemon runs SIGNED-OUT. These
+	// lifecycle tests assert socket / metadata / IPC behavior, not cross-device;
+	// the demo fixture's stubbed collaboration already supplies the peers
+	// snapshot.
 	return {
 		home,
 		runtimeDir,
@@ -183,8 +163,12 @@ async function awaitExit(child: ReturnType<typeof spawn>): Promise<number> {
 }
 
 function runtimeLeftovers(runtimeRoot: string): string[] {
+	// `.lease.sqlite` and `.node-id` are durable by design: the lease file is
+	// reclaimed on next start, and the node id IS the device's stable identity
+	// (resolveDaemonNodeId persists it OUTSIDE the repo so the nodeId survives
+	// restarts). Neither is an orphaned socket/metadata file teardown should sweep.
 	return readdirSync(runtimeRoot).filter(
-		(file) => !file.endsWith('.lease.sqlite'),
+		(file) => !file.endsWith('.lease.sqlite') && !file.endsWith('.node-id'),
 	);
 }
 

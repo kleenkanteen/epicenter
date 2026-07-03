@@ -1,28 +1,11 @@
-import {
-	attachBroadcastChannel,
-	attachIndexedDb,
-	satisfiesWorkspace,
-} from '@epicenter/workspace';
-import { createTodos } from './todos';
+import { todosWorkspace } from './todos';
 
 export function openTodosBrowser() {
-	const workspace = createTodos();
-	const idb = attachIndexedDb(workspace.ydoc);
-	attachBroadcastChannel(workspace.ydoc);
-
-	return satisfiesWorkspace({
+	const workspace = todosWorkspace.connect(null);
+	return {
 		...workspace,
-		idb,
-		whenReady: idb.whenLoaded,
-		async wipe() {
-			workspace[Symbol.dispose]();
-			await idb.whenDisposed;
-			await idb.clearLocal();
-		},
-		[Symbol.dispose]() {
-			workspace[Symbol.dispose]();
-		},
-	});
+		whenReady: workspace.storage.whenLoaded,
+	};
 }
 
 export type TodosBrowser = ReturnType<typeof openTodosBrowser>;

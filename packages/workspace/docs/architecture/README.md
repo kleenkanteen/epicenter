@@ -7,8 +7,7 @@ System architecture documentation for Epicenter's distributed sync system.
 | Document                                  | Description                                                      |
 | ----------------------------------------- | ---------------------------------------------------------------- |
 | [Network Topology](./network-topology.md) | Node types (client/server), connection rules, example topologies |
-| [Node Identity](./node-identity.md)   | How nodes identify themselves: the install-stable `nodeId`, relay routing, presence |
-| [Action Dispatch](./action-dispatch.md)   | Cross-node action invocation via YJS command mailbox           |
+| [Node Identity](./node-identity.md)   | How nodes identify themselves: the install-stable `nodeId` and presence |
 | [Security](./security.md)                 | Security layers (Tailscale, content-addressing), threat model    |
 
 ## Quick Reference
@@ -25,13 +24,11 @@ System architecture documentation for Epicenter's distributed sync system.
 ### Connection Rules
 
 ```
-Client ──► Remote Server  ✅  (WebSocket, HTTP: data sync, AI, auth)
-Client ──► Client         ✅  (via YJS action dispatch, not direct connection)
+Client ──► Remote Server  ✅  (WebSocket, HTTP: data sync, presence, AI, auth)
 Server ──► Server         ✅  (WebSocket)
-Server ──► Client         ✅  (via YJS action dispatch, not direct connection)
 ```
 
-Note: Direct connections are only possible **to** servers. However, any node can invoke actions on any other node via [action dispatch](./action-dispatch.md) through the shared Y.Doc.
+Note: Direct connections are only possible **to** servers. The old relay-floor route exposure path was deleted; presence now reports liveness only. A future box-access surface would be direct URL-addressed capability reach outside Epicenter's sync relay.
 
 ### Typical Setup
 

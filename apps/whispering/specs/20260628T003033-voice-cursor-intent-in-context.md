@@ -4,7 +4,7 @@
 **Status**: Draft
 **Owner**: Braden
 **Branch**: feat/whispering-polish-recipes (design only so far)
-**Builds on**: [ADR-0074](../../../docs/adr/0074-replace-transformations-with-a-dictionary-polish-and-a-portable-recipe-library.md) (Dictionary/Polish/Recipe), [ADR-0060](../../../docs/adr/0060-an-inference-connection-is-a-base-url-and-an-optional-bearer-key.md) (connection = base URL + optional key)
+**Builds on**: [ADR-0098](../../../docs/adr/0098-replace-transformations-with-a-dictionary-polish-and-a-portable-recipe-library.md) (Dictionary/Polish/Recipe), [ADR-0060](../../../docs/adr/0060-an-inference-connection-is-a-base-url-and-an-optional-bearer-key.md) (connection = base URL + optional key)
 
 ## One Sentence
 
@@ -15,7 +15,7 @@ Stop treating a capture as "a transcript dropped at the cursor" and treat it as 
 ```txt
 Read first:        One Sentence, Current State, Target Shape, The gesture grammar, Implementation Plan, Success Criteria
 Read for model:    The record, The Sink, The two scaffolds, Why no classifier
-Read if curious:   Relationship to ADR-0074, Rejected Alternatives, Open Questions
+Read if curious:   Relationship to ADR-0098, Rejected Alternatives, Open Questions
 ```
 
 ## Overview
@@ -30,7 +30,7 @@ We refuse to infer that one bit with a language classifier. We read it from **wh
 
 ### Current State
 
-ADR-0074 decomposed the old fused `Transformation` into three nouns, and that decomposition was correct *given the cursor primitive*:
+ADR-0098 decomposed the old fused `Transformation` into three nouns, and that decomposition was correct *given the cursor primitive*:
 
 - **Polish** (`run-polish.ts`): an always-on, meaning-preserving AI pass; output written once to the cursor; raw kept on `recordings.transcript`.
 - **Recipes** (`run-recipe.ts`, `recipes.svelte.ts`): on-demand fixed instructions picked from a command palette (`RecipePicker.svelte`), run over a captured selection/clipboard.
@@ -145,7 +145,7 @@ The ledger is the `recordings` table made first-class: typed, complete (`raw` + 
 
 ### Saved presets (Recipes, slimmed)
 
-Spoken instructions dissolve into Instruct. *Saved* instructions (ones you do not want to re-speak) survive as presets, invoked through a much smaller picker than today's recipe system: a flat list of named instructions, no pre/post replacements, no per-recipe model (ADR-0074's refusals stand). The built-ins (Email, Reply, Notes, To-dos) become Instruct presets.
+Spoken instructions dissolve into Instruct. *Saved* instructions (ones you do not want to re-speak) survive as presets, invoked through a much smaller picker than today's recipe system: a flat list of named instructions, no pre/post replacements, no per-recipe model (ADR-0098's refusals stand). The built-ins (Email, Reply, Notes, To-dos) become Instruct presets.
 
 ## Implementation Plan
 
@@ -171,9 +171,9 @@ Whispering also runs on web with no Tauri (`commands.ts` platform split; `captur
 - **Phase 2**: Instruct-on-selection edits in place under Accessibility (clipboard + notice fallback otherwise); Instruct with no operand generates; the untrusted-operand scaffold *mitigates* (not guarantees) an operand containing "ignore the above"; Instruct cancel leaves the original untouched and delivers nothing (and does NOT reuse ship-raw); Dictate-with-selection replaces it.
 - **Determinism**: routing makes zero LLM calls; the use/mention bit is decided entirely by the gesture; the same inputs always route the same way (a `reach-router`-style unit test proves it).
 
-## Relationship to ADR-0074
+## Relationship to ADR-0098
 
-This does not contradict ADR-0074; it completes its trajectory. ADR-0074's load-bearing insight was "auto-versus-manual is which layer you are in, not a flag on a shared object." That insight *is* the use/mention axis: **Dictate is the auto layer (Polish becomes its default cleanup); Instruct is the manual layer (Recipes become its saved presets).** The Dictionary stays exactly as ADR-0074 defined it (global injected context, the AI is the matcher). What changes is that "Polish" and "Recipe" stop being nouns and become the two cases of one verb, and the record grows from "raw + polished" to "raw + intent + result + sink." When this settles, it should be harvested into a new ADR that supersedes the *vocabulary* of 0074 while preserving its decisions (no per-recipe model, dictionary-as-context, clean break with no alias).
+This does not contradict ADR-0098; it completes its trajectory. ADR-0098's load-bearing insight was "auto-versus-manual is which layer you are in, not a flag on a shared object." That insight *is* the use/mention axis: **Dictate is the auto layer (Polish becomes its default cleanup); Instruct is the manual layer (Recipes become its saved presets).** The Dictionary stays exactly as ADR-0098 defined it (global injected context, the AI is the matcher). What changes is that "Polish" and "Recipe" stop being nouns and become the two cases of one verb, and the record grows from "raw + polished" to "raw + intent + result + sink." When this settles, it should be harvested into a new ADR that supersedes the vocabulary of 0098 while preserving its decisions (no per-recipe model, dictionary-as-context, clean break with no alias).
 
 ## Rejected Alternatives
 

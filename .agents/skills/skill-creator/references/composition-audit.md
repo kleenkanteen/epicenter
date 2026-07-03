@@ -1,10 +1,10 @@
 # Composition Audit
 
-Load this when grilling how a *cluster* of skills composes, not a single skill:
+Load this when stress-testing how a *cluster* of skills composes, not a single skill:
 routing collisions, duplicated bodies, dead links, and unclear roles. Run it
 after extracting or merging a skill, after adding a description trigger, or on a
 cadence over a named cluster (for example the review/simplify cluster:
-`post-implementation-review`, `collapse-pass`, `fresh-eyes-grill`,
+`post-implementation-review`, `collapse-pass`, `fresh-context-review`,
 `cohesive-clean-breaks`, `greenfield-clean-breaks`,
 `radical-options`, `asymmetric-wins`, `approachability-audit`,
 `one-sentence-test`).
@@ -108,7 +108,7 @@ door). A `move` with 0 inbound is suspicious (nothing delegates to it: is its
 phrase real?). A `move` with exactly 1 inbound is tightly coupled (could it just
 be a section of that one caller?). Many inbound = a healthy shared move.
 
-## Judgment Grill
+## Judgment Pass
 
 After the mechanical pass, ask the skill-creator questions per skill, then two
 cluster questions the single-skill eval cannot see:
@@ -166,7 +166,7 @@ A self-paced loop invocation:
 ```txt
 /loop Audit the review/simplify skill cluster for composition health.
 Load skill-creator and read references/composition-audit.md. Run detectors 1-4,
-then the judgment grill. Report findings in the output shape and fix only
+then the judgment pass. Report findings in the output shape and fix only
 mechanical, grounded ones (collisions, dead links, copied bodies). Escalate
 ambiguous triggers to references/evaluation.md. Stop when a full pass finds
 nothing new.

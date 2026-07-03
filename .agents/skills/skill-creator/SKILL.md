@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Create, revise, evaluate, and validate Vercel-backed Agent Skills for this repository. Use when writing a new skill, improving an existing skill, tuning skill descriptions, deciding what belongs in SKILL.md, references, scripts, or assets, validating discovery, or reviewing whether a skill should exist.
+description: Create, revise, audit, evaluate, and validate Vercel-backed Agent Skills for this repository. Use when writing a new skill, improving or stress-testing an existing skill, tuning skill descriptions, deciding what belongs in SKILL.md, references, scripts, or assets, validating discovery, or reviewing whether a skill should exist.
 ---
 
 # Skill Creator
@@ -13,7 +13,7 @@ Skills should encode repeatable project expertise: real conventions, recurring f
 
 Read [references/evaluation.md](references/evaluation.md) when tuning trigger descriptions, comparing skill versions, evaluating behavior, auditing imported skills, or checking source links.
 
-Read [references/composition-audit.md](references/composition-audit.md) when grilling how a *cluster* of skills composes rather than one skill: after extracting, merging, or renaming a skill, after adding a trigger phrase, or when routing feels ambiguous. It carries the role model (hub / move / mechanic / adapter), the mechanical detectors (routing collisions, duplicated bodies, dead links, coupling), and the continuous-grill loop.
+Read [references/composition-audit.md](references/composition-audit.md) when stress-testing how a *cluster* of skills composes rather than one skill: after extracting, merging, or renaming a skill, after adding a trigger phrase, or when routing feels ambiguous. It carries the role model (hub / move / mechanic / adapter), the mechanical detectors (routing collisions, duplicated bodies, dead links, coupling), and the continuous audit loop.
 
 ## Compose With
 
@@ -212,6 +212,8 @@ When updating an existing skill:
 5. Remove stale local-only scaffolding from the guidance.
 6. Validate with the commands in [Validate With Vercel CLI](#validate-with-vercel-cli).
 7. Forward-test subtle behavior with realistic prompts.
+
+When the user asks whether a skill needs changes, separate the answer into required fixes, worthwhile small improvements, and things to leave alone.
 
 Ask draft review questions when the scope is uncertain: does this cover the target use cases, is anything missing, and should any section move to `references/`?
 

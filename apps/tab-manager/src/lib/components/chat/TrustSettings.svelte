@@ -3,9 +3,9 @@
 	import * as Popover from '@epicenter/ui/popover';
 	import { Switch } from '@epicenter/ui/switch';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
-	import { requireTabManager } from '$lib/session.svelte';
+	import { tabManagerBoot } from '$lib/session.svelte';
 
-	const tabManager = requireTabManager();
+	const tabManager = tabManagerBoot.tabManager;
 	const trustedTools = $derived(tabManager.state.toolTrust.trustedToolNames);
 	const actionTitles = $derived(
 		tabManager.actions as Record<string, { title?: string }>,

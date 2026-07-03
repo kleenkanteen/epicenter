@@ -29,9 +29,9 @@ This skill does not replace `cohesive-clean-breaks` or `collapse-pass`. It
 gives agents a sharper trigger for clean-break review when compatibility
 pressure has been released or was never earned.
 
-Compose with `fresh-eyes-grill` when the user asks for fresh eyes, a subagent,
-or adversarial review of a concrete diff. This skill owns the compatibility
-stance, not reviewer orchestration.
+Compose with [fresh-context-review](../fresh-context-review/SKILL.md) when the
+user asks for fresh-context adversarial review of a concrete diff. This skill
+owns the compatibility stance, not reviewer orchestration.
 
 ```txt
 cohesive-clean-breaks   broad redesign and breaking-change mechanics

@@ -177,7 +177,7 @@ grouping of user accounts, not under documents.
 ### `/rooms/*` auth must be confirmed for browser apps (Class 1, unresolved)
 
 `origin/main` mounts `/rooms/*` under `requireOAuthUser` (the JSDoc mentions a
-`workspaces:open` scope check). `/me/*` uses `requireCookieOrBearerUser`. Browser
+`workspaces:open` scope check). `/me/*` uses `requireCookieOrBearerPrincipal`. Browser
 apps open sync sockets with `auth.openWebSocket`, which carries the token as a
 bearer subprotocol.
 
@@ -187,7 +187,7 @@ get an auth path that browser apps satisfy.
 **Implication**: Before reverting browser apps onto `/rooms/:room`, verify that
 a browser app's bearer-subprotocol WebSocket satisfies `/rooms/*`'s
 `requireOAuthUser` and any scope check. If it does not, the fix is to adjust
-`/rooms/*` auth (or mount the room routes under `requireCookieOrBearerUser`),
+`/rooms/*` auth (or mount the room routes under `requireCookieOrBearerPrincipal`),
 **not** to keep the workspace layer. See Open Questions 1.
 
 ## Design Decisions
@@ -272,14 +272,14 @@ until verification passes, so rollback is one revert.
   `/rooms/*`'s `requireOAuthUser` and any `workspaces:open` scope check.
 
   **Decision: Option (a). No auth change needed.** `requireOAuthUser` and the
-  bearer fallback of `requireCookieOrBearerUser` both call the *identical*
+  bearer fallback of `requireCookieOrBearerPrincipal` both call the *identical*
   `resolveRequestOAuthUser` function. There is no `workspaces:open` scope
   check left: `resolveBearerUser`'s JSDoc states scopes were removed and "the
   API audience is the bearer boundary." Browser apps are OAuth clients; their
   WebSocket carries a bearer subprotocol that `singleCredential` lifts into
   `Authorization`, so they go through the same OAuth-token path as the daemon,
   which already uses `/rooms/*` under `requireOAuthUser` in production. The
-  branch's `/me/apps` route used `requireCookieOrBearerUser`, but only the
+  branch's `/me/apps` route used `requireCookieOrBearerPrincipal`, but only the
   cookie branch differs, and browser sync sockets never carry a cookie.
 
 ### Phase 1: Point browser apps at `/rooms/:room`
@@ -351,7 +351,7 @@ until verification passes, so rollback is one revert.
 
 1. Phase 0 finds the browser token does not satisfy `requireOAuthUser`.
 2. Fix the route's auth (adjust `requireOAuthUser`, or mount room routes under
-   `requireCookieOrBearerUser`).
+   `requireCookieOrBearerPrincipal`).
 3. Do not keep the workspace layer to paper over an auth gap.
 
 ### Doc opened before sign-in
@@ -370,7 +370,7 @@ until verification passes, so rollback is one revert.
 ## Open Questions
 
 1. **`/rooms/*` auth for browser apps.** RESOLVED in Phase 0: option (a).
-   `requireOAuthUser` and the bearer fallback of `requireCookieOrBearerUser`
+   `requireOAuthUser` and the bearer fallback of `requireCookieOrBearerPrincipal`
    both resolve through the same `resolveRequestOAuthUser`; there is no scope
    check; the daemon already uses `/rooms/*` under `requireOAuthUser`. No auth
    change is needed.

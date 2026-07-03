@@ -11,8 +11,8 @@ import { runCommand } from './commands/run.js';
 /**
  * Create the Epicenter CLI instance.
  *
- * Introspect and invoke `defineQuery` / `defineMutation` actions exposed by
- * configured mount, either locally or on a peer that's online right now.
+ * Introspect and invoke `defineQuery` / `defineMutation` actions exposed by the
+ * configured mount, run against this device's own daemon.
  *
  *   - `auth`:  manage the local machine auth session (pre-workspace)
  *   - `blobs`: archive a file/URL into the content-addressed cloud blob store
@@ -20,7 +20,7 @@ import { runCommand } from './commands/run.js';
  *   - `daemon`: operate daemon lifecycle commands
  *   - `list`:  runnable actions for the mounted runtime (local schema is authoritative)
  *   - `matter`: lint a folder of typed markdown (disk is the source; SQLite is a projection)
- *   - `run`:   invoke one by action key; `--peer` dispatches over RPC
+ *   - `run`:   invoke one by action key against the local daemon
  *   - `peers`: enumerate other clients currently online via the workspace presence row
  *
  * Every mount action is invoked through `run`, e.g.
@@ -28,8 +28,7 @@ import { runCommand } from './commands/run.js';
  * markdown projection; results come back as JSON on stdout. Materialized `.md`
  * is read-only: mutate app data through actions, never by editing the files.
  *
- * Specs: `specs/20260421T155436-cli-scripting-first-redesign.md` (base
- * surface), `specs/20260423T174126-cli-remote-peer-rpc.md` (`peers` + `--peer`).
+ * Specs: `specs/20260421T155436-cli-scripting-first-redesign.md` (base surface).
  */
 export function createCLI() {
 	return {

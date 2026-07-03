@@ -3,271 +3,204 @@
  * `Rooms` registry (a Cloudflare Durable Object in the cloud, an in-process
  * `bun:sqlite` room on a Bun host). The route is backend-blind.
  *
- * URL shape (uniform across modes): `/api/owners/:ownerId/rooms/:roomId`.
- * The deployment mounts auth and `requireOwnership` upstream;
- * `requireOwnership` resolves the partition from `(rule, user.id)`,
- * rejects URL `:ownerId` mismatches at the boundary, and populates
- * `c.var.ownerId` before this handler runs.
+ * URL shape: `/api/rooms/:roomId`. The deployment mounts auth upstream, and
+ * `c.var.principal.id` is the partition key by definition.
  *
- * The Durable Object name is the owner-partitioned identifier produced by
+ * The Durable Object name is the principal-partitioned identifier produced by
  * {@link doName}; nothing here interpolates strings inline. The DO itself
- * is owner-blind: every connection is identified by the
- * `(userId, nodeId)` pair stamped onto its WebSocket attachment.
+ * is principal-blind: every connection is identified by the
+ * `(principalId, nodeId)` pair stamped onto its WebSocket attachment.
  *
- * Each HTTP/WS access pushes a fire-and-forget upsert into
- * `c.var.afterResponseQueue` so the platform-level `durableObjectInstance`
- * table tracks which owner's DO was touched and when. The row is keyed by
- * `do_name` and partitioned by `owner_id`; account-delete cleanup matches
- * `owner_id` (see auth `before(delete)` hook).
+ * The route reads neither `c.var.db` nor `c.var.afterResponseQueue`: it records
+ * no telemetry, so it composes no Postgres dependency on any deployment.
+ *
+ * ## WebSocket credential transport
+ *
+ * A browser `new WebSocket(url, protocols)` upgrade cannot set `Authorization`;
+ * the only channel for a bearer is the `Sec-WebSocket-Protocol` list, as
+ * `bearer.<token>` (see `@epicenter/sync` `auth-subprotocol.ts`). Rooms is the
+ * only WebSocket surface and it is bearer-only, so {@link requireRoomBearer}
+ * extracts the credential itself: an explicit `Authorization` header first (a
+ * non-browser client can set one), else a single `bearer.<token>` subprotocol
+ * entry. The ambient session cookie a browser is forced to attach is never
+ * read: the resolver only ever receives the extracted token, so a cookie can
+ * never authenticate this surface. Nothing here rewrites `c.req.raw`, so the
+ * request keeps its runtime identity end to end: Bun's `server.upgrade()`
+ * requires the exact object the `fetch` handler received, and a reconstructed
+ * `Request` cannot be upgraded.
  */
 
+import { OAuthError } from '@epicenter/constants/oauth-errors';
 import { RequestGuardError } from '@epicenter/constants/request-guard-errors';
-import type { OwnerId } from '@epicenter/identity';
-import { ROOM_ROUTE } from '@epicenter/sync';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { Hono } from 'hono';
+import {
+	BEARER_SUBPROTOCOL_PREFIX,
+	MAIN_SUBPROTOCOL,
+	parseSubprotocols,
+	ROOM_ROUTE,
+} from '@epicenter/sync';
+import { Hono, type MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { describeRoute } from 'hono-openapi';
-import { defineErrors } from 'wellcrafted/error';
-import { createLogger } from 'wellcrafted/logger';
 import { createOAuthUnauthorizedResourceResponse } from '../auth/oauth-resource.js';
-import { MAX_PAYLOAD_BYTES } from '../constants.js';
-import * as schema from '../db/schema/index.js';
+import { parseBearer } from '../auth/parse-bearer.js';
 import { isWebSocketUpgrade } from '../is-websocket-upgrade.js';
-import { createRequireOwnership } from '../middleware/require-ownership.js';
-import { normalizeWebSocketAuth } from '../middleware/websocket-auth.js';
-import { doName } from '../owner.js';
-import type { OwnershipRule } from '../ownership.js';
-import type { Env } from '../types.js';
-
-type Db = NodePgDatabase<typeof schema>;
-
-const log = createLogger('server/rooms');
-
-const RoomsTelemetryError = defineErrors({
-	DoInstanceUpsertFailed: ({
-		cause,
-		ownerId,
-		doName,
-	}: {
-		cause: unknown;
-		ownerId: OwnerId;
-		doName: string;
-	}) => ({
-		message: 'durableObjectInstance telemetry upsert failed; row dropped',
-		cause,
-		ownerId,
-		doName,
-	}),
-});
+import { doName } from '../principal.js';
+import type { Env, ResolveBearerPrincipal } from '../types.js';
 
 /**
- * Wrap a Uint8Array in a Response with a fresh ArrayBuffer copy. Yjs
- * encoders return views over a larger internal buffer; the copy isolates
- * exactly the bytes that should be sent.
+ * Build the rooms sub-app. Rooms are WebSocket-only: the authenticated upgrade
+ * is the single way to reach a room. The former one-shot HTTP surface (GET
+ * snapshot, POST sync RPC) was deleted with its last consumer; a plain GET
+ * answers `426 Upgrade Required` so a stray non-upgrade request gets a readable
+ * refusal instead of doc bytes.
  */
-function binaryResponse(data: Uint8Array): Response {
-	const body = new ArrayBuffer(data.byteLength);
-	new Uint8Array(body).set(data);
-	return new Response(body, {
-		headers: { 'content-type': 'application/octet-stream' },
-	});
-}
-
-/**
- * Fire-and-forget upsert into the platform DO instance table. Records that
- * the owner partition touched the DO and, when available, the post-access
- * storage size. Errors are logged and dropped: this is telemetry, not
- * billing authority. The failure is observable via the `server/rooms`
- * logger so silent telemetry loss surfaces in deployment logs.
- */
-async function upsertDoInstance(
-	db: Db,
-	params: {
-		ownerId: OwnerId;
-		resourceName: string;
-		doName: string;
-		storageBytes?: number;
-	},
-): Promise<void> {
-	const now = new Date();
-	try {
-		await db
-			.insert(schema.durableObjectInstance)
-			.values({
-				ownerId: params.ownerId,
-				resourceName: params.resourceName,
-				doName: params.doName,
-				storageBytes: params.storageBytes ?? null,
-				lastAccessedAt: now,
-				storageMeasuredAt: params.storageBytes != null ? now : null,
-			})
-			.onConflictDoUpdate({
-				target: schema.durableObjectInstance.doName,
-				set: {
-					lastAccessedAt: now,
-					...(params.storageBytes != null && {
-						storageBytes: params.storageBytes,
-						storageMeasuredAt: now,
-					}),
-				},
-			});
-	} catch (cause) {
-		log.warn(
-			RoomsTelemetryError.DoInstanceUpsertFailed({
-				cause,
-				ownerId: params.ownerId,
-				doName: params.doName,
-			}),
-		);
-	}
-}
-
-/**
- * Rooms sub-app. URL shape is uniform across modes; the resolved owner
- * partition arrives on `c.var.ownerId` via the deployment-mounted
- * `requireOwnership` middleware, so handlers stay mode-blind.
- */
-const roomsApp = new Hono<Env>()
-	.get(
+function createRoomsApp(): Hono<Env> {
+	return new Hono<Env>().get(
 		ROOM_ROUTE.pattern,
 		describeRoute({
-			description: 'Get room doc or upgrade to WebSocket',
+			description: 'Upgrade to the room WebSocket',
 			tags: ['rooms'],
 		}),
-		async (c) => {
-			const roomId = c.req.param('roomId');
-			const name = doName(c.var.ownerId, roomId);
-			const room = c.var.rooms.get(name);
+		(c) => {
+			if (!isWebSocketUpgrade(c)) {
+				return new Response('Rooms are WebSocket-only', { status: 426 });
+			}
 
-			if (isWebSocketUpgrade(c)) {
-				// Validate nodeId presence at the route boundary so the backend
-				// can trust it is set. nodeId is the dispatch address
-				// `dispatch({ to })` resolves against; a missing one would
-				// produce a presence-ghost connection (visible in presence
-				// frames but unreachable by dispatch).
-				const nodeId = c.req.query('nodeId');
-				if (!nodeId) {
-					const err = RequestGuardError.MissingNodeId();
-					return c.json(err, err.error.status);
-				}
+			// Validate nodeId presence at the route boundary so the backend
+			// can trust it is set. nodeId is the participant identity the
+			// relay reports in presence; a missing one would produce a
+			// presence-ghost connection.
+			const nodeId = c.req.query('nodeId');
+			if (!nodeId) {
+				const err = RequestGuardError.MissingNodeId();
+				return c.json(err, err.error.status);
+			}
 
-				c.var.afterResponseQueue.push(
-					upsertDoInstance(c.var.db, {
-						ownerId: c.var.ownerId,
-						resourceName: roomId,
-						doName: name,
-					}),
+			// An upgrade that offers subprotocols must offer the main one. The
+			// backends echo only `epicenter` on the 101; upgrading a client that
+			// did not offer it would either fail its handshake (a compliant
+			// browser rejects a 101 selecting an unoffered protocol) or, worse,
+			// leave the runtime to auto-echo the client's first offer, which for
+			// a malformed bearer-only client is the token itself. Refuse here so
+			// no backend ever negotiates against a bearer entry. A client
+			// offering no subprotocols at all (a non-browser caller using
+			// `Authorization`) is fine: there is nothing to echo.
+			const offered = parseSubprotocols(
+				c.req.header('sec-websocket-protocol') ?? null,
+			);
+			if (offered.length > 0 && !offered.includes(MAIN_SUBPROTOCOL)) {
+				return new Response(
+					`WebSocket upgrade must offer the ${MAIN_SUBPROTOCOL} subprotocol`,
+					{ status: 400 },
 				);
-				// Identity goes to the backend as data, not stamped into a
-				// reconstructed request URL: userId from auth (authoritative,
-				// never the client's), nodeId the client's own. The backend
-				// performs its runtime-specific accept (see ResolvedRoom).
-				return room.handleUpgrade({
-					request: c.req.raw,
-					userId: c.var.user.id,
-					nodeId,
-				});
 			}
 
-			const { data, storageBytes } = await room.getDoc();
-			c.var.afterResponseQueue.push(
-				upsertDoInstance(c.var.db, {
-					ownerId: c.var.ownerId,
-					resourceName: roomId,
-					doName: name,
-					storageBytes,
-				}),
-			);
-			return binaryResponse(data);
-		},
-	)
-	.post(
-		ROOM_ROUTE.pattern,
-		describeRoute({
-			description: 'Sync room doc',
-			tags: ['rooms'],
-		}),
-		async (c) => {
 			const roomId = c.req.param('roomId');
-			const name = doName(c.var.ownerId, roomId);
+			const principalId = c.var.principal.id;
+			const room = c.var.rooms.get(doName(principalId, roomId));
 
-			const body = new Uint8Array(await c.req.raw.arrayBuffer());
-			if (body.byteLength > MAX_PAYLOAD_BYTES) {
-				return new Response('Payload too large', { status: 413 });
-			}
-
-			const room = c.var.rooms.get(name);
-			const { data: synced, error } = await room.sync(body);
-			if (error) {
-				return new Response('Malformed sync body', { status: 400 });
-			}
-			const { diff, storageBytes } = synced;
-
-			c.var.afterResponseQueue.push(
-				upsertDoInstance(c.var.db, {
-					ownerId: c.var.ownerId,
-					resourceName: roomId,
-					doName: name,
-					storageBytes,
-				}),
-			);
-
-			return diff ? binaryResponse(diff) : new Response(null, { status: 204 });
+			// Identity goes to the backend as data, not stamped into a
+			// reconstructed request URL: principalId from auth (authoritative,
+			// never the client's), nodeId the client's own. The backend
+			// performs its runtime-specific accept (see ResolvedRoom).
+			return room.handleUpgrade({
+				request: c.req.raw,
+				principalId,
+				nodeId,
+			});
 		},
 	);
+}
 
 /**
  * Bearer auth for the rooms surface, the only WebSocket surface.
  *
- * Same bearer-only resolution as `requireBearerUser`, but a failed WebSocket
- * upgrade is rejected through the runtime's {@link Rooms.rejectUpgrade}: the
- * socket is accepted and immediately closed with `4000 + status` (401 -> 4401
- * permanent, 503 -> 4503 retryable), so the browser receives a close code it
- * can read. A plain HTTP error on an upgrade surfaces only as an opaque failed
- * handshake, which the client cannot tell from a network blip. A failed
- * non-upgrade rooms request (getDoc, sync) still answers with the shared HTTP
- * helper. The serialized error is the close reason; the client branches on
+ * Owns WebSocket credential extraction: an explicit `Authorization` header
+ * first (a non-browser client can set one), else a single `bearer.<token>`
+ * subprotocol entry ({@link extractUpgradeBearer}). The extracted token feeds
+ * the same {@link ResolveBearerPrincipal} every bearer surface uses; the
+ * ambient browser cookie is never consulted, so it can never authenticate a
+ * room.
+ *
+ * A failed WebSocket upgrade is rejected through the runtime's
+ * {@link Rooms.rejectUpgrade}: the socket is accepted (echoing the main
+ * subprotocol so a compliant browser completes the handshake) and immediately
+ * closed with `4000 + status` (401 -> 4401 permanent, 503 -> 4503 retryable),
+ * so the browser receives a close code it can read. A plain HTTP error on an
+ * upgrade surfaces only as an opaque failed handshake, which the client cannot
+ * tell from a network blip. That socket-close path requires the client to have
+ * offered the main subprotocol (a 101 selecting an unoffered or absent
+ * protocol fails a compliant browser's handshake before the close code is
+ * readable); any other failed request answers with the shared HTTP helper.
+ * The serialized error is the close reason; the client branches on
  * `error.name`.
  */
-const requireRoomBearer = createMiddleware<Env>(async (c, next) => {
-	const { data: user, error } = await c.var.resolveUser(c);
-	if (error) {
-		if (isWebSocketUpgrade(c)) {
-			return c.var.rooms.rejectUpgrade({
-				request: c.req.raw,
-				code: 4000 + error.status,
-				reason: JSON.stringify(error),
-			});
+function requireRoomBearer<E extends Env>(
+	resolveBearerPrincipal: ResolveBearerPrincipal<E>,
+): MiddlewareHandler<E> {
+	return createMiddleware<E>(async (c, next) => {
+		const bearer = extractUpgradeBearer(c.req.raw.headers);
+		const { data: principal, error } = bearer
+			? await resolveBearerPrincipal(c, bearer)
+			: OAuthError.InvalidToken();
+		if (error) {
+			const offersMainSubprotocol = parseSubprotocols(
+				c.req.header('sec-websocket-protocol') ?? null,
+			).includes(MAIN_SUBPROTOCOL);
+			if (isWebSocketUpgrade(c) && offersMainSubprotocol) {
+				return c.var.rooms.rejectUpgrade({
+					request: c.req.raw,
+					code: 4000 + error.status,
+					reason: JSON.stringify(error),
+				});
+			}
+			return createOAuthUnauthorizedResourceResponse(c, error);
 		}
-		return createOAuthUnauthorizedResourceResponse(c, error);
-	}
-	c.set('user', user);
-	await next();
-});
+		c.set('principal', principal);
+		await next();
+	});
+}
+
+/**
+ * Extract the bearer credential from a room upgrade's headers.
+ *
+ * `Authorization: Bearer <token>` wins when present (a non-browser client can
+ * set it directly); otherwise a single `bearer.<token>` subprotocol entry is
+ * the credential. Returns null when there is no usable bearer: none present,
+ * an empty `bearer.` token, or more than one bearer entry (a malformed
+ * client). The caller answers 401 in that case.
+ */
+function extractUpgradeBearer(headers: Headers): string | null {
+	const fromHeader = parseBearer(headers.get('authorization'));
+	if (fromHeader) return fromHeader;
+
+	const bearers = parseSubprotocols(headers.get('sec-websocket-protocol'))
+		.filter((protocol) => protocol.startsWith(BEARER_SUBPROTOCOL_PREFIX))
+		.map((protocol) => protocol.slice(BEARER_SUBPROTOCOL_PREFIX.length));
+	if (bearers.length !== 1) return null;
+	return bearers[0] || null;
+}
 
 /**
  * Mount the rooms surface on a deployment's server app.
  *
- * Bundles the full request pipeline for the only WebSocket surface:
- * transport normalization, auth, ownership, and the route mount, in one
+ * Bundles auth and the route mount for the only WebSocket surface in one
  * call. Deployments call this once; they do not assemble the chain manually.
  *
- * Order matters. {@link normalizeWebSocketAuth} runs first so that on a
- * browser upgrade the ambient session cookie is dropped and the
- * `bearer.<token>` subprotocol is lifted into `Authorization` before
- * {@link requireRoomBearer} (bearer-only: rooms is for external clients,
- * never cookie-bearing browsers) reads it.
+ * Rooms is the one surface that closes its own wrapper over the deployment's
+ * {@link ResolveBearerPrincipal} (the cloud's OAuth resolver, an instance's
+ * env-token resolver) rather than taking a prebuilt `auth` middleware, because
+ * a failed WebSocket upgrade must close with a readable code rather than
+ * answer a plain HTTP error, and because the credential rides the
+ * `Sec-WebSocket-Protocol` list rather than the `Authorization` header.
  */
-export function mountRoomsApp(
-	app: Hono<Env>,
-	opts: { ownership: OwnershipRule },
+export function mountRoomsApp<E extends Env = Env>(
+	app: Hono<E>,
+	opts: { resolveBearerPrincipal: ResolveBearerPrincipal<E> },
 ): void {
 	app.use(
 		ROOM_ROUTE.prefixPattern,
-		normalizeWebSocketAuth,
-		requireRoomBearer,
-		createRequireOwnership(opts.ownership),
+		requireRoomBearer(opts.resolveBearerPrincipal),
 	);
-	app.route('/', roomsApp);
+	app.route('/', createRoomsApp());
 }

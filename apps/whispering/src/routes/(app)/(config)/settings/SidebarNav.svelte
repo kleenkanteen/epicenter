@@ -18,6 +18,7 @@
 		{ title: 'Sound', href: '/settings/sound' },
 		{ title: 'API Keys', href: '/settings/api-keys' },
 		{ title: 'Privacy & Analytics', href: '/settings/analytics' },
+		{ title: 'Account', href: '/settings/account' },
 	] satisfies {
 		title: string;
 		href: string;

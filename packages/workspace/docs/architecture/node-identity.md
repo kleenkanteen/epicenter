@@ -18,7 +18,7 @@ A node's identity is `nodeId`, a branded string (`NodeId`). It is:
 - **Claimed by the client.** Only the client generates and knows its `nodeId`. The relay never assigns it; it routes by whatever the client presents.
 - **Stable per install.** The id is generated once on first run and persisted, so it survives reloads and restarts.
 
-`NodeId` is a branded type so it cannot be mixed up with other string ids (user ids, owner ids, room ids). Create it with `createNodeId` / `createNodeIdAsync`; brand a known string with `asNodeId` only at trusted call sites.
+`NodeId` is a branded type so it cannot be mixed up with other string ids (user ids, principal ids, room ids). Create it with `createNodeId` / `createNodeIdAsync`; brand a known string with `asNodeId` only at trusted call sites.
 
 Keep `nodeId` (the string routing id) distinct from the Yjs `clientID` (a number; see [Yjs `clientID`](#yjs-clientid) below). They are different identifiers for different layers.
 
@@ -47,18 +47,18 @@ The daemon uses `resolveDaemonNodeId(epicenterRoot)`, which persists the id to `
 
 ### 1. Relay Routing
 
-The `nodeId` is stamped on the WebSocket upgrade URL as `?nodeId=` (built into the URL passed to `openCollaboration`, typically via `roomWsUrl(...)`). The relay binds the id to the socket at upgrade and stores it on the socket attachment for the lifetime of the connection; there is no round-trip validation. This bound id is the address that `dispatch({ to })` routes to. A WebSocket upgrade without a `nodeId` is rejected at the route boundary, so a connection can never become a presence-ghost (visible in presence but unreachable by dispatch).
+The `nodeId` is stamped on the WebSocket upgrade URL as `?nodeId=` (built into the URL passed to `openCollaboration`, typically via `roomWsUrl(...)`). The relay binds the id to the socket at upgrade and stores it on the socket attachment for the lifetime of the connection; there is no round-trip validation. This bound id is the address peers see in presence. A WebSocket upgrade without a `nodeId` is rejected at the route boundary, so a connection can never become a presence ghost.
 
 ### 2. Presence
 
-The relay owns presence and pushes each client its peer list: the *other* nodes, excluding self. Each entry is shaped as `Peer { nodeId, connectedAt, actions }`. The relay computes the list per recipient, so a client never has to filter itself out, and it dedupes multi-tab same-node entries (newest wins by `connectedAt`).
+The relay owns presence and pushes each client its peer list: the *other* nodes, excluding self. Each entry is shaped as `Peer { nodeId, connectedAt, agentId? }`. The relay computes the list per recipient, so a client never has to filter itself out, and it dedupes multi-tab same-node entries (newest wins by `connectedAt`).
 
 Read presence through the collaboration handle:
 
 ```typescript
 collaboration.peers.list(); // current peers (Peer[])
 collaboration.peers.subscribe((peers) => {
-	// called on every membership or manifest change
+	// called on every membership or identity change
 });
 ```
 
@@ -80,5 +80,4 @@ Because the daemon derives `clientID` from the install-stable `nodeId`, the `cli
 ## Related Documentation
 
 - [Network Topology](./network-topology.md): node types and connections
-- [Action Dispatch](./action-dispatch.md): cross-node action invocation
 - [Security](./security.md): network security model

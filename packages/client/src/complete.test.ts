@@ -169,12 +169,15 @@ describe('complete over the OpenAI chat wire', () => {
 		);
 		const controller = new AbortController();
 
-		await complete(resolveConnection({ baseUrl: 'http://localhost:11434/v1' }), {
-			model: 'llama3',
-			systemPrompt: '',
-			userPrompt: 'hi',
-			signal: controller.signal,
-		});
+		await complete(
+			resolveConnection({ baseUrl: 'http://localhost:11434/v1' }),
+			{
+				model: 'llama3',
+				systemPrompt: '',
+				userPrompt: 'hi',
+				signal: controller.signal,
+			},
+		);
 
 		// The signal rides on the real request init, so the HTTP call is genuinely
 		// cancellable: the Polish HUD's "ship raw" aborts the in-flight completion

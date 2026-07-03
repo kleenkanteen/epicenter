@@ -55,6 +55,13 @@
 	"version": "7.11.0",
 	"identifier": "so.epicenter.whispering",
 	"plugins": {
+		"deep-link": {
+			"desktop": {
+				"schemes": [
+					"epicenter-whispering"
+				]
+			}
+		},
 		"updater": {
 			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUwQzE1RjEyRThENzg0OEEKUldTS2hOZm9FbC9CVU1uZ1JLWlluMm1mOHd4N1RWUkNjME9PcHA3Nkg2ek5RMnZyVTVDS2k1QkwK",
 			"endpoints": [
@@ -75,7 +82,7 @@
 			}
 		],
 		"security": {
-			"csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: asset: http://asset.localhost; media-src 'self' blob: data: asset: http://asset.localhost https:; frame-src 'self' https://www.youtube.com; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https: http: ws: wss: data: blob: asset: http://asset.localhost; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+			"csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self'; style-src-elem 'self'; style-src-attr 'self' 'unsafe-inline'; img-src 'self' data: blob: https: asset: http://asset.localhost; media-src 'self' blob: data: asset: http://asset.localhost https:; frame-src 'self' https://www.youtube.com; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https: http: ws: wss: data: blob: asset: http://asset.localhost; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
 			"devCsp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' blob: http://localhost:1420; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: asset: http://asset.localhost; media-src 'self' blob: data: asset: http://asset.localhost https:; frame-src 'self' https://www.youtube.com; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420 https: http: ws: wss: data: blob: asset: http://asset.localhost; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
 			"assetProtocol": {
 				"enable": true,

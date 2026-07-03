@@ -3,7 +3,9 @@
  *
  * Read-only reactive layer backed by `fromTable()`: a stateless
  * `ReadonlyTableView` whose reads track the underlying CRDT table. All write
- * operations are delegated to workspace actions owned by the signed-in session.
+ * operations are delegated to workspace actions on the boot-time workspace
+ * bundle (ADR-0088: bookmarks exist on the local doc whether signed in or
+ * not; there is no signed-in-only gate here).
  *
  * The public API exposes a `$derived` sorted array (access pattern is
  * always "render the full sorted list") plus a URL lookup set for O(1)

@@ -2,7 +2,7 @@
 
 Live tabs and saved tabs are fundamentally different things. Live tabs mirror Chrome's reality. They're ephemeral, they vanish on restart, and they're not yours to own. Saved tabs and bookmarks are workspace data: they persist, sync across devices, and survive browser restarts. Tab Manager is a browser extension that keeps these two layers separate and bridges them with an AI chat drawer that can act on your workspace.
 
-Part of the [Epicenter](https://github.com/EpicenterHQ/epicenter) monorepo. MIT licensed.
+Part of the [Epicenter](https://github.com/EpicenterHQ/epicenter) monorepo. AGPL-3.0 licensed.
 
 ---
 
@@ -48,24 +48,24 @@ The main UI has a search bar with case-sensitive, regex, and exact-match toggles
 
 ## Workspace schema
 
-Workspace ID: `epicenter-tab-manager`. Six tables:
+Workspace ID: `epicenter-tab-manager`. Five root tables:
 
 | Table | Key | Notable fields |
 |---|---|---|
 | `devices` | `NodeId` | `name`, `lastSeen`, `browser` |
 | `savedTabs` | `SavedTabId` | `url`, `title`, `favIconUrl?`, `pinned`, `sourceNodeId`, `savedAt` |
 | `bookmarks` | `BookmarkId` | `url`, `title`, `favIconUrl?`, `description?`, `sourceNodeId`, `createdAt` |
-| `conversations` | `ConversationId` | `title`, `parentId?`, `systemPrompt?`, `provider`, `model`, `createdAt`, `updatedAt` |
-| `chatMessages` | `ChatMessageId` | `conversationId`, `role`, `parts[]`, `createdAt` |
-| `toolTrust` | tool name | `trust: 'ask' \| 'always'` |
+| `conversations` | `ConversationId` | `title`, `model`, `createdAt`, `updatedAt` |
+| `toolTrust` | tool name | presence row for "always allow" |
 
 Relay presence carries `nodeId`; Tab Manager maps that framework node to its app-owned `devices` table so the UI can show named browser devices.
+Conversation messages live in the per-row `conversations.messages` child doc, not a root `chatMessages` table.
 
 ---
 
 ## AI chat
 
-The `AiDrawer` component is a sign-in-gated chat drawer that supports multiple conversations. Chat streams via SSE from the configured remote server. Workspace actions are converted to AI tools via `@epicenter/workspace`'s `actionsToAiTools`, so the AI can read and write workspace data directly.
+The `AiDrawer` component supports multiple conversations. Chat inference needs a signed-in remote connection, but the drawer and its local conversation metadata do not gate the extension shell. Workspace actions are converted to AI tools via `@epicenter/workspace`'s `actionsToAiTools`, so the AI can read and write workspace data directly.
 
 Destructive tool calls require inline approval before they execute. Each tool can also be set to "always allow," and that preference is stored in the `toolTrust` table, so it syncs across all your devices like any other workspace data.
 
@@ -107,7 +107,7 @@ bun run zip            # Package for Chrome Web Store
 bun run zip:firefox    # Package for Firefox Add-ons
 ```
 
-Auth uses Google OAuth via `browser.identity`. The workspace mounts once a signed-in identity is available.
+Auth uses Google OAuth via `browser.identity`. The workspace always mounts: signed out uses bare local IndexedDB storage, and signed in uses principal-scoped storage plus relay sync.
 
 ---
 
@@ -127,4 +127,4 @@ Auth uses Google OAuth via `browser.identity`. The workspace mounts once a signe
 
 ## License
 
-MIT
+AGPL-3.0

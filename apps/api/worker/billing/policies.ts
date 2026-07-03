@@ -36,7 +36,7 @@
  * The content-addressed blob store is unmetered in v1 (no storage policy here):
  * Autumn `check()` denies by default with no plan attached, so deferred quota
  * means not calling it. A `syncBlobStorageWithAutumn` policy slots in when blob
- * storage is billed (spec 20260623T220000, decision 10).
+ * storage is billed (deleted spec 20260623T220000 decision 10, recoverable via git history; kernel is ADR-0089).
  *
  * The library remains billing-agnostic; everything here is cloud-only.
  */
@@ -45,20 +45,23 @@ import {
 	AiChatError,
 	AiChatErrorStatus,
 } from '@epicenter/constants/ai-chat-errors';
-import type { Env } from '@epicenter/server';
+import type { CloudEnv } from '@epicenter/server';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { BillingError } from './errors.js';
 import { createBillingService } from './service.js';
 
-function billingFor(c: Context<Env>) {
+function billingFor(c: Context<CloudEnv>) {
 	// Billing is cloud-only: `AUTUMN_SECRET_KEY` lives on this deployment's own
 	// `Cloudflare.Env`, not the library's portable `ServerBindings` (ADR-0066),
 	// so read it through the same edge cast the runtime-port resolvers use.
+	if (c.var.principal.email === undefined) {
+		throw new Error('Billing requires a principal email.');
+	}
 	return createBillingService(c.env as Cloudflare.Env, {
-		userId: c.var.user.id,
-		userEmail: c.var.user.email,
+		principalId: c.var.principal.id,
+		principalEmail: c.var.principal.email,
 	});
 }
 
@@ -75,7 +78,7 @@ function billingFor(c: Context<Env>) {
  * `error.code`. The gateway is house-key-only (ADR-0054), so every call is
  * metered; there is no BYOK bypass.
  */
-export const chargeOpenAiCreditsWithAutumn = createMiddleware<Env>(
+export const chargeOpenAiCreditsWithAutumn = createMiddleware<CloudEnv>(
 	async (c, next) => {
 		const body = (await c.req.json().catch(() => ({}))) as {
 			model?: string;
@@ -96,9 +99,9 @@ export const chargeOpenAiCreditsWithAutumn = createMiddleware<Env>(
 	},
 );
 
-// The hosted STT gateway pins one backend (mirrors `STT_UPSTREAM` in the
-// library's transcription route), so the usage event's model and provider are
-// fixed here rather than read from the request.
+// The hosted STT gateway pins one backend (mirrors `STT_MODEL` / `STT_BASE_URL`
+// in the library's transcription route), so the usage event's model and provider
+// are fixed here rather than read from the request.
 const HOSTED_STT_MODEL = 'whisper-1';
 const HOSTED_STT_PROVIDER = 'openai';
 
@@ -115,7 +118,7 @@ const HOSTED_STT_PROVIDER = 'openai';
  * that and is deferred. House-key-only (ADR-0054): every call is metered, no BYOK
  * bypass.
  */
-export const chargeOpenAiTranscriptionCredits = createMiddleware<Env>(
+export const chargeOpenAiTranscriptionCredits = createMiddleware<CloudEnv>(
 	async (c, next) => {
 		const billing = billingFor(c);
 

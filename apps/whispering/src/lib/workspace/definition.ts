@@ -1,13 +1,11 @@
 import { field } from '@epicenter/field';
 import {
-	createWorkspace,
 	defineKv,
 	defineTable,
+	defineWorkspace,
 	type IanaTimeZone,
-	type InferKvValue,
 	type InferTableRow,
 	nullable,
-	satisfiesWorkspace,
 } from '@epicenter/workspace';
 import { type TProperties, Type } from 'typebox';
 import type { KeyBinding } from '$lib/tauri/commands';
@@ -76,7 +74,7 @@ const recordings = defineTable({
 	recordedAtZone: field.string<IanaTimeZone>(),
 	// The raw transcript, exactly as the transcriber produced it. Polish layers
 	// correction on top and delivers the polished text, but the raw words stay
-	// here underneath so "show original" is always one click away. See ADR-0074.
+	// here underneath so "show original" is always one click away. See ADR-0098.
 	transcript: field.string(),
 	// The delivered polished text, when a Polish pass ran. Null in speed mode and
 	// on a polish-failure fallback, where no polished version exists. The history
@@ -94,7 +92,7 @@ export type Recording = InferTableRow<typeof recordings>;
  * whatever text the host hands it (text in, text out). Recipes are the portable,
  * plural, on-demand reshape library; they know nothing about voice and carry no
  * correction plumbing (that is Polish's job, run once before any Recipe). See
- * ADR-0074.
+ * ADR-0098.
  *
  * Deliberately tiny: no pre/post replacements, no system/user prompt split, no
  * `{{input}}` placeholder, no per-Recipe model or provider (model comes from the
@@ -260,7 +258,7 @@ const completion = {
  * domain terms ("Kubernetes", "Braden"). Injection-only: the runtime composes
  * these terms into every AI prompt (via `buildSystemPrompt`) and, where the
  * transcription model accepts one, into its `initial_prompt`. It is not
- * find/replace and not an algorithm; the AI is the matcher. See ADR-0074.
+ * find/replace and not an algorithm; the AI is the matcher. See ADR-0098.
  */
 const dictionary = {
 	dictionary: defineKv(Type.Array(Type.String()), (): string[] => []),
@@ -278,7 +276,7 @@ const DEFAULT_POLISH_INSTRUCTIONS =
  * fresh unconfigured install never pays a surprise cost. Turn `enabled` off for
  * speed mode: the raw transcript ships instantly with no AI call. `instructions`
  * is editable under Advanced. Polish is not a Recipe; it is the base layer every
- * Recipe stands on. See ADR-0074.
+ * Recipe stands on. See ADR-0098.
  */
 const polish = {
 	'polish.enabled': defineKv(field.boolean(), () => true),
@@ -369,80 +367,37 @@ const shortcuts = {
 	),
 } as const;
 
-type CreateWhisperingOptions = {
-	defaultTranscriptionService: TranscriptionServiceId;
-};
-
-export function createWhispering({
-	defaultTranscriptionService,
-}: CreateWhisperingOptions) {
-	/**
-	 * Whispering KV schemas: ~40 entries for synced preferences. Defined locally
-	 * so the raw schema map is not a module-level export. Callers reach the
-	 * defaults and key list through the `settings` namespace on the returned
-	 * workspace bundle.
-	 */
-	const kvDefinitions = {
-		...sound,
-		...output,
-		...dataRetention,
-		...recording,
-		...defineTranscriptionSettings(defaultTranscriptionService),
-		...completion,
-		...dictionary,
-		...polish,
-		...analytics,
-		...shortcuts,
-	};
-	type SettingKey = keyof typeof kvDefinitions & string;
-
-	const workspace = createWorkspace({
+/**
+ * Define the Whispering workspace model for one platform's default service.
+ *
+ * The KV schema map (~40 entries for synced preferences) stays local so it is
+ * never a module-level export; callers reach the key list, per-key defaults,
+ * and the bulk reset through the workspace's own `kv.keys` / `kv.getDefault` /
+ * `kv.reset` (ADR-0093).
+ */
+export function defineWhispering(
+	defaultTranscriptionService: TranscriptionServiceId,
+) {
+	return defineWorkspace({
 		// Workspace/Y.Doc identity, not an OAuth client id or Tauri bundle id.
 		// This keys local storage and cloud rooms; change only with a data migration.
 		id: 'epicenter-whispering',
+		name: 'Whispering',
 		tables: {
 			recordings,
 			recipes,
 		},
-		kv: kvDefinitions,
-	});
-
-	const settingKeys = Object.keys(kvDefinitions) as SettingKey[];
-
-	return satisfiesWorkspace({
-		...workspace,
-		/**
-		 * Synced setting metadata for the Whispering workspace.
-		 *
-		 * Owns the KV schema map: callers never see the raw `defineKv` definitions.
-		 * Use `kv.get`/`kv.set`/`kv.observeAll` for live values; reach for `settings`
-		 * for the key list, per-key defaults, and the bulk reset.
-		 */
-		settings: {
-			/** Every synced setting key, in declaration order. */
-			keys: settingKeys,
-			/** Return the default value for a setting key (factory-evaluated). */
-			getDefault<K extends SettingKey>(
-				key: K,
-			): InferKvValue<(typeof kvDefinitions)[K]> {
-				return kvDefinitions[key].defaultValue() as InferKvValue<
-					(typeof kvDefinitions)[K]
-				>;
-			},
-			/**
-			 * Reset every synced workspace setting to its default in a single Yjs
-			 * transaction (one `observeAll` firing, not one per key).
-			 */
-			reset(): void {
-				workspace.ydoc.transact(() => {
-					for (const key of settingKeys) {
-						(workspace.kv.set as (key: string, value: unknown) => void)(
-							key,
-							kvDefinitions[key].defaultValue(),
-						);
-					}
-				});
-			},
+		kv: {
+			...sound,
+			...output,
+			...dataRetention,
+			...recording,
+			...defineTranscriptionSettings(defaultTranscriptionService),
+			...completion,
+			...dictionary,
+			...polish,
+			...analytics,
+			...shortcuts,
 		},
 	});
 }

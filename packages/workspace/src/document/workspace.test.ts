@@ -5,7 +5,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { field, InstantString } from '@epicenter/field';
-import { asOwnerId } from '@epicenter/identity';
+import { asPrincipalId } from '@epicenter/identity';
 import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 import { Type } from 'typebox';
 import * as Y from 'yjs';
@@ -15,7 +15,11 @@ import type { ConnectionConfig } from './connect-doc.js';
 import { defineKv } from './define-kv.js';
 import { defineTable } from './define-table.js';
 import { asNodeId } from './node-id.js';
-import { createWorkspace, defineWorkspace } from './workspace.js';
+import {
+	createWorkspace,
+	defineWorkspace,
+	type LocalPersistence,
+} from './workspace.js';
 
 Object.assign(globalThis, { indexedDB, IDBKeyRange });
 
@@ -33,9 +37,8 @@ function fakeWebSocket(): Promise<WebSocket> {
 }
 
 const connection: ConnectionConfig = {
-	server: 'api.test.invalid',
 	baseURL: 'https://api.test.invalid',
-	ownerId: asOwnerId('owner-1'),
+	principalId: asPrincipalId('principal-1'),
 	openWebSocket: fakeWebSocket,
 	onReconnectSignal: () => () => {},
 	nodeId: asNodeId('node-1'),
@@ -141,7 +144,7 @@ describe('defineWorkspace', () => {
 			expect(String(body.guid)).toBe(
 				'ws-definition-connected.notes.note-1.body',
 			);
-			await Promise.all([workspace.idb.whenLoaded, body.whenLoaded]);
+			await Promise.all([workspace.storage.whenLoaded, body.whenLoaded]);
 		} finally {
 			body[Symbol.dispose]();
 			workspace[Symbol.dispose]();
@@ -239,6 +242,47 @@ describe('defineWorkspace', () => {
 		}
 	});
 
+	test('wipe waits for open child-doc storage before deleting local data', async () => {
+		let wipeCalled = false;
+		const childDisposed = Promise.withResolvers<void>();
+		const persistence: LocalPersistence = {
+			attach(ydoc) {
+				if (ydoc.guid === 'ws-wipe-child-storage') {
+					const rootDisposed = Promise.withResolvers<void>();
+					ydoc.once('destroy', () => rootDisposed.resolve());
+					return {
+						whenLoaded: Promise.resolve(),
+						whenDisposed: rootDisposed.promise,
+					};
+				}
+
+				return {
+					whenLoaded: Promise.resolve(),
+					whenDisposed: childDisposed.promise,
+				};
+			},
+			async wipe() {
+				wipeCalled = true;
+			},
+		};
+		const workspace = defineWorkspace({
+			id: 'ws-wipe-child-storage',
+			name: 'ws-wipe-child-storage',
+			tables: { notes: notesDefinition.docs({ body: attachPlainText }) },
+			kv: {},
+		}).connect(null, { persistence });
+
+		workspace.tables.notes.docs.body.open('note-1');
+		const wipe = workspace.wipe();
+
+		await Promise.resolve();
+		expect(wipeCalled).toBe(false);
+
+		childDisposed.resolve();
+		await wipe;
+		expect(wipeCalled).toBe(true);
+	});
+
 	test('docs touch stamps the row on local edits, not on synced ones', () => {
 		const recencyNotes = defineTable({
 			id: field.string(),
@@ -290,7 +334,7 @@ describe('defineWorkspace', () => {
 		}
 	});
 
-	test('open(connection, compose) publishes runtime actions and disposes runtime extras', () => {
+	test('open(connection, compose) exposes runtime actions and disposes runtime extras', () => {
 		let runtimeDisposed = false;
 		const workspace = defineWorkspace({
 			id: 'ws-definition-runtime',
@@ -313,7 +357,8 @@ describe('defineWorkspace', () => {
 
 		workspace.tables.notes.set({ id: '1', title: 'hello' });
 		expect(workspace.runtimeLabel).toBe('browser-only');
-		expect(workspace.collaboration.actions.notes_count()).toBe(1);
+		if (!workspace.collaboration) throw new Error('expected relay wiring');
+		expect(workspace.actions.notes_count()).toBe(1);
 		workspace[Symbol.dispose]();
 		expect(runtimeDisposed).toBe(true);
 	});

@@ -23,6 +23,7 @@
         "@better-auth/oauth-provider": "catalog:",
         "@epicenter/auth": "workspace:*",
         "@epicenter/constants": "workspace:*",
+        "@epicenter/identity": "workspace:*",
         "@epicenter/server": "workspace:*",
         "@epicenter/sync": "workspace:*",
         "@epicenter/workspace": "workspace:*",
@@ -83,62 +84,6 @@
         "vite": "catalog:",
       },
     },
-    "apps/fuji": {
-      "name": "@epicenter/fuji",
-      "version": "0.0.2",
-      "dependencies": {
-        "@epicenter/app-shell": "workspace:*",
-        "@epicenter/auth": "workspace:*",
-        "@epicenter/constants": "workspace:*",
-        "@epicenter/field": "workspace:*",
-        "@epicenter/svelte": "workspace:*",
-        "@epicenter/workspace": "workspace:*",
-        "@tanstack/svelte-table": "catalog:",
-        "@tanstack/table-core": "9.0.0-alpha.10",
-        "@tauri-apps/api": "catalog:",
-        "@tauri-apps/plugin-deep-link": "^2.4.9",
-        "@tauri-apps/plugin-opener": "catalog:",
-        "arktype": "catalog:",
-        "bits-ui": "catalog:",
-        "date-fns": "catalog:",
-        "markdown-it": "^14.1.1",
-        "nanoid": "catalog:",
-        "prosemirror-commands": "^1.6.0",
-        "prosemirror-inputrules": "^1.4.0",
-        "prosemirror-keymap": "^1.2.0",
-        "prosemirror-markdown": "^1.13.0",
-        "prosemirror-model": "^1.25.0",
-        "prosemirror-schema-basic": "^1.2.0",
-        "prosemirror-schema-list": "^1.4.0",
-        "prosemirror-state": "^1.4.0",
-        "prosemirror-view": "^1.41.0",
-        "typebox": "catalog:",
-        "virtua": "catalog:",
-        "wellcrafted": "catalog:",
-        "y-indexeddb": "catalog:",
-        "y-prosemirror": "^1.3.7",
-        "yjs": "catalog:",
-      },
-      "devDependencies": {
-        "@epicenter/ui": "workspace:*",
-        "@epicenter/vite-config": "workspace:*",
-        "@lucide/svelte": "catalog:",
-        "@sveltejs/adapter-static": "catalog:",
-        "@sveltejs/kit": "catalog:",
-        "@sveltejs/vite-plugin-svelte": "catalog:",
-        "@tailwindcss/vite": "catalog:",
-        "@tauri-apps/cli": "catalog:",
-        "@types/bun": "catalog:",
-        "@types/markdown-it": "^14.1.2",
-        "mode-watcher": "catalog:",
-        "svelte": "catalog:",
-        "svelte-check": "catalog:",
-        "svelte-sonner": "catalog:",
-        "tailwindcss": "catalog:",
-        "typescript": "catalog:",
-        "vite": "catalog:",
-      },
-    },
     "apps/honeycrisp": {
       "name": "@epicenter/honeycrisp",
       "version": "0.0.2",
@@ -149,8 +94,6 @@
         "@epicenter/field": "workspace:*",
         "@epicenter/svelte": "workspace:*",
         "@epicenter/workspace": "workspace:*",
-        "@tanstack/svelte-query": "catalog:",
-        "@tanstack/svelte-query-devtools": "catalog:",
         "arktype": "catalog:",
         "better-auth": "catalog:",
         "bits-ui": "catalog:",
@@ -357,16 +300,14 @@
       "dependencies": {
         "@epicenter/auth": "workspace:*",
         "@epicenter/constants": "workspace:*",
+        "@epicenter/identity": "workspace:*",
         "@epicenter/server": "workspace:*",
         "arktype": "catalog:",
         "hono": "catalog:",
-        "pg": "^8.20.0",
-        "wellcrafted": "catalog:",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260405.1",
         "@types/bun": "catalog:",
-        "@types/pg": "^8.18.0",
         "typescript": "catalog:",
         "wrangler": "catalog:",
       },
@@ -403,6 +344,25 @@
         "y-codemirror.next": "^0.3.5",
         "y-indexeddb": "catalog:",
         "yjs": "catalog:",
+      },
+    },
+    "apps/super-chat": {
+      "name": "@epicenter/super-chat",
+      "version": "0.0.1",
+      "dependencies": {
+        "@epicenter/client": "workspace:*",
+        "@epicenter/honeycrisp": "workspace:*",
+        "@epicenter/todos": "workspace:*",
+        "@epicenter/workspace": "workspace:*",
+        "@modelcontextprotocol/sdk": "catalog:",
+        "hono": "catalog:",
+        "typebox": "catalog:",
+        "wellcrafted": "catalog:",
+        "yjs": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
       },
     },
     "apps/tab-manager": {
@@ -519,6 +479,8 @@
       "dependencies": {
         "@aptabase/tauri": "^0.4.1",
         "@aptabase/web": "^0.4.3",
+        "@epicenter/app-shell": "workspace:*",
+        "@epicenter/auth": "workspace:*",
         "@epicenter/client": "workspace:*",
         "@epicenter/constants": "workspace:*",
         "@epicenter/field": "workspace:*",
@@ -533,6 +495,7 @@
         "@tauri-apps/api": "catalog:",
         "@tauri-apps/plugin-autostart": "^2.0.1",
         "@tauri-apps/plugin-clipboard-manager": "^2.3.0",
+        "@tauri-apps/plugin-deep-link": "^2.4.9",
         "@tauri-apps/plugin-dialog": "^2.3.2",
         "@tauri-apps/plugin-fs": "catalog:",
         "@tauri-apps/plugin-global-shortcut": "^2.3.0",
@@ -601,21 +564,6 @@
         "typescript": "catalog:",
       },
     },
-    "examples/fuji": {
-      "name": "@examples/fuji",
-      "version": "0.0.2",
-      "dependencies": {
-        "@epicenter/cli": "workspace:*",
-        "@epicenter/fuji": "workspace:*",
-        "@epicenter/workspace": "workspace:*",
-        "wellcrafted": "catalog:",
-        "yjs": "catalog:",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-        "typescript": "catalog:",
-      },
-    },
     "examples/notes-cross-peer": {
       "name": "@examples/notes-cross-peer",
       "version": "0.0.2",
@@ -669,9 +617,13 @@
         "@tanstack/svelte-query": "catalog:",
         "arktype": "catalog:",
         "wellcrafted": "catalog:",
+        "yjs": "catalog:",
       },
       "devDependencies": {
+        "@epicenter/field": "workspace:*",
+        "@epicenter/identity": "workspace:*",
         "@types/bun": "catalog:",
+        "fake-indexeddb": "^6.2.5",
         "svelte": "catalog:",
         "svelte-check": "catalog:",
         "typescript": "catalog:",
@@ -691,9 +643,22 @@
         "wellcrafted": "catalog:",
       },
       "devDependencies": {
+        "@tauri-apps/api": "catalog:",
+        "@tauri-apps/plugin-deep-link": "^2.4.9",
+        "@tauri-apps/plugin-opener": "catalog:",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
+      "peerDependencies": {
+        "@tauri-apps/api": "^2",
+        "@tauri-apps/plugin-deep-link": "^2",
+        "@tauri-apps/plugin-opener": "^2",
+      },
+      "optionalPeers": [
+        "@tauri-apps/api",
+        "@tauri-apps/plugin-deep-link",
+        "@tauri-apps/plugin-opener",
+      ],
     },
     "packages/chat": {
       "name": "@epicenter/chat",
@@ -726,7 +691,6 @@
         "mime": "catalog:",
         "typebox": "catalog:",
         "wellcrafted": "catalog:",
-        "yaml": "^2.8.0",
         "yargs": "catalog:",
         "yjs": "catalog:",
       },
@@ -768,6 +732,20 @@
         "@types/node": "catalog:",
         "typescript": "catalog:",
         "vite": "catalog:",
+      },
+    },
+    "packages/encryption": {
+      "name": "@epicenter/encryption",
+      "version": "0.3.0",
+      "dependencies": {
+        "@noble/ciphers": "^2.1.1",
+        "@noble/hashes": "^2.0.1",
+        "arktype": "catalog:",
+        "wellcrafted": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
       },
     },
     "packages/field": {
@@ -894,11 +872,26 @@
       },
       "devDependencies": {
         "@standard-schema/spec": "catalog:",
+        "@tauri-apps/api": "catalog:",
+        "@tauri-apps/plugin-deep-link": "^2.4.9",
+        "@tauri-apps/plugin-opener": "catalog:",
         "@types/bun": "catalog:",
+        "fake-indexeddb": "^6.2.5",
         "svelte": "catalog:",
         "svelte-check": "catalog:",
         "typescript": "catalog:",
+        "yjs": "catalog:",
       },
+      "peerDependencies": {
+        "@tauri-apps/api": "^2",
+        "@tauri-apps/plugin-deep-link": "^2",
+        "@tauri-apps/plugin-opener": "^2",
+      },
+      "optionalPeers": [
+        "@tauri-apps/api",
+        "@tauri-apps/plugin-deep-link",
+        "@tauri-apps/plugin-opener",
+      ],
     },
     "packages/sync": {
       "name": "@epicenter/sync",
@@ -921,7 +914,6 @@
       "name": "@epicenter/ui",
       "version": "0.3.0",
       "dependencies": {
-        "@fontsource-variable/manrope": "^5.2.6",
         "@lucide/svelte": "^1.7.0",
         "@tanstack/svelte-table": "catalog:",
         "bits-ui": "^2.16.5",
@@ -974,6 +966,7 @@
       "version": "0.3.0",
       "dependencies": {
         "@epicenter/agent-protocol": "workspace:*",
+        "@epicenter/encryption": "workspace:*",
         "@epicenter/field": "workspace:*",
         "@epicenter/identity": "workspace:*",
         "@epicenter/sync": "workspace:*",
@@ -998,7 +991,6 @@
       },
       "devDependencies": {
         "@noble/ciphers": "^2.1.1",
-        "@noble/hashes": "^2.0.1",
         "@types/diff": "^8.0.0",
         "@types/node": "catalog:",
         "fake-indexeddb": "^6.2.5",
@@ -1325,11 +1317,11 @@
 
     "@epicenter/constants": ["@epicenter/constants@workspace:packages/constants"],
 
+    "@epicenter/encryption": ["@epicenter/encryption@workspace:packages/encryption"],
+
     "@epicenter/field": ["@epicenter/field@workspace:packages/field"],
 
     "@epicenter/filesystem": ["@epicenter/filesystem@workspace:packages/filesystem"],
-
-    "@epicenter/fuji": ["@epicenter/fuji@workspace:apps/fuji"],
 
     "@epicenter/honeycrisp": ["@epicenter/honeycrisp@workspace:apps/honeycrisp"],
 
@@ -1352,6 +1344,8 @@
     "@epicenter/server": ["@epicenter/server@workspace:packages/server"],
 
     "@epicenter/skills": ["@epicenter/skills@workspace:packages/skills"],
+
+    "@epicenter/super-chat": ["@epicenter/super-chat@workspace:apps/super-chat"],
 
     "@epicenter/svelte": ["@epicenter/svelte@workspace:packages/svelte-utils"],
 
@@ -1429,8 +1423,6 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.28.1", "", { "os": "win32", "cpu": "x64" }, "sha512-bm4Mowrv+GXMlpWX++EcXw/iLyd1o3+bJkC2DkWXYVvgZCqD/bSj9ctZeAMC3cIxgjRVR2Dufaiu4YPxr5gW1A=="],
 
-    "@examples/fuji": ["@examples/fuji@workspace:examples/fuji"],
-
     "@examples/notes-cross-peer": ["@examples/notes-cross-peer@workspace:examples/notes-cross-peer"],
 
     "@examples/yjs-size-benchmark": ["@examples/yjs-size-benchmark@workspace:examples/yjs-size-benchmark"],
@@ -1440,8 +1432,6 @@
     "@floating-ui/dom": ["@floating-ui/dom@1.7.6", "", { "dependencies": { "@floating-ui/core": "^1.7.5", "@floating-ui/utils": "^0.2.11" } }, "sha512-9gZSAI5XM36880PPMm//9dfiEngYoC6Am2izES1FF406YFsjvyBMmeJ2g4SAju3xWwtuynNRFL2s9hgxpLI5SQ=="],
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.11", "", {}, "sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg=="],
-
-    "@fontsource-variable/manrope": ["@fontsource-variable/manrope@5.2.8", "", {}, "sha512-nc9lOuCRz73UHnovDE2bwXUdghE2SEOc7Aii0qGe3CLyE03W1a7VnY5Z6euRiapiKbCkGS+eXbY3s/kvWeGeSw=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
 

@@ -209,6 +209,53 @@ test('observeAll skips unknown keys', () => {
 	unsubscribe();
 });
 
+test('keys lists every defined key in declaration order', () => {
+	const { ykv } = setupYkv();
+	const kv = createKv(ykv, {
+		theme: defineKv(themeSchema, themeDefault),
+		fontSize: defineKv(Type.Number(), () => 14),
+	});
+
+	expect(kv.keys).toEqual(['theme', 'fontSize']);
+});
+
+test('getDefault returns a fresh value on every call', () => {
+	const { ykv } = setupYkv();
+	const kv = createKv(ykv, {
+		theme: defineKv(themeSchema, themeDefault),
+	});
+
+	const first = kv.getDefault('theme');
+	const second = kv.getDefault('theme');
+	expect(first).toEqual({ mode: 'light' });
+	expect(second).toEqual(first);
+	expect(second).not.toBe(first);
+});
+
+test('reset writes every default in one observer batch', () => {
+	const { ykv } = setupYkv();
+	const kv = createKv(ykv, {
+		theme: defineKv(themeSchema, themeDefault),
+		fontSize: defineKv(Type.Number(), () => 14),
+	});
+
+	kv.set('theme', { mode: 'dark' });
+	kv.set('fontSize', 22);
+
+	const changes: Array<Map<string, any>> = [];
+	const unsubscribe = kv.observeAll((changeMap) => {
+		changes.push(new Map(changeMap));
+	});
+
+	kv.reset();
+
+	expect(kv.get('theme')).toEqual({ mode: 'light' });
+	expect(kv.get('fontSize')).toBe(14);
+	expect(changes).toHaveLength(1);
+
+	unsubscribe();
+});
+
 test('observeAll returns an unsubscribe function that works', () => {
 	const { ykv } = setupYkv();
 	const kv = createKv(ykv, {

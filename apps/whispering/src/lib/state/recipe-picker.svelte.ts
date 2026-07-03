@@ -10,7 +10,7 @@
  *
  * This is the in-app step on the way to a floating picker window: the operations
  * focus the main window before opening, so the palette is visible even when the
- * shortcut fired from another app. See ADR-0074.
+ * shortcut fired from another app. See ADR-0098.
  */
 let isOpen = $state(false);
 let source = $state('');

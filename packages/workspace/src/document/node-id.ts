@@ -15,8 +15,13 @@
  * are passed to `openCollaboration` as the `nodeId` config field, stamped
  * onto the WebSocket upgrade URL (the relay binds the id to the socket at
  * upgrade and stores it on the socket attachment for the lifetime of the
- * connection: no round-trip validation), and echoed as the `from` field on
- * every HTTP dispatch.
+ * connection: no round-trip validation).
+ *
+ * The id deliberately survives a workspace `wipe()`: it is install identity
+ * (this app on this storage scope), not account data, so deleting an owner's
+ * local workspace databases leaves it in place and the install keeps its
+ * address in the fleet. Rotate it only through a future explicit "reset this
+ * install" affordance, never as a side effect of wiping data.
  */
 
 import type { Brand } from 'wellcrafted/brand';
@@ -27,7 +32,7 @@ import { generateId } from '../shared/id.js';
  * scope (one "node" in the user-facing presence vocabulary). Generated
  * by {@link createNodeId} or
  * {@link createNodeIdAsync}; brand prevents accidental mixing with
- * unrelated string ids (UserId, OwnerId, room ids, etc.).
+ * unrelated string ids (PrincipalId, AgentId, room ids, etc.).
  *
  * At trusted call sites that receive a known `string`, brand it with
  * {@link asNodeId}.

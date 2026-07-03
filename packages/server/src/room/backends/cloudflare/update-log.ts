@@ -62,11 +62,6 @@ export function createDurableObjectUpdateLog(storage: DurableObjectStorage) {
 			});
 		},
 
-		/** SQLite database size in bytes, surfaced as `storageBytes` to callers. */
-		byteSize(): number {
-			return storage.sql.databaseSize;
-		},
-
 		/** Row count via `SELECT COUNT(*)`. Used to skip no-op compactions. */
 		entryCount(): number {
 			return storage.sql.exec('SELECT COUNT(*) as count FROM updates').one()

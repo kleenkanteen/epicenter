@@ -2,7 +2,7 @@
 
 Honeycrisp is a notes app that works offline first and syncs when it can. Notes, folders, and rich text are all Yjs CRDTs. Two devices can edit the same note simultaneously and converge without conflicts. Open two browser tabs and try it.
 
-Part of the [Epicenter](https://github.com/EpicenterHQ/epicenter) monorepo. MIT licensed.
+Part of the [Epicenter](https://github.com/EpicenterHQ/epicenter) monorepo. AGPL-3.0 licensed.
 
 ---
 
@@ -22,16 +22,13 @@ honeycrispWorkspace
 
 openHoneycrispBrowser()
   browser runtime: local storage, sync, child-doc storage and sync
-
-honeycrisp() (mount)
-  daemon runtime: Yjs log, sync, SQLite mirror, markdown materializer
 ```
 
-The Svelte app mounts the browser runtime through `createSession`, so the workspace is only created after a signed-in identity provides `ownerId` and sync transport.
+The Svelte app builds one browser runtime at boot. Signed out, it uses bare local IndexedDB storage under the workspace guid. Signed in, it uses principal-scoped storage plus relay sync. The app shell is the same either way; sign-in only adds sync and account controls.
 
 ### Rich-text editing
 
-Each note's body is a `Y.XmlFragment` in the `notes.body` child doc declared by `honeycrispWorkspace`. The browser opener attaches storage and sync around child docs, and `NoteBodyPane.svelte` opens the active note body through `honeycrisp.tables.notes.docs.body.open(noteId)`. ProseMirror binds to the fragment via `y-prosemirror`, giving collaborative editing for free. The editor schema covers paragraphs, headings, lists, task lists, underline, and strikethrough. Every ProseMirror transaction extracts a title, preview snippet, word count, and update timestamp, which are written back to the note's table row.
+Each note's body is a `Y.XmlFragment` in the `notes.body` child doc declared by `honeycrispWorkspace`. The browser opener attaches storage and sync around child docs, and `NoteBodyPane.svelte` opens the active note body through `honeycrisp.tables.notes.docs.body.open(noteId)`. ProseMirror binds to the fragment via `y-prosemirror`, giving collaborative editing for free. The editor schema covers paragraphs, headings, lists, task lists, underline, and strikethrough. Every ProseMirror transaction extracts a title, preview snippet, and word count for the note row; the child-doc `touch: 'updatedAt'` declaration owns the update timestamp.
 
 ### Soft deletion
 
@@ -39,7 +36,7 @@ Notes are never removed from the CRDT. They're soft-deleted with a `deletedAt` t
 
 ### Auth
 
-Google sign-in via `@epicenter/svelte/auth-form`. The session is persisted across reloads. The workspace connects once a signed-in identity is available.
+Google sign-in is optional. The app opens immediately with local data, and `AccountPopover` is the account surface for signing in, signing out, or forgetting this device. A principal change reloads the page so boot can choose the right storage branch.
 
 ---
 
@@ -70,7 +67,7 @@ Google sign-in via `@epicenter/svelte/auth-form`. The session is persisted acros
 | `deletedAt` | `DateTimeString` (optional, soft delete) |
 | `wordCount` | `number` (optional) |
 
-Each note's body lives in a separate Y.Doc opened by `honeycrisp.tables.notes.docs.body.open(noteId)`. The handle yields a `Y.XmlFragment` that ProseMirror binds to; editor logic refreshes title, preview, word count, and `updatedAt` on content changes.
+Each note's body lives in a separate Y.Doc opened by `honeycrisp.tables.notes.docs.body.open(noteId)`. The handle yields a `Y.XmlFragment` that ProseMirror binds to; editor logic refreshes title, preview, and word count on content changes, while the child-doc declaration refreshes `updatedAt`.
 
 Honeycrisp currently has no workspace KV schema. View selection, sorting, and URL state live in the Svelte state layer.
 
@@ -118,4 +115,4 @@ This starts the app dev server on port 5175. Auth and sync expect the local API 
 
 ## License
 
-MIT
+AGPL-3.0
