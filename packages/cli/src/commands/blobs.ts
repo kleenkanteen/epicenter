@@ -6,7 +6,7 @@
  *   add <file|url>      upload the bytes (hash -> ticket -> presigned PUT
  *                       straight to the store) and print the URL; writes
  *                       nothing to disk
- *   ls                  list the owner's stored blobs (the store is the index)
+ *   ls                  list the current principal's stored blobs (the store is the index)
  *   get <sha256|url>    download one blob by content address to a file
  *   rm  <sha256|url>    delete one blob from the store (breaks every citation)
  *
@@ -95,7 +95,7 @@ const addCommand = cmd({
 const lsCommand = cmd({
 	command: 'ls',
 	describe:
-		"List the owner's stored blobs (content address, size, upload time)",
+		"List the current principal's stored blobs (content address, size, upload time)",
 	builder: (yargs) => yargs.options(formatOptions).strict(),
 	handler: async (argv) => {
 		const epicenter = await connectCloud();

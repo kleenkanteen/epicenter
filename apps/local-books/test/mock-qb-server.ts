@@ -27,6 +27,8 @@ export type MockQbServer = {
 		update: number;
 		report: number;
 	};
+	/** Every update (sparse-update POST) body received, in order, for assertions. */
+	updates: { entity: string; body: Record<string, unknown> }[];
 	/** Insert or update a live object; stamps a fresh LastUpdatedTime. */
 	put(entity: string, obj: Record<string, unknown>): void;
 	/** Read a stored object back (post-write assertions). */
@@ -40,6 +42,19 @@ export type MockQbServer = {
 	/** Make the next `n` data requests return 429 (to exercise backoff). */
 	fail429(n: number): void;
 	stop(): void;
+};
+
+/**
+ * The mandatory top-level fields QuickBooks demands on an entity update even in
+ * sparse mode: omit one and QB answers 400 ValidationFault code 2020 ("Required
+ * parameter <field> is missing"), never a merge. Faithful to the live behavior
+ * that broke `recategorize` (Purchase without PaymentType/AccountRef, Bill
+ * without VendorRef), so a Line-only sparse body is rejected here just as it was
+ * against the real sandbox.
+ */
+const UPDATE_REQUIRED_FIELDS: Record<string, readonly string[]> = {
+	Purchase: ['PaymentType', 'AccountRef'],
+	Bill: ['VendorRef'],
 };
 
 function nowIso(ms: number): string {
@@ -73,6 +88,7 @@ export function startMockQbServer(
 
 	const entities = new Map<string, Map<string, StoredObject>>();
 	const hits = { query: 0, cdc: 0, token: 0, update: 0, report: 0 };
+	const updates: { entity: string; body: Record<string, unknown> }[] = [];
 	const rejectedTokens = new Set<string>();
 	let pending429 = 0;
 
@@ -285,6 +301,30 @@ export function startMockQbServer(
 				hits.update += 1;
 				const entity = entityLc.charAt(0).toUpperCase() + entityLc.slice(1);
 				const body = (await request.json()) as Record<string, unknown>;
+				updates.push({ entity, body });
+
+				// A sparse update still carries the entity's mandatory top-level fields;
+				// a Line-only body is a 400 ValidationFault (code 2020), never a merge.
+				const missing = (UPDATE_REQUIRED_FIELDS[entity] ?? []).find(
+					(field) => body[field] == null,
+				);
+				if (missing) {
+					return Response.json(
+						{
+							Fault: {
+								type: 'ValidationFault',
+								Error: [
+									{
+										Message: `Required parameter ${missing} is missing`,
+										code: '2020',
+									},
+								],
+							},
+						},
+						{ status: 400 },
+					);
+				}
+
 				const id = String(body.Id);
 				const stored = store(entity).get(id);
 				if (!stored || stored.deleted) {
@@ -330,6 +370,7 @@ export function startMockQbServer(
 		tokenUrl: `${apiBase}/oauth2/v1/tokens/bearer`,
 		realmId,
 		hits,
+		updates,
 		put,
 		get: (entity, id) => store(entity).get(id)?.obj ?? null,
 		remove,
@@ -385,6 +426,36 @@ export function makePurchase(
 			{
 				Id: '1',
 				Amount: 340,
+				DetailType: 'AccountBasedExpenseLineDetail',
+				AccountBasedExpenseLineDetail: {
+					AccountRef: { value: '60', name: 'Uncategorized Expense' },
+				},
+			},
+		],
+		...overrides,
+	};
+}
+
+/**
+ * Minimal but realistic QuickBooks Bill (a vendor bill): its mandatory
+ * `VendorRef` plus one account-based expense line whose `AccountRef` is the
+ * category the `recategorize` verb moves. The `VendorRef` is what a Line-only
+ * sparse update drops, which is the bug this fixture guards.
+ */
+export function makeBill(
+	id: string,
+	overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+	return {
+		Id: id,
+		SyncToken: '0',
+		TxnDate: '2026-01-15',
+		TotalAmt: 500,
+		VendorRef: { value: '56', name: 'Norton Lumber and Building Materials' },
+		Line: [
+			{
+				Id: '1',
+				Amount: 500,
 				DetailType: 'AccountBasedExpenseLineDetail',
 				AccountBasedExpenseLineDetail: {
 					AccountRef: { value: '60', name: 'Uncategorized Expense' },

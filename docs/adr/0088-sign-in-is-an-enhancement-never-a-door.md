@@ -7,7 +7,7 @@
 
 Whispering ships the local-first thesis literally: it boots into a working
 device-local workspace, and signing in only adds sync (boot-time doc selection
-in `whispering.active.ts`, reload on owner change, a flag-free first-sign-in
+in `whispering.active.ts`, reload on principal change, a flag-free first-sign-in
 migration). Every other workspace app (opensidian, honeycrisp, vocab,
 tab-manager) hard-gates its entire UI behind a `SignedOutScreen`, so the
 codebase carries two composition shapes ("Shape A" auth-gated `createSession`
@@ -23,8 +23,8 @@ users boot signed-in from persisted grants, so no migration reader is needed.
 No Epicenter workspace app gates behind sign-in. Every workspace app boots
 into a working local workspace using one composition shape: read persisted
 auth once at boot; signed-out attaches the bare IndexedDB doc (database name =
-`ydoc.guid`), signed-in attaches owner-scoped storage plus relay sync; an
-owner change reloads the page; the first signed-in boot that finds local rows
+`ydoc.guid`), signed-in attaches principal-scoped storage plus relay sync; a
+principal change reloads the page; the first signed-in boot that finds local rows
 offers the Add / Delete / Keep migration. The account popover is the only
 auth surface. Corollaries: `AuthState` stays three states (no anonymous or
 guest identity; the local doc is unowned), sign-out reveals the local doc and
@@ -40,7 +40,7 @@ sign-in is its product.
 `SignedOutScreen`, the `(signed-in)` route groups, vocab's `/sign-in`
 redirect route, and the Shape A / Shape B split in
 `workspace-app-composition` are deleted; the skill documents one shape. The
-boot branch and `reloadOnOwnerChange` move from Whispering into
+boot branch and `reloadOnPrincipalChange` move from Whispering into
 `@epicenter/svelte/auth`; the flag-free migration kit moves into
 `@epicenter/app-shell`. `AccountPopover.instanceConnect` becomes required,
 since every app's popover now renders the signed-out panel. The costs: each

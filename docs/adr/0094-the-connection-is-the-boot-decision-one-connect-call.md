@@ -23,7 +23,7 @@ raw `ConnectedWorkspaceContext<...>` generics, an ad hoc `Pick<...>`, a
 
 `connect(connection: ConnectionConfig | null, compose?)` is the one browser
 preset. The connection value IS the boot decision: credentials wire
-owner-scoped storage plus the relay, `null` wires the bare local-first
+principal-scoped storage plus the relay, `null` wires the bare local-first
 infrastructure (guid-named IndexedDB, cross-tab channel, no relay). Both arms
 return the same bundle shape, discriminated by `collaboration`. `connectLocal`
 is deleted, not aliased.

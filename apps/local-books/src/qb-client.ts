@@ -61,9 +61,11 @@ export type QbClient = {
 	): Promise<Result<CdcResult, QbClientError>>;
 	/**
 	 * Sparse-update one entity (the QuickBooks update POST). `body` carries the
-	 * `Id`, the current `SyncToken`, `sparse: true`, and the changed fields;
-	 * QuickBooks returns the updated object with a bumped `SyncToken`. A stale
-	 * `SyncToken` surfaces as an `Http` error (409), never a silent re-apply.
+	 * `Id`, the current `SyncToken`, `sparse: true`, the changed fields, and the
+	 * entity's mandatory top-level fields, which QuickBooks requires even on a
+	 * sparse update (omit one and it answers 400 ValidationFault code 2020, not a
+	 * merge). QuickBooks returns the updated object with a bumped `SyncToken`. A
+	 * stale `SyncToken` surfaces as an `Http` error (409), never a silent re-apply.
 	 */
 	update(
 		entity: string,
