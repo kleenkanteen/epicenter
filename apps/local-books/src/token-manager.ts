@@ -34,6 +34,22 @@ export function createTokenManager({
 	token: TokenSet;
 	now: () => number;
 }): TokenManager {
+	// ADR-0105 rule 3: the persisted token carries the provider environment it was
+	// minted for, and every later use asserts that tag equals the requested
+	// environment, refusing loudly on mismatch. A token minted against Intuit's
+	// sandbox keyset must never be replayed against production (or vice versa):
+	// the refresh below would sign it with the wrong environment's client secret
+	// and Intuit would reject it opaquely. Fail here, with the fix, instead.
+	if (token.environment !== config.environment) {
+		throw new Error(
+			`QuickBooks token for company ${token.realmId} was minted for the ` +
+				`"${token.environment}" environment, but this command targets ` +
+				`"${config.environment}". Select the token's environment with ` +
+				`--qb-env ${token.environment} (or LOCAL_BOOKS_QB_ENV=${token.environment}), ` +
+				`or re-authenticate with "local-books auth --qb-env ${config.environment}".`,
+		);
+	}
+
 	let current = token;
 
 	async function refresh(): Promise<Result<string, TokenError>> {
