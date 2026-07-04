@@ -53,6 +53,7 @@ import {
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
+	mountTranscriptionApp,
 	rateLimit,
 	requireBearerPrincipal,
 	ServerBindings,
@@ -156,6 +157,15 @@ export function startSelfHostServer(): void {
 	// ceiling is the hard spend limit you set on the provider key itself (README).
 	// Tune to your group's size, or drop the policy to leave it uncapped.
 	mountInferenceApp(app, {
+		auth,
+		policies: [rateLimit({ requests: 120, windowSeconds: 60 })],
+	});
+	// The STT sibling of the inference gateway: same operator house key, same
+	// 503-until-configured opt-out, same burn-rate cap. Mounted with no Autumn
+	// policy, so a `star` transcription against this instance is unmetered (the
+	// operator's provider bill is the only cost). This is what makes "transcribe
+	// through the star you're connected to" true on self-host, not just hosted.
+	mountTranscriptionApp(app, {
 		auth,
 		policies: [rateLimit({ requests: 120, windowSeconds: 60 })],
 	});

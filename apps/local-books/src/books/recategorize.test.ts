@@ -11,7 +11,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeConfig } from '../../test/helpers.ts';
-import { makePurchase, startMockQbServer } from '../../test/mock-qb-server.ts';
+import {
+	makeBill,
+	makePurchase,
+	startMockQbServer,
+} from '../../test/mock-qb-server.ts';
 import { openBooksDb } from '../db.ts';
 import { entityDef } from '../entities.ts';
 import { createFileTokenStore } from '../token-store.ts';
@@ -22,16 +26,21 @@ import { recategorizeExpense } from './recategorize.ts';
 const NOW = Date.parse('2026-02-01T00:00:00.000Z');
 const now = () => NOW;
 
-/** Boot a mock company with one Purchase, seed its token + mirror, return deps. */
+/** Boot a mock company with one expense object, seed its token + mirror, return deps. */
 async function setup(
-	opts: { mockSyncToken?: string; mirrorSyncToken?: string } = {},
+	opts: {
+		mockSyncToken?: string;
+		mirrorSyncToken?: string;
+		entity?: 'Purchase' | 'Bill';
+		id?: string;
+	} = {},
 ) {
+	const entity = opts.entity ?? 'Purchase';
+	const id = opts.id ?? 'p1';
+	const make = entity === 'Bill' ? makeBill : makePurchase;
 	const dir = mkdtempSync(join(tmpdir(), 'local-books-'));
 	const mock = startMockQbServer({ now });
-	mock.put(
-		'Purchase',
-		makePurchase('p1', { SyncToken: opts.mockSyncToken ?? '0' }),
-	);
+	mock.put(entity, make(id, { SyncToken: opts.mockSyncToken ?? '0' }));
 
 	const tokenFile = join(dir, 'credentials.json');
 	const config = makeConfig({
@@ -39,7 +48,7 @@ async function setup(
 		apiBase: mock.apiBase,
 		tokenUrl: mock.tokenUrl,
 		credentialsPath: tokenFile,
-		entities: ['Purchase'],
+		entities: [entity],
 	});
 	const store = createFileTokenStore(tokenFile);
 	const token: TokenSet = {
@@ -58,10 +67,8 @@ async function setup(
 	db.ingest(
 		[
 			{
-				def: entityDef('Purchase'),
-				objects: [
-					makePurchase('p1', { SyncToken: opts.mirrorSyncToken ?? '0' }),
-				],
+				def: entityDef(entity),
+				objects: [make(id, { SyncToken: opts.mirrorSyncToken ?? '0' })],
 			},
 		],
 		{ syncedAt: '2026-01-20T00:00:00.000Z' },
@@ -107,6 +114,18 @@ describe('recategorizeExpense', () => {
 		expect(data?.changed[0]?.toAccount).toBe('Cloud Infrastructure');
 		expect(mock.hits.update).toBe(1);
 
+		// The sparse body carries Purchase's mandatory top-level fields (a Line-only
+		// body is a 400 ValidationFault, code 2020). AccountRef here is the header
+		// bank/CC account paid from, NOT the line-level expense category being moved.
+		const sent = mock.updates[0];
+		expect(sent?.entity).toBe('Purchase');
+		expect(sent?.body.sparse).toBe(true);
+		expect(sent?.body.PaymentType).toBe('CreditCard');
+		expect(sent?.body.AccountRef).toEqual({
+			value: '35',
+			name: 'Mercury Checking',
+		});
+
 		// QuickBooks (the source of truth) now has the new category + a bumped token.
 		const remote = mock.get('Purchase', 'p1');
 		expect(remote && lineAccount(remote)).toBe('77');
@@ -119,6 +138,54 @@ describe('recategorizeExpense', () => {
 			.get();
 		const mirrored = JSON.parse(row?.raw ?? '{}');
 		expect(lineAccount(mirrored)).toBe('77');
+		expect(mirrored.SyncToken).toBe('1');
+		db.close();
+
+		cleanup();
+	});
+
+	test('recategorizes a Bill, carrying its VendorRef through the sparse update', async () => {
+		const { mock, path, openQb, cleanup } = await setup({
+			entity: 'Bill',
+			id: 'b1',
+		});
+
+		const { data, error } = await recategorizeExpense({
+			openQb,
+			dbPath: path,
+			readOnly: false,
+			input: {
+				entity: 'Bill',
+				id: 'b1',
+				account_id: '24',
+				account_name: 'Utilities',
+			},
+		});
+		expect(error).toBeNull();
+		expect(data?.changed[0]?.toAccount).toBe('Utilities');
+		expect(mock.hits.update).toBe(1);
+
+		// A Bill without VendorRef is a 400 ValidationFault (code 2020); the sparse
+		// body must carry it through unchanged even though only the Line changes.
+		const sent = mock.updates[0];
+		expect(sent?.entity).toBe('Bill');
+		expect(sent?.body.sparse).toBe(true);
+		expect(sent?.body.VendorRef).toEqual({
+			value: '56',
+			name: 'Norton Lumber and Building Materials',
+		});
+
+		// QuickBooks now has the new category + a bumped token, folded into the mirror.
+		const remote = mock.get('Bill', 'b1');
+		expect(remote && lineAccount(remote)).toBe('24');
+		expect(remote?.SyncToken).toBe('1');
+
+		const db = openBooksDb(path);
+		const row = db.raw
+			.query<{ raw: string }, []>(`SELECT raw FROM bills WHERE id = 'b1'`)
+			.get();
+		const mirrored = JSON.parse(row?.raw ?? '{}');
+		expect(lineAccount(mirrored)).toBe('24');
 		expect(mirrored.SyncToken).toBe('1');
 		db.close();
 

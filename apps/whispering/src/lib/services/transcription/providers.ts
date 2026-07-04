@@ -1,6 +1,6 @@
 /**
  * The single source of truth for transcription providers. One entry per
- * provider owns every fact: label, location, models, capabilities, and the
+ * provider owns every fact: label, access, models, capabilities, and the
  * deviceConfig/settings key NAMES used to read its config (never the values,
  * which the dispatcher in `operations/transcribe.ts` reads).
  *
@@ -24,8 +24,30 @@ import type {
 type Capabilities = { supportsPrompt: boolean; supportsLanguage: boolean };
 type CloudModel = { name: string; description: string; cost: string };
 
-type CloudProvider = {
-	location: 'cloud';
+/**
+ * `access` is the per-family discriminant every dispatcher, selector, and readiness
+ * check branches on. Each member names what the user supplies to make a provider
+ * usable, so it maps one-to-one to what `isTranscriptionServiceConfigured` reads:
+ *
+ *   - `key`      the user's own API key (a secret)         -> OpenAI, Groq, ...
+ *   - `endpoint` a server URL + model id the user runs     -> Speaches
+ *   - `session`  a signed-in session; the Epicenter        -> Epicenter
+ *                deployment you are bonded to is the key
+ *   - `onDevice` nothing but the device: an on-device       -> Local
+ *                model file, no network
+ *
+ * `key` and `endpoint` are the matched pair: both hand a `{ baseUrl, apiKey? }` to
+ * an external OpenAI-compatible box, differing only in whether the user brings a
+ * key (the vendor's compute) or an endpoint (their own box). `session` is the
+ * platform relationship: it follows the STAR-vs-SERVICES split (ADR-0068/0069/0070),
+ * reaching the Epicenter deployment that also holds your synced data over your
+ * session, on that deployment's house key. Hosted deployments meter it (AI credits);
+ * self-host deployments proxy it unmetered. `key`/`endpoint` are external services.
+ */
+type ProviderAccess = 'key' | 'endpoint' | 'session' | 'onDevice';
+
+type KeyProvider = {
+	access: Extract<ProviderAccess, 'key'>;
 	label: string;
 	description: string;
 	capabilities: Capabilities;
@@ -57,8 +79,8 @@ type CloudProvider = {
 	modelsDoc: { label: string; href: string } | null;
 };
 
-type LocalProvider = {
-	location: 'local';
+type OnDeviceProvider = {
+	access: Extract<ProviderAccess, 'onDevice'>;
 	label: string;
 	description: string;
 	/**
@@ -71,8 +93,8 @@ type LocalProvider = {
 	modelConfigKey: DeviceConfigKey;
 };
 
-type SelfHostedProvider = {
-	location: 'self-hosted';
+type EndpointProvider = {
+	access: Extract<ProviderAccess, 'endpoint'>;
 	label: string;
 	description: string;
 	capabilities: Capabilities;
@@ -80,11 +102,51 @@ type SelfHostedProvider = {
 	modelIdConfigKey: DeviceConfigKey;
 };
 
-type TranscriptionProvider = CloudProvider | LocalProvider | SelfHostedProvider;
+/**
+ * The `session` access member: transcription through the Epicenter deployment
+ * (the platform "star", ADR-0068/0069/0070) this install is bonded to. Unlike a
+ * `key` provider it carries no key or endpoint config; the transport is the
+ * signed-in session's audience-scoped fetch (`auth.fetch`), resolved in the
+ * dispatcher against `auth.baseURL` (the hosted cloud by default, or a self-host
+ * instance if the user pointed there), and the gateway pins its own house model
+ * server-side (ADR-0100). So the only fact this entry holds is the single `model`
+ * string the wire requires. "Configured" means signed in, not "has a key" (see
+ * `transcription-validation.ts`).
+ *
+ * The same `/v1/audio/transcriptions` gateway runs on every deployment (both
+ * deployables mount it on the deployment's house key), so this is deployment-neutral.
+ * Whether a call spends AI credits is a property of the deployment, surfaced at
+ * runtime: a hosted deployment meters it (402 when out of credits); a self-host
+ * deployment proxies it unmetered (or 503 until the operator sets a house key).
+ * Never fixed here.
+ */
+type SessionProvider = {
+	access: Extract<ProviderAccess, 'session'>;
+	label: string;
+	description: string;
+	capabilities: Capabilities;
+	/** The fixed model sent on the wire; the gateway meters by duration, not by
+	 *  model, so there is no user-selectable list. */
+	model: string;
+};
+
+type TranscriptionProvider =
+	| KeyProvider
+	| OnDeviceProvider
+	| EndpointProvider
+	| SessionProvider;
 
 export const PROVIDERS = {
+	epicenter: {
+		access: 'session',
+		label: 'Epicenter',
+		description:
+			'Transcription through your connected Epicenter. Sign in required.',
+		capabilities: { supportsPrompt: true, supportsLanguage: true },
+		model: 'whisper-1',
+	},
 	OpenAI: {
-		location: 'cloud',
+		access: 'key',
 		label: 'OpenAI',
 		description: 'Industry-standard Whisper API',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -118,7 +180,7 @@ export const PROVIDERS = {
 		],
 	},
 	Groq: {
-		location: 'cloud',
+		access: 'key',
 		label: 'Groq',
 		description: 'Lightning-fast cloud transcription',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -146,7 +208,7 @@ export const PROVIDERS = {
 		],
 	},
 	ElevenLabs: {
-		location: 'cloud',
+		access: 'key',
 		label: 'ElevenLabs',
 		description: 'Voice AI platform with transcription',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -180,7 +242,7 @@ export const PROVIDERS = {
 		],
 	},
 	Deepgram: {
-		location: 'cloud',
+		access: 'key',
 		label: 'Deepgram',
 		description: 'Real-time speech recognition API',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -222,7 +284,7 @@ export const PROVIDERS = {
 		],
 	},
 	Mistral: {
-		location: 'cloud',
+		access: 'key',
 		label: 'Mistral AI',
 		description: 'Advanced Voxtral speech understanding',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -251,14 +313,14 @@ export const PROVIDERS = {
 	},
 
 	local: {
-		location: 'local',
+		access: 'onDevice',
 		label: 'Local',
 		description: 'Private on-device transcription, no internet required',
 		modelConfigKey: 'transcription.local.selectedModel',
 	},
 
 	speaches: {
-		location: 'self-hosted',
+		access: 'endpoint',
 		label: 'Speaches',
 		description: 'Self-hosted transcription server',
 		capabilities: { supportsPrompt: true, supportsLanguage: true },
@@ -270,43 +332,82 @@ export const PROVIDERS = {
 export type TranscriptionServiceId = keyof typeof PROVIDERS;
 
 /**
- * The ids of cloud providers, derived from PROVIDERS. Consumed by the settings UI
- * to type provider config fields. (Transcription routing no longer keys off this:
- * `operations/transcribe.ts` dispatches over a single `UPLOAD_DISPATCH` table that
- * excludes only the local ids.)
+ * The ids of `key` providers (the ones that take a user API key), derived from
+ * PROVIDERS. Consumed by the settings UI to type provider config fields.
+ * (Transcription routing no longer keys off this: `operations/transcribe.ts`
+ * dispatches over a single `UPLOAD_DISPATCH` table that excludes only the
+ * on-device ids.)
  */
-export type CloudProviderId = {
-	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['location'] extends 'cloud'
+export type KeyProviderId = {
+	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['access'] extends 'key'
 		? K
 		: never;
 }[TranscriptionServiceId];
 
 /**
- * The ids of the local provider, derived the same way. `isLocalProviderId` is
- * the one narrowing boundary callers use before reading local-only fields like
- * the selected model's catalog id.
+ * The ids of on-device providers, derived the same way. Today this is the
+ * single local GGUF runtime; `isOnDeviceProviderId` is the one narrowing
+ * boundary callers use before reading on-device-only fields like the selected
+ * model's catalog id.
  */
-export type LocalProviderId = {
-	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['location'] extends 'local'
+export type OnDeviceProviderId = {
+	[K in TranscriptionServiceId]: (typeof PROVIDERS)[K]['access'] extends 'onDevice'
 		? K
 		: never;
 }[TranscriptionServiceId];
 
-export function isLocalProviderId(
+export function isOnDeviceProviderId(
 	id: TranscriptionServiceId,
-): id is LocalProviderId {
-	return PROVIDERS[id].location === 'local';
+): id is OnDeviceProviderId {
+	return PROVIDERS[id].access === 'onDevice';
 }
 
 /**
- * The upload providers: every non-local id, reached by uploading audio over the
- * wire (cloud and self-hosted) rather than the on-device FFI path. "Upload" is
- * "not local", and localness is the one facet PROVIDERS declares, so the
+ * The upload providers: every non-on-device id, reached by uploading audio over the
+ * wire (key, endpoint, session) rather than the on-device FFI path. "Upload" is
+ * "not on-device", and on-device-ness is the one facet PROVIDERS declares, so the
  * subtraction reads as English. `UPLOAD_DISPATCH` is keyed by exactly this set.
  */
-export type UploadProviderId = Exclude<TranscriptionServiceId, LocalProviderId>;
+export type UploadProviderId = Exclude<
+	TranscriptionServiceId,
+	OnDeviceProviderId
+>;
 
 /** Every provider ID, e.g. for `field.select(TRANSCRIPTION_SERVICE_IDS)`. */
 export const TRANSCRIPTION_SERVICE_IDS = Object.keys(
 	PROVIDERS,
 ) as TranscriptionServiceId[];
+
+// Persisted `transcription.service` values from the removed multi-engine local
+// runtime. These are not providers anymore; the settings facade rewrites them
+// to `local` on read so old synced workspaces keep their on-device intent.
+export const LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS = [
+	'whispercpp',
+	'parakeet',
+	'moonshine',
+] as const;
+
+export type LegacyOnDeviceTranscriptionServiceId =
+	(typeof LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS)[number];
+
+export const PERSISTED_TRANSCRIPTION_SERVICE_IDS = [
+	...TRANSCRIPTION_SERVICE_IDS,
+	...LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS,
+] as const;
+
+export function isLegacyOnDeviceTranscriptionServiceId(
+	value: unknown,
+): value is LegacyOnDeviceTranscriptionServiceId {
+	return (
+		typeof value === 'string' &&
+		(LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS as readonly string[]).includes(
+			value,
+		)
+	);
+}
+
+export function normalizePersistedTranscriptionServiceId(
+	value: TranscriptionServiceId | LegacyOnDeviceTranscriptionServiceId,
+): TranscriptionServiceId {
+	return isLegacyOnDeviceTranscriptionServiceId(value) ? 'local' : value;
+}

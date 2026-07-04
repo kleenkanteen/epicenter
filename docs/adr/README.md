@@ -34,6 +34,15 @@ accepted ADR, the ADR wins.
 title is the decision stated as a declarative sentence, so the filename alone
 reads as the conclusion.
 
+**The number is allocated at merge time, not author time.** It is owned by the
+merge, not the branch. Two branches that each grab "the next number" while
+branched will collide (this is why parallel work has produced duplicate numbers
+before). So a branch may carry a *provisional* number; the person merging
+reconciles it to the true next-free integer, accounting for other open ADR PRs,
+before it lands. Whoever merges first keeps the number; a later branch that
+picked the same one renumbers. The `ADR-NNNN` citation form stays stable once
+merged; only the pre-merge placeholder is negotiable.
+
 ## Template
 
 ```markdown

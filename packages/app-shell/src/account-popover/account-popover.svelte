@@ -19,6 +19,8 @@
 	} from '@tanstack/svelte-query';
 	import { extractErrorMessage } from 'wellcrafted/error';
 	import { mutationOptions, queryOptions } from 'wellcrafted/query';
+	import CreditBalance from '../credit-balance/credit-balance.svelte';
+	import { fetchCreditOverview } from '../credit-balance/credit-balance.js';
 	import InstanceSettingsModal from '../instance-settings/instance-settings-modal.svelte';
 	import SignInPanel from '../instance-settings/sign-in-panel.svelte';
 
@@ -140,6 +142,25 @@
 	);
 	const accountLabel = $derived(
 		profile.data?.email ?? (profile.error ? 'Offline' : 'Loading...'),
+	);
+	// Hosted AI credits for the signed-in account. Enabled only on a hosted star
+	// (a self-hosted instance never mounts `/api/billing`, so its 404 would just
+	// resolve to a null snapshot anyway) and only while signed in. `fetchCreditOverview`
+	// returns null for any non-200, so the display self-hides when there is nothing
+	// to show. Keyed by account so switching identity refetches.
+	const credits = createQuery(
+		() =>
+			queryOptions({
+				queryKey: ['account-credits', accountCacheKey],
+				queryFn: () => fetchCreditOverview(auth.fetch, auth.baseURL),
+				enabled: auth.state.status === 'signed-in' && !selfHostHost,
+				staleTime: 60_000,
+			}),
+		() => accountProfileQueryClient,
+	);
+	// The hosted dashboard is where a user tops up; only shown on a hosted star.
+	const dashboardUrl = $derived(
+		selfHostHost ? undefined : new URL('/dashboard', auth.baseURL).toString(),
 	);
 	const signOut = createMutation(
 		() =>
@@ -272,6 +293,9 @@
 						<p class="text-sm font-medium">{accountLabel}</p>
 					{/if}
 				</div>
+				{#if credits.data}
+					<CreditBalance snapshot={credits.data} {dashboardUrl} />
+				{/if}
 				{#if disabledReason}
 					<p class="text-xs text-muted-foreground">{disabledReason}</p>
 				{/if}

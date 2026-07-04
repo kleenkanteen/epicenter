@@ -11,10 +11,10 @@ import { isLoopbackBaseUrl } from './locality';
  * {@link describeCompletionReadiness}, resolved from the same config the
  * transcribe call path reads so the surface and the pipeline can never disagree.
  *
- * Locality follows the resolved endpoint host, not the provider's `location`
- * label: a self-hosted (Speaches) or cloud endpoint pointed at loopback keeps
+ * Locality follows the resolved endpoint host, not the provider's `access`
+ * label: an `endpoint` (Speaches) or `key` provider pointed at loopback keeps
  * audio on-device, exactly like a Custom completion at localhost. That is why
- * "self-hosted" is not its own locality here; where the bytes go is a property of
+ * `endpoint` is not its own locality here; where the bytes go is a property of
  * the host, and who operates the server is the user's trust call, not a fact this
  * copy can assert.
  */
@@ -49,23 +49,27 @@ export function resolveTranscriptionLocalityFromConfig({
 }): TranscriptionLocality {
 	const provider = PROVIDERS[service];
 	// Local transcription runs in-process; audio never becomes a network request.
-	if (provider.location === 'local') {
+	if (provider.access === 'onDevice') {
 		return { onDevice: true, name: provider.label };
 	}
-	// Cloud and self-hosted providers upload audio to an endpoint. A configured
+	// `key` and `endpoint` providers upload audio to an endpoint. A configured
 	// loopback endpoint keeps it on-device regardless of the provider label. The
 	// provider type declares `endpointConfigKey` as the wide `DeviceConfigKey`,
 	// but every real value is a `providers.*.endpoint` key.
-	const endpoint = provider.endpointConfigKey
-		? getDeviceConfig(
-				provider.endpointConfigKey as TranscriptionEndpointKey,
-			).trim()
-		: '';
+	let endpoint = '';
+	if (
+		(provider.access === 'key' || provider.access === 'endpoint') &&
+		provider.endpointConfigKey
+	) {
+		endpoint = getDeviceConfig(
+			provider.endpointConfigKey as TranscriptionEndpointKey,
+		).trim();
+	}
 	if (endpoint && isLoopbackBaseUrl(endpoint)) {
 		return { onDevice: true, name: provider.label };
 	}
-	// A remote self-hosted server is the user's own box, not a cloud vendor.
-	if (provider.location === 'self-hosted') {
+	// A remote `endpoint` server is the user's own box, not a cloud vendor.
+	if (provider.access === 'endpoint') {
 		return { onDevice: false, name: `your ${provider.label} server` };
 	}
 	return { onDevice: false, name: provider.label };

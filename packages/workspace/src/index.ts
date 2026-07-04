@@ -112,15 +112,14 @@ export {
 } from './document/attach-records.js';
 export { attachRichText } from './document/attach-rich-text.js';
 export { attachTimeline } from './document/attach-timeline/index.js';
-export type {
-	ChildDocWorker,
-	ChildDocWorkerContext,
-	ChildDocWorkerFactory,
-	ChildDocWorkerHandle,
-	ConnectedChildDoc,
-	ObservableChildDocLayout,
-} from './document/child-doc-worker.js';
-export { attachChildDocWorker } from './document/child-doc-worker.js';
+// `attachChildDocWorker` and its type family (`ChildDocWorker`,
+// `ChildDocWorkerContext`, `ChildDocWorkerFactory`, `ChildDocWorkerHandle`,
+// `ConnectedChildDoc`, `ObservableChildDocLayout`) are intentionally NOT
+// exported: they are the daemon-side host-loop's internal wiring, consumed only
+// by `workspace.ts`'s mount composition. Apps enter this seam through the public
+// `MountWorker*` types below, never the raw loop. Re-export from
+// `@epicenter/workspace/daemon` if a mount author outside this package ever
+// needs to name one.
 export { type ConnectionConfig, connectDoc } from './document/connect-doc.js';
 export { defineKv } from './document/define-kv.js';
 export { defineTable } from './document/define-table.js';

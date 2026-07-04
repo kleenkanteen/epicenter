@@ -4,6 +4,16 @@
 **Status**: Draft
 **Author**: AI-assisted
 
+> **Decision recorded in [ADR-0106](../docs/adr/0106-a-child-doc-body-owns-one-layout-the-polymorphic-timeline-is-refused-until-a-product-earns-it.md) (Proposed).**
+>
+> - **Candidate:** keep and refine the polymorphic timeline (a child-doc body that switches between text, rich text, and sheet at runtime), flattening it into the handle.
+> - **Refusal:** a child-doc body owns one layout. The mode-switching capability is exercised by no shipped surface (opensidian uses only the text path) and backed by no ADR. It is refused until a real product names the operation that needs it.
+> - **User loss:** none today; no shipped surface uses `asSheet` / `asRichText` / `currentType` / `restoreFromSnapshot`.
+> - **Decision:** freeze the durable `timeline` slot and blob layout, trim the published API to the text path as a follow-up, and treat any format collapse as a separately-approved migration.
+> - **Trigger to revisit:** a shipped surface (e.g. a real spreadsheet product) that genuinely needs a multi-mode document body. At that point this spec's flattening question is reopened deliberately, with a migration.
+>
+> This spec is retained only as the exploration ADR-0106 settles; delete it when the ADR flips to Accepted.
+
 ## Overview
 
 Merge the `Timeline` abstraction into `DocumentHandle` so that the handle IS the timeline. One object instead of two layers of delegation. `DocumentHandle` becomes `Timeline & { exports }`.

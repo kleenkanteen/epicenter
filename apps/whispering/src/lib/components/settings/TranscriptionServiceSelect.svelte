@@ -24,18 +24,16 @@
 
 	const localServices = $derived(
 		tauri
-			? TRANSCRIPTION_PROVIDERS.filter((service) => service.location === 'local')
+			? TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'onDevice')
 			: [],
 	);
 
 	const cloudServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter((service) => service.location === 'cloud'),
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'key'),
 	);
 
 	const selfHostedServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter(
-			(service) => service.location === 'self-hosted',
-		),
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'endpoint'),
 	);
 
 	const selectedService = $derived(
@@ -127,7 +125,7 @@
 											{service.description}
 										</div>
 									{/if}
-									{#if service.location === 'cloud' && service.models.length > 0}
+									{#if service.access === 'key' && service.models.length > 0}
 										<div class="text-xs text-muted-foreground mt-1">
 											{service.models.length}
 											model{service.models.length > 1

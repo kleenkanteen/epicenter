@@ -37,7 +37,7 @@ The web bearer's XSS exposure is handled as hardening inside the OAuth choice, n
 - Ship a tight CSP and Trusted Types where practical; treat the vault surface as high-risk.
 - Never add cross-subdomain `.epicenter.so` cookies as a halfway cookie option.
 
-Self-host authenticates with one operator-supplied static bearer (`createInstanceTokenAuth`), pinned to the single `owners/instance` partition per ADR-0075, per ADR-0071; nothing here adds a new mode.
+Self-host authenticates with one operator-supplied static bearer (`createInstanceTokenAuth`), resolved to the single `principals/instance` partition per ADR-0075 and ADR-0092; nothing here adds a new mode.
 
 ## Consequences
 
