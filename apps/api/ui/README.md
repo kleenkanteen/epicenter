@@ -45,7 +45,7 @@ bun run dev
 
 # Then start the dashboard (in another terminal)
 cd apps/api/ui
-bun run dev:local
+bun run dev
 ```
 
 Runs on port 5178. The Vite dev server proxies `/api` and `/auth` to `localhost:8787`.

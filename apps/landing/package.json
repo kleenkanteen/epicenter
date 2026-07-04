@@ -5,8 +5,7 @@
 	"type": "module",
 	"version": "0.0.2",
 	"scripts": {
-		"dev": "bun run dev:local",
-		"dev:local": "astro dev",
+		"dev": "astro dev",
 		"build": "astro build",
 		"preview": "astro preview",
 		"astro": "astro",

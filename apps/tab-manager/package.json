@@ -9,8 +9,7 @@
 		"./mount": "./mount.ts"
 	},
 	"scripts": {
-		"dev": "bun run dev:local",
-		"dev:local": "wxt",
+		"dev": "wxt",
 		"dev:firefox": "wxt -b firefox",
 		"build": "wxt build",
 		"build:firefox": "wxt build -b firefox",
