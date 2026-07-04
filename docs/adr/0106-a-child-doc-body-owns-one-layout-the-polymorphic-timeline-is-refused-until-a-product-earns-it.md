@@ -1,0 +1,36 @@
+# 0106. A child-doc body owns one layout; the polymorphic timeline is refused until a product earns it
+
+- **Status:** Proposed
+- **Date:** 2026-07-03
+- **Relates:** [ADR-0046](0046-a-capability-free-agent-persists-finished-messages-not-live-doc-streams.md) (the earned `attachRecords` body layout, the model this follows), [ADR-0005](0005-child-docs-are-bound-through-the-workspace.md) (child docs are bound through the workspace)
+
+## Context
+
+A workspace child-doc body is opened by one `attach*` helper that reserves one Yjs slot and hands back one typed handle. Three helpers hold that shape: `attachRecords` (a keyed LWW JSON bag over `getArray('entries')`, earned by ADR-0046), `attachPlainText` (a `Y.Text` at `getText('content')`), and `attachRichText` (a `Y.XmlFragment` at `getXmlFragment('content')`). Each has a shipped owner (agent transcripts, `@epicenter/skills`, honeycrisp notes).
+
+`attachTimeline` breaks the shape. It reserves `getArray('timeline')` as an append-only log of typed entries and exposes runtime mode-switching between three body shapes: text, rich text, and a spreadsheet (`asText` / `asRichText` / `asSheet`, plus `currentType` and `restoreFromSnapshot`). One child doc, three layouts, switchable at runtime. Its only shipped consumer is opensidian (through `@epicenter/filesystem`), and a monorepo trace shows opensidian exercises **only** the text path (`asText()` and `appendText()`). `asSheet`, `asRichText`, `currentType`, `restoreFromSnapshot`, and the `TextEntry | RichTextEntry | SheetEntry` union have zero production callers. The polymorphism is backed by no ADR, only two `Draft` specs (`specs/20260214T174800-sheet-timeline-entry.md`, `specs/20260315T170000-flatten-timeline-into-handle.md`). Meanwhile the `timeline` `Y.Array` of typed `Y.Map` entries is a durable, synced format: every existing opensidian file body is stored that way, so its shape cannot be changed without an explicit migration.
+
+## Decision
+
+**A workspace child-doc body owns exactly one layout. A mode-switching body (a document that can become text, rich text, or a spreadsheet at runtime) is refused as a shipped capability until a real product names the user operation that needs it.** Building the multi-mode primitive before a spreadsheet surface exists is the speculative shape this decision rejects; the ideal home for opensidian's file body is a single-layout text or rich-text body.
+
+This is a decision about the published TypeScript API and product direction, not a change to stored data. The durable `timeline` slot name (`'timeline'`), its entry `Y.Map` keys (`type`, `content`, `createdAt`, `frontmatter`, `columns`, `rows`), and its blob layout are **frozen** and untouched by this ADR. Any collapse of the timeline body to a single-layout body is a separate migration that requires explicit approval before it is written.
+
+The work is sequenced so the durable format is never touched implicitly:
+
+1. **Now (this ADR):** record the refusal. No code change to stored data.
+2. **Next, once accepted:** trim the published `attachTimeline` API down to the text path (drop `asSheet`, `asRichText`, `currentType`, `restoreFromSnapshot`, and the entry-type union from the handle). Existing data stays valid: every stored entry is already a text entry, so the reader is unaffected. This is a pre-1.0 breaking type change with a changeset, no data migration.
+3. **Separately, if pursued:** plan the storage migration that replaces the `timeline` `Y.Array` with a single-layout body (`attachPlainText` or `attachRichText`). This is a durable-format change and gets its own ADR and migration reader.
+
+## Consequences
+
+- **The polymorphic surface becomes deletable.** `asSheet`, `asRichText`, `currentType`, `restoreFromSnapshot`, and the `TextEntry | RichTextEntry | SheetEntry` union have no production consumer, so removing them from the published API loses no shipped capability. That trim is the immediate follow-up (step 2), landed on its own.
+- **opensidian keeps working unchanged.** It reads and writes text entries today and continues to; the durable format is frozen, so no user's file body is at risk from this decision.
+- **The two `Draft` timeline specs are refused, not parked.** `sheet-timeline-entry` and `flatten-timeline-into-handle` describe a capability no product has earned; per repo hygiene they are deleted rather than left as standing scaffolding. The `Active` `unify-document-content-model` spec is revised: content unifies onto single-layout bodies, not a mode-switching one.
+- **This forecloses shipping a spreadsheet-morphing document body cheaply later.** If a real sheet product arrives, the primitive is rebuilt then, deliberately, with a migration. That is the accepted cost of refusing an unearned capability now: we trade a latent, untested code path for a smaller, honest API where one child doc means one body layout.
+
+## Considered alternatives
+
+- **Keep the polymorphic timeline as-is.** Rejected: it maintains a text/rich-text/sheet mode machine, CSV round-tripping, and snapshot restore that no shipped surface exercises, backed by no ADR. It is speculative capability sitting on a durable format.
+- **Collapse the timeline to a plain-text body now, in one move.** Rejected as premature: it changes a durable, synced data format and would need a migration reader written before the product question is even settled. The API trim (step 2) captures the win without touching stored data; the format migration is a later, separately-approved step.
+- **Trim the API silently as a refactor, no ADR.** Rejected: refusing a capability a live `Draft` spec still wants is a product decision, not a mechanical cleanup, and durable-format implications mean it must be recorded and sequenced, not merged quietly.
