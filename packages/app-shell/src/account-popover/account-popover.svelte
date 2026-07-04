@@ -21,8 +21,8 @@
 	import { mutationOptions, queryOptions } from 'wellcrafted/query';
 	import CreditBalance from '../credit-balance/credit-balance.svelte';
 	import { fetchCreditOverview } from '../credit-balance/credit-balance.js';
-	import InstanceSettingsModal from '../instance-settings/instance-settings-modal.svelte';
-	import SignInPanel from '../instance-settings/sign-in-panel.svelte';
+	import InstanceSettingsModal from './instance-settings-modal.svelte';
+	import SignInPanel from './sign-in-panel.svelte';
 
 	const accountProfileQueryClient = new QueryClient({
 		defaultOptions: {
@@ -202,31 +202,37 @@
 		return unsubscribe;
 	});
 
-	/**
-	 * Tooltip string for the trigger pill, derived from sync phase + auth.
-	 */
-	function getSyncTooltip(
-		s: SyncStatus | undefined,
-		isAuthenticated: boolean,
-	): string {
-		if (!s) return isAuthenticated ? 'Account' : 'Sign in';
-		if (!isAuthenticated) return 'Sign in to sync across devices';
-		switch (s.phase) {
+	// The one switch on sync phase: the popover line shows the status, the
+	// trigger tooltip adds the action hint. Both read this so the phase decision
+	// is made once.
+	const sync = $derived.by(() => {
+		if (!syncStatus) return undefined;
+		switch (syncStatus.phase) {
 			case 'connected':
-				return 'Connected';
+				return { label: 'Connected', tooltip: 'Connected' };
 			case 'connecting':
-				if (s.retries > 0) return `Reconnecting (retry ${s.retries})…`;
-				return 'Connecting…';
+				return {
+					label: 'Connecting…',
+					tooltip:
+						syncStatus.retries > 0
+							? `Reconnecting (retry ${syncStatus.retries})…`
+							: 'Connecting…',
+				};
 			case 'offline':
-				return 'Offline. Click to reconnect';
+				return { label: 'Offline', tooltip: 'Offline. Click to reconnect' };
 			case 'failed':
-				return 'Authentication failed. Click to reconnect';
+				return {
+					label: 'Failed',
+					tooltip: 'Authentication failed. Click to reconnect',
+				};
 		}
-	}
+	});
 
-	const tooltip = $derived(
-		disabledReason ?? getSyncTooltip(syncStatus, isSignedIn),
-	);
+	const tooltip = $derived.by(() => {
+		if (disabledReason) return disabledReason;
+		if (!isSignedIn) return sync ? 'Sign in to sync across devices' : 'Sign in';
+		return sync?.tooltip ?? 'Account';
+	});
 
 	function openInstanceModal() {
 		handingOffToModal = true;
@@ -315,17 +321,9 @@
 				{#if disabledReason}
 					<p class="text-xs text-muted-foreground">{disabledReason}</p>
 				{/if}
-				{#if collaboration && syncStatus}
+				{#if collaboration && sync}
 					<div class="border-t pt-3 space-y-1">
-						<p class="text-xs text-muted-foreground">
-							Sync:
-							{({
-								connected: 'Connected',
-								connecting: 'Connecting…',
-								offline: 'Offline',
-								failed: 'Failed',
-							} satisfies Record<SyncStatus['phase'], string>)[syncStatus.phase]}
-						</p>
+						<p class="text-xs text-muted-foreground">Sync: {sync.label}</p>
 					</div>
 				{/if}
 				<div class="border-t pt-3 flex gap-2">
