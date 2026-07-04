@@ -91,30 +91,58 @@
 		messageId: string;
 		status: 'loading' | 'ready' | 'error';
 		candidates: string[];
+		/** The completion error's own message, shown only in the `error` state so a
+		 * failing local endpoint (401, refused, 500) says why. */
+		detail?: string;
 	} | null>(null);
+
+	/** Aborts the in-flight harvest completion. A non-streaming completion against
+	 * a local endpoint can hang with no response ever arriving, so cancellation, not
+	 * an arbitrary timeout, is the escape: the user, not a guessed deadline, decides
+	 * when it has waited long enough. Held here so a Cancel or a superseding harvest
+	 * can abort the pending request instead of leaving it stuck loading forever. */
+	let harvestController: AbortController | null = null;
 
 	/** Ask the model for the notable spans in one settled message and open the
 	 * tray with them. It is a one-shot completion (`complete`), so it writes no
 	 * transcript turn and stores no gloss or provenance: the response lives only in
 	 * `harvest.candidates` until the user saves or dismisses it. */
 	async function harvestMessage(messageId: string, passage: string) {
-		harvest = { messageId, status: 'loading', candidates: [] };
+		// Abort any prior harvest still in flight so it stops consuming the endpoint;
+		// its result is dropped by the stale-message guard below regardless.
+		harvestController?.abort();
 		const model = active?.model;
 		if (!model) {
-			harvest = { messageId, status: 'error', candidates: [] };
+			harvestController = null;
+			harvest = {
+				messageId,
+				status: 'error',
+				candidates: [],
+				detail: 'No model selected.',
+			};
 			return;
 		}
+		const controller = new AbortController();
+		harvestController = controller;
+		harvest = { messageId, status: 'loading', candidates: [] };
 		const connection = inferenceConnections.resolveOrHosted(model);
 		const { data, error } = await complete(connection, {
 			model,
 			systemPrompt: buildHarvestPrompt(),
 			userPrompt: passage,
+			signal: controller.signal,
 		});
-		// A dismiss or a harvest of another message may have superseded this request
-		// while it was in flight; drop the stale result rather than overwrite.
+		// A dismiss, a cancel, or a harvest of another message may have superseded
+		// this request while it was in flight; drop the stale result rather than
+		// overwrite. (A cancel nulls `harvest`, so an aborted request lands here.)
 		if (harvest?.messageId !== messageId) return;
 		if (error) {
-			harvest = { messageId, status: 'error', candidates: [] };
+			harvest = {
+				messageId,
+				status: 'error',
+				candidates: [],
+				detail: error.message,
+			};
 			return;
 		}
 		harvest = {
@@ -122,6 +150,15 @@
 			status: 'ready',
 			candidates: parseHarvestCandidates(data).slice(0, HARVEST_CAP),
 		};
+	}
+
+	/** Close the harvest tray, aborting the request first when one is still loading
+	 * so a hung completion cannot leave it stuck. Safe once a request has settled:
+	 * `abort()` on a finished controller is a no-op. */
+	function dismissHarvest() {
+		harvestController?.abort();
+		harvestController = null;
+		harvest = null;
 	}
 
 	/** Whether a candidate is already in the pool, derived from terms so it is
@@ -176,13 +213,28 @@
 				{#if harvest?.messageId === msg.id}
 					<div class="mt-2 rounded-md border bg-muted/40 p-2">
 						{#if harvest.status === 'loading'}
-							<p class="text-xs text-muted-foreground">Harvesting terms...</p>
+							<div class="flex items-center justify-between gap-2">
+								<p class="text-xs text-muted-foreground">Harvesting terms...</p>
+								<Button variant="ghost" size="sm" onclick={dismissHarvest}>
+									Cancel
+								</Button>
+							</div>
 						{:else if harvest.status === 'error'}
 							<div class="flex items-center justify-between gap-2">
-								<p class="text-xs text-muted-foreground">
-									Couldn't read terms from this message.
-								</p>
-								<div class="flex gap-1">
+								<div class="min-w-0">
+									<p class="text-xs text-muted-foreground">
+										Couldn't read terms from this message.
+									</p>
+									{#if harvest.detail}
+										<p
+											class="mt-0.5 truncate text-xs text-muted-foreground/70"
+											title={harvest.detail}
+										>
+											{harvest.detail}
+										</p>
+									{/if}
+								</div>
+								<div class="flex shrink-0 gap-1">
 									<Button
 										variant="ghost"
 										size="sm"
@@ -190,7 +242,7 @@
 									>
 										Try again
 									</Button>
-									<Button variant="ghost" size="sm" onclick={() => (harvest = null)}>
+									<Button variant="ghost" size="sm" onclick={dismissHarvest}>
 										Dismiss
 									</Button>
 								</div>
@@ -198,7 +250,7 @@
 						{:else if harvest.candidates.length === 0}
 							<div class="flex items-center justify-between gap-2">
 								<p class="text-xs text-muted-foreground">No terms found here.</p>
-								<Button variant="ghost" size="sm" onclick={() => (harvest = null)}>
+								<Button variant="ghost" size="sm" onclick={dismissHarvest}>
 									Dismiss
 								</Button>
 							</div>
@@ -207,7 +259,7 @@
 								<span class="text-xs text-muted-foreground">
 									Tap a term to save it
 								</span>
-								<Button variant="ghost" size="sm" onclick={() => (harvest = null)}>
+								<Button variant="ghost" size="sm" onclick={dismissHarvest}>
 									Dismiss
 								</Button>
 							</div>
