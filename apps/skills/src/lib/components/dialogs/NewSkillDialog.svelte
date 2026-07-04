@@ -4,7 +4,6 @@
 	import { Input } from '@epicenter/ui/input';
 	import { Label } from '@epicenter/ui/label';
 	import { toast } from '@epicenter/ui/sonner';
-	import * as Tooltip from '@epicenter/ui/tooltip';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { skillsState } from '$lib/state/skills-state.svelte';
 	import { validateSkill } from '$lib/utils/validation';
@@ -36,21 +35,14 @@
 </script>
 
 <Dialog.Root bind:open={isOpen}>
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="ghost"
-					size="icon-xs"
-					onclick={() => (isOpen = true)}
-				>
-					<PlusIcon class="size-3.5" />
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content>New skill</Tooltip.Content>
-	</Tooltip.Root>
+	<Button
+		tooltip="New skill"
+		variant="ghost"
+		size="icon-xs"
+		onclick={() => (isOpen = true)}
+	>
+		<PlusIcon class="size-3.5" />
+	</Button>
 	<Dialog.Content class="max-w-sm">
 		<Dialog.Header>
 			<Dialog.Title>New Skill</Dialog.Title>
