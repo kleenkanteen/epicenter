@@ -21,7 +21,6 @@ import * as path from 'node:path';
 import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { EPICENTER_API_URL } from '@epicenter/constants/apps';
 import { EPICENTER_CLI_OAUTH_CLIENT_ID } from '@epicenter/constants/oauth-clients';
-import type { PrincipalId } from '@epicenter/identity';
 import envPaths from 'env-paths';
 import {
 	defineErrors,
@@ -31,7 +30,11 @@ import {
 import { createLogger, type Logger } from 'wellcrafted/logger';
 import { Err, Ok, type Result, tryAsync } from 'wellcrafted/result';
 import type { AuthFetch, SyncAuthClient } from '../auth-contract.js';
-import { ApiSessionResponse, PersistedAuth } from '../auth-types.js';
+import {
+	ApiSessionResponse,
+	PersistedAuth,
+	type Principal,
+} from '../auth-types.js';
 import { createOAuthAppAuth } from '../create-oauth-app-auth.js';
 import { serializePersistedAuth } from '../persisted-auth-storage.js';
 import { createOobOAuthLauncher } from './oob-launcher.js';
@@ -208,7 +211,7 @@ async function saveMachineTokens(
  * offline during `status`.
  */
 type MachineIdentity = {
-	user: { id: PrincipalId; email?: string };
+	user: Principal;
 };
 
 type CommonConfig = {
