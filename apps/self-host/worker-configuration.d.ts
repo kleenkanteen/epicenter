@@ -8,7 +8,7 @@
  * output, re-add the `extends` clause so the inherited bindings (the optional
  * OAuth keys and AI provider house keys) survive the regeneration.
  *
- * Hosted-only bindings (Autumn, ASSETS, ADMIN_USER_IDS) are deliberately
+ * Hosted-only bindings (Autumn, ASSETS) are deliberately
  * absent: the instance reference has no billing surface and no dashboard SPA.
  */
 
