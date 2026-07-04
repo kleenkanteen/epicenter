@@ -34,7 +34,7 @@
 		<div
 			class="flex items-center justify-between px-2 py-1 group-data-[collapsible=icon]:hidden"
 		>
-			<span class="text-sm font-semibold">中文 Vocab</span>
+			<span class="text-sm font-semibold">Vocab</span>
 			<AccountPopover
 				{auth}
 				collaboration={vocab.collaboration}

@@ -11,12 +11,12 @@
 	import ConversationView from './components/ConversationView.svelte';
 	import VocabSidebar from './components/VocabSidebar.svelte';
 
-	const showPinyin = fromKv(vocab.kv, 'showPinyin');
+	const showReadings = fromKv(vocab.kv, 'showReadings');
 
 	// The shared chat registry (ADR-0047/0059) with Vocab's variation injected:
-	// capability-free (no tools, no approval), one Chinese-tuned system prompt, and
-	// the hosted VOCAB_MODEL as the default a new conversation starts on. The active
-	// conversation lives in internal state (Vocab has no URL seam).
+	// capability-free (no tools, no approval), one general multilingual system
+	// prompt, and the hosted VOCAB_MODEL as the default a new conversation starts
+	// on. The active conversation lives in internal state (Vocab has no URL seam).
 	const chat = createAgentChatState({
 		table: vocab.tables.conversations,
 		whenLoaded: vocab.storage.whenLoaded,
@@ -53,22 +53,22 @@
 		<header class="flex items-center justify-between border-b px-4 py-3">
 			<div class="flex items-center gap-3">
 				<Sidebar.Trigger />
-				<h1 class="text-lg font-semibold">中文 Vocab</h1>
+				<h1 class="text-lg font-semibold">Vocab</h1>
 			</div>
 
 			<div class="flex items-center gap-2">
 				<Button
-					variant={showPinyin.current ? 'default' : 'outline'}
+					variant={showReadings.current ? 'default' : 'outline'}
 					size="sm"
-					onclick={() => (showPinyin.current = !showPinyin.current)}
-					aria-pressed={showPinyin.current}
-					aria-label="Toggle pinyin annotations"
+					onclick={() => (showReadings.current = !showReadings.current)}
+					aria-pressed={showReadings.current}
+					aria-label="Toggle pronunciation readings"
 				>
-					{showPinyin.current ? 'Hide Pinyin' : 'Show Pinyin'}
+					{showReadings.current ? 'Hide readings' : 'Show readings'}
 				</Button>
 			</div>
 		</header>
 
-		<ConversationView active={chat.active} showPinyin={showPinyin.current} />
+		<ConversationView active={chat.active} showReadings={showReadings.current} />
 	</main>
 </Sidebar.Provider>

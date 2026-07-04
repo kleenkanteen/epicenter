@@ -5,20 +5,19 @@
 	} from '@epicenter/app-shell/agent-chat';
 	import { complete } from '@epicenter/client';
 	import { Button } from '@epicenter/ui/button';
-	import { Markdown } from '@epicenter/ui/markdown';
 	import { agentMessageText } from '@epicenter/workspace/agent';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { buildHarvestPrompt, parseHarvestCandidates } from '$lib/harvest';
-	import { pinyinRomanizer } from '$lib/romanize/pinyin';
 	import { auth } from '$platform/auth';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
 	import { termsState } from '$lib/state/terms.svelte';
 	import DictationButton from './DictationButton.svelte';
+	import ReadingMarkdown from './ReadingMarkdown.svelte';
 
 	let {
 		active,
-		showPinyin,
-	}: { active: ConversationHandle | undefined; showPinyin: boolean } = $props();
+		showReadings,
+	}: { active: ConversationHandle | undefined; showReadings: boolean } = $props();
 
 	// `active` does not narrow inside a snippet closure (a snippet can outlive the
 	// `{#if active}` guard), so the input accessory reads these instead of the
@@ -30,8 +29,8 @@
 	);
 
 	/** The selection's text with ruby annotations stripped: `toString()` would
-	 * include the pinyin `<rt>`/`<rp>` nodes, so selecting 学习 with readings
-	 * shown would capture "学(xué)习(xí)" instead of the verbatim characters. */
+	 * include the reading `<rt>`/`<rp>` nodes, so selecting a word with readings
+	 * shown would capture the reading too instead of the verbatim characters. */
 	function selectedTermText(selection: Selection): string {
 		const fragment = selection.getRangeAt(0).cloneContents();
 		for (const annotation of fragment.querySelectorAll('rt, rp')) {
@@ -158,7 +157,7 @@
 	<AgentChatThread
 		conversation={active}
 		connections={inferenceConnections}
-		placeholder="Ask something in English..."
+		placeholder="Ask about a word, phrase, or sentence you're learning..."
 		onSignIn={() => void auth.startSignIn()}
 	>
 		{#snippet inputAccessory()}
@@ -167,15 +166,11 @@
 		{#snippet message(msg, streaming)}
 			{#if msg.role === 'user' || streaming}
 				<!-- Raw text while the answer streams (and for the user's own turn): the
-				rich markdown + pinyin pass runs once the message settles. -->
+				rich markdown + readings pass runs once the message settles. -->
 				<div class="whitespace-pre-wrap">{agentMessageText(msg)}</div>
 			{:else}
 				<div data-term-source>
-					<Markdown
-						content={agentMessageText(msg)}
-						romanizer={pinyinRomanizer}
-						showReadings={showPinyin}
-					/>
+					<ReadingMarkdown passage={agentMessageText(msg)} {showReadings} />
 				</div>
 
 				{#if harvest?.messageId === msg.id}
@@ -250,7 +245,8 @@
 				class="flex flex-1 items-center justify-center text-muted-foreground"
 			>
 				<p>
-					Ask a question in English and get a response in Chinese and English.
+					Ask a question and get an answer in the language you're learning, plus
+					English.
 				</p>
 			</div>
 		{/snippet}

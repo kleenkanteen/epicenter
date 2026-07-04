@@ -27,7 +27,7 @@
 	});
 </script>
 
-<svelte:head><title>中文 Vocab</title></svelte:head>
+<svelte:head><title>Vocab</title></svelte:head>
 
 <WorkspaceGate
 	pending={vocab.whenReady}
