@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Badge } from '@epicenter/ui/badge';
 	import * as Empty from '@epicenter/ui/empty';
+	import * as Item from '@epicenter/ui/item';
 	import { Skeleton } from '@epicenter/ui/skeleton';
 	import { cn } from '@epicenter/ui/utils';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
@@ -94,24 +95,27 @@
 				{@const starred = message.labelIds.includes('STARRED')}
 				{@const chips = chipLabelIds(message.labelIds)}
 				<li>
-					<button
+					<Item.Button
+						size="sm"
 						data-message-id={message.id}
 						class={cn(
-							'flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors',
+							'items-start rounded-none text-left',
 							selectedId === message.id
 								? 'bg-accent'
 								: 'hover:bg-accent/40',
 						)}
 						onclick={() => onSelect(message.id)}
 					>
-						<span
-							class={cn(
-								'mt-1.5 size-2 shrink-0 rounded-full',
-								unread ? 'bg-sky-500' : 'bg-transparent',
-							)}
-							title={unread ? 'Unread' : 'Read'}
-						></span>
-						<span class="min-w-0 flex-1">
+							<Item.Media class="mt-1.5">
+							<span
+								class={cn(
+									'size-2 shrink-0 rounded-full',
+									unread ? 'bg-sky-500' : 'bg-transparent',
+								)}
+								title={unread ? 'Unread' : 'Read'}
+							></span>
+						</Item.Media>
+						<Item.Content class="min-w-0 gap-0">
 							<span class="flex items-center gap-2">
 								<span
 									class={cn(
@@ -154,8 +158,8 @@
 									{/each}
 								</span>
 							{/if}
-						</span>
-					</button>
+						</Item.Content>
+						</Item.Button>
 				</li>
 			{/each}
 		</ul>
