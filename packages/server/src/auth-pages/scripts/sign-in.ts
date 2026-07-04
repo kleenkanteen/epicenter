@@ -3,23 +3,24 @@ import { raw } from 'hono/html';
 /**
  * Client-side script for the sign-in page.
  *
- * Starts a social sign-in (Google, or GitHub / Microsoft when their button is
- * present) via `fetch` and displays errors. Includes `oauth_query` (signed URL
- * params) in the request so Better Auth's after-hook can continue the OAuth
- * flow. On success, navigates to the returned redirect URL or the followed
- * redirect. Local email/password is disabled (see {@link BASE_AUTH_CONFIG});
- * the GitHub and Microsoft buttons only exist when the deployment configured
- * that provider's credentials.
+ * Starts a social sign-in (Google, or GitHub / Microsoft / Apple when their
+ * button is present) via `fetch` and displays errors. Includes `oauth_query`
+ * (signed URL params) in the request so Better Auth's after-hook can continue
+ * the OAuth flow. On success, navigates to the returned redirect URL or the
+ * followed redirect. Local email/password is disabled (see
+ * {@link BASE_AUTH_CONFIG}); the GitHub, Microsoft, and Apple buttons only
+ * exist when the deployment configured that provider's credentials.
  */
 export const SIGN_IN_SCRIPT = raw(`<script>
 (() => {
 	const googleBtn = document.getElementById('google-btn');
 	const githubBtn = document.getElementById('github-btn');
 	const microsoftBtn = document.getElementById('microsoft-btn');
+	const appleBtn = document.getElementById('apple-btn');
 	const msg = document.getElementById('msg');
-	const buttons = [googleBtn, githubBtn, microsoftBtn].filter(Boolean);
+	const buttons = [googleBtn, githubBtn, microsoftBtn, appleBtn].filter(Boolean);
 
-	const LABELS = { google: 'Google', github: 'GitHub', microsoft: 'Microsoft' };
+	const LABELS = { google: 'Google', github: 'GitHub', microsoft: 'Microsoft', apple: 'Apple' };
 
 	// Replicate what oauthProviderClient does: parse the signed OAuth
 	// query params from the URL so Better Auth can continue the flow.
@@ -79,5 +80,6 @@ export const SIGN_IN_SCRIPT = raw(`<script>
 	if (githubBtn) githubBtn.addEventListener('click', () => startSocial('github'));
 	if (microsoftBtn)
 		microsoftBtn.addEventListener('click', () => startSocial('microsoft'));
+	if (appleBtn) appleBtn.addEventListener('click', () => startSocial('apple'));
 })();
 </script>`);
