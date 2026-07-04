@@ -507,39 +507,6 @@ describe('timeline content storage', () => {
 	});
 });
 
-describe('sheet file support', () => {
-	test('readFile returns CSV for sheet-mode file', async () => {
-		const { fs, contentDocs } = setup();
-		await fs.writeFile('/data.csv', 'placeholder');
-		const fileId = fs.lookupId('/data.csv');
-		expect(fileId).toBeDefined();
-		if (!fileId) throw new Error('Expected /data.csv to exist');
-		await using handle = contentDocs.open(fileId);
-		await handle.whenReady;
-		handle.content.batch(() => {
-			handle.content.write('Name,Age\nAlice,30\n');
-			handle.content.asSheet();
-		});
-		expect(await fs.readFile('/data.csv')).toBe('Name,Age\nAlice,30\n');
-	});
-
-	test('writeFile on sheet-mode re-parses CSV in place', async () => {
-		const { fs, contentDocs } = setup();
-		await fs.writeFile('/data.csv', 'placeholder');
-		const fileId = fs.lookupId('/data.csv');
-		expect(fileId).toBeDefined();
-		if (!fileId) throw new Error('Expected /data.csv to exist');
-		await using handle = contentDocs.open(fileId);
-		await handle.whenReady;
-		handle.content.batch(() => {
-			handle.content.write('A,B\n1,2\n');
-			handle.content.asSheet();
-		});
-		await fs.writeFile('/data.csv', 'X,Y\n3,4\n');
-		expect(await fs.readFile('/data.csv')).toBe('X,Y\n3,4\n');
-	});
-});
-
 describe('just-bash integration', () => {
 	function setupBash() {
 		const { fs } = setup();

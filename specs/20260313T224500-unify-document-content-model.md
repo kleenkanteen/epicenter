@@ -1,4 +1,6 @@
 > **Note (2026-03-14)**: Binary content mode was removed and `handle.content` was flattened to direct handle methods in [document-handle-cleanup](./20260314T060000-document-handle-cleanup.md).
+>
+> **Note (2026-07-04, [ADR-0106](../docs/adr/0106-a-child-doc-body-owns-one-layout-the-polymorphic-timeline-is-refused-until-a-product-earns-it.md))**: The goal of this spec is amended. Content unifies onto a **single-layout body**, not the mode-switching timeline this document originally proposed. A child-doc body owns exactly one layout; the polymorphic text/rich-text/sheet surface (`asRichText` / `asSheet` / `currentType` / `restoreFromSnapshot`) is refused as a shipped capability. The timeline handle has since been trimmed to its text path, so wherever this spec argues the timeline "wins because it supports multiple formats" or is "more capable," read that as refuted: it wins as opensidian's shipped text store, and a sheet or rich-text body is a separate single-layout primitive earned by a real product, not a mode of one shared body. The durable `timeline` slot and entry shape are frozen; collapsing to a plain `Y.Text` body is a later, separately-approved migration (ADR-0106 step 3).
 
 # Unify Document Content Model
 
