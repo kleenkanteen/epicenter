@@ -1470,7 +1470,7 @@ Pick the attachment that matches the content shape:
 - `attachPlainText(ydoc, name)`: binds a `Y.Text`. Editor gets `bundle.content` as `Y.Text`.
 - `attachRecords(ydoc, name)`: binds a keyed last-write-wins store of whole JSON records, one per id (the shape an agent transcript uses). Bundle field is a `RecordsHandle<T>` with `get / set / delete / entries / observe`.
 - `attachRichText(ydoc, name)`: binds a `Y.XmlFragment` for prosemirror / tiptap / yrs-xml editors.
-- `attachTimeline(ydoc)`: an append-only, single-layout (text) body over `getArray('timeline')`. Exposes `read() / write(text) / appendText(text) / asText() / batch(fn) / observe(...)`. (The polymorphic text/rich-text/sheet surface was refused by ADR-0106; a sheet body is a separate primitive if a product ever earns it.)
+- `attachTimeline(ydoc)`: a single-layout (text) body stored over `getArray('timeline')`. Exposes `read() / write(text) / appendText(text) / asText() / observe(...)`. (The polymorphic text/rich-text/sheet surface was refused by ADR-0106; a sheet body is a separate primitive if a product ever earns it.)
 
 The connected table child opener stores these by `rowId`, so multiple browser
 consumers share one Y.Doc. Use `workspace.tables.<table>.docs.<field>.open(id)` and

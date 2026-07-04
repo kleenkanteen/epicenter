@@ -466,7 +466,7 @@ function getTimelineLength(
 	const id = fs.lookupId(path);
 	if (!id) throw new Error(`No file at ${path}`);
 	using handle = contentDocs.open(id);
-	return handle.content.length;
+	return handle.ydoc.getArray('timeline').length;
 }
 
 describe('timeline content storage', () => {

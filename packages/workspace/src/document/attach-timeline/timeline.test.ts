@@ -2,69 +2,73 @@
  * Timeline Tests
  *
  * Validates the single-layout (text) timeline body: read/write in place,
- * append, empty-timeline seeding via asText, batching, observation, and the
- * key parameter.
+ * append, empty-timeline seeding via asText, observation, and the key
+ * parameter. Entry count is asserted against the durable `Y.Array` directly,
+ * since the handle exposes no count accessor.
  */
 
 import { describe, expect, test } from 'bun:test';
 import * as Y from 'yjs';
 import { attachTimeline } from './timeline.js';
 
-function setup() {
-	return attachTimeline(new Y.Doc());
+function setup(key = 'timeline') {
+	const ydoc = new Y.Doc();
+	return { ydoc, tl: attachTimeline(ydoc, key), key };
+}
+
+/** Number of entries in the durable timeline array. */
+function entryCount(ydoc: Y.Doc, key = 'timeline'): number {
+	return ydoc.getArray(key).length;
 }
 
 describe('attachTimeline - read/write', () => {
 	test('read on empty timeline returns empty string', () => {
-		const tl = setup();
+		const { ydoc, tl } = setup();
 		expect(tl.read()).toBe('');
-		expect(tl.length).toBe(0);
+		expect(entryCount(ydoc)).toBe(0);
 	});
 
 	test('write on empty timeline creates a text entry', () => {
-		const tl = setup();
+		const { ydoc, tl } = setup();
 		tl.write('hello');
 		expect(tl.read()).toBe('hello');
-		expect(tl.length).toBe(1);
-		expect(tl.currentEntry?.type).toBe('text');
+		expect(entryCount(ydoc)).toBe(1);
 	});
 
-	test('write replaces content in place (length unchanged)', () => {
-		const tl = setup();
+	test('write replaces content in place (entry count unchanged)', () => {
+		const { ydoc, tl } = setup();
 		tl.write('first');
-		expect(tl.length).toBe(1);
+		expect(entryCount(ydoc)).toBe(1);
 		tl.write('second');
-		expect(tl.length).toBe(1);
+		expect(entryCount(ydoc)).toBe(1);
 		expect(tl.read()).toBe('second');
 	});
 
-	test('currentEntry exposes the stored Y.Text and createdAt', () => {
-		const tl = setup();
+	test('the stored entry is a text entry holding a Y.Text', () => {
+		const { ydoc, tl } = setup();
 		tl.write('hi');
-		const entry = tl.currentEntry;
-		expect(entry?.content).toBeInstanceOf(Y.Text);
-		expect(entry?.content.toString()).toBe('hi');
-		expect(typeof entry?.createdAt).toBe('number');
+		const entry = ydoc.getArray<Y.Map<unknown>>('timeline').get(0);
+		expect(entry.get('type')).toBe('text');
+		expect(entry.get('content')).toBeInstanceOf(Y.Text);
+		expect((entry.get('content') as Y.Text).toString()).toBe('hi');
 	});
 });
 
 describe('attachTimeline - asText', () => {
 	test('asText on empty timeline pushes an empty text entry', () => {
-		const tl = setup();
+		const { ydoc, tl } = setup();
 		const ytext = tl.asText();
 		expect(ytext).toBeInstanceOf(Y.Text);
 		expect(ytext.toString()).toBe('');
-		expect(tl.length).toBe(1);
-		expect(tl.currentEntry?.type).toBe('text');
+		expect(entryCount(ydoc)).toBe(1);
 	});
 
 	test('asText returns the existing Y.Text without a new entry', () => {
-		const tl = setup();
+		const { ydoc, tl } = setup();
 		tl.write('seed');
-		const before = tl.length;
 		const ytext = tl.asText();
 		expect(ytext.toString()).toBe('seed');
-		expect(tl.length).toBe(before);
+		expect(entryCount(ydoc)).toBe(1);
 		// Same underlying Y.Text: edits are reflected by read().
 		ytext.insert(ytext.length, '!');
 		expect(tl.read()).toBe('seed!');
@@ -73,62 +77,34 @@ describe('attachTimeline - asText', () => {
 
 describe('attachTimeline - appendText', () => {
 	test('appendText on empty timeline creates a text entry', () => {
-		const tl = setup();
+		const { ydoc, tl } = setup();
 		tl.appendText('hello');
-		expect(tl.currentEntry?.type).toBe('text');
 		expect(tl.read()).toBe('hello');
-		expect(tl.length).toBe(1);
+		expect(entryCount(ydoc)).toBe(1);
 	});
 
 	test('appendText on existing text appends without a new entry', () => {
-		const tl = setup();
+		const { ydoc, tl } = setup();
 		tl.write('hello');
-		expect(tl.length).toBe(1);
+		expect(entryCount(ydoc)).toBe(1);
 		tl.appendText(' world');
 		expect(tl.read()).toBe('hello world');
-		expect(tl.length).toBe(1);
+		expect(entryCount(ydoc)).toBe(1);
 	});
 
 	test('multiple appendText calls accumulate content', () => {
-		const tl = setup();
+		const { ydoc, tl } = setup();
 		tl.appendText('a');
 		tl.appendText('b');
 		tl.appendText('c');
 		expect(tl.read()).toBe('abc');
-		expect(tl.length).toBe(1);
-	});
-});
-
-describe('attachTimeline - batch', () => {
-	test('two writes in one batch trigger observe once', () => {
-		const tl = setup();
-		let callCount = 0;
-		tl.observe(() => callCount++);
-		// First write pushes text entry, second replaces in-place.
-		// Yjs collapses nested transactions. Single observe callback.
-		tl.batch(() => {
-			tl.write('first');
-			tl.write('second');
-		});
-		expect(callCount).toBe(1);
-		expect(tl.read()).toBe('second');
-	});
-
-	test('batch does not affect read/write correctness', () => {
-		const tl = setup();
-		tl.batch(() => {
-			tl.write('hello');
-			expect(tl.read()).toBe('hello');
-			tl.write('world');
-			expect(tl.read()).toBe('world');
-		});
-		expect(tl.read()).toBe('world');
+		expect(entryCount(ydoc)).toBe(1);
 	});
 });
 
 describe('attachTimeline - observe', () => {
 	test('fires when a new entry is pushed via write()', () => {
-		const tl = setup();
+		const { tl } = setup();
 		let calls = 0;
 		tl.observe(() => calls++);
 		tl.write('one');
@@ -136,7 +112,7 @@ describe('attachTimeline - observe', () => {
 	});
 
 	test('does NOT fire when write replaces text in-place', () => {
-		const tl = setup();
+		const { tl } = setup();
 		tl.write('one');
 		let calls = 0;
 		tl.observe(() => calls++);
@@ -145,7 +121,7 @@ describe('attachTimeline - observe', () => {
 	});
 
 	test('does NOT fire when content within an existing entry changes', () => {
-		const tl = setup();
+		const { tl } = setup();
 		const ytext = tl.asText();
 		let calls = 0;
 		tl.observe(() => calls++);
@@ -154,7 +130,7 @@ describe('attachTimeline - observe', () => {
 	});
 
 	test('unsubscribe stops notifications', () => {
-		const tl = setup();
+		const { tl } = setup();
 		let calls = 0;
 		const unsubscribe = tl.observe(() => calls++);
 		tl.write('one');
@@ -166,19 +142,14 @@ describe('attachTimeline - observe', () => {
 
 describe('attachTimeline - key parameter', () => {
 	test('default key is "timeline"', () => {
-		const ydoc = new Y.Doc();
-		const tl = attachTimeline(ydoc);
+		const { ydoc, tl } = setup();
 		tl.write('seed');
-
-		// The default timeline array is reachable at key 'timeline'.
 		expect(ydoc.getArray('timeline').length).toBe(1);
 	});
 
 	test('custom key reserves a different Y.Array slot', () => {
-		const ydoc = new Y.Doc();
-		const tl = attachTimeline(ydoc, 'log');
+		const { ydoc, tl } = setup('log');
 		tl.write('seed');
-
 		expect(ydoc.getArray('log').length).toBe(1);
 		// The default 'timeline' slot is untouched.
 		expect(ydoc.getArray('timeline').length).toBe(0);
