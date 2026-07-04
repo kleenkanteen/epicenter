@@ -208,9 +208,9 @@
 		return unsubscribe;
 	});
 
-	// The one switch on sync phase: the popover line shows the status, the
-	// trigger tooltip adds the action hint. Both read this so the phase decision
-	// is made once.
+	// The sync phase copy is decided once here: the popover line shows the
+	// label, the trigger tooltip adds the action hint. (The trigger icon still
+	// branches on the raw status; it mixes in auth and pending states.)
 	const sync = $derived.by(() => {
 		if (!syncStatus) return undefined;
 		switch (syncStatus.phase) {
