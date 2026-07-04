@@ -214,7 +214,7 @@
 					<div class="mt-2 rounded-md border bg-muted/40 p-2">
 						{#if harvest.status === 'loading'}
 							<div class="flex items-center justify-between gap-2">
-								<p class="text-xs text-muted-foreground">Harvesting terms...</p>
+								<p class="text-xs text-muted-foreground">Finding suggestions...</p>
 								<Button variant="ghost" size="sm" onclick={dismissHarvest}>
 									Cancel
 								</Button>
@@ -287,7 +287,7 @@
 						class="mt-1.5 text-xs text-muted-foreground hover:text-foreground"
 						onclick={() => harvestMessage(msg.id, agentMessageText(msg))}
 					>
-						Harvest terms
+						Suggest terms
 					</button>
 				{/if}
 			{/if}
