@@ -32,7 +32,11 @@ describe('composeRomanizers', () => {
 	test('lossless: segment text joins back to the input', () => {
 		const romanize = composeRomanizers([readsA, readsB]);
 		const input = 'a quick brown b';
-		expect(romanize(input).map((s) => s.text).join('')).toBe(input);
+		expect(
+			romanize(input)
+				.map((s) => s.text)
+				.join(''),
+		).toBe(input);
 	});
 });
 

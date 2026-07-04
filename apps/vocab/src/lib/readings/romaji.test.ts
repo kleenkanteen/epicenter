@@ -7,7 +7,11 @@ const romanize = createRomajiRomanizer(toRomaji);
 describe('romajiRomanizer', () => {
 	test('segments cover the whole input in order, lossless', () => {
 		const input = '猫はかわいい (cute)';
-		expect(romanize(input).map((s) => s.text).join('')).toBe(input);
+		expect(
+			romanize(input)
+				.map((s) => s.text)
+				.join(''),
+		).toBe(input);
 	});
 
 	test('a kana run gets a romaji reading', () => {

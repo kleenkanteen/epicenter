@@ -7,7 +7,11 @@ const romanize = createCyrillicRomanizer(transliterate);
 describe('cyrillicRomanizer', () => {
 	test('segments cover the whole input in order, lossless', () => {
 		const input = 'Привет, world!';
-		expect(romanize(input).map((s) => s.text).join('')).toBe(input);
+		expect(
+			romanize(input)
+				.map((s) => s.text)
+				.join(''),
+		).toBe(input);
 	});
 
 	test('a Cyrillic run gets a Latin reading; Latin passes through', () => {

@@ -7,7 +7,11 @@ const pinyinRomanizer = createPinyinRomanizer(pinyin);
 describe('pinyinRomanizer', () => {
 	test('segments cover the whole input in order, lossless', () => {
 		const input = 'Hello 你好, world 世界!';
-		expect(pinyinRomanizer(input).map((s) => s.text).join('')).toBe(input);
+		expect(
+			pinyinRomanizer(input)
+				.map((s) => s.text)
+				.join(''),
+		).toBe(input);
 	});
 
 	test('Chinese characters get a reading; everything else does not', () => {

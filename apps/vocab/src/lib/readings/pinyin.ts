@@ -44,7 +44,10 @@ export function createPinyinRomanizer(pinyin: PinyinFn): Romanizer {
 			const readings = pinyin(run, { type: 'array' });
 			let charIndex = 0;
 			for (const char of run) {
-				segments.push({ text: char, reading: readings[charIndex] || undefined });
+				segments.push({
+					text: char,
+					reading: readings[charIndex] || undefined,
+				});
 				charIndex++;
 			}
 			lastIndex = match.index + run.length;

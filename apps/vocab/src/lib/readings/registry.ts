@@ -97,9 +97,7 @@ export function composeRomanizers(romanizers: Romanizer[]): Romanizer {
  */
 export async function resolveRomanizer(text: string): Promise<Romanizer> {
 	const romanizers = await Promise.all(
-		readingProviders
-			.filter((provider) => provider.matches(text))
-			.map(loadOnce),
+		readingProviders.filter((provider) => provider.matches(text)).map(loadOnce),
 	);
 	return composeRomanizers(romanizers);
 }
