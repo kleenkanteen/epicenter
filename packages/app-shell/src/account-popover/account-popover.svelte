@@ -128,24 +128,16 @@
 	);
 	// Optimistic boot (ADR-0075) leaves a self-host user signed-in even when the box
 	// is unreachable, so they usually never see the sign-in panel's verification copy.
-	// Surface the verification failure here instead. `auth.state` still says
-	// signed-in (local workspace identity is known); this line only explains that
-	// the configured server has not accepted the credential in this runtime. Local
-	// work is unaffected, so `unreachable` reads muted and only a `rejected` token
-	// (which also drops `state` to signed-out and reveals the sign-in panel) reads
-	// destructive.
-	const verificationNotice = $derived.by(() => {
+	// Surface the unreachable state here instead. `auth.state` still says signed-in
+	// (local workspace identity is known); this line only explains that the
+	// configured server is offline in this runtime, and local work is unaffected, so
+	// it reads muted. A `rejected` token is not handled here: it drops `state` to
+	// signed-out (see `createInstanceTokenAuth`), which reveals the sign-in panel
+	// that owns the rejected-token copy, so this signed-in surface never sees it.
+	const unreachableNotice = $derived.by(() => {
 		const v = auth.verification?.state;
-		if (!v || v.status !== 'failed') return null;
-		return v.reason === 'rejected'
-			? {
-					text: `${selfHostHost} rejected the saved token. Sign out to reconnect.`,
-					tone: 'text-destructive',
-				}
-			: {
-					text: `Can't reach ${selfHostHost}. You're working locally; sync resumes when it's back.`,
-					tone: 'text-muted-foreground',
-				};
+		if (v?.status !== 'failed' || v.reason !== 'unreachable') return null;
+		return `Can't reach ${selfHostHost}. You're working locally; sync resumes when it's back.`;
 	});
 	// Identity lives on the auth client: `state` carries the principal partition,
 	// and `getProfile()` reads presentational identity (the email) on demand.
@@ -310,10 +302,8 @@
 					{#if selfHostHost}
 						<p class="text-sm font-medium">{selfHostHost}</p>
 						<p class="text-xs text-muted-foreground">Self-hosted instance</p>
-						{#if verificationNotice}
-							<p class="text-xs {verificationNotice.tone}">
-								{verificationNotice.text}
-							</p>
+						{#if unreachableNotice}
+							<p class="text-xs text-muted-foreground">{unreachableNotice}</p>
 						{/if}
 					{:else}
 						<p class="text-sm font-medium">{accountLabel}</p>
