@@ -19,4 +19,4 @@ The `@epicenter/honeycrisp` package root remains the integration contract for co
 
 - **Restore Fuji or the daemon mount surface.** Rejected. Fuji was removed deliberately, and ADR-0080 makes the Super App an in-process workspace composer rather than a per-app daemon consumer.
 - **Fork Honeycrisp into separate web and desktop apps.** Rejected. That would split the workspace contract and duplicate the product surface for no benefit.
-- **Adopt Whispering's module singleton shape.** Initially rejected here, then adopted repo-wide the same day by [ADR-0088](0088-sign-in-is-an-enhancement-never-a-door.md), which answers this bullet's concerns with `reloadOnOwnerChange` and the hydration gate. The product-surface decision above is independent of that lifecycle choice.
+- **Adopt Whispering's module singleton shape.** Initially rejected here, then adopted repo-wide the same day by [ADR-0088](0088-sign-in-is-an-enhancement-never-a-door.md), which answers this bullet's concerns with `reloadOnPrincipalChange` and the hydration gate. The product-surface decision above is independent of that lifecycle choice.

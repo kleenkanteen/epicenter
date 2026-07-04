@@ -227,10 +227,10 @@ for the full model.
 The `id` you pass to `defineWorkspace(...)` becomes `workspace.ydoc.guid` when
 you call `.connect(...)`. Namespace it to your app (e.g. `epicenter.my-app`) to
 avoid collisions when multiple apps share the same IndexedDB origin. Cloud sync
-targets the single uniform shape `/api/rooms/:roomId` in per-user cloud and
+targets the single uniform shape `/api/rooms/:roomId` in hosted Cloud and
 self-hosted instance deployments: build the URL with
 `roomWsUrl({ baseURL, guid: workspace.ydoc.guid, nodeId })`. A cloud doc is
-owned by the authenticated `PrincipalId`, so the server resolves the Durable
+partitioned by the authenticated `PrincipalId`, so the server resolves the Durable
 Object name `principals/${principalId}/rooms/${room}` from the auth token, with
 no workspace lookup.
 
