@@ -4,6 +4,7 @@ import {
 	type InferErrors,
 } from 'wellcrafted/error';
 import { isErr, Ok, type Result } from 'wellcrafted/result';
+import { auth } from '#platform/auth';
 import { buildPolishSystemPrompt } from '$lib/operations/build-system-prompt';
 import {
 	completeWithGlobalDefault,
@@ -13,7 +14,6 @@ import { describePolishDestination } from '$lib/operations/completion-target';
 import { resolveTranscriptionLocalityFromConfig } from '$lib/operations/transcription-target';
 import { deviceConfig } from '$lib/state/device-config.svelte';
 import { settings } from '$lib/state/settings.svelte';
-import { auth } from '#platform/auth';
 
 export const RunPolishError = defineErrors({
 	/**
