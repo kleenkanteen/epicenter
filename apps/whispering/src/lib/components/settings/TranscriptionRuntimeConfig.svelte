@@ -11,6 +11,7 @@
 	import { cn } from '@epicenter/ui/utils';
 	import { createMutation } from '@tanstack/svelte-query';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+	import { mutationOptions } from 'wellcrafted/query';
 	import CopyablePre from '$lib/components/copyable/CopyablePre.svelte';
 	import {
 		SUPPORTED_LANGUAGES_OPTIONS,
@@ -123,13 +124,12 @@
 	// owns sign-out; this section only makes the hosted transcription route ready.
 	const isSignedIn = $derived(auth.state.status === 'signed-in');
 	const accountLocked = $derived(recordingActive.current);
-	const startSignIn = createMutation(() => ({
-		mutationKey: ['transcription-setup', 'startSignIn'],
-		mutationFn: async () => {
-			const { error } = await auth.startSignIn();
-			if (error) throw error;
-		},
-	}));
+	const startSignIn = createMutation(() =>
+		mutationOptions({
+			mutationKey: ['transcription-setup', 'startSignIn'],
+			mutationFn: () => auth.startSignIn(),
+		}),
+	);
 </script>
 
 {#snippet renderServiceIcon(entry: TranscriptionProviderEntry)}
