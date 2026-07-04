@@ -73,7 +73,7 @@
 				: 'Choose transcription model';
 		}
 		if (!selectedService) return 'Select transcription service';
-		return selectedService.location === 'cloud'
+		return selectedService.access === 'byok'
 			? `${selectedService.label} - ${getSelectedModelNameOrUrl(selectedService)}`
 			: selectedService.label;
 	});
@@ -83,41 +83,47 @@
 	}
 
 	function getSelectedModelNameOrUrl(service: TranscriptionProviderEntry) {
-		switch (service.location) {
-			case 'cloud':
+		switch (service.access) {
+			case 'byok':
 				return settings.get(service.modelSettingKey);
-			case 'self-hosted':
+			case 'byoe':
 				return deviceConfig.get(service.endpointConfigKey);
-			case 'local': {
+			case 'onDevice': {
 				// Resolve the opaque catalog id ("{repo}@{rev}/{file}") to its friendly
-				// name so the Local group's selection subtext reads as a model, not an
-				// HF coordinate. Falls back to the id if the store has not loaded yet.
+				// name so the On-device group's selection subtext reads as a model, not
+				// an HF coordinate. Falls back to the id if the store has not loaded yet.
 				const id = deviceConfig.get(service.modelConfigKey);
 				return localModels.find(id)?.name ?? id;
 			}
+			case 'star':
+				return undefined;
 		}
 	}
 
+	// Epicenter (star) STT is a network provider, available on web and desktop
+	// alike, so it is never gated on tauri the way local engines are.
+	const starServices = $derived(
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'star'),
+	);
+
 	const cloudServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter((service) => service.location === 'cloud'),
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'byok'),
 	);
 
-	const selfHostedServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter(
-			(service) => service.location === 'self-hosted',
-		),
+	const customServerServices = $derived(
+		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'byoe'),
 	);
 
-	const localServices = $derived(
+	const onDeviceServices = $derived(
 		tauri
-			? TRANSCRIPTION_PROVIDERS.filter((service) => service.location === 'local')
+			? TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'onDevice')
 			: [],
 	);
 
-	const localServiceSearchKeywords = {
+	const onDeviceServiceSearchKeywords = {
 		local: 'local offline whisper parakeet gguf ggml on-device private',
 	} satisfies Record<
-		Extract<TranscriptionProviderEntry, { location: 'local' }>['id'],
+		Extract<TranscriptionProviderEntry, { access: 'onDevice' }>['id'],
 		string
 	>;
 
@@ -224,16 +230,47 @@
 			<Command.List class="max-h-[40vh]">
 				<Command.Empty>No service found.</Command.Empty>
 
-				{#if localServices.length > 0}
-					<Command.Group heading="Local">
-						{#each localServices as service (service.id)}
+				{#if starServices.length > 0}
+					<Command.Group heading="Epicenter">
+						{#each starServices as service (service.id)}
+							{@const isSelected = getSelectedServiceId() === service.id}
+							{@const isConfigured = isTranscriptionServiceConfigured(service)}
+
+							<Command.Item
+								value="{service.id} {service.label} epicenter account hosted credits"
+								onSelect={() => {
+									settings.set('transcription.service', service.id);
+									combobox.closeAndFocusTrigger();
+								}}
+								class="flex items-center gap-2 px-2 py-2"
+							>
+								<CheckIcon
+									class={cn('size-3.5 shrink-0', {
+										'text-transparent': !isSelected,
+									})}
+								/>
+								{@render renderServiceIcon(service)}
+								<div class="flex-1 min-w-0">
+									<div class="font-medium text-sm">{service.label}</div>
+									{#if !isConfigured}
+										<span class="text-xs text-warning">Sign in required</span>
+									{/if}
+								</div>
+							</Command.Item>
+						{/each}
+					</Command.Group>
+				{/if}
+
+				{#if onDeviceServices.length > 0}
+					<Command.Group heading="On-device">
+						{#each onDeviceServices as service (service.id)}
 							{@const isSelected =
 								getSelectedServiceId() === service.id}
 							{@const isConfigured = isTranscriptionServiceConfigured(service)}
 							{@const modelName = getSelectedModelNameOrUrl(service)}
 
 							<Command.Item
-								value="{service.id} {service.label} {service.description} {localServiceSearchKeywords[service.id]}"
+								value="{service.id} {service.label} {service.description} {onDeviceServiceSearchKeywords[service.id]}"
 								onSelect={() => {
 									settings.set('transcription.service', service.id);
 									combobox.closeAndFocusTrigger();
@@ -261,8 +298,8 @@
 					</Command.Group>
 				{/if}
 
-				<!-- Cloud Services -->
-				<Command.Group heading="Cloud">
+				<!-- Provider API services -->
+				<Command.Group heading="Provider API">
 					{#each cloudServices as service (service.id)}
 						{@const isSelected =
 							getSelectedServiceId() === service.id}
@@ -339,16 +376,16 @@
 					{/each}
 				</Command.Group>
 
-				<!-- Self-Hosted Services -->
-				<Command.Group heading="Self-Hosted">
-					{#each selfHostedServices as service (service.id)}
+				<!-- Custom server services -->
+				<Command.Group heading="Custom server">
+					{#each customServerServices as service (service.id)}
 						{@const isSelected =
 							getSelectedServiceId() === service.id}
 						{@const isConfigured = isTranscriptionServiceConfigured(service)}
 						{@const serverUrl = getSelectedModelNameOrUrl(service)}
 
 						<Command.Item
-							value="{service.id} {service.label} self-hosted server"
+							value="{service.id} {service.label} custom server self-hosted"
 							onSelect={() => {
 								settings.set('transcription.service', service.id);
 								combobox.closeAndFocusTrigger();

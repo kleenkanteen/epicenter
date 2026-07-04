@@ -25,7 +25,7 @@ export const inferenceConnections = createInferenceConnections({
 		// readiness), so read it at turn time inside this closure, never at module
 		// load. The hosted transport is only resolved when a hosted turn generates.
 		fetch: (input, init) => tabManagerBoot.auth.fetch(input, init),
-		baseURL: API_ROUTES.ai.completions.baseUrl(APP_URLS.API),
+		baseURL: API_ROUTES.ai.baseUrl(APP_URLS.API),
 	},
 	persist: (key, schema, fallback) =>
 		createStorageState(`local:${key}` as StorageItemKey, { schema, fallback }),

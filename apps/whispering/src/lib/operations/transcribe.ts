@@ -1,8 +1,9 @@
 import {
-	type Connection,
+	type ResolvedConnection,
 	resolveConnection,
 	transcribe,
 } from '@epicenter/client';
+import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { InstantString } from '@epicenter/field';
 import {
 	type AnyTaggedError,
@@ -10,6 +11,7 @@ import {
 	extractErrorMessage,
 } from 'wellcrafted/error';
 import { Err, Ok, type Result } from 'wellcrafted/result';
+import { auth } from '#platform/auth';
 import { customFetch } from '#platform/http';
 import { tauri } from '#platform/tauri';
 import type { SupportedLanguage } from '$lib/constants/languages';
@@ -20,8 +22,8 @@ import { DeepgramTranscriptionServiceLive } from '$lib/services/transcription/cl
 import { ElevenLabsTranscriptionServiceLive } from '$lib/services/transcription/cloud/elevenlabs';
 import { MistralTranscriptionServiceLive } from '$lib/services/transcription/cloud/mistral';
 import {
-	isLocalProviderId,
-	type LocalProviderId,
+	isOnDeviceProviderId,
+	type OnDeviceProviderId,
 	PROVIDERS,
 	type UploadProviderId,
 } from '$lib/services/transcription/providers';
@@ -43,6 +45,14 @@ import { commands } from '$lib/tauri/commands';
 export type TranscriptionError = AnyTaggedError;
 
 const TranscriptionOperationError = defineErrors({
+	/** The hosted Epicenter gateway answered 402 (`InsufficientCredits`, ADR-0100):
+	 *  the wallet could not cover this transcription. Surfaced as a credit-aware
+	 *  message instead of the raw provider envelope, so the user knows the one thing
+	 *  that fixes it. */
+	InsufficientCredits: () => ({
+		message:
+			"You're out of Epicenter AI credits. Add credits from the dashboard to keep transcribing, or switch to your own provider in settings.",
+	}),
 	LocalTranscriptionUnavailableOnWeb: () => ({
 		message:
 			'Local transcription is only available in the desktop app. Choose a cloud or self-hosted provider on web.',
@@ -53,21 +63,31 @@ const TranscriptionOperationError = defineErrors({
 });
 
 /**
- * How an upload (non-local) provider is reached. A `wire` provider assembles a
- * `Connection` and a model and hands them to the shared `transcribe()`; a
- * `bespoke` provider keeps its own SDK client (a different wire). The `kind`
- * discriminant carries the routing, so there is no wire-vs-bespoke id subset to
- * derive and no `in`-guard: one exhaustive switch on `.kind`.
+ * How an upload (non-on-device) provider is reached. A `wire` provider resolves its own
+ * transport and a model and hands them to the shared `transcribe()`; a `bespoke`
+ * provider keeps its own SDK client (a different wire). The `kind` discriminant
+ * carries the routing, so there is no wire-vs-bespoke id subset to derive and no
+ * `in`-guard: one exhaustive switch on `.kind`.
+ *
+ * The transport is a `resolve` thunk, not static connection data, so each wire entry
+ * owns how it becomes a transport (ADR-0060): a `byok`/`byoe` entry resolves a
+ * `{ baseUrl, apiKey }` over `customFetch`, while the `star` Epicenter entry closes
+ * over the signed-in session `fetch` (never connection data). The switch
+ * therefore never branches on what kind of transport it got.
  *
  * A bespoke entry closes over its own key and model (from the literal `PROVIDERS.X`
  * pointers, the SSOT) rather than letting the caller read `PROVIDERS[id]`, because
- * switching on `.kind` does not narrow the id back to a CloudProvider. The wire
+ * switching on `.kind` does not narrow the id back to a ByokProvider. The wire
  * entries read the same pointers; the one fact `PROVIDERS` does not hold is the
  * canonical wire base URL (it used to be each SDK's default), so that literal lives
  * here.
  */
 type UploadDispatch =
-	| { kind: 'wire'; connection: () => Connection; model: () => string }
+	| {
+			kind: 'wire';
+			resolve: () => ResolvedConnection;
+			model: () => string;
+	  }
 	| {
 			kind: 'bespoke';
 			transcribe: (
@@ -89,9 +109,9 @@ function secretApiKey(key: SecretKey): string | undefined {
 
 /**
  * Every upload transcription provider, keyed by id. `satisfies Record<UploadProviderId,
- * UploadDispatch>` makes the table total over the non-local providers: a new cloud or
- * self-hosted provider is a compile error until it has an entry, and a local provider
- * cannot appear (it goes through the FFI path, branched in `transcribeAudio`).
+ * UploadDispatch>` makes the table total over the non-on-device providers: a new cloud or
+ * self-hosted provider is a compile error until it has an entry, and an on-device
+ * provider cannot appear (it goes through the FFI path, branched in `transcribeAudio`).
  *
  * Wire entries (OpenAI, Groq, Speaches): the endpoint override beats the canonical
  * default; Speaches stores a bare host, so its `/v1` is appended; a keyless local
@@ -100,31 +120,56 @@ function secretApiKey(key: SecretKey): string | undefined {
  * Token`, ElevenLabs' `xi-api-key`, Mistral's `context_bias`); ADR-0060 blesses it.
  */
 const UPLOAD_DISPATCH = {
+	// Epicenter (star) STT: the transport is the signed-in session fetch against the
+	// star you are bonded to (`auth.baseURL`, so a self-hosted instance's own gateway
+	// is used when connected to one), never a stored key. Both deployables mount this
+	// gateway on their house key; a hosted star meters it (ADR-0100), a self-host star
+	// does not. The model is fixed by the gateway.
+	epicenter: {
+		kind: 'wire',
+		resolve: () => ({
+			fetch: auth.fetch,
+			baseURL: API_ROUTES.ai.baseUrl(auth.baseURL),
+		}),
+		model: () => PROVIDERS.epicenter.model,
+	},
 	OpenAI: {
 		kind: 'wire',
-		connection: () => ({
-			baseUrl:
-				deviceConfig.get(PROVIDERS.OpenAI.endpointConfigKey) ||
-				'https://api.openai.com/v1',
-			apiKey: secretApiKey(PROVIDERS.OpenAI.apiKeyConfigKey),
-		}),
+		resolve: () =>
+			resolveConnection(
+				{
+					baseUrl:
+						deviceConfig.get(PROVIDERS.OpenAI.endpointConfigKey) ||
+						'https://api.openai.com/v1',
+					apiKey: secretApiKey(PROVIDERS.OpenAI.apiKeyConfigKey),
+				},
+				customFetch,
+			),
 		model: () => settings.get(PROVIDERS.OpenAI.modelSettingKey),
 	},
 	Groq: {
 		kind: 'wire',
-		connection: () => ({
-			baseUrl:
-				deviceConfig.get(PROVIDERS.Groq.endpointConfigKey) ||
-				'https://api.groq.com/openai/v1',
-			apiKey: secretApiKey(PROVIDERS.Groq.apiKeyConfigKey),
-		}),
+		resolve: () =>
+			resolveConnection(
+				{
+					baseUrl:
+						deviceConfig.get(PROVIDERS.Groq.endpointConfigKey) ||
+						'https://api.groq.com/openai/v1',
+					apiKey: secretApiKey(PROVIDERS.Groq.apiKeyConfigKey),
+				},
+				customFetch,
+			),
 		model: () => settings.get(PROVIDERS.Groq.modelSettingKey),
 	},
 	speaches: {
 		kind: 'wire',
-		connection: () => ({
-			baseUrl: `${deviceConfig.get(PROVIDERS.speaches.endpointConfigKey)}/v1`,
-		}),
+		resolve: () =>
+			resolveConnection(
+				{
+					baseUrl: `${deviceConfig.get(PROVIDERS.speaches.endpointConfigKey)}/v1`,
+				},
+				customFetch,
+			),
 		model: () => deviceConfig.get(PROVIDERS.speaches.modelIdConfigKey),
 	},
 	ElevenLabs: {
@@ -160,13 +205,13 @@ const UPLOAD_DISPATCH = {
 } satisfies Record<UploadProviderId, UploadDispatch>;
 
 /**
- * Materialize the bytes to upload for a cloud transcription. The recording
- * is already saved under `recordings/{id}.{ext}`; in Tauri we round-trip
+ * Materialize the bytes to upload for a non-on-device (upload) transcription. The
+ * recording is already saved under `recordings/{id}.{ext}`; in Tauri we round-trip
  * through Rust's libopus to land on a compressed opus blob. On the web
  * there is no Rust, so we fetch the original bytes from the blob store and
  * upload them as-is.
  */
-async function loadForCloudUpload(
+async function loadForUpload(
 	recordingId: string,
 ): Promise<Result<Blob, TranscriptionError>> {
 	if (tauri) {
@@ -196,7 +241,7 @@ async function loadForCloudUpload(
  *   recordings blob store and pass the id here.
  *
  * Local transcription always goes through `transcribe_recording(id)`.
- * Cloud and self-hosted transcription upload compressed bytes derived from the
+ * Upload (non-on-device) transcription uploads compressed bytes derived from the
  * saved file when possible, falling back to the raw blob.
  */
 export async function transcribeAudio(
@@ -210,11 +255,11 @@ export async function transcribeAudio(
 		provider: selectedService,
 	});
 
-	// Narrow the id here, once. The type guard splits `selectedService` into the
-	// local vs upload id sets, so each path receives an already-narrowed id and
-	// neither has to re-check the case the other owns.
-	const transcriptionResult = isLocalProviderId(selectedService)
-		? await transcribeLocally(recordingId, selectedService)
+	// The one place on-device-ness is decided. The type guard narrows `selectedService`
+	// to `OnDeviceProviderId` in one arm and `UploadProviderId` in the other, so each
+	// helper receives an already-narrowed id and neither re-checks.
+	const transcriptionResult = isOnDeviceProviderId(selectedService)
+		? await transcribeOnDevice(recordingId, selectedService)
 		: await transcribeViaUpload(recordingId, selectedService);
 
 	const duration = Date.now() - startTime;
@@ -273,19 +318,19 @@ export async function transcribeAndPersist(
  * load (~1 s) overlaps the user's speech instead of being paid after they
  * stop. Called fire-and-forget from the manual and VAD start paths.
  *
- * No-op unless we are on desktop with the local provider selected and a model
- * chosen: cloud/self-hosted have no local model to load, and web has no Rust.
- * It resolves the model exactly the way `transcribeLocally` does, so it warms
+ * No-op unless we are on desktop with an on-device provider selected and a model
+ * chosen: cloud/self-hosted have no on-device model to load, and web has no Rust.
+ * It resolves the model exactly the way `transcribeOnDevice` does, so it warms
  * the same model transcription will use. Failures are swallowed on purpose:
  * the worst case is transcription loads the model itself, as it does today.
  * `language`/`initialPrompt` are inference params, irrelevant to loading, so
  * they are sent null.
  */
-export function prewarmLocalModel(): void {
+export function prewarmOnDeviceModel(): void {
 	if (!tauri) return;
 
 	const selectedService = settings.get('transcription.service');
-	if (!isLocalProviderId(selectedService)) return;
+	if (!isOnDeviceProviderId(selectedService)) return;
 
 	const modelId = deviceConfig.get(PROVIDERS[selectedService].modelConfigKey);
 	if (!modelId) return;
@@ -312,9 +357,9 @@ function withDictionaryTerms(prompt: string, dictionary: string[]): string {
 	return trimmed ? `${trimmed} ${glossary}` : glossary;
 }
 
-async function transcribeLocally(
+async function transcribeOnDevice(
 	recordingId: string,
-	selectedService: LocalProviderId,
+	selectedService: OnDeviceProviderId,
 ): Promise<Result<string, TranscriptionError>> {
 	if (!tauri) {
 		return TranscriptionOperationError.LocalTranscriptionUnavailableOnWeb();
@@ -349,8 +394,7 @@ async function transcribeViaUpload(
 	recordingId: string,
 	selectedService: UploadProviderId,
 ): Promise<Result<string, TranscriptionError>> {
-	const { data: audio, error: loadError } =
-		await loadForCloudUpload(recordingId);
+	const { data: audio, error: loadError } = await loadForUpload(recordingId);
 	if (loadError) return Err(loadError);
 
 	// `auto` language and an empty prompt map to the wire's "unset" (omitted from
@@ -365,16 +409,25 @@ async function transcribeViaUpload(
 	);
 	const entry = UPLOAD_DISPATCH[selectedService];
 	switch (entry.kind) {
-		case 'wire':
-			return transcribe(
-				audio,
-				resolveConnection(entry.connection(), customFetch),
-				{
-					model: entry.model(),
-					language: spokenLanguage === 'auto' ? undefined : spokenLanguage,
-					prompt: prompt || undefined,
-				},
-			);
+		case 'wire': {
+			const result = await transcribe(audio, entry.resolve(), {
+				model: entry.model(),
+				language: spokenLanguage === 'auto' ? undefined : spokenLanguage,
+				prompt: prompt || undefined,
+			});
+			// Only the `star` wire can meter credits, and only when bonded to a hosted
+			// star, so a 402 there is `InsufficientCredits` (ADR-0100). Remap it to a
+			// credit-aware message; every other wire's 402 (none expected) stays a raw
+			// RequestFailed. A self-host star never meters, so it never 402s here.
+			if (
+				selectedService === 'epicenter' &&
+				result.error?.name === 'RequestFailed' &&
+				result.error.status === 402
+			) {
+				return TranscriptionOperationError.InsufficientCredits();
+			}
+			return result;
+		}
 		case 'bespoke':
 			return entry.transcribe(audio, { prompt, spokenLanguage });
 	}

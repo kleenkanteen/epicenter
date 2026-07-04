@@ -1,3 +1,4 @@
+import { auth } from '#platform/auth';
 import { tauri } from '#platform/tauri';
 import {
 	TRANSCRIPTION_PROVIDERS,
@@ -21,7 +22,7 @@ export function getSelectedTranscriptionProvider():
 export function isTranscriptionServiceAvailable(
 	service: TranscriptionProviderEntry,
 ): boolean {
-	return Boolean(tauri) || service.location !== 'local';
+	return Boolean(tauri) || service.access !== 'onDevice';
 }
 
 /**
@@ -41,7 +42,7 @@ export function getSelectedTranscriptionService():
 /**
  * Whether a transcription service is usable right now. The required key is the
  * provider's own config key (apiKey / endpoint / model), read from its registry
- * entry. A cloud provider's key is a secret read through the credential facade,
+ * entry. A BYOK provider's key is a secret read through the credential facade,
  * so "usable" means `available`.
  *
  * @param service - The transcription service to check
@@ -50,15 +51,19 @@ export function getSelectedTranscriptionService():
 export function isTranscriptionServiceConfigured(
 	service: TranscriptionProviderEntry,
 ): boolean {
-	switch (service.location) {
-		case 'cloud':
+	switch (service.access) {
+		case 'star':
+			// No key to configure: the credential is the signed-in session, so
+			// "configured" is "signed in". Metering and top-up live on the star.
+			return auth.state.status === 'signed-in';
+		case 'byok':
 			return secrets.get(service.apiKeyConfigKey).status === 'available';
-		case 'self-hosted':
+		case 'byoe':
 			return (
 				hasValue(deviceConfig.get(service.endpointConfigKey)) &&
 				hasValue(deviceConfig.get(service.modelIdConfigKey))
 			);
-		case 'local':
+		case 'onDevice':
 			return hasValue(deviceConfig.get(service.modelConfigKey));
 	}
 }
@@ -86,11 +91,12 @@ export function getTranscriptionReadiness(): TranscriptionReadiness {
 	if (!isTranscriptionServiceConfigured(service)) {
 		const primaryIssue = (
 			{
-				cloud: `Add your ${service.label} API key.`,
-				'self-hosted': `Set your ${service.label} endpoint and model ID.`,
-				local: `Download or select a ${service.label} model.`,
+				star: 'Sign in to Epicenter to use hosted transcription.',
+				byok: `Add your ${service.label} API key.`,
+				byoe: `Set your ${service.label} endpoint and model ID.`,
+				onDevice: `Download or select a ${service.label} model.`,
 			} as const
-		)[service.location];
+		)[service.access];
 
 		return { isReady: false, primaryIssue };
 	}

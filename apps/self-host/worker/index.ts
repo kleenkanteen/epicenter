@@ -29,6 +29,7 @@ import {
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
+	mountTranscriptionApp,
 	type ResolveBearerPrincipal,
 	Room,
 	rateLimit,
@@ -83,6 +84,14 @@ mountRoomsApp(app, { resolveBearerPrincipal });
 // operator's house key up unbounded. Per-isolate on Cloudflare (approximate);
 // the real ceiling is the hard spend limit on the provider key itself (README).
 mountInferenceApp(app, {
+	auth,
+	policies: [rateLimit({ requests: 120, windowSeconds: 60 })],
+});
+// The STT sibling of the inference gateway: same operator house key, same
+// 503-until-configured opt-out, same burn-rate cap, no Autumn. A `star`
+// transcription against this instance is unmetered, which is what makes
+// "transcribe through the star you're connected to" true on self-host too.
+mountTranscriptionApp(app, {
 	auth,
 	policies: [rateLimit({ requests: 120, windowSeconds: 60 })],
 });
