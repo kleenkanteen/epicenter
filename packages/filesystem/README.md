@@ -114,7 +114,7 @@ It feels like a filesystem because the package keeps resolving paths, parents, a
 Main exports from `src/index.ts`:
 
 - `attachYjsFileSystem()` and `YjsFileSystem`: the POSIX-like filesystem orchestrator
-- `filesTable`, `FileRow`, and `ColumnDefinition`: the shared metadata table and related types
+- `filesTable` and `FileRow`: the shared metadata table and its row type
 - `attachFileTree()` and `attachFileSystemIndex()`: path/index helpers for the metadata layer
 - `FS_ERRORS` and `FsErrorCode`: filesystem-style error helpers
 - `posixResolve()`: path normalization for slash-separated paths

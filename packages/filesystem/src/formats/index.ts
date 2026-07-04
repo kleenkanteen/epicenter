@@ -7,7 +7,3 @@ export {
 	updateYXmlFragmentFromString,
 	yMapToRecord,
 } from './markdown.js';
-export {
-	reorderColumn,
-	reorderRow,
-} from './sheet.js';
