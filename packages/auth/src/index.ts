@@ -4,10 +4,10 @@ export {
 } from './app-auth-client.js';
 export type {
 	AuthClient,
-	AuthConnection,
-	AuthConnectionState,
 	AuthFetch,
 	AuthState,
+	AuthVerification,
+	AuthVerificationState,
 	SyncAuthClient,
 } from './auth-contract.js';
 export * from './auth-errors.js';

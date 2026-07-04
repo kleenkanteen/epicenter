@@ -38,18 +38,18 @@ function reactiveAuthClient<T extends AuthClient>(auth: T): T {
 			return auth.state;
 		},
 	} as T;
-	// The self-host token client also exposes a connection-verification channel
-	// (pending / unreachable / rejected) that changes without touching `state`, so
-	// give it its own subscriber. Clients without one (hosted OAuth, cookie) skip
+	// The self-host token client also exposes a remote credential-verification
+	// channel (pending / verified / failed) that changes without touching `state`,
+	// so give it its own subscriber. Clients without one (hosted OAuth, cookie) skip
 	// this and keep the plain spread value (undefined).
-	const source = auth.connection;
+	const source = auth.verification;
 	if (source) {
-		const subscribeConnection = createSubscriber((update) =>
+		const subscribeVerification = createSubscriber((update) =>
 			source.onChange(update),
 		);
-		reactive.connection = {
+		reactive.verification = {
 			get state() {
-				subscribeConnection();
+				subscribeVerification();
 				return source.state;
 			},
 			onChange: source.onChange,

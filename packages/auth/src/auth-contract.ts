@@ -18,18 +18,20 @@ export type AuthFetch = (
 ) => Promise<Response>;
 
 /**
- * Outcome of verifying a client's credential against its star. Exposed only by
- * clients that perform a remote bearer verification at boot (the self-host token
- * client, {@link createInstanceTokenAuth}). It rides its own channel because the
- * boot identity {@link AuthState} is optimistic (signed-in the moment a token is
- * held, ADR-0075) and most outcomes leave it untouched: an unreachable star keeps
- * the client signed-in for local-first work, and only a rejected token drops it to
- * `signed-out`. So this is the separate signal a UI reads to explain connectivity:
- * still connecting, an unreachable star, or a rejected token.
+ * Outcome of verifying a client's credential against its star: has the configured
+ * server accepted this credential in this runtime? Exposed only by clients that
+ * perform a remote bearer verification at boot (the self-host token client,
+ * {@link createInstanceTokenAuth}). It rides its own channel because the boot
+ * identity {@link AuthState} is optimistic (signed-in the moment a token is held,
+ * ADR-0075) and most outcomes leave it untouched: an unreachable star keeps the
+ * client signed-in for local-first work, and only a rejected token drops it to
+ * `signed-out`. So this is the separate signal a UI reads to explain whether the
+ * server is reachable and the credential accepted: still verifying, an unreachable
+ * star, or a rejected token.
  */
-export type AuthConnectionState =
+export type AuthVerificationState =
 	| { status: 'pending' }
-	| { status: 'connected' }
+	| { status: 'verified' }
 	| {
 			status: 'failed';
 			/**
@@ -41,13 +43,13 @@ export type AuthConnectionState =
 	  };
 
 /**
- * Observable {@link AuthConnectionState}. `onChange` does not replay the current
+ * Observable {@link AuthVerificationState}. `onChange` does not replay the current
  * value, mirroring {@link AuthClient.onStateChange}; read `state` once before
  * subscribing when the boot value matters (the Svelte reactive wrapper does).
  */
-export type AuthConnection = {
-	get state(): AuthConnectionState;
-	onChange(fn: (state: AuthConnectionState) => void): () => void;
+export type AuthVerification = {
+	get state(): AuthVerificationState;
+	onChange(fn: (state: AuthVerificationState) => void): () => void;
 };
 
 export type AuthClient = {
@@ -107,13 +109,17 @@ export type AuthClient = {
 	 */
 	getProfile(): Promise<Result<Principal, AuthError>>;
 	/**
-	 * Connection-verification channel, present only on clients that verify a
-	 * remote bearer at boot (the self-host token client). Absent on hosted OAuth
-	 * (identity resolves through the persisted grant, not a boot bearer check) and
-	 * on the same-origin cookie client (no remote star), so it is an optional
-	 * capability a UI feature-detects, not a universal field.
+	 * Remote credential-verification channel, present only on clients that verify
+	 * a remote bearer at boot (the self-host token client). It answers "has the
+	 * configured server accepted this credential in this runtime?", a fact distinct
+	 * from {@link AuthState}, which answers "who owns the local workspace?": a client
+	 * can be `signed-in` (local identity known) while verification is `failed`
+	 * `unreachable` (server offline). Absent on hosted OAuth (identity resolves
+	 * through the persisted grant, not a boot bearer check) and on the same-origin
+	 * cookie client (no remote star), so it is an optional capability a UI
+	 * feature-detects, not a universal field.
 	 */
-	connection?: AuthConnection;
+	verification?: AuthVerification;
 	[Symbol.dispose](): void;
 };
 
