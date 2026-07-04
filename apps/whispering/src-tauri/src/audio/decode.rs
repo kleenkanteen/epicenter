@@ -25,8 +25,7 @@ use symphonia::core::{
 use super::error::AudioError;
 use super::resample::resample_mono;
 
-/// Target sample rate for all three local transcription engines
-/// (whisper.cpp, Parakeet, Moonshine).
+/// Target sample rate for local GGUF transcription, which consumes 16 kHz mono.
 const TARGET_RATE: u32 = 16_000;
 
 /// libopus runs at 48 kHz internally; any Opus packet from any container
