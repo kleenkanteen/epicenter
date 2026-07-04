@@ -27,7 +27,7 @@ use crate::audio::decode_to_pcm16k_mono;
 use crate::recorder::error::RecorderError;
 
 /// Target rate for every cpal-written artifact. Matches the recorder's
-/// finalize contract and the rate all local transcription engines want.
+/// finalize contract and the rate local GGUF transcription wants.
 const ARTIFACT_RATE: u32 = 16_000;
 const ARTIFACT_CHANNELS: u16 = 1;
 

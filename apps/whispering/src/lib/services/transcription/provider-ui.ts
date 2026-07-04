@@ -14,7 +14,11 @@ import groqIcon from '$lib/constants/icons/groq.svg?raw';
 import mistralIcon from '$lib/constants/icons/mistral.svg?raw';
 import openaiIcon from '$lib/constants/icons/openai.svg?raw';
 import speachesIcon from '$lib/constants/icons/speaches.svg?raw';
-import { PROVIDERS, type TranscriptionServiceId } from './providers';
+import {
+	PROVIDERS,
+	type ProviderAccess,
+	type TranscriptionServiceId,
+} from './providers';
 
 export const PROVIDER_ICONS = {
 	epicenter: { icon: epicenterIcon, invertInDarkMode: false },
@@ -53,3 +57,46 @@ export const TRANSCRIPTION_PROVIDERS = (
 	...provider,
 	...PROVIDER_ICONS[id],
 })) as TranscriptionProviderEntry[];
+
+/**
+ * The single source of how each `access` family is presented: the group heading
+ * both service selectors show and the short badge the settings dropdown tags each
+ * row with. Declaration order is display order. `satisfies Record<ProviderAccess,
+ * ...>` makes a new access member a compile error here, so a family can never be
+ * silently dropped from a selector the way `session` once was. Group *membership*
+ * lives in the registry (`access`); this map owns only presentation.
+ */
+export const ACCESS_GROUPS = {
+	session: { heading: 'Epicenter', badge: 'Hosted' },
+	onDevice: { heading: 'On-device', badge: 'Local' },
+	key: { heading: 'Provider API', badge: 'API' },
+	endpoint: { heading: 'Custom server', badge: 'Self-Hosted' },
+} as const satisfies Record<ProviderAccess, { heading: string; badge: string }>;
+
+export type TranscriptionServiceGroup = {
+	access: ProviderAccess;
+	heading: string;
+	badge: string;
+	services: TranscriptionProviderEntry[];
+};
+
+/**
+ * The providers grouped by `access` in display order, one entry per non-empty
+ * group. The single derivation both selectors iterate, so their group set, order,
+ * and headings can never disagree. On-device providers transcribe through Rust, so
+ * they are hidden off Tauri (`tauri: false`), matching the readiness check.
+ */
+export function groupedTranscriptionProviders({
+	tauri,
+}: {
+	tauri: boolean;
+}): TranscriptionServiceGroup[] {
+	return (Object.keys(ACCESS_GROUPS) as ProviderAccess[]).flatMap((access) => {
+		if (access === 'onDevice' && !tauri) return [];
+		const services = TRANSCRIPTION_PROVIDERS.filter(
+			(service) => service.access === access,
+		);
+		if (services.length === 0) return [];
+		return [{ access, ...ACCESS_GROUPS[access], services }];
+	});
+}

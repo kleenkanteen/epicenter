@@ -7,7 +7,7 @@
  * Compares two storage paths:
  * - Table rows (YKeyValueLww): each set() replaces the entire row as
  *   a single LWW entry. Old entries are GC'd but may leave residue.
- * - Document content (Y.Text via timeline): character-level CRDT where
+ * - Document content (Y.Text via attachPlainText): character-level CRDT where
  *   every keystroke is a separate operation. History accumulates per-char.
  *
  * Each test group builds two Y.Docs with identical final state: one through
@@ -18,7 +18,7 @@
 import { describe, test } from 'bun:test';
 import * as Y from 'yjs';
 import { createTables } from '../__tests__/create-tables.js';
-import { attachTimeline } from '../index.js';
+import { attachPlainText } from '../index.js';
 import {
 	formatBytes,
 	generateHeavyContent,
@@ -134,12 +134,12 @@ describe('table row edit overhead (LWW)', () => {
 
 describe('document content edit overhead (Y.Text)', () => {
 	/**
-	 * Simulates typing a note through the timeline API.
+	 * Simulates typing a note through the plain-text body API.
 	 *
 	 * Incremental: text grows in sentence-sized chunks with occasional
 	 * backspace-and-retype, mimicking how humans actually write.
 	 *
-	 * Pristine: the same final text written once via timeline.write().
+	 * Pristine: the same final text written once via write().
 	 */
 	test('progressive typing: 5KB note built sentence by sentence', () => {
 		// Build realistic sentences that accumulate into ~5KB
@@ -176,10 +176,10 @@ describe('document content edit overhead (Y.Text)', () => {
 
 		// ── Incremental: type sentence by sentence with occasional rewrites ─
 		const incrDoc = new Y.Doc();
-		const incrTimeline = attachTimeline(incrDoc);
+		const incrTimeline = attachPlainText(incrDoc);
 
 		const { durationMs: incrMs } = measureTime(() => {
-			const ytext = incrTimeline.asText();
+			const ytext = incrTimeline.binding;
 
 			let cursor = 0;
 			for (let i = 0; i < fullSentences.length; i++) {
@@ -204,7 +204,7 @@ describe('document content edit overhead (Y.Text)', () => {
 
 		// ── Pristine: write the final text in one shot ──────────────────────
 		const pristineDoc = new Y.Doc();
-		const pristineTimeline = attachTimeline(pristineDoc);
+		const pristineTimeline = attachPlainText(pristineDoc);
 
 		const { durationMs: pristineMs } = measureTime(() => {
 			pristineTimeline.write(finalText);
@@ -243,10 +243,10 @@ describe('document content edit overhead (Y.Text)', () => {
 
 		// ── Incremental: start with full content, then mutate repeatedly ────
 		const incrDoc = new Y.Doc();
-		const incrTimeline = attachTimeline(incrDoc);
+		const incrTimeline = attachPlainText(incrDoc);
 
 		const { durationMs: incrMs } = measureTime(() => {
-			const ytext = incrTimeline.asText();
+			const ytext = incrTimeline.binding;
 			ytext.insert(0, baseContent);
 
 			for (let pass = 0; pass < editPasses; pass++) {
@@ -286,7 +286,7 @@ describe('document content edit overhead (Y.Text)', () => {
 
 		// ── Pristine: write the same final text in one shot ─────────────────
 		const pristineDoc = new Y.Doc();
-		const pristineTimeline = attachTimeline(pristineDoc);
+		const pristineTimeline = attachPlainText(pristineDoc);
 
 		const { durationMs: pristineMs } = measureTime(() => {
 			pristineTimeline.write(finalContent);
@@ -328,7 +328,7 @@ describe('realistic writing session (table + document)', () => {
 	 *
 	 * - Note A: Brand new note. User types ~5KB of content from scratch.
 	 *   50 autosaves fire (set() on the row every ~2 seconds of active typing).
-	 *   Content also grows in the document Y.Doc via timeline.
+	 *   Content also grows in the document Y.Doc via attachPlainText.
 	 *
 	 * - Note B: Existing 10KB note. User makes small edits throughout the hour.
 	 *   80 autosaves with minor content tweaks to both the row and document.
@@ -369,7 +369,7 @@ describe('realistic writing session (table + document)', () => {
 
 		// Document Y.Docs (content): one per note that has content
 		const incrContentDocs: Y.Doc[] = [];
-		const incrTimelines: ReturnType<typeof attachTimeline>[] = [];
+		const incrTimelines: ReturnType<typeof attachPlainText>[] = [];
 
 		const { durationMs: incrMs } = measureTime(() => {
 			// Create 10 existing notes with content
@@ -387,7 +387,7 @@ describe('realistic writing session (table + document)', () => {
 				// Each note gets a content Y.Doc with the base content
 				// Note 0 starts empty (it's the "new note" scenario)
 				const contentDoc = new Y.Doc();
-				const tl = attachTimeline(contentDoc);
+				const tl = attachPlainText(contentDoc);
 				if (i !== 0) tl.write(baseContent);
 				incrContentDocs.push(contentDoc);
 				incrTimelines.push(tl);
@@ -395,7 +395,7 @@ describe('realistic writing session (table + document)', () => {
 
 			// ── Note A: New note, typed from scratch (50 autosaves) ────────
 			const noteATl = incrTimelines[0]!;
-			const ytext = noteATl.asText();
+			const ytext = noteATl.binding;
 			let cursor = 0;
 
 			for (let save = 0; save < 50; save++) {
@@ -417,7 +417,7 @@ describe('realistic writing session (table + document)', () => {
 			}
 
 			// ── Note B: Existing note, small edits (80 autosaves) ──────────
-			const noteBText = incrTimelines[1]!.asText();
+			const noteBText = incrTimelines[1]!.binding;
 
 			for (let save = 0; save < 80; save++) {
 				// Small edit: replace a few chars in the middle
@@ -514,7 +514,7 @@ describe('realistic writing session (table + document)', () => {
 
 				// Content doc: written once with final content
 				const contentDoc = new Y.Doc();
-				const tl = attachTimeline(contentDoc);
+				const tl = attachPlainText(contentDoc);
 				if (i === 0) {
 					tl.write(finalNoteAContent);
 				} else if (i === 1) {

@@ -2,24 +2,24 @@
  * YjsFileSystem Tests
  *
  * Exercises filesystem-style APIs implemented on top of Yjs-backed file and content state.
- * These tests verify compatibility with common FS operations and storage-mode transitions.
+ * These tests verify compatibility with common FS operations.
  *
  * Key behaviors:
  * - Path operations (`writeFile`, `mkdir`, `rm`, `mv`, `cp`) match expected filesystem semantics.
- * - Timeline-backed content preserves text, binary, and sheet-mode behavior across edits.
+ * - Text content preserves data across edits (append and in-place overwrite).
  */
 
 import { describe, expect, test } from 'bun:test';
 import { InstantString } from '@epicenter/field';
 import {
-	attachTimeline,
+	attachPlainText,
 	createDisposableCache,
 	createWorkspace,
 	onLocalUpdate,
 } from '@epicenter/workspace';
 import { Bash } from 'just-bash';
 import * as Y from 'yjs';
-import { attachYjsFileSystem, type YjsFileSystem } from './file-system.js';
+import { attachYjsFileSystem } from './file-system.js';
 import { type FileId, generateFileId } from './ids.js';
 import { filesTable } from './table.js';
 
@@ -45,7 +45,7 @@ function setup() {
 			);
 			return {
 				ydoc: contentYdoc,
-				content: attachTimeline(contentYdoc),
+				content: attachPlainText(contentYdoc),
 				whenReady: Promise.resolve(),
 				[Symbol.dispose]() {
 					contentYdoc.destroy();
@@ -458,48 +458,31 @@ describe('mv preserves content (no conversion)', () => {
 	});
 });
 
-function getTimelineLength(
-	fs: YjsFileSystem,
-	contentDocs: ReturnType<typeof setup>['contentDocs'],
-	path: string,
-): number {
-	const id = fs.lookupId(path);
-	if (!id) throw new Error(`No file at ${path}`);
-	using handle = contentDocs.open(id);
-	return handle.ydoc.getArray('timeline').length;
-}
-
-describe('timeline content storage', () => {
-	test('text append (appendFile on text entry)', async () => {
-		const { fs, contentDocs } = setup();
+describe('text content storage', () => {
+	test('appendFile extends the text body', async () => {
+		const { fs } = setup();
 		await fs.writeFile('/log.txt', 'line1\n');
 		await fs.appendFile('/log.txt', 'line2\n');
 		expect(await fs.readFile('/log.txt')).toBe('line1\nline2\n');
-		// Append to text should not grow timeline
-		expect(getTimelineLength(fs, contentDocs, '/log.txt')).toBe(1);
 	});
 
-	test('Uint8Array writes are treated as text (no mode switch)', async () => {
-		const { fs, contentDocs } = setup();
+	test('Uint8Array writes are decoded to text', async () => {
+		const { fs } = setup();
 		await fs.writeFile('/file.dat', 'text v1');
-		expect(getTimelineLength(fs, contentDocs, '/file.dat')).toBe(1);
-
-		// Uint8Array is decoded to text: same mode, overwrites in-place
+		// Uint8Array is decoded to text and overwrites the body.
 		await fs.writeFile('/file.dat', new Uint8Array([0x48, 0x69])); // "Hi"
-		expect(getTimelineLength(fs, contentDocs, '/file.dat')).toBe(1);
 		expect(await fs.readFile('/file.dat')).toBe('Hi');
 	});
 
-	test('same-mode text overwrite does NOT grow timeline', async () => {
-		const { fs, contentDocs } = setup();
+	test('repeated writes overwrite the body in place', async () => {
+		const { fs } = setup();
 		await fs.writeFile('/file.txt', 'first');
 		await fs.writeFile('/file.txt', 'second');
 		await fs.writeFile('/file.txt', 'third');
 		expect(await fs.readFile('/file.txt')).toBe('third');
-		expect(getTimelineLength(fs, contentDocs, '/file.txt')).toBe(1);
 	});
 
-	test('readFileBuffer returns correct bytes for text entry', async () => {
+	test('readFileBuffer returns correct bytes', async () => {
 		const { fs } = setup();
 		await fs.writeFile('/file.txt', 'hello');
 		const buf = await fs.readFileBuffer('/file.txt');

@@ -49,6 +49,32 @@ describe('attachPlainText', () => {
 		expect(txCount).toBe(1);
 	});
 
+	test('appendText() adds to the end atomically', () => {
+		const ydoc = new Y.Doc();
+		const { read, write, appendText } = attachPlainText(ydoc);
+		write('hello');
+
+		let txCount = 0;
+		ydoc.on('afterTransaction', () => {
+			txCount++;
+		});
+
+		appendText(' world');
+
+		expect(read()).toBe('hello world');
+		expect(txCount).toBe(1);
+	});
+
+	test('appendText() on a fresh handle seeds the text', () => {
+		const ydoc = new Y.Doc();
+		const { read, appendText } = attachPlainText(ydoc);
+
+		appendText('first');
+		appendText(' second');
+
+		expect(read()).toBe('first second');
+	});
+
 	test('different keys on the same ydoc produce different bindings', () => {
 		const ydoc = new Y.Doc();
 		const a = attachPlainText(ydoc, 'a');

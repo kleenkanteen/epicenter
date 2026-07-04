@@ -72,6 +72,11 @@ export function resolveTranscriptionLocalityFromConfig({
 	if (provider.access === 'endpoint') {
 		return { onDevice: false, name: `your ${provider.label} server` };
 	}
+	// `key` providers not pointed at loopback and `session` (Epicenter) both land
+	// here: audio leaves the device, named by the provider. Session does not yet
+	// inspect `auth.baseURL`, so a self-hosted instance bonded at loopback still
+	// reads as off-device; threading the session base URL through this resolver
+	// (mirroring the endpoint loopback branch above) is the follow-up that fixes it.
 	return { onDevice: false, name: provider.label };
 }
 
