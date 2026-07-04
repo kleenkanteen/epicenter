@@ -160,15 +160,3 @@ perUser
 instance
   deployment selects partition
 ```
-
-## Postscript, 2026-07-02
-
-ADR-0092 overturned this article's live-code conclusion. The code no longer carries identity and partition as separate request axes; it collapses both into the principal resolver selected by the deployable.
-
-Cloud still derives the principal from Better Auth, and the self-hosted instance still resolves every valid bearer to the instance principal. But the durable storage key now follows the same shape in both deployables:
-
-```txt
-principals/<principalId>/...
-```
-
-So the current rule is simpler than the article's original ending: resolve one principal, then store durable data under that principal.
