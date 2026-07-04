@@ -5,6 +5,7 @@
 	import { Checkbox } from '@epicenter/ui/checkbox';
 	import * as Empty from '@epicenter/ui/empty';
 	import { Input } from '@epicenter/ui/input';
+	import * as Item from '@epicenter/ui/item';
 	import { NaturalLanguageCalendarDateInput } from '@epicenter/ui/natural-language-date-input';
 	import * as Popover from '@epicenter/ui/popover';
 	import { Textarea } from '@epicenter/ui/textarea';
@@ -257,19 +258,25 @@
 							<Popover.Content align="start" class="w-56 p-1">
 								<div class="grid gap-0.5">
 									{#each todosState.contexts as context (context.id)}
-										<button
-											type="button"
-											class="hover:bg-accent flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+										<Item.Button
+											size="sm"
+											class="hover:bg-accent gap-2 px-2 py-1.5"
 											onclick={() => togglePicked(context.id)}
 										>
-											<span
-												class="size-2 shrink-0 rounded-full {dotClass(context.color)}"
-											></span>
-											<span class="flex-1 truncate text-left">{context.name}</span>
+											<Item.Media>
+												<span
+													class="size-2 shrink-0 rounded-full {dotClass(
+														context.color,
+													)}"
+												></span>
+											</Item.Media>
+											<Item.Content>
+												<span class="truncate text-left">{context.name}</span>
+											</Item.Content>
 											{#if pickedContexts.includes(context.id)}
 												<CheckIcon class="size-4 shrink-0" />
 											{/if}
-										</button>
+										</Item.Button>
 									{/each}
 								</div>
 							</Popover.Content>

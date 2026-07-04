@@ -13,8 +13,6 @@ export { attachYjsFileSystem, type YjsFileSystem } from './file-system.js';
 export {
 	markdownSchema,
 	parseFrontmatter,
-	reorderColumn,
-	reorderRow,
 	serializeMarkdownWithFrontmatter,
 	serializeXmlFragmentToMarkdown,
 	updateYMapFromRecord,
@@ -22,17 +20,12 @@ export {
 	yMapToRecord,
 } from './formats/index.js';
 // IDs
-export type { ColumnId, FileId, RowId } from './ids.js';
-export {
-	asFileId,
-	generateColumnId,
-	generateFileId,
-	generateRowId,
-} from './ids.js';
+export type { FileId } from './ids.js';
+export { asFileId, generateFileId } from './ids.js';
 // Path utilities
 export { posixResolve } from './path.js';
 // Table
-export { type ColumnDefinition, type FileRow, filesTable } from './table.js';
+export { type FileRow, filesTable } from './table.js';
 // Tree (metadata layer)
 export {
 	assertUniqueName,

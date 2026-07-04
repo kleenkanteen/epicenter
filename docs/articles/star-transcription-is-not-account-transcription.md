@@ -109,8 +109,8 @@ synced data. A structural type discriminant should name the mechanism it branche
 on, and the mechanism here is a signed-in session, so `session` sits cleanly
 beside `key` and `endpoint` (each named after the thing the user supplies) while
 `star` stays where it belongs, in the docs and the platform vocabulary. Likewise
-`key`/`endpoint` beat `byok`/`byoe`: no abbreviation to expand, and the same
-"bring your own X" pairing survives in plain words.
+`key`/`endpoint` keep the "bring your own X" pairing in plain words, with no
+abbreviation to expand.
 
 The tempting fix would have been to keep `account` and add hosted/self-host
 visibility logic:

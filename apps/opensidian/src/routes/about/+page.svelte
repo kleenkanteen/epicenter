@@ -61,12 +61,12 @@
 	] as const;
 
 	const workspaceCode = `import { createSqliteIndex, attachYjsFileSystem, filesTable } from '@epicenter/filesystem';
-import { attachTimeline, defineWorkspace } from '@epicenter/workspace';
+import { attachPlainText, defineWorkspace } from '@epicenter/workspace';
 
 const opensidianWorkspace = defineWorkspace({
   id: 'opensidian',
   name: 'opensidian',
-  tables: { files: filesTable.docs({ content: attachTimeline }) },
+  tables: { files: filesTable.docs({ content: attachPlainText }) },
   kv: {},
 });
 

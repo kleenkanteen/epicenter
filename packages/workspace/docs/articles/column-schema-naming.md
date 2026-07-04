@@ -4,7 +4,7 @@ Historical note: this article describes an older schema-owned shared-type
 direction (`ytext()` / `yxmlfragment()` columns) that is not the current
 workspace API. Current app code keeps rows scalar and stores rich collaborative
 content in app-owned child Y.Docs built with `new Y.Doc({ guid })` plus
-`attachPlainText`, `attachRichText`, or `attachTimeline`.
+`attachPlainText` or `attachRichText`.
 
 ## Primitives: Direct, Not Technical
 

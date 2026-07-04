@@ -3,6 +3,10 @@ import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema/index.js';
+import {
+	APPLE_AUDIENCE,
+	generateAppleClientSecret,
+} from './apple-client-secret.js';
 import { BASE_AUTH_CONFIG } from './base-config.js';
 import { createCookieAdvancedConfig } from './cookie-config.js';
 import { authPlugins } from './plugins.js';
@@ -34,6 +38,16 @@ export const CloudAuthBindings = type({
 	'GOOGLE_CLIENT_SECRET?': 'string',
 	'GITHUB_CLIENT_ID?': 'string',
 	'GITHUB_CLIENT_SECRET?': 'string',
+	'MICROSOFT_CLIENT_ID?': 'string',
+	'MICROSOFT_CLIENT_SECRET?': 'string',
+	// Apple is register-when-present like the others, but "present" means all
+	// four parts of the signing material: the Services ID plus the Team ID, Key
+	// ID, and .p8 private key the client-secret JWT is minted from (there is no
+	// static APPLE_CLIENT_SECRET). See {@link generateAppleClientSecret}.
+	'APPLE_CLIENT_ID?': 'string',
+	'APPLE_TEAM_ID?': 'string',
+	'APPLE_KEY_ID?': 'string',
+	'APPLE_PRIVATE_KEY?': 'string',
 });
 export type CloudAuthBindings = typeof CloudAuthBindings.infer;
 
@@ -46,8 +60,8 @@ export type CloudAuthBindings = typeof CloudAuthBindings.infer;
  *
  * Wires up:
  * - Drizzle adapter (portable Postgres wire; Hyperdrive on Workers, a pool on Node)
- * - Google OAuth, plus GitHub when its credentials are configured
- *   (email/password is disabled; see {@link BASE_AUTH_CONFIG})
+ * - Google OAuth, plus GitHub, Microsoft, and Apple when their credentials are
+ *   configured (email/password is disabled; see {@link BASE_AUTH_CONFIG})
  * - Plugins: JWT (ES256), OAuth provider (PKCE)
  *
  * `/api/session` is the single Epicenter session surface; this builder no longer
@@ -80,6 +94,15 @@ export function createAuth({
 			'BETTER_AUTH_SECRET is not set: refusing to construct Better Auth with an empty signing secret, which would fall back to a public default and sign forgeable sessions.',
 		);
 	}
+	// Apple needs all four parts of its signing material to be offered at all;
+	// the same flag gates both the provider registration and the trusted-origin
+	// addition below (Apple posts its callback from appleid.apple.com).
+	const appleConfigured = Boolean(
+		env.APPLE_CLIENT_ID &&
+			env.APPLE_TEAM_ID &&
+			env.APPLE_KEY_ID &&
+			env.APPLE_PRIVATE_KEY,
+	);
 	return betterAuth({
 		...BASE_AUTH_CONFIG,
 		database: drizzleAdapter(db, { provider: 'pg', schema }),
@@ -128,6 +151,46 @@ export function createAuth({
 						},
 					}
 				: {}),
+			// Microsoft (Entra / personal MSA), register-when-present like GitHub.
+			// tenantId defaults to 'common' so both work/school and personal
+			// accounts can sign in. Like GitHub, Microsoft is deliberately NOT a
+			// trusted linking provider (see BASE_AUTH_CONFIG): a personal MSA email
+			// is not a guaranteed-verified assertion, so an untrusted Microsoft
+			// identity only links to an existing same-email account when Microsoft
+			// itself reports the email verified.
+			...(env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET
+				? {
+						microsoft: {
+							clientId: env.MICROSOFT_CLIENT_ID,
+							clientSecret: env.MICROSOFT_CLIENT_SECRET,
+						},
+					}
+				: {}),
+			// Apple's clientSecret is a per-request-minted ES256 JWT, so this is
+			// an async factory rather than a static pair. `appleConfigured`
+			// guarantees the four inputs are present (the `!` are safe under it).
+			// Like GitHub and Microsoft, Apple is NOT a trusted linking provider:
+			// it can issue a private-relay email, so an untrusted Apple identity
+			// only links to an existing same-email account when Apple reports the
+			// email verified.
+			...(appleConfigured
+				? {
+						apple: async () => ({
+							// biome-ignore lint/style/noNonNullAssertion: guarded by appleConfigured
+							clientId: env.APPLE_CLIENT_ID!,
+							clientSecret: await generateAppleClientSecret({
+								// biome-ignore lint/style/noNonNullAssertion: guarded by appleConfigured
+								clientId: env.APPLE_CLIENT_ID!,
+								// biome-ignore lint/style/noNonNullAssertion: guarded by appleConfigured
+								teamId: env.APPLE_TEAM_ID!,
+								// biome-ignore lint/style/noNonNullAssertion: guarded by appleConfigured
+								keyId: env.APPLE_KEY_ID!,
+								// biome-ignore lint/style/noNonNullAssertion: guarded by appleConfigured
+								privateKey: env.APPLE_PRIVATE_KEY!,
+							}),
+						}),
+					}
+				: {}),
 		},
 		session: {
 			expiresIn: 60 * 60 * 24 * 7,
@@ -154,7 +217,12 @@ export function createAuth({
 		// Google to API callback), so the cookie becomes invisible at the
 		// callback step. Partitioned is for iframes, not redirect OAuth.
 		advanced: createCookieAdvancedConfig(baseURL),
-		trustedOrigins,
+		// Apple posts its OAuth callback from appleid.apple.com (response_mode=
+		// form_post), so that origin must be trusted for the flow to complete.
+		// Only added when Apple is configured, to avoid widening the allow-list.
+		trustedOrigins: appleConfigured
+			? [...trustedOrigins, APPLE_AUDIENCE]
+			: trustedOrigins,
 		// Postgres is the only auth store: sessions and OAuth verification
 		// records persist to the DB adapter by default (no secondaryStorage), and
 		// the JWE cookie cache above handles read performance. This makes auth

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from '@epicenter/ui/button';
 	import * as Empty from '@epicenter/ui/empty';
 	import { Input } from '@epicenter/ui/input';
 	import { Loading } from '@epicenter/ui/loading';
@@ -148,19 +149,20 @@
 					<SearchResultGroup {group} defaultOpen={group.matchCount <= 5} />
 				{/each}
 				{#if opensidian.state.sidebarSearch.hasMore}
-					<button
-						type="button"
-						class="flex w-full items-center justify-center gap-1.5 rounded-sm px-3 py-2 text-center text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+					<Button
+						variant="ghost"
+						size="sm"
+						class="w-full text-xs text-muted-foreground"
 						onclick={() => opensidian.state.sidebarSearch.loadMore()}
 						disabled={opensidian.state.sidebarSearch.isSearching}
 					>
 						{#if opensidian.state.sidebarSearch.isSearching}
 							<Spinner class="size-3" />
-							<span>Loading</span>
+							Loading
 						{:else}
 							Load more results
 						{/if}
-					</button>
+					</Button>
 				{/if}
 			</div>
 		</ScrollArea>

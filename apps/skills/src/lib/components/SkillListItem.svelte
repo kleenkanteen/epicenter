@@ -2,6 +2,8 @@
 	import type { Skill } from '@epicenter/skills';
 	import { confirmationDialog } from '@epicenter/ui/confirmation-dialog';
 	import * as ContextMenu from '@epicenter/ui/context-menu';
+	import * as Item from '@epicenter/ui/item';
+	import { cn } from '@epicenter/ui/utils';
 	import { skillsState } from '$lib/state/skills-state.svelte';
 
 	let {
@@ -18,20 +20,26 @@
 <ContextMenu.Root>
 	<ContextMenu.Trigger>
 		{#snippet child({ props })}
-			<button
+			<Item.Button
 				{...props}
-				class="flex w-full flex-col items-start gap-0.5 rounded-sm px-3 py-2 text-left hover:bg-accent/50 {isSelected
-					? 'bg-accent text-accent-foreground'
-					: ''}"
-				onclick={() => skillsState.selectSkill(skill.id)}
+				size="sm"
+				class={cn(
+					'w-full text-left',
+					isSelected
+						? 'bg-accent text-accent-foreground'
+						: 'hover:bg-accent/50',
+				)}
 				role="option"
 				aria-selected={isSelected}
+				onclick={() => skillsState.selectSkill(skill.id)}
 			>
-				<span class="font-mono text-sm font-medium">{skill.name}</span>
-				<span class="max-w-full truncate text-xs text-muted-foreground">
-					{skill.description}
-				</span>
-			</button>
+				<Item.Content>
+					<Item.Title class="font-mono">{skill.name}</Item.Title>
+					<Item.Description class="block max-w-full truncate text-xs">
+						{skill.description}
+					</Item.Description>
+				</Item.Content>
+			</Item.Button>
 		{/snippet}
 	</ContextMenu.Trigger>
 	<ContextMenu.Content>

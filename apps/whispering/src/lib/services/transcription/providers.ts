@@ -44,7 +44,7 @@ type CloudModel = { name: string; description: string; cost: string };
  * session, on that deployment's house key. Hosted deployments meter it (AI credits);
  * self-host deployments proxy it unmetered. `key`/`endpoint` are external services.
  */
-type ProviderAccess = 'key' | 'endpoint' | 'session' | 'onDevice';
+export type ProviderAccess = 'key' | 'endpoint' | 'session' | 'onDevice';
 
 type KeyProvider = {
 	access: Extract<ProviderAccess, 'key'>;
@@ -377,37 +377,3 @@ export type UploadProviderId = Exclude<
 export const TRANSCRIPTION_SERVICE_IDS = Object.keys(
 	PROVIDERS,
 ) as TranscriptionServiceId[];
-
-// Persisted `transcription.service` values from the removed multi-engine local
-// runtime. These are not providers anymore; the settings facade rewrites them
-// to `local` on read so old synced workspaces keep their on-device intent.
-export const LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS = [
-	'whispercpp',
-	'parakeet',
-	'moonshine',
-] as const;
-
-export type LegacyOnDeviceTranscriptionServiceId =
-	(typeof LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS)[number];
-
-export const PERSISTED_TRANSCRIPTION_SERVICE_IDS = [
-	...TRANSCRIPTION_SERVICE_IDS,
-	...LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS,
-] as const;
-
-export function isLegacyOnDeviceTranscriptionServiceId(
-	value: unknown,
-): value is LegacyOnDeviceTranscriptionServiceId {
-	return (
-		typeof value === 'string' &&
-		(LEGACY_ON_DEVICE_TRANSCRIPTION_SERVICE_IDS as readonly string[]).includes(
-			value,
-		)
-	);
-}
-
-export function normalizePersistedTranscriptionServiceId(
-	value: TranscriptionServiceId | LegacyOnDeviceTranscriptionServiceId,
-): TranscriptionServiceId {
-	return isLegacyOnDeviceTranscriptionServiceId(value) ? 'local' : value;
-}

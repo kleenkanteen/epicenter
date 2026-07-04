@@ -133,7 +133,7 @@ Every exported function in this package falls into one of three verbs. The prefi
 |---|---|---|---|---|
 | `define*` | **None**: pure data or type contract | Schemas, defaults, typed bundle values | Plain config object or same value back | `defineTable`, `defineKv`, `defineMutation`, `defineQuery`, `defineWorkspace` |
 | `create*` | **Constructs**: bundles, models, registries, or pure definitions | Definitions, options | Disposable bundle or pure value | `createWorkspace` (root bundle: ydoc + tables + kv + empty actions + dispose), `createDisposableCache` (refcounted per-row cache) |
-| `attach*` | **Mutates a Y.Doc**: binds a slot, registers `ydoc.on('destroy')` | An existing `Y.Doc` + config (workspace materializers take the bundle from `createWorkspace`) | Typed handle, non-idempotent, hold the reference | `attachRichText`, `attachPlainText`, `attachRecords`, `attachTimeline`, `attachIndexedDb`, `attachLocalStorage`, `attachYjsLog`, `attachBroadcastChannel`, `attachMarkdownExport`, `attachBunSqliteMaterializer` |
+| `attach*` | **Mutates a Y.Doc**: binds a slot, registers `ydoc.on('destroy')` | An existing `Y.Doc` + config (workspace materializers take the bundle from `createWorkspace`) | Typed handle, non-idempotent, hold the reference | `attachRichText`, `attachPlainText`, `attachRecords`, `attachIndexedDb`, `attachLocalStorage`, `attachYjsLog`, `attachBroadcastChannel`, `attachMarkdownExport`, `attachBunSqliteMaterializer` |
 | `open*` | **Opens a runtime over a Y.Doc or a local resource**: returns a typed handle with its own teardown. The Y.Doc-bound case (`openCollaboration`) registers `ydoc.on('destroy')` like `attach*` does; the resource case (`openSqliteReader`) takes no Y.Doc and returns a `[Symbol.dispose]()` handle. | Y.Doc + config, or resource config | Typed runtime handle | `openCollaboration`, `openSqliteReader`, `openWorkspaceSqlite` |
 
 `createDisposableCache(build, opts?)` is the refcounted cache primitive. The
@@ -502,7 +502,7 @@ cache primitive.
 {#await handle.whenLoaded}
   <Loading />
 {:then}
-  <Editor ytext={handle.asText()} />
+  <Editor ytext={handle.binding} />
 {/await}
 ```
 
@@ -1467,10 +1467,9 @@ Everything below is a *convention*: the builder is free to expose more or less. 
 Per-row content is just another `attach*` call inside a child document builder.
 Pick the attachment that matches the content shape:
 
-- `attachPlainText(ydoc, name)`: binds a `Y.Text`. Editor gets `bundle.content` as `Y.Text`.
+- `attachPlainText(ydoc, name)`: binds a `Y.Text` at `getText(name)`. Returns `{ binding, read, write, appendText }`: feed `binding` to a CodeMirror/Monaco Yjs extension, `read()`/`write()`/`appendText()` for programmatic access. This is the file-body layout (opensidian's Markdown source lives here; ADR-0107).
 - `attachRecords(ydoc, name)`: binds a keyed last-write-wins store of whole JSON records, one per id (the shape an agent transcript uses). Bundle field is a `RecordsHandle<T>` with `get / set / delete / entries / observe`.
 - `attachRichText(ydoc, name)`: binds a `Y.XmlFragment` for prosemirror / tiptap / yrs-xml editors.
-- `attachTimeline(ydoc)`: an append-only, single-layout (text) body over `getArray('timeline')`. Exposes `read() / write(text) / appendText(text) / asText() / batch(fn) / observe(...)`. (The polymorphic text/rich-text/sheet surface was refused by ADR-0106; a sheet body is a separate primitive if a product ever earns it.)
 
 The connected table child opener stores these by `rowId`, so multiple browser
 consumers share one Y.Doc. Use `workspace.tables.<table>.docs.<field>.open(id)` and

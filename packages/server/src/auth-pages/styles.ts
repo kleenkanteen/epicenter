@@ -2,12 +2,48 @@
  * Shared CSS for server-rendered auth pages (sign-in, consent, signed-in,
  * cli-callback).
  *
- * Matches the Epicenter design system tokens from `packages/ui/src/app.css`
- * using oklch equivalents, including its system-ui font stack. No external
- * dependencies. This string is inlined in the `<style>` tag by the layout
- * component.
+ * Mirrors the Epicenter design system tokens from `packages/ui/src/app.css`
+ * (its oklch light/dark palettes and system-ui font stack) as plain custom
+ * properties, so these pages theme themselves from `prefers-color-scheme`
+ * without pulling in Tailwind or the UI package. Semantic surfaces (alerts)
+ * derive their fills from the accent via `color-mix`, so each stays legible in
+ * both themes from a single hue token. This string is inlined in the `<style>`
+ * tag by the layout component.
  */
 export const AUTH_STYLES = `
+:root{
+	--bg:oklch(0.9925 0.001 70);
+	--card:oklch(1 0 0);
+	--fg:oklch(0.129 0.042 264.695);
+	--muted-fg:oklch(0.554 0.046 257.417);
+	--border:oklch(0.929 0.013 255.508);
+	--surface-2:oklch(0.968 0.007 247.896);
+	--hover:oklch(0.968 0.007 247.896);
+	--primary:oklch(0.208 0.042 265.755);
+	--primary-fg:oklch(0.984 0.003 247.858);
+	--ring:oklch(0.704 0.04 256.788);
+	--success:oklch(0.448 0.119 151.328);
+	--danger:oklch(0.577 0.245 27.325);
+	--shadow:0 1px 2px rgb(0 0 0 / .04),0 8px 30px rgb(0 0 0 / .06);
+}
+@media (prefers-color-scheme:dark){
+	:root{
+		--bg:oklch(0.129 0.042 264.695);
+		--card:oklch(0.208 0.042 265.755);
+		--fg:oklch(0.984 0.003 247.858);
+		--muted-fg:oklch(0.704 0.04 256.788);
+		--border:oklch(1 0 0 / 12%);
+		--surface-2:oklch(0.279 0.041 260.031);
+		--hover:oklch(0.279 0.041 260.031);
+		--primary:oklch(0.929 0.013 255.508);
+		--primary-fg:oklch(0.208 0.042 265.755);
+		--ring:oklch(0.551 0.027 264.364);
+		--success:oklch(0.696 0.17 162.48);
+		--danger:oklch(0.704 0.191 22.216);
+		--shadow:0 1px 2px rgb(0 0 0 / .4),0 12px 40px rgb(0 0 0 / .5);
+	}
+}
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 body{
@@ -16,8 +52,8 @@ body{
 	display:flex;
 	align-items:center;
 	justify-content:center;
-	background:#f5f5f5;
-	color:oklch(0.129 0.042 264.695);
+	background:var(--bg);
+	color:var(--fg);
 	padding:1rem;
 	line-height:1.5;
 	-webkit-font-smoothing:antialiased;
@@ -28,27 +64,33 @@ body{
 .logo{
 	display:flex;
 	justify-content:center;
-	margin-bottom:1.5rem;
+	margin-bottom:1rem;
 }
 .logo svg{
-	width:36px;
-	height:36px;
-	border-radius:8px;
+	width:44px;
+	height:44px;
+	border-radius:12px;
 }
 
 /* ── Card ────────────────────────────────────────────────── */
 
 .card{
-	background:#fff;
+	background:var(--card);
+	border:1px solid var(--border);
 	border-radius:16px;
-	padding:2.5rem;
-	max-width:420px;
+	padding:2.5rem 2.25rem;
+	max-width:400px;
 	width:100%;
-	box-shadow:0 2px 8px 0 rgb(0 0 0 / .06),0 0 0 1px rgb(0 0 0 / .04);
+	box-shadow:var(--shadow);
 }
 
 h1{font-size:1.375rem;font-weight:700;letter-spacing:-.01em;margin-bottom:.25rem}
-.subtitle{color:oklch(0.554 0.046 257.417);font-size:.875rem;margin-bottom:1.75rem}
+.subtitle{color:var(--muted-fg);font-size:.875rem;margin-bottom:1.75rem}
+
+/* ── Sign-in header (mark lives in the layout above these) ─── */
+
+.signin-head{display:flex;flex-direction:column;align-items:center;text-align:center}
+.wordmark{font-size:1.375rem;font-weight:650;letter-spacing:-.02em;line-height:1.15;margin-bottom:.25rem}
 
 /* ── Buttons ──────────────────────────────────────────────── */
 
@@ -59,25 +101,41 @@ button,.btn{
 	gap:.5rem;
 	width:100%;
 	padding:.75rem 1rem;
-	border-radius:8px;
+	border-radius:10px;
 	font-size:.875rem;
 	font-weight:500;
 	font-family:inherit;
+	color:var(--fg);
 	cursor:pointer;
 	border:1px solid transparent;
-	transition:opacity .15s,background-color .15s,box-shadow .15s;
+	transition:background-color .15s,border-color .15s,box-shadow .15s,opacity .15s;
 	text-decoration:none;
 }
 button:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
+button:focus-visible,.btn:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
 
-.btn-primary{background:oklch(0.208 0.042 265.755);color:#fff;border-color:oklch(0.208 0.042 265.755)}
-.btn-primary:hover:not(:disabled){opacity:.85}
+.btn-primary{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
+.btn-primary:hover:not(:disabled){opacity:.9}
 
-.btn-outline{background:#fff;color:oklch(0.129 0.042 264.695);border-color:oklch(0.929 0.013 255.508)}
-.btn-outline:hover:not(:disabled){background:#f9fafb}
+.btn-outline{background:var(--card);color:var(--fg);border-color:var(--border)}
+.btn-outline:hover:not(:disabled){background:var(--hover);border-color:var(--muted-fg)}
 
-.btn-danger{background:#fff;color:oklch(0.577 0.245 27.325);border-color:oklch(0.929 0.013 255.508)}
-.btn-danger:hover:not(:disabled){background:oklch(0.971 0.013 17.38)}
+.btn-danger{background:var(--card);color:var(--danger);border-color:var(--border)}
+.btn-danger:hover:not(:disabled){background:color-mix(in oklab,var(--danger) 8%,var(--card))}
+
+/* ── Provider buttons (sign-in): icon column left, label centered ─ */
+
+.providers{display:flex;flex-direction:column;gap:.625rem}
+.btn-provider{
+	display:grid;
+	grid-template-columns:1.25rem 1fr 1.25rem;
+	align-items:center;
+	gap:.625rem;
+	padding:.8rem 1rem;
+	font-weight:550;
+}
+.btn-provider svg{width:18px;height:18px}
+.btn-provider .btn-label{grid-column:2;text-align:center}
 
 /* ── Button row (side-by-side) ────────────────────────────── */
 
@@ -93,8 +151,16 @@ button:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
 	font-size:.875rem;
 	line-height:1.4;
 }
-.msg.ok{background:oklch(0.962 0.044 156.743);color:oklch(0.448 0.119 151.328);border:1px solid oklch(0.871 0.108 152.314)}
-.msg.err{background:oklch(0.971 0.013 17.38);color:oklch(0.577 0.245 27.325);border:1px solid oklch(0.852 0.071 22.018)}
+.msg.ok{
+	background:color-mix(in oklab,var(--success) 12%,var(--card));
+	color:var(--success);
+	border:1px solid color-mix(in oklab,var(--success) 30%,var(--card));
+}
+.msg.err{
+	background:color-mix(in oklab,var(--danger) 12%,var(--card));
+	color:var(--danger);
+	border:1px solid color-mix(in oklab,var(--danger) 30%,var(--card));
+}
 
 .hidden{display:none}
 
@@ -107,8 +173,8 @@ button:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
 }
 .scope-list li{
 	padding:.5rem .75rem;
-	background:#f9fafb;
-	border:1px solid oklch(0.929 0.013 255.508);
+	background:var(--surface-2);
+	border:1px solid var(--border);
 	border-radius:6px;
 	font-size:.875rem;
 	margin-bottom:.375rem;
@@ -127,8 +193,8 @@ button:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
 .code-block{
 	margin:1rem 0;
 	padding:1rem;
-	background:#f9fafb;
-	border:1px solid oklch(0.929 0.013 255.508);
+	background:var(--surface-2);
+	border:1px solid var(--border);
 	border-radius:8px;
 	overflow-x:auto;
 }
@@ -156,7 +222,7 @@ button:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
 }
 
 .signed-in-info{
-	color:oklch(0.554 0.046 257.417);
+	color:var(--muted-fg);
 	font-size:.875rem;
 	margin-top:.125rem;
 }
@@ -168,4 +234,6 @@ button:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
 	gap:.5rem;
 	width:100%;
 }
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
