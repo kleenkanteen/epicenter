@@ -29,10 +29,9 @@ Components in this directory:
 
 ```
 settings/
-├── TranscriptionRuntimeConfig.svelte # Audio stage: transcription service + its config (propless)
+├── TranscriptionRuntimeConfig.svelte # Audio stage: access-sectioned transcription setup catalog (propless)
 ├── CompletionRuntimeConfig.svelte    # Text stage: Polish/Recipes AI provider + its config (propless)
 ├── ProviderConfigFields.svelte       # Per-provider API key and endpoint fields (deviceConfig)
-├── TranscriptionServiceSelect.svelte # Grouped local/cloud/self-hosted service picker
 ├── LocalModelSelector.svelte         # Local GGUF model picker (deviceConfig)
 ├── AdvancedDisclosure.svelte         # Collapsible wrapper for advanced fields
 ├── SettingSelect.svelte              # Shared select bound to a settings key
@@ -46,9 +45,10 @@ settings/
 ```
 
 The two runtime-config components (`TranscriptionRuntimeConfig`,
-`CompletionRuntimeConfig`) are the Privacy & Processing page's two stages. Each
-owns its own routing decision and takes **no props**, so the page renders them
-as `<TranscriptionRuntimeConfig />` and `<CompletionRuntimeConfig />`.
+`CompletionRuntimeConfig`) are the Privacy & Processing page's two stages.
+`TranscriptionRuntimeConfig` is setup-only; active transcription switching lives
+in the recorder popover. Both components take **no props**, so the page renders
+them as `<TranscriptionRuntimeConfig />` and `<CompletionRuntimeConfig />`.
 
 ## Usage Examples
 
