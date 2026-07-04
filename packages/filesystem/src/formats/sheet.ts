@@ -1,16 +1,28 @@
 /**
- * Sheet helpers: reorder functions stay here, CSV parse/serialize
- * re-exported from @epicenter/workspace.
+ * Sheet reorder helpers, keyed by a fractional `order` string.
  */
 
-import { computeMidpoint } from '@epicenter/workspace/document/attach-timeline';
 import type * as Y from 'yjs';
 
-// Re-export ordering helpers from workspace (canonical location)
-export {
-	computeMidpoint,
-	generateInitialOrders,
-} from '@epicenter/workspace/document/attach-timeline';
+/**
+ * Compute a fractional index between two bounds. Adds small jitter to prevent
+ * collisions on concurrent reorders.
+ *
+ * Caveat: float bisection loses precision after ~50 inserts between the same
+ * neighbors (duplicate order values). This body has no non-test consumer, so
+ * it is deletion-bound and not worth investing in; if a real sheet surface
+ * ever ships, replace it with a string-keyed fractional index (ADR-0106).
+ *
+ * @param start - Lower bound (exclusive)
+ * @param end - Upper bound (exclusive)
+ * @returns A number strictly between start and end
+ */
+function computeMidpoint(start: number, end: number): number {
+	const mid = (start + end) / 2;
+	const range = (end - start) * 1e-10;
+	const jitter = -range / 2 + Math.random() * range;
+	return mid + jitter;
+}
 
 /**
  * Reorder a row by updating its fractional order property.
