@@ -23,7 +23,7 @@
 import { Principal } from '@epicenter/auth';
 import { verifyJwsAccessToken } from 'better-auth/oauth2';
 import { eq } from 'drizzle-orm';
-import type { Context, MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler, Next } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { Ok, type Result } from 'wellcrafted/result';
 import { OAuthError } from '../auth/oauth-errors.js';
@@ -107,6 +107,29 @@ export async function resolveRequestOAuthPrincipal(
 	return Ok(Principal.assert(user));
 }
 
+/**
+ * The tail every bearer guard shares: project a resolved principal onto the
+ * request, or hand the OAuth error to a transport-specific renderer.
+ *
+ * The three guards ({@link requireCookieOrBearerPrincipal},
+ * {@link requireBearerPrincipal}, and the rooms upgrade guard) differ only in
+ * how they extract the bearer and how they render a rejection (an HTTP 401 vs a
+ * WebSocket close). Once each has a `Result<Principal, OAuthError>`, the effect
+ * is identical: on success stamp `c.var.principal` and continue; on failure
+ * defer to `reject`.
+ */
+export async function setPrincipalOrReject<E extends Env>(
+	c: Context<E>,
+	next: Next,
+	resolution: Result<Principal, OAuthError>,
+	reject: (error: OAuthError) => Response | Promise<Response>,
+): Promise<Response | undefined> {
+	const { data: principal, error } = resolution;
+	if (error) return reject(error);
+	c.set('principal', principal);
+	await next();
+}
+
 export function requireCookieOrBearerPrincipal(
 	resolveBearerPrincipal: ResolveBearerPrincipal<CloudEnv>,
 ): MiddlewareHandler<CloudEnv> {
@@ -119,16 +142,12 @@ export function requireCookieOrBearerPrincipal(
 			return next();
 		}
 		const bearer = parseBearer(c.req.header('authorization') ?? null);
-		if (!bearer) {
-			return createOAuthUnauthorizedResourceResponse(
-				c,
-				OAuthError.InvalidToken().error,
-			);
-		}
-		const { data: principal, error } = await resolveBearerPrincipal(c, bearer);
-		if (error) return createOAuthUnauthorizedResourceResponse(c, error);
-		c.set('principal', principal);
-		await next();
+		const resolution = bearer
+			? await resolveBearerPrincipal(c, bearer)
+			: OAuthError.InvalidToken();
+		return setPrincipalOrReject(c, next, resolution, (error) =>
+			createOAuthUnauthorizedResourceResponse(c, error),
+		);
 	});
 }
 
@@ -149,15 +168,11 @@ export function requireBearerPrincipal<E extends Env = Env>(
 ): MiddlewareHandler<E> {
 	return createMiddleware<E>(async (c, next) => {
 		const bearer = parseBearer(c.req.header('authorization') ?? null);
-		if (!bearer) {
-			return createOAuthUnauthorizedResourceResponse(
-				c,
-				OAuthError.InvalidToken().error,
-			);
-		}
-		const { data: principal, error } = await resolveBearerPrincipal(c, bearer);
-		if (error) return createOAuthUnauthorizedResourceResponse(c, error);
-		c.set('principal', principal);
-		await next();
+		const resolution = bearer
+			? await resolveBearerPrincipal(c, bearer)
+			: OAuthError.InvalidToken();
+		return setPrincipalOrReject(c, next, resolution, (error) =>
+			createOAuthUnauthorizedResourceResponse(c, error),
+		);
 	});
 }
