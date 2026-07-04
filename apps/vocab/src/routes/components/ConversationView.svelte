@@ -7,7 +7,10 @@
 	import { Button } from '@epicenter/ui/button';
 	import { agentMessageText } from '@epicenter/workspace/agent';
 	import CheckIcon from '@lucide/svelte/icons/check';
-	import { buildHarvestPrompt, parseHarvestCandidates } from '$lib/harvest';
+	import {
+		buildTermCandidatePrompt,
+		parseTermCandidates,
+	} from '$lib/term-candidates';
 	import { auth } from '$platform/auth';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
 	import { termsState } from '$lib/state/terms.svelte';
@@ -80,14 +83,14 @@
 		saveAffordance = null;
 	}
 
-	/** Cap the harvested spans so a long answer cannot build a runaway tray. */
-	const HARVEST_CAP = 20;
+	/** Cap term candidates so a long answer cannot build a runaway tray. */
+	const TERM_CANDIDATE_CAP = 20;
 
-	/** The transient harvest for one settled message: the model's proposed spans,
-	 * held in component memory only. Nothing here is persisted; a chosen span
-	 * reaches the pool solely through `termsState.save` (ADR-0102). One open at a
-	 * time, like the selection affordance above. */
-	let harvest = $state<{
+	/** The transient term candidates for one settled message, held in component
+	 * memory only. Nothing here is persisted; a chosen span reaches the pool solely
+	 * through `termsState.save` (ADR-0102). One open at a time, like the selection
+	 * affordance above. */
+	let termCandidateRequest = $state<{
 		messageId: string;
 		status: 'loading' | 'ready' | 'error';
 		candidates: string[];
@@ -96,25 +99,22 @@
 		detail?: string;
 	} | null>(null);
 
-	/** Aborts the in-flight harvest completion. A non-streaming completion against
-	 * a local endpoint can hang with no response ever arriving, so cancellation, not
-	 * an arbitrary timeout, is the escape: the user, not a guessed deadline, decides
-	 * when it has waited long enough. Held here so a Cancel or a superseding harvest
-	 * can abort the pending request instead of leaving it stuck loading forever. */
-	let harvestController: AbortController | null = null;
+	/** Aborts the in-flight term candidate request when the user cancels or starts
+	 * another one. */
+	let termCandidateAbortController: AbortController | null = null;
 
 	/** Ask the model for the notable spans in one settled message and open the
 	 * tray with them. It is a one-shot completion (`complete`), so it writes no
 	 * transcript turn and stores no gloss or provenance: the response lives only in
-	 * `harvest.candidates` until the user saves or dismisses it. */
-	async function harvestMessage(messageId: string, passage: string) {
-		// Abort any prior harvest still in flight so it stops consuming the endpoint;
+	 * `termCandidateRequest.candidates` until the user saves or dismisses it. */
+	async function suggestTerms(messageId: string, passage: string) {
+		// Abort any prior request still in flight so it stops consuming the endpoint;
 		// its result is dropped by the stale-message guard below regardless.
-		harvestController?.abort();
+		termCandidateAbortController?.abort();
 		const model = active?.model;
 		if (!model) {
-			harvestController = null;
-			harvest = {
+			termCandidateAbortController = null;
+			termCandidateRequest = {
 				messageId,
 				status: 'error',
 				candidates: [],
@@ -123,21 +123,21 @@
 			return;
 		}
 		const controller = new AbortController();
-		harvestController = controller;
-		harvest = { messageId, status: 'loading', candidates: [] };
+		termCandidateAbortController = controller;
+		termCandidateRequest = { messageId, status: 'loading', candidates: [] };
 		const connection = inferenceConnections.resolveOrHosted(model);
 		const { data, error } = await complete(connection, {
 			model,
-			systemPrompt: buildHarvestPrompt(),
+			systemPrompt: buildTermCandidatePrompt(),
 			userPrompt: passage,
 			signal: controller.signal,
 		});
-		// A dismiss, a cancel, or a harvest of another message may have superseded
-		// this request while it was in flight; drop the stale result rather than
-		// overwrite. (A cancel nulls `harvest`, so an aborted request lands here.)
-		if (harvest?.messageId !== messageId) return;
+		// A dismiss, a cancel, or a request for another message may have superseded
+		// this one while it was in flight; drop the stale result rather than
+		// overwrite. (A cancel nulls the request, so an aborted request lands here.)
+		if (termCandidateRequest?.messageId !== messageId) return;
 		if (error) {
-			harvest = {
+			termCandidateRequest = {
 				messageId,
 				status: 'error',
 				candidates: [],
@@ -145,20 +145,18 @@
 			};
 			return;
 		}
-		harvest = {
+		termCandidateRequest = {
 			messageId,
 			status: 'ready',
-			candidates: parseHarvestCandidates(data).slice(0, HARVEST_CAP),
+			candidates: parseTermCandidates(data).slice(0, TERM_CANDIDATE_CAP),
 		};
 	}
 
-	/** Close the harvest tray, aborting the request first when one is still loading
-	 * so a hung completion cannot leave it stuck. Safe once a request has settled:
-	 * `abort()` on a finished controller is a no-op. */
-	function dismissHarvest() {
-		harvestController?.abort();
-		harvestController = null;
-		harvest = null;
+	/** Close the term candidate tray, aborting the request first when one is still loading. */
+	function dismissTermCandidates() {
+		termCandidateAbortController?.abort();
+		termCandidateAbortController = null;
+		termCandidateRequest = null;
 	}
 
 	/** Whether a candidate is already in the pool, derived from terms so it is
@@ -210,27 +208,27 @@
 					<ReadingMarkdown passage={agentMessageText(msg)} {showReadings} />
 				</div>
 
-				{#if harvest?.messageId === msg.id}
+				{#if termCandidateRequest?.messageId === msg.id}
 					<div class="mt-2 rounded-md border bg-muted/40 p-2">
-						{#if harvest.status === 'loading'}
+						{#if termCandidateRequest.status === 'loading'}
 							<div class="flex items-center justify-between gap-2">
 								<p class="text-xs text-muted-foreground">Finding suggestions...</p>
-								<Button variant="ghost" size="sm" onclick={dismissHarvest}>
+								<Button variant="ghost" size="sm" onclick={dismissTermCandidates}>
 									Cancel
 								</Button>
 							</div>
-						{:else if harvest.status === 'error'}
+						{:else if termCandidateRequest.status === 'error'}
 							<div class="flex items-center justify-between gap-2">
 								<div class="min-w-0">
 									<p class="text-xs text-muted-foreground">
 										Couldn't read terms from this message.
 									</p>
-									{#if harvest.detail}
+									{#if termCandidateRequest.detail}
 										<p
 											class="mt-0.5 truncate text-xs text-muted-foreground/70"
-											title={harvest.detail}
+											title={termCandidateRequest.detail}
 										>
-											{harvest.detail}
+											{termCandidateRequest.detail}
 										</p>
 									{/if}
 								</div>
@@ -238,19 +236,19 @@
 									<Button
 										variant="ghost"
 										size="sm"
-										onclick={() => harvestMessage(msg.id, agentMessageText(msg))}
+										onclick={() => suggestTerms(msg.id, agentMessageText(msg))}
 									>
 										Try again
 									</Button>
-									<Button variant="ghost" size="sm" onclick={dismissHarvest}>
+									<Button variant="ghost" size="sm" onclick={dismissTermCandidates}>
 										Dismiss
 									</Button>
 								</div>
 							</div>
-						{:else if harvest.candidates.length === 0}
+						{:else if termCandidateRequest.candidates.length === 0}
 							<div class="flex items-center justify-between gap-2">
 								<p class="text-xs text-muted-foreground">No terms found here.</p>
-								<Button variant="ghost" size="sm" onclick={dismissHarvest}>
+								<Button variant="ghost" size="sm" onclick={dismissTermCandidates}>
 									Dismiss
 								</Button>
 							</div>
@@ -259,12 +257,12 @@
 								<span class="text-xs text-muted-foreground">
 									Tap a term to save it
 								</span>
-								<Button variant="ghost" size="sm" onclick={dismissHarvest}>
+								<Button variant="ghost" size="sm" onclick={dismissTermCandidates}>
 									Dismiss
 								</Button>
 							</div>
 							<div class="flex flex-wrap gap-1.5">
-								{#each harvest.candidates as candidate (candidate)}
+								{#each termCandidateRequest.candidates as candidate (candidate)}
 									{@const saved = isTermSaved(candidate)}
 									<button
 										type="button"
@@ -285,7 +283,7 @@
 					<button
 						type="button"
 						class="mt-1.5 text-xs text-muted-foreground hover:text-foreground"
-						onclick={() => harvestMessage(msg.id, agentMessageText(msg))}
+						onclick={() => suggestTerms(msg.id, agentMessageText(msg))}
 					>
 						Suggest terms
 					</button>

@@ -33,6 +33,6 @@ The cost is deliberate. Terms are a single flat pool with no grouping, no schedu
 Two future conditions may reopen a narrow slice, and only as additive migrations, never as edits to this shape:
 
 - If the user routinely pastes definitions into `note`, a save-time prefill **into `note`** (still human-owned and editable) earns itself. It is never a second meaning field.
-- If "where did I save this from" becomes a real ask, one additive conversation-id column is added. Tutor annotations from a future harvest phase go in a new gated field, never in `note`.
+- If "where did I save this from" becomes a real ask, one additive conversation-id column is added. If tutor-authored annotations become real, they go in a new gated field, never in `note`.
 
 Neither is current work.

@@ -1,13 +1,12 @@
 /**
- * Harvest: propose savable term spans from one settled assistant message.
+ * Term candidates: propose savable spans from one settled assistant message.
  *
  * The sibling of {@link buildPracticePrompt} on the read side. Where Practice
- * compiles saved terms into a passage, Harvest goes the other way: it asks the
- * model to surface the notable spans inside a passage the user just read, so a
- * whole answer can be triaged into the term pool without dragging a selection
- * over each phrase. Its reason to exist is spans a local segmenter cannot reach
- * (multi-character phrases, chengyu), which is exactly why ADR-0102 retired
- * tap-capture.
+ * compiles saved terms into a passage, this asks the model to extract notable
+ * spans from a passage the user just read, so a whole answer can be triaged into
+ * the term pool without dragging a selection over each phrase. Its reason to
+ * exist is spans a local segmenter cannot reach (multi-character phrases,
+ * chengyu), which is exactly why ADR-0102 retired tap-capture.
  *
  * Nothing here is persisted. The model's output is transient: it becomes a list
  * of candidate strings the user chooses from, and only the chosen `text` flows
@@ -22,16 +21,17 @@
  */
 
 /**
- * The system prompt for a harvest request. The passage to mine is sent as the
- * user turn (see `complete`), so this takes no argument: it is the fixed
- * instruction that turns any passage into a bare, one-span-per-line list.
+ * The system prompt for a term-candidate extraction request. The passage to read
+ * is sent as the user turn (see `complete`), so this takes no argument: it is
+ * the fixed instruction that turns any passage into a bare, one-span-per-line
+ * list.
  *
  * It asks for spans only, no glosses, because the meaning lives in the chat the
  * span came from, never in a stored definition (ADR-0102). The parser
- * ({@link parseHarvestCandidates}) recovers spans even when the model disobeys
- * and adds numbering or a gloss anyway, so this stays a request, not a contract.
+ * ({@link parseTermCandidates}) recovers spans even when the model disobeys and
+ * adds numbering or a gloss anyway, so this stays a request, not a contract.
  */
-export function buildHarvestPrompt(): string {
+export function buildTermCandidatePrompt(): string {
 	return [
 		'You extract vocabulary spans a language learner might want to save from a passage they just read.',
 		'A span is a verbatim stretch worth learning on its own: a single word, a phrase, or an idiom.',
@@ -46,7 +46,7 @@ export function buildHarvestPrompt(): string {
 }
 
 /**
- * Turn one harvest response into clean candidate strings.
+ * Turn one term-candidate response into clean strings.
  *
  * The model is asked for a bare list, but this stays robust to the common ways
  * it strays: numbering (`1.`, `2)`), bullets (`-`, `*`, `•`), a header line
@@ -60,7 +60,7 @@ export function buildHarvestPrompt(): string {
  * not mistaken for a gloss. The human is the final filter; this only removes
  * formatting the model wrapped around the spans.
  */
-export function parseHarvestCandidates(raw: string): string[] {
+export function parseTermCandidates(raw: string): string[] {
 	const seen = new Set<string>();
 	const candidates: string[] = [];
 	for (const line of raw.split('\n')) {
