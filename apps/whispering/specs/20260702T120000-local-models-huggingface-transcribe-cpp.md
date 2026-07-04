@@ -4,7 +4,7 @@
 **Status**: Draft
 **Owner**: Braden
 **Branch**: handy-huggingface (Draft spec plus private Rust spike)
-**Builds on**: `local-model-disk-identity.md`, `model-lifecycle-lazy-collapse.md`, `20260620T173000-transcription-model-selector-collapse.md`
+**Builds on**: `local-model-disk-identity.md`, `model-lifecycle-lazy-collapse.md`. **Selector design that consumes this migration**: `20260703T170000-transcription-selector-post-gguf-reconciliation.md` (supersedes the deleted `20260620T173000-transcription-model-selector-collapse.md` draft).
 **Stance**: greenfield clean break. Local-model compatibility is refused, not preserved (see "Compatibility paths refused").
 
 ## Product sentence
@@ -80,7 +80,7 @@ struct ModelCoord { repo_id: String, revision: String, filename: String }
 
 ### One local provider
 
-`providers.ts` collapses its three local providers into **one** `local` provider (transcribe.cpp). The user picks a *model*, never an *engine* — which is exactly the flat-model-list target of `20260620T173000-transcription-model-selector-collapse.md`. Cloud/self-hosted providers are unchanged. Per-model capability (languages, prompt support) is read from Rust `ModelInfo`, not the static per-provider `capabilities` flags; the static flags remain only for cloud providers (honest asymmetry: cloud capability is provider-wide, local capability is per-GGUF).
+`providers.ts` collapses its three local providers into **one** `local` provider with `access: 'onDevice'` (transcribe.cpp). The user picks a *model*, never an *engine*, which is exactly the flat-model-list target of `20260703T170000-transcription-selector-post-gguf-reconciliation.md` (the reconciled selector spec; supersedes the deleted collapse draft). Non-onDevice providers (`star`, `byok`, and `byoe`) are unchanged by this migration. Per-model capability (languages, prompt support) is read from Rust `ModelInfo`, not the static per-provider `capabilities` flags; the static flags remain only for non-onDevice providers (honest asymmetry: remote capability is provider-wide, onDevice capability is per-GGUF).
 
 ### One runtime collapses the engine discriminant
 
@@ -113,7 +113,7 @@ I traced every local-model command, its TS consumers, and what the recording/clo
 
 - `transcribe_recording`, `prewarm_model` commands — the hot transcription path the recording pipeline depends on. Kept, re-typed to `model_id`.
 - `get_transcription_state`, `set_unload_policy`, `ModelStateEvent`, the resident cache + idle watcher — model lifecycle mechanism, independent of which runtime loads the bytes.
-- `src/lib/operations/transcribe.ts` cloud/self-hosted dispatch (`UPLOAD_DISPATCH`), all recording/audio/blob code — untouched.
+- `src/lib/operations/transcribe.ts` non-onDevice dispatch (`UPLOAD_DISPATCH`), all recording/audio/blob code — untouched.
 - `src/lib/tauri/{commands.ts,bindings.gen.ts}` — **regenerated**, not hand-edited, per the command-sync rule in `apps/whispering/AGENTS.md`.
 
 No migration reader, no "already downloaded" detection for legacy files, no dual-runtime dispatch, no compatibility alias is written anywhere.
@@ -208,7 +208,7 @@ Every refusal below is a deliberate clean break the user has authorised. User-vi
 7. **The static per-provider `capabilities` flags for local providers** — refused in favour of Rust per-model capability. **Loss:** none user-visible; internal shape change.
 8. **Dual catalog ownership (TS `local-models.ts`)** — refused. **Loss:** none user-visible; the catalog moves to Rust.
 
-Not refused (unchanged): all cloud/self-hosted providers, the recording pipeline, blob storage, the resident-cache/unload lifecycle, disk-identity reuse logic (carried onto the GGUF path).
+Not refused (unchanged): all non-onDevice providers, the recording pipeline, blob storage, the resident-cache/unload lifecycle, disk-identity reuse logic (carried onto the GGUF path).
 
 ## What Handy did (reference, do not copy blindly)
 
