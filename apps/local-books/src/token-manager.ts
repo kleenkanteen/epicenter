@@ -34,7 +34,7 @@ export function createTokenManager({
 	token: TokenSet;
 	now: () => number;
 }): TokenManager {
-	// ADR-0105 rule 3: the persisted token carries the provider environment it was
+	// ADR-0108 rule 3: the persisted token carries the provider environment it was
 	// minted for, and every later use asserts that tag equals the requested
 	// environment, refusing loudly on mismatch. A token minted against Intuit's
 	// sandbox keyset must never be replayed against production (or vice versa):

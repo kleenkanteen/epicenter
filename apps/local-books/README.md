@@ -30,7 +30,7 @@ You need an Intuit app for the API keys (this is a one-time developer step Intui
 
 Bring your own keys. The name carries the environment, so the sandbox (Development)
 keyset is `QB_SANDBOX_*` and production is `QB_PRODUCTION_*`; `--qb-env` picks which
-one is read (see [`.env.example`](.env.example) and ADR-0105). Start with sandbox:
+one is read (see [`.env.example`](.env.example) and ADR-0108). Start with sandbox:
 
 ```sh
 export QB_SANDBOX_CLIENT_ID=...
@@ -148,7 +148,7 @@ Intuit production rejects `http://localhost` redirect URIs, so the one-time `aut
 
 The Intuit keys live in your personal Infisical project at `/apps/local-books`
 under their environment-qualified names (`QB_SANDBOX_*` and
-`QB_PRODUCTION_*`, ADR-0105). Because the name carries the QuickBooks target,
+`QB_PRODUCTION_*`, ADR-0108). Because the name carries the QuickBooks target,
 both keysets sit in `prod` for a single injection. The app-local
 `.infisical.json` points at the personal project; the monorepo root
 `.infisical.json` stays pointed at Epicenter's hosted/operator project.

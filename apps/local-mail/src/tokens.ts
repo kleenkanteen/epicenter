@@ -5,7 +5,7 @@ import { Ok, type Result } from 'wellcrafted/result';
 
 /**
  * Which Google OAuth client (dev/unverified vs prod/verified) an account was
- * connected through. This is the provider-environment axis of ADR-0105: it
+ * connected through. This is the provider-environment axis of ADR-0108: it
  * selects the keyset by name (`GMAIL_DEV_*` vs `GMAIL_PROD_*`), and every later
  * use of the token asserts it. `GmailEnvironment` derives from this schema, which
  * `TokenSetSchema` embeds; `GMAIL_SPEC` mirrors these literals under a `satisfies`
@@ -26,7 +26,7 @@ export type GmailEnvironment = Static<typeof GmailEnvironmentSchema>;
  * from it, and the file token store validates disk bytes against it on read.
  *
  * `clientIdUsed` and `environment` are the two provenance tags: the OAuth client
- * that minted the token and the provider-environment it was minted for (ADR-0105).
+ * that minted the token and the provider-environment it was minted for (ADR-0108).
  * A token written before this field existed fails validation and reads as absent,
  * so the account is reconnected once through `local-mail connect --gmail-env`.
  */

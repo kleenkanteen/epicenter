@@ -151,7 +151,7 @@ export function loadConfig(overrides: CliConfigOverrides = {}): AppConfig {
 		dataDir,
 		environment,
 		// The Intuit app keys are NOT read here: they are resolved lazily at the
-		// OAuth/refresh site by their environment-qualified names (ADR-0105), so a
+		// OAuth/refresh site by their environment-qualified names (ADR-0108), so a
 		// credential-free verb (`query`, `status`) never touches them. See
 		// `resolveQbCredentials` in qb-credentials.ts.
 		redirectUri:

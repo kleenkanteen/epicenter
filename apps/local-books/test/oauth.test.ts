@@ -111,7 +111,7 @@ test('callbackPort decouples the local listener from a portless HTTPS redirect',
 });
 
 test('a missing client secret is reported, not thrown, and names the qualified var', async () => {
-	// Unset the sandbox secret for this test only; the resolver (ADR-0105) must
+	// Unset the sandbox secret for this test only; the resolver (ADR-0108) must
 	// return MissingCredentials naming the exact env-qualified variable rather than
 	// throwing, and the flow must surface it before any network call.
 	const saved = process.env.QB_SANDBOX_CLIENT_SECRET;

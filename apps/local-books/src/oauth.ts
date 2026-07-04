@@ -25,7 +25,7 @@ import {
 export const OAuthError = defineErrors({
 	MissingCredentials: ({ reason }: { reason: string }) => ({
 		// `reason` is the resolver's message, which names the exact missing
-		// environment-qualified variables (ADR-0105); append where to get the keys.
+		// environment-qualified variables (ADR-0108); append where to get the keys.
 		message: `${reason} Get your Intuit app keys from your app at https://developer.intuit.com ("Keys & credentials").`,
 		reason,
 	}),
@@ -89,7 +89,7 @@ function httpOptions(config: AppConfig) {
 }
 
 /**
- * Resolve the Intuit keyset for `config.environment` (ADR-0105), lazily, at the
+ * Resolve the Intuit keyset for `config.environment` (ADR-0108), lazily, at the
  * OAuth/refresh site rather than eagerly in `loadConfig`, so a credential-free
  * verb never reads keys it does not use. The resolver throws when the qualified
  * names are absent; convert that into the {@link OAuthError} Result channel so
@@ -101,7 +101,9 @@ function loadOAuthCredentials(
 	try {
 		return Ok(resolveQbCredentials(config.environment));
 	} catch (cause) {
-		return OAuthError.MissingCredentials({ reason: extractErrorMessage(cause) });
+		return OAuthError.MissingCredentials({
+			reason: extractErrorMessage(cause),
+		});
 	}
 }
 

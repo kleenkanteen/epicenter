@@ -4,7 +4,7 @@ import type { TokenSet } from '../src/tokens.ts';
 import { createMemoryTokenStore, makeConfig } from './helpers.ts';
 
 /**
- * The provider-environment assertion (ADR-0105 rule 3). A token records the
+ * The provider-environment assertion (ADR-0108 rule 3). A token records the
  * environment it was minted for; the manager refuses to hand it out under a
  * different requested environment, so a sandbox token can never be refreshed with
  * the production client secret (which Intuit would reject opaquely).
@@ -33,7 +33,9 @@ test('refuses a token minted for a different environment than requested', () => 
 			token: tokenFor('sandbox'),
 			now: () => NOW,
 		}),
-	).toThrow(/minted for the "sandbox" environment, but this command targets "production"/);
+	).toThrow(
+		/minted for the "sandbox" environment, but this command targets "production"/,
+	);
 });
 
 test('accepts a token whose environment matches the request', () => {

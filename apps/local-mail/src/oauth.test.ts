@@ -20,7 +20,7 @@ import {
 } from './oauth.ts';
 import type { TokenSet } from './tokens.ts';
 
-// The credential resolver (ADR-0105) reads the Google OAuth keyset from the
+// The credential resolver (ADR-0108) reads the Google OAuth keyset from the
 // environment by qualified name. These tests exercise the dev keyset and assert
 // the resolved client id against `clientIdUsed`, so seed it unconditionally to a
 // known value rather than inheriting whatever the ambient environment holds.
@@ -334,7 +334,7 @@ test('refreshAccessToken refuses a token minted by a different OAuth client, bef
 
 test('refreshAccessToken fails loudly when the token environment has no keyset', async () => {
 	// A token minted under prod resolves to a MissingCredentials error naming the
-	// exact prod variables (ADR-0105), before any network call. Clear the prod
+	// exact prod variables (ADR-0108), before any network call. Clear the prod
 	// keyset so the test holds regardless of the ambient environment.
 	const savedId = process.env.GMAIL_PROD_CLIENT_ID;
 	const savedSecret = process.env.GMAIL_PROD_CLIENT_SECRET;

@@ -17,7 +17,7 @@ import { createTokenManager } from './token-manager.ts';
 import type { TokenStore } from './token-store.ts';
 import type { TokenSet } from './tokens.ts';
 
-// The credential resolver (ADR-0105) reads the Google OAuth keyset from the
+// The credential resolver (ADR-0108) reads the Google OAuth keyset from the
 // environment by qualified name; seed the dev keyset these tokens were minted by,
 // unconditionally, so the resolved client id matches `clientIdUsed` exactly.
 process.env.GMAIL_DEV_CLIENT_ID = 'client-id-123';

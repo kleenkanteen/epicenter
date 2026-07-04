@@ -21,7 +21,7 @@ export type ParsedArgs = {
 	watchIntervalMs?: number;
 	noOpen: boolean;
 	port?: number;
-	/** The provider-environment chosen at connect/seed time (ADR-0105). */
+	/** The provider-environment chosen at connect/seed time (ADR-0108). */
 	gmailEnv?: GmailEnvironment;
 	addLabels: string[];
 	removeLabels: string[];
@@ -214,7 +214,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 async function runConnect(args: ParsedArgs): Promise<number> {
 	const config = loadConfig();
 	// The environment is chosen here, at connect, and persisted on the token
-	// (ADR-0105 rule 4). --gmail-env is required only when both keysets are present.
+	// (ADR-0108 rule 4). --gmail-env is required only when both keysets are present.
 	const { data: environment, error: envError } = selectGmailEnvironment(
 		args.gmailEnv,
 	);

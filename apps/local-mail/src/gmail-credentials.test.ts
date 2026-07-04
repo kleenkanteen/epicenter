@@ -7,7 +7,7 @@ import {
 
 /**
  * The Gmail credential resolver and the connect-time environment chooser
- * (ADR-0105). Every case injects a `read` source instead of touching
+ * (ADR-0108). Every case injects a `read` source instead of touching
  * `process.env`, so the tests are hermetic and order-independent.
  */
 
@@ -27,11 +27,15 @@ const PROD = {
 };
 
 test('resolveGmailCredentials reads the environment-qualified keyset', () => {
-	expect(resolveGmailCredentials('dev', readFrom({ ...DEV, ...PROD }))).toEqual({
-		clientId: 'dev-id',
-		clientSecret: 'dev-secret',
-	});
-	expect(resolveGmailCredentials('prod', readFrom({ ...DEV, ...PROD }))).toEqual({
+	expect(resolveGmailCredentials('dev', readFrom({ ...DEV, ...PROD }))).toEqual(
+		{
+			clientId: 'dev-id',
+			clientSecret: 'dev-secret',
+		},
+	);
+	expect(
+		resolveGmailCredentials('prod', readFrom({ ...DEV, ...PROD })),
+	).toEqual({
 		clientId: 'prod-id',
 		clientSecret: 'prod-secret',
 	});

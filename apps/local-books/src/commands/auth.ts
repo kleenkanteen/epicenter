@@ -18,7 +18,7 @@ export async function runAuth(args: ParsedArgs): Promise<number> {
 	});
 
 	// Credentials are resolved lazily inside the flow by their environment-qualified
-	// names (ADR-0105); a missing keyset returns a MissingCredentials error naming
+	// names (ADR-0108); a missing keyset returns a MissingCredentials error naming
 	// the exact `QB_<ENV>_*` variables, surfaced below before any browser opens.
 	const store = createFileTokenStore(config.credentialsPath);
 

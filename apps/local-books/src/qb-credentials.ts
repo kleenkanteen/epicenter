@@ -6,7 +6,7 @@ import {
 import type { QbEnvironment } from './config.ts';
 
 /**
- * QuickBooks provider-credential spec (ADR-0105), app-owned. QuickBooks issues a
+ * QuickBooks provider-credential spec (ADR-0108), app-owned. QuickBooks issues a
  * whole distinct OAuth keyset per environment (Intuit's Development vs Production
  * apps register different redirect URIs and client ids), so both roles vary per
  * account and are environment-qualified:
@@ -31,7 +31,7 @@ export const QB_SPEC = {
  * `ProviderCredentialError` naming the exact missing qualified variables when the
  * environment's keys are absent, so a flag/vault mismatch fails loudly at
  * resolution time instead of surfacing as an opaque Intuit redirect rejection
- * several calls later (the 2026-07-03 incident behind ADR-0105).
+ * several calls later (the 2026-07-03 incident behind ADR-0108).
  */
 export function resolveQbCredentials(
 	environment: QbEnvironment,

@@ -8,7 +8,7 @@ export type MailStatus = {
 	dataDir: string;
 	tokenFile: string;
 	connected: boolean;
-	/** The provider-environment the account was connected under (ADR-0105); null when not connected. */
+	/** The provider-environment the account was connected under (ADR-0108); null when not connected. */
 	environment: GmailEnvironment | null;
 	accessToken: { valid: boolean; expiresAt: string } | null;
 	mirror: 'empty' | 'building' | 'ready';

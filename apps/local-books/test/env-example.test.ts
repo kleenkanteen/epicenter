@@ -1,11 +1,11 @@
+import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { specToEnvExampleLines } from '@epicenter/constants/provider-credentials';
-import { expect, test } from 'bun:test';
 import { QB_SPEC } from '../src/qb-credentials.ts';
 
 /**
- * Drift guard for `.env.example` (ADR-0105): the committed file must document
+ * Drift guard for `.env.example` (ADR-0108): the committed file must document
  * exactly the environment-qualified names `QB_SPEC` resolves, no more and no
  * fewer. `specToEnvExampleLines` builds those names from the same name-builder
  * the resolver reads through, so this test fails the moment the file lists a
@@ -19,7 +19,7 @@ function envNames(lines: string[]): string[] {
 		.map((line) => line.slice(0, line.indexOf('=')));
 }
 
-test('.env.example lists exactly QB_SPEC\'s qualified names', () => {
+test(".env.example lists exactly QB_SPEC's qualified names", () => {
 	const file = readFileSync(
 		join(import.meta.dir, '..', '.env.example'),
 		'utf8',

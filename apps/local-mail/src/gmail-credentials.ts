@@ -7,7 +7,7 @@ import { Err, Ok, type Result } from 'wellcrafted/result';
 import type { GmailEnvironment } from './tokens.ts';
 
 /**
- * Gmail provider-credential spec (ADR-0105), app-owned. Local Mail has two Google
+ * Gmail provider-credential spec (ADR-0108), app-owned. Local Mail has two Google
  * Desktop OAuth clients, a dev/unverified one and a prod/verified one, and they
  * are entirely distinct clients (different ids, secrets, and consent screens), so
  * both roles vary per environment and are environment-qualified:
@@ -57,7 +57,7 @@ export function availableGmailEnvironments(
 }
 
 /**
- * Pick the provider-environment to connect an account under (ADR-0105 rule 4).
+ * Pick the provider-environment to connect an account under (ADR-0108 rule 4).
  * The `--gmail-env` flag is the chooser and the disambiguator: it is required
  * only when more than one environment's credentials are present. With a single
  * keyset present it is inferred; with none present the failure names both

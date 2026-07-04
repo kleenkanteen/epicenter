@@ -30,7 +30,7 @@ Connect once. `--gmail-env` picks the OAuth keyset: `dev` reads `GMAIL_DEV_*`
 (the unverified client), `prod` reads `GMAIL_PROD_*` (the verified one). It is
 required only when both keysets are present, and inferred when just one is. The
 account records the environment it was connected under, and every later sync
-asserts it (ADR-0105):
+asserts it (ADR-0108):
 
 ```sh
 infisical run --project-config-dir=. --path=/apps/local-mail -- \
@@ -148,7 +148,7 @@ Tools:
 
 - `GMAIL_DEV_CLIENT_ID` / `GMAIL_DEV_CLIENT_SECRET`, `GMAIL_PROD_CLIENT_ID` /
   `GMAIL_PROD_CLIENT_SECRET`: the Google OAuth Desktop client keys, one keyset per
-  environment (ADR-0105). `--gmail-env` selects which the resolver reads, lazily at
+  environment (ADR-0108). `--gmail-env` selects which the resolver reads, lazily at
   connect/refresh; a missing keyset fails loudly naming the exact variables.
 - `LOCAL_MAIL_ACCOUNT`: optional account override for `sync`, `query`, and
   `mcp`. Required only when more than one account is connected.

@@ -25,7 +25,7 @@ import {
 export const OAuthError = defineErrors({
 	MissingCredentials: ({ reason }: { reason: string }) => ({
 		// `reason` is the resolver's message, which names the exact missing
-		// environment-qualified variables (ADR-0105).
+		// environment-qualified variables (ADR-0108).
 		message: reason,
 		reason,
 	}),
@@ -88,7 +88,7 @@ export type OAuthError = InferErrors<typeof OAuthError>;
 type GrantResult = Promise<Result<TokenSet, OAuthError | TokenGrantError>>;
 
 type AuthorizationFlowOptions = {
-	/** The provider-environment to connect under (ADR-0105); tags the minted token. */
+	/** The provider-environment to connect under (ADR-0108); tags the minted token. */
 	environment: GmailEnvironment;
 	now: () => number;
 	openBrowser?: (url: string) => void;
@@ -120,7 +120,7 @@ function httpOptions(config: AppConfig) {
 }
 
 /**
- * Resolve the Google OAuth client keyset for a provider-environment (ADR-0105),
+ * Resolve the Google OAuth client keyset for a provider-environment (ADR-0108),
  * lazily, at the connect/refresh site rather than eagerly in `loadConfig`, so a
  * credential-free verb never reads keys it does not use. The resolver throws when
  * the qualified names are absent; convert that into the {@link OAuthError} Result
@@ -132,7 +132,9 @@ function loadGmailCredentials(
 	try {
 		return Ok(resolveGmailCredentials(environment));
 	} catch (cause) {
-		return OAuthError.MissingCredentials({ reason: extractErrorMessage(cause) });
+		return OAuthError.MissingCredentials({
+			reason: extractErrorMessage(cause),
+		});
 	}
 }
 
@@ -335,7 +337,7 @@ export async function refreshAccessToken(
 	now: () => number,
 ): GrantResult {
 	// Resolve the keyset for the environment this token was minted under
-	// (ADR-0105 rule 3): the tag selects the qualified names, and a missing keyset
+	// (ADR-0108 rule 3): the tag selects the qualified names, and a missing keyset
 	// fails loudly here naming GMAIL_<ENV>_*.
 	const { data: credentials, error: credentialsError } = loadGmailCredentials(
 		token.environment,

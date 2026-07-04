@@ -49,7 +49,7 @@ export function createTokenManager({
 			now,
 		);
 		if (error) return { data: null, error };
-		// ADR-0105 rule 3: the minted token carries the provider environment it was
+		// ADR-0108 rule 3: the minted token carries the provider environment it was
 		// minted for, and every use asserts it. A refresh must never change the
 		// environment (it is threaded from the stored token); a mismatch is an
 		// invariant violation, not a user error, so fail loudly before persisting.
