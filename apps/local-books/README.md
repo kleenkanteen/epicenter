@@ -150,14 +150,15 @@ The Intuit keys live in your personal Infisical project at `/apps/local-books`
 under their environment-qualified names (`QB_SANDBOX_*` and
 `QB_PRODUCTION_*`, ADR-0108). Because the name carries the QuickBooks target,
 both keysets sit in `prod` for a single injection. The app-local
-`.infisical.json` points at the personal project; the monorepo root
-`.infisical.json` stays pointed at Epicenter's hosted/operator project.
-`--qb-env` alone picks the keyset. Instead of exporting keys by hand, wrap a
-command with Infisical:
+`.infisical.json` points at the personal project; copy
+`.infisical.json.example` to `.infisical.json` and keep the real file local.
+The monorepo root has no Infisical config. `--qb-env` alone picks the keyset.
+Instead of exporting keys by hand, wrap a command with Infisical from this app
+directory:
 
 ```sh
-infisical run --project-config-dir=. --path=/apps/local-books -- bun run src/bin.ts auth --qb-env sandbox
-infisical run --project-config-dir=. --path=/apps/local-books -- bun run src/bin.ts sync --qb-env sandbox --full
+infisical run --path=/apps/local-books -- bun run src/bin.ts auth --qb-env sandbox
+infisical run --path=/apps/local-books -- bun run src/bin.ts sync --qb-env sandbox --full
 ```
 
 The invocations are wrapped as scripts named for the QuickBooks account they touch, so you do not assemble the flags by hand:

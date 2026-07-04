@@ -20,12 +20,12 @@
 	},
 	"scripts": {
 		"local-books": "bun run src/bin.ts",
-		"auth:sandbox": "infisical run --project-config-dir=. --path=/apps/local-books -- bun run src/bin.ts auth --qb-env sandbox",
-		"auth:production": "infisical run --project-config-dir=. --path=/apps/local-books -- bun run src/bin.ts auth --qb-env production",
-		"sync:sandbox": "infisical run --project-config-dir=. --path=/apps/local-books -- bun run src/bin.ts sync --qb-env sandbox",
-		"sync:production": "infisical run --project-config-dir=. --path=/apps/local-books -- bun run src/bin.ts sync --qb-env production",
-		"status:sandbox": "infisical run --project-config-dir=. --path=/apps/local-books -- bun run src/bin.ts status --qb-env sandbox",
-		"status:production": "infisical run --project-config-dir=. --path=/apps/local-books -- bun run src/bin.ts status --qb-env production",
+		"auth:sandbox": "infisical run --path=/apps/local-books -- bun run src/bin.ts auth --qb-env sandbox",
+		"auth:production": "infisical run --path=/apps/local-books -- bun run src/bin.ts auth --qb-env production",
+		"sync:sandbox": "infisical run --path=/apps/local-books -- bun run src/bin.ts sync --qb-env sandbox",
+		"sync:production": "infisical run --path=/apps/local-books -- bun run src/bin.ts sync --qb-env production",
+		"status:sandbox": "infisical run --path=/apps/local-books -- bun run src/bin.ts status --qb-env sandbox",
+		"status:production": "infisical run --path=/apps/local-books -- bun run src/bin.ts status --qb-env production",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit",
 		"build:binary": "bun build --compile --outfile dist/local-books src/bin.ts"

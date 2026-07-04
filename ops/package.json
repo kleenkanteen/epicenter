@@ -1,0 +1,12 @@
+{
+	"name": "@epicenter/ops",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"cf:plan:remote": "infisical run --env=prod --path=/ops -- bun run cf/apply.ts --plan",
+		"cf:apply:remote": "infisical run --env=prod --path=/ops -- bun run cf/apply.ts"
+	},
+	"dependencies": {
+		"@epicenter/constants": "workspace:*"
+	}
+}
