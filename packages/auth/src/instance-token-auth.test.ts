@@ -275,6 +275,10 @@ describe('createInstanceTokenAuth', () => {
 		expect(auth.verification?.state).toEqual({ status: 'verified' });
 
 		await auth.fetch('/api/blobs');
+		// A rejected token always drops `state` to signed-out, not just at boot: the
+		// signed-in account UI relies on this coupling to skip rejected-token copy
+		// (the sign-in panel owns it) and surface only `unreachable`.
+		expect(auth.state.status).toBe('signed-out');
 		expect(auth.verification?.state).toEqual({
 			status: 'failed',
 			reason: 'rejected',
