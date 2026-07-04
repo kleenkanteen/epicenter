@@ -69,14 +69,6 @@ Guidelines:
  */
 export const VOCAB_STT_MODEL = 'whisper-1';
 
-/**
- * The language Vocab dictates in, an ISO-639-1 hint handed to the transcriber.
- * English, because Vocab's input is the English question a learner asks; the
- * answer comes back bilingual. App-local and unsynced, like {@link VOCAB_MODEL}:
- * an app that dictates another language sets its own.
- */
-export const VOCAB_DICTATION_LANGUAGE = 'en';
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Message Model
 // ─────────────────────────────────────────────────────────────────────────────

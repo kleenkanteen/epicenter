@@ -13,7 +13,7 @@
  *
  * Transcription is a stateless service (the spec's star/service/library model):
  * this holds no preferences and reaches for no sync. It pulls only the device
- * connection registry and Vocab's own app-local model + language constants.
+ * connection registry and Vocab's own app-local model constant.
  *
  * The transport comes from `resolveOrHosted(VOCAB_STT_MODEL)`, the same predicate
  * chat uses. `whisper-1` is not in Vocab's hosted *chat* catalog, so nothing
@@ -30,7 +30,7 @@ import {
 	type DeviceStreamError,
 	type VadRecorderError,
 } from '@epicenter/recorder';
-import { VOCAB_DICTATION_LANGUAGE, VOCAB_STT_MODEL } from '@epicenter/vocab';
+import { VOCAB_STT_MODEL } from '@epicenter/vocab';
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import { inferenceConnections } from './inference-connections.svelte';
 
@@ -99,9 +99,10 @@ function createDictation() {
 							const transport =
 								inferenceConnections.resolveOrHosted(VOCAB_STT_MODEL);
 							onTranscript(
+								// No language hint: a learner may dictate their question in the
+								// language they are studying, so Whisper auto-detects (ADR-0105).
 								await transcribe(blob, transport, {
 									model: VOCAB_STT_MODEL,
-									language: VOCAB_DICTATION_LANGUAGE,
 								}),
 							);
 						})

@@ -1,6 +1,6 @@
 {
 	"name": "@epicenter/vocab",
-	"description": "Bilingual Chinese-English chat app for learning Mandarin",
+	"description": "Multilingual chat tutor with a deterministic client-side reading overlay",
 	"private": true,
 	"version": "0.0.2",
 	"type": "module",
