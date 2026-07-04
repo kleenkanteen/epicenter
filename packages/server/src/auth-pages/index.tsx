@@ -17,15 +17,18 @@ import { SignedInPage } from './signed-in-page';
 export function renderSignInPage({
 	githubEnabled,
 	microsoftEnabled,
+	appleEnabled,
 }: {
 	githubEnabled: boolean;
 	microsoftEnabled: boolean;
+	appleEnabled: boolean;
 }) {
 	return (
 		<AuthLayout title="Sign in: Epicenter">
 			<SignInPage
 				githubEnabled={githubEnabled}
 				microsoftEnabled={microsoftEnabled}
+				appleEnabled={appleEnabled}
 			/>
 		</AuthLayout>
 	);
