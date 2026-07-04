@@ -1,6 +1,6 @@
 import { field } from '@epicenter/field';
 import {
-	attachTimeline,
+	attachPlainText,
 	defineTable,
 	type InferTableRow,
 	nullable,
@@ -21,7 +21,9 @@ export const filesTable = defineTable({
 	trashedAt: nullable(field.instant()),
 }).docs({
 	content: {
-		layout: attachTimeline,
+		// A file body is plain text (Markdown source) stored as a Y.Text at
+		// `getText('content')` (ADR-0107).
+		layout: attachPlainText,
 		// Body edits bypass the tree API, so bump `updatedAt` here to keep the
 		// same modification-time invariant the file operations already maintain.
 		touch: 'updatedAt',
