@@ -201,12 +201,12 @@ packages/server
 
 apps/api
   hosted personal Cloudflare Worker
-  composes packages/server with perUser
+  composes packages/server with a Better Auth principal resolver
   owns hosted-only dashboard and billing code
 
 apps/self-host
   self-hosted single-partition instance reference deployable
-  composes packages/server with instance
+  composes packages/server with the instance principal resolver
   community-supported
   no hosted billing surface
 ```

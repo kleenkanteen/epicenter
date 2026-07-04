@@ -57,7 +57,7 @@ shapes, see `docs/adr/`.
   self-hosted instance resolves every valid operator bearer to the literal
   `instance` principal. Durable namespaces use `principals/<principalId>/...`.
   Billing is hosted-only and lives in `apps/api/worker/billing/`.
-- **Cross-device planes**: cross-device work splits by owner. *Inference* (the
+- **Cross-device planes**: cross-device work splits by responsibility. *Inference* (the
   chat brain) streams tokens from an OpenAI-compatible endpoint (ADR-0050),
   over the inference seam. *Sync* (convergent state) carries document history
   over the relay, and server-owned presence reports which workspace peers are
