@@ -4,7 +4,7 @@
 **Status**: Draft
 **Owner**: Braden
 **Branch**: handy-huggingface (Draft spec plus private Rust spike)
-**Builds on**: `local-model-disk-identity.md`, `model-lifecycle-lazy-collapse.md`. **Selector design that consumes this migration**: `20260703T170000-transcription-selector-post-gguf-reconciliation.md` (supersedes the deleted `20260620T173000-transcription-model-selector-collapse.md` draft).
+**Builds on**: `local-model-disk-identity.md`, `model-lifecycle-lazy-collapse.md`. The selector design that consumed this migration (recorder switcher + access-sectioned setup catalog) shipped in #2353 and its Phase-2 follow-up; its reconciliation spec has been deleted now that both phases are implemented (git keeps the body).
 **Stance**: greenfield clean break. Local-model compatibility is refused, not preserved (see "Compatibility paths refused").
 
 ## Product sentence
@@ -80,7 +80,7 @@ struct ModelCoord { repo_id: String, revision: String, filename: String }
 
 ### One local provider
 
-`providers.ts` collapses its three local providers into **one** `local` provider with `access: 'onDevice'` (transcribe.cpp). The user picks a *model*, never an *engine*, which is exactly the flat-model-list target of `20260703T170000-transcription-selector-post-gguf-reconciliation.md` (the reconciled selector spec; supersedes the deleted collapse draft). Non-onDevice providers (`star`, `byok`, and `byoe`) are unchanged by this migration. Per-model capability (languages, prompt support) is read from Rust `ModelInfo`, not the static per-provider `capabilities` flags; the static flags remain only for non-onDevice providers (honest asymmetry: remote capability is provider-wide, onDevice capability is per-GGUF).
+`providers.ts` collapses its three local providers into **one** `local` provider with `access: 'onDevice'` (transcribe.cpp). The user picks a *model*, never an *engine*, which is exactly the flat-model-list target the reconciled selector shipped (recorder switcher #2353 + the access-sectioned setup catalog; the reconciliation spec was deleted once both phases landed). Non-onDevice providers (`star`, `byok`, and `byoe`) are unchanged by this migration. Per-model capability (languages, prompt support) is read from Rust `ModelInfo`, not the static per-provider `capabilities` flags; the static flags remain only for non-onDevice providers (honest asymmetry: remote capability is provider-wide, onDevice capability is per-GGUF).
 
 ### One runtime collapses the engine discriminant
 
