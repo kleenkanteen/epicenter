@@ -691,7 +691,7 @@ We'd love to expand Whispering's capabilities with more transcription and AI ser
 
 The provider registry owns every provider fact, including the names of the config keys that hold its credentials and model selection. The stores own the values. The dispatcher and the settings UI resolve those pointers through the registry, so most of the integration is compile-error driven: once your provider is in the registry, the type checker points at every table that still needs an entry.
 
-Local engines (whisper.cpp, Parakeet, Moonshine) are implemented in Rust behind Tauri commands, so this guide covers cloud and self-hosted services, which live in TypeScript.
+The local GGUF engine is implemented in Rust behind Tauri commands, so this guide covers upload-based services that live in TypeScript: API-key providers and endpoint providers.
 
 1. **Create the service implementation**:
    - **Cloud services**: `src/lib/services/transcription/cloud/` (OpenAI, Groq, Deepgram, ElevenLabs, Mistral)
@@ -761,25 +761,25 @@ Local engines (whisper.cpp, Parakeet, Moonshine) are implemented in Rust behind 
 
    ```typescript
    YourService: {
-	location: 'cloud',
-	label: 'Your Service',
-	description: 'What makes this service worth picking',
-	capabilities: { supportsPrompt: true, supportsLanguage: true },
-	apiKeyConfigKey: 'providers.yourservice.apiKey',
-	modelSettingKey: 'transcription.yourservice.model',
-	endpointConfigKey: null, // or a 'providers.yourservice.endpoint' override key
-	modelsDoc: {
-		label: 'Your Service docs',
-		href: 'https://yourservice.com/docs/speech-to-text',
-	},
-	defaultModel: 'model-v1',
-	models: [
-		{
-			name: 'model-v1',
-			description: 'What makes this model special',
-			cost: '$0.XX/hour',
-		},
-	],
+     access: 'key',
+     label: 'Your Service',
+     description: 'What makes this service worth picking',
+     capabilities: { supportsPrompt: true, supportsLanguage: true },
+     apiKeyConfigKey: 'providers.yourservice.apiKey',
+     modelSettingKey: 'transcription.yourservice.model',
+     endpointConfigKey: null, // or a 'providers.yourservice.endpoint' override key
+     modelsDoc: {
+       label: 'Your Service docs',
+       href: 'https://yourservice.com/docs/speech-to-text',
+     },
+     defaultModel: 'model-v1',
+     models: [
+       {
+         name: 'model-v1',
+         description: 'What makes this model special',
+         cost: '$0.XX/hour',
+       },
+     ],
    },
    ```
 
@@ -787,11 +787,11 @@ Local engines (whisper.cpp, Parakeet, Moonshine) are implemented in Rust behind 
 
 4. **Fix the compile errors the registry entry creates.** Each of these tables is exhaustive over the provider ids, so the type checker walks you to them:
 
-   - `CLOUD_TRANSCRIBERS` in `src/lib/operations/transcribe.ts`: map your id to `YourServiceTranscriptionServiceLive.transcribe`.
+   - `UPLOAD_DISPATCH` in `src/lib/operations/transcribe.ts`: map your id to `YourServiceTranscriptionServiceLive.transcribe`.
    - `PROVIDER_ICONS` in `src/lib/services/transcription/provider-ui.ts`: add your SVG icon.
    - `PROVIDER_FIELDS` in `src/lib/components/settings/ProviderConfigFields.svelte`: declare the API key (and optional endpoint) fields with their labels, placeholders, and docs links. This is where provider-specific copy lives, like where to find the API key.
 
-That's the whole integration. The Privacy & Processing surface, the quick-pick selector, the configuration warning badge, and the dispatcher need no edits; they all render and resolve through the registry entry. Only self-hosted and local providers get bespoke sections in `src/lib/components/settings/TranscriptionRuntimeConfig.svelte`, because their setup instructions are the product copy.
+That's the whole integration. The Privacy & Processing surface, the quick-pick selector, the configuration warning badge, and the dispatcher need no edits; they all render and resolve through the registry entry. Endpoint and on-device providers get bespoke sections in `src/lib/components/settings/TranscriptionRuntimeConfig.svelte`, because their setup instructions are the product copy.
 
 ##### Adding an AI Transformation Adapter
 

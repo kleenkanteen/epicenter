@@ -2,7 +2,7 @@
 //!
 //! Decode any container/codec we plausibly receive (WAV, MP3, M4A/AAC,
 //! FLAC, OGG, WebM, including Opus inside any of those) into a `Vec<f32>`
-//! of 16 kHz mono samples, ready for the local transcription engines.
+//! of 16 kHz mono samples, ready for local GGUF transcription.
 //!
 //! Replaces the old `transcription::audio` module, which dispatched
 //! across three tiers (WAV fast-path, hound + rubato, external sidecar)

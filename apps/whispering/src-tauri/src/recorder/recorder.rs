@@ -35,9 +35,8 @@ use crate::recorder::error::RecorderError;
 /// on `error.name` instead of matching message text.
 pub type Result<T> = std::result::Result<T, RecorderError>;
 
-/// Target rate for every recording. All local transcription engines
-/// (whispercpp, parakeet, moonshine) want 16 kHz mono; the cloud
-/// services accept opus encoded from 48 kHz which we get to via a
+/// Target rate for every recording. Local GGUF transcription consumes 16 kHz
+/// mono; the cloud services accept Opus encoded from 48 kHz, reached via a
 /// second resample step inside `audio::encode_pcm_to_opus_ogg`.
 const TARGET_RATE: u32 = 16_000;
 
