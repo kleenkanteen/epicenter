@@ -8,6 +8,8 @@
  * - Locality follows the resolved endpoint host (loopback), not the provider's
  *   `location` label, so a self-hosted or cloud endpoint at localhost is on-device
  * - A remote self-hosted server reads as the user's own server, not a cloud vendor
+ * - A session (Epicenter) bonded at a loopback base URL is this machine, so audio
+ *   stays on-device; a remote base URL or no session reads as sent to Epicenter
  */
 import { describe, expect, test } from 'bun:test';
 import type { DeviceConfigKey } from '../state/device-config.svelte';
@@ -82,5 +84,34 @@ describe('describeTranscriptionDestinationFromConfig', () => {
 			onDevice: false,
 			summary: 'Audio is sent to your Speaches server.',
 		});
+	});
+
+	test('session bonded at a loopback base URL keeps audio on device', () => {
+		expect(
+			describeTranscriptionDestinationFromConfig({
+				service: 'epicenter',
+				getDeviceConfig: config({}),
+				sessionBaseUrl: 'http://localhost:8788',
+			}),
+		).toEqual({ onDevice: true, summary: 'Audio stays on this device.' });
+	});
+
+	test('session bonded at a remote base URL is sent to Epicenter', () => {
+		expect(
+			describeTranscriptionDestinationFromConfig({
+				service: 'epicenter',
+				getDeviceConfig: config({}),
+				sessionBaseUrl: 'https://api.epicenter.so',
+			}),
+		).toEqual({ onDevice: false, summary: 'Audio is sent to Epicenter.' });
+	});
+
+	test('signed-out session (no base URL) keeps the sent-to-Epicenter copy', () => {
+		expect(
+			describeTranscriptionDestinationFromConfig({
+				service: 'epicenter',
+				getDeviceConfig: config({}),
+			}),
+		).toEqual({ onDevice: false, summary: 'Audio is sent to Epicenter.' });
 	});
 });

@@ -41,6 +41,10 @@
 		describeTranscriptionDestinationFromConfig({
 			service: settings.get('transcription.service'),
 			getDeviceConfig: deviceConfig.get,
+			// Session locality follows the bonded deployment: a signed-in session at a
+			// loopback base URL is this machine, so audio stays on-device.
+			sessionBaseUrl:
+				auth.state.status === 'signed-in' ? auth.baseURL : undefined,
 		}),
 	);
 

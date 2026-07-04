@@ -13,6 +13,7 @@ import { describePolishDestination } from '$lib/operations/completion-target';
 import { resolveTranscriptionLocalityFromConfig } from '$lib/operations/transcription-target';
 import { deviceConfig } from '$lib/state/device-config.svelte';
 import { settings } from '$lib/state/settings.svelte';
+import { auth } from '#platform/auth';
 
 export const RunPolishError = defineErrors({
 	/**
@@ -61,6 +62,8 @@ export function polishDestination(): string {
 		resolveTranscriptionLocalityFromConfig({
 			service: settings.get('transcription.service'),
 			getDeviceConfig: deviceConfig.get,
+			sessionBaseUrl:
+				auth.state.status === 'signed-in' ? auth.baseURL : undefined,
 		}),
 		settings.get('completion.provider'),
 		resolveCompletionState(),
