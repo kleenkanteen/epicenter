@@ -62,8 +62,7 @@ export function polishDestination(): string {
 		resolveTranscriptionLocalityFromConfig({
 			service: settings.get('transcription.service'),
 			getDeviceConfig: deviceConfig.get,
-			sessionBaseUrl:
-				auth.state.status === 'signed-in' ? auth.baseURL : undefined,
+			sessionBaseUrl: auth.baseURL,
 		}),
 		settings.get('completion.provider'),
 		resolveCompletionState(),

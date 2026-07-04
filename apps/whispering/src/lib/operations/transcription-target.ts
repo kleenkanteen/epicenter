@@ -48,12 +48,12 @@ export function resolveTranscriptionLocalityFromConfig({
 	service: TranscriptionServiceId;
 	getDeviceConfig: (key: TranscriptionEndpointKey) => string;
 	/**
-	 * The signed-in session's bonded deployment origin (`auth.baseURL`), or
-	 * `undefined` when signed out. Read only for the `session` (Epicenter) access:
-	 * a loopback origin means the bonded deployment is this machine (a self-host
-	 * instance bonded at localhost), so session audio stays on-device. The pure
-	 * module classifies the host itself rather than importing auth, mirroring how
-	 * the endpoint branch reads its configured `providers.*.endpoint`.
+	 * The bonded deployment origin (`auth.baseURL`). Read only for the `session`
+	 * (Epicenter) access: a loopback origin means the bonded deployment is this
+	 * machine (a self-host instance bonded at localhost), so session audio stays
+	 * on-device. The pure module classifies the host itself rather than importing
+	 * auth, mirroring how the endpoint branch reads its configured
+	 * `providers.*.endpoint`.
 	 */
 	sessionBaseUrl?: string;
 }): TranscriptionLocality {
@@ -63,10 +63,10 @@ export function resolveTranscriptionLocalityFromConfig({
 		return { onDevice: true, name: provider.label };
 	}
 	// `session` (Epicenter) serves audio from the bonded deployment reached at the
-	// signed-in base URL. A loopback base URL is this machine (a self-host instance
-	// bonded at localhost), so audio never leaves the device; a remote base URL or
-	// no session at all keeps the "sent to Epicenter" copy. This is the session
-	// twin of the endpoint loopback branch below.
+	// auth base URL. A loopback base URL is this machine (a self-host instance
+	// bonded at localhost), so audio never leaves the device; a remote or missing
+	// base URL keeps the "sent to Epicenter" copy. This is the session twin of the
+	// endpoint loopback branch below.
 	if (provider.access === 'session') {
 		if (sessionBaseUrl && isLoopbackBaseUrl(sessionBaseUrl)) {
 			return { onDevice: true, name: provider.label };
@@ -102,7 +102,7 @@ export function resolveTranscriptionLocalityFromConfig({
 export function describeTranscriptionDestinationFromConfig(args: {
 	service: TranscriptionServiceId;
 	getDeviceConfig: (key: TranscriptionEndpointKey) => string;
-	/** Signed-in session origin; see {@link resolveTranscriptionLocalityFromConfig}. */
+	/** Bonded session origin; see {@link resolveTranscriptionLocalityFromConfig}. */
 	sessionBaseUrl?: string;
 }): TranscriptionDestination {
 	const { onDevice, name } = resolveTranscriptionLocalityFromConfig(args);
