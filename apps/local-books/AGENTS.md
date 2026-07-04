@@ -37,8 +37,8 @@ Sync mode is chosen from stored state: `--full` / no cursor / cursor older than 
 
 ## Config (env or `<data-dir>/config.json`)
 
-- `QB_CLIENT_ID` / `QB_CLIENT_SECRET` — your Intuit app keys (required for `auth`). This is what Infisical injects at `/apps/local-books`, so the usual invocation is `infisical run --path=/apps/local-books -- bun run src/bin.ts auth`.
-- `LOCAL_BOOKS_QB_ENV` — `sandbox` (default) or `production`.
+- `QB_SANDBOX_CLIENT_ID` / `QB_SANDBOX_CLIENT_SECRET`, `QB_PRODUCTION_CLIENT_ID` / `QB_PRODUCTION_CLIENT_SECRET` — your Intuit app keys, one keyset per environment (ADR-0105; QuickBooks issues a distinct OAuth client per environment). `--qb-env` picks the keyset by name, resolved lazily at the OAuth/refresh site (`src/qb-credentials.ts` owns `QB_SPEC`; `@epicenter/constants/provider-credentials` owns the mechanism). The name carries the environment, so which Infisical env stores it is an orthogonal access-control choice; keep both under one path for a single injection (`infisical run --path=/apps/local-books -- bun run src/bin.ts auth --qb-env sandbox`) or split them across vault envs. A missing keyset fails loudly naming the exact `QB_<ENV>_*` variables. Canonical names live in `.env.example` (pinned by `test/env-example.test.ts`); the old unqualified `QB_CLIENT_ID` / `QB_CLIENT_SECRET` are retired.
+- `LOCAL_BOOKS_QB_ENV` — `sandbox` (default) or `production`; the connect-time chooser, equivalent to `--qb-env`. The minted token records its environment and every later command asserts it (`token-manager.ts`), refusing a sandbox token used against production and vice versa.
 - `LOCAL_BOOKS_DIR` / `--data-dir` — data directory override.
 - `LOCAL_BOOKS_TOKEN_FILE` — override the token file path (default `<data-dir>/credentials.json`). Used by the test harness and any custom location. The `0600` file store works the same on a desktop, a headless server, an SSH session, and CI, which is what a headless-first tool needs. See ADR-0062.
 - `LOCAL_BOOKS_READ_ONLY` — reads only: `query` and `report` stay available, `recategorize` is refused. Whether you run the verbs yourself or hand the `books.db` to an agent.

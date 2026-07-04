@@ -17,17 +17,9 @@ export async function runAuth(args: ParsedArgs): Promise<number> {
 		environment: args.environment,
 	});
 
-	if (!config.clientId || !config.clientSecret) {
-		console.error(
-			'Missing QuickBooks app keys. Get them from your Intuit app at\n' +
-				'developer.intuit.com (your app, then "Keys & credentials"), then set:\n' +
-				'  export QB_CLIENT_ID=...\n' +
-				'  export QB_CLIENT_SECRET=...\n' +
-				'(Epicenter monorepo shortcut: infisical run --path=/apps/local-books -- ...)',
-		);
-		return 1;
-	}
-
+	// Credentials are resolved lazily inside the flow by their environment-qualified
+	// names (ADR-0105); a missing keyset returns a MissingCredentials error naming
+	// the exact `QB_<ENV>_*` variables, surfaced below before any browser opens.
 	const store = createFileTokenStore(config.credentialsPath);
 
 	console.error(`Authenticating against QuickBooks (${config.environment})...`);
@@ -36,9 +28,10 @@ export async function runAuth(args: ParsedArgs): Promise<number> {
 		log: (m) => console.error(m),
 	});
 	if (error) {
-		console.error(
-			`Authentication failed: ${error.message}. Re-run "local-books auth" and approve access in the browser.`,
-		);
+		// Each OAuthError message is already self-actionable (a missing keyset names
+		// the exact variables; a denial or timeout says to re-run), so print it as-is
+		// rather than stacking a generic suffix.
+		console.error(`Authentication failed: ${error.message}`);
 		return 1;
 	}
 

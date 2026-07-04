@@ -24,8 +24,6 @@ export type QbEnvironment = Static<typeof QbEnvironmentSchema>;
 export type AppConfig = {
 	dataDir: string;
 	environment: QbEnvironment;
-	clientId: string | null;
-	clientSecret: string | null;
 	redirectUri: string;
 	scopes: string[];
 	entities: string[];
@@ -152,10 +150,10 @@ export function loadConfig(overrides: CliConfigOverrides = {}): AppConfig {
 	return {
 		dataDir,
 		environment,
-		// The Intuit app keys are the bare QB_* names, what Infisical injects at
-		// /apps/local-books and the convention Intuit's own docs use.
-		clientId: env('QB_CLIENT_ID') ?? null,
-		clientSecret: env('QB_CLIENT_SECRET') ?? null,
+		// The Intuit app keys are NOT read here: they are resolved lazily at the
+		// OAuth/refresh site by their environment-qualified names (ADR-0105), so a
+		// credential-free verb (`query`, `status`) never touches them. See
+		// `resolveQbCredentials` in qb-credentials.ts.
 		redirectUri:
 			env('LOCAL_BOOKS_QB_REDIRECT_URI') ??
 			file.redirectUri ??
