@@ -45,9 +45,10 @@ settings/
 ```
 
 The two runtime-config components (`TranscriptionRuntimeConfig`,
-`CompletionRuntimeConfig`) are the Privacy & Processing page's two stages. Each
-owns its own routing decision and takes **no props**, so the page renders them
-as `<TranscriptionRuntimeConfig />` and `<CompletionRuntimeConfig />`.
+`CompletionRuntimeConfig`) are the Privacy & Processing page's two stages.
+`TranscriptionRuntimeConfig` is setup-only; active transcription switching lives
+in the recorder popover. Both components take **no props**, so the page renders
+them as `<TranscriptionRuntimeConfig />` and `<CompletionRuntimeConfig />`.
 
 ## Usage Examples
 
