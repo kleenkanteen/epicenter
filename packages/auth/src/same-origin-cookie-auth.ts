@@ -103,34 +103,59 @@ export function createSameOriginCookieAuth({
 	}
 
 	/**
-	 * Confirm the session by reading `/api/session` with the cookie. A 401/403 is
-	 * signed-out; a 200 installs `signed-in` with the response's principal id.
-	 * Network or parse failures leave the current state, so an offline
-	 * load keeps the last known projection.
+	 * Drop to signed-out when an already-signed-in client sees a 401: the cookie
+	 * is gone or expired. Shared by `fetch` (arbitrary resource calls) and
+	 * `getProfile`. This client has no `reauth-required` arm: re-auth is the same
+	 * hosted sign-in as a fresh login.
 	 */
-	async function confirmSession() {
+	function reflectSignedOutOn401(status: number | null) {
+		if (status === 401 && state.status === 'signed-in') {
+			setState({ status: 'signed-out' });
+		}
+	}
+
+	/**
+	 * Read `/api/session` with the cookie. The one request+parse the two session
+	 * readers share: `confirmSession` projects it into `state` at boot,
+	 * `getProfile` projects it into the profile contract on demand. A transport or
+	 * parse failure reports `status: null` (and any thrown `cause`); an HTTP
+	 * failure reports its status, so each caller applies its own signed-out
+	 * reaction and error mapping.
+	 */
+	async function readCookieSession(): Promise<
+		| { ok: true; session: ApiSessionResponse }
+		| { ok: false; status: number | null; cause?: unknown }
+	> {
 		let response: Response;
 		try {
 			response = await fetchImpl(API_ROUTES.session.url(baseURL), {
 				credentials: 'include',
 			});
-		} catch {
-			return;
+		} catch (cause) {
+			return { ok: false, status: null, cause };
 		}
-		if (!response.ok) {
-			if (response.status === 401 || response.status === 403) {
-				setState({ status: 'signed-out' });
-			}
-			return;
-		}
+		if (!response.ok) return { ok: false, status: response.status };
 		try {
 			const session = ApiSessionResponse.assert(await response.json());
-			setState({
-				status: 'signed-in',
-				principalId: session.principalId,
-			});
-		} catch {
-			// Malformed body: leave the current state rather than guessing.
+			return { ok: true, session };
+		} catch (cause) {
+			return { ok: false, status: null, cause };
+		}
+	}
+
+	/**
+	 * Confirm the session at boot. A 401/403 is signed-out; a 200 installs
+	 * `signed-in` with the response's principal id. Network or parse failures
+	 * leave the current state, so an offline load keeps the last known projection.
+	 */
+	async function confirmSession() {
+		const read = await readCookieSession();
+		if (read.ok) {
+			setState({ status: 'signed-in', principalId: read.session.principalId });
+			return;
+		}
+		if (read.status === 401 || read.status === 403) {
+			setState({ status: 'signed-out' });
 		}
 	}
 
@@ -176,46 +201,21 @@ export function createSameOriginCookieAuth({
 				...init,
 				credentials: 'include',
 			});
-			// A 401 means the cookie is gone or expired: go straight to signed-out.
-			// This client never emits `reauth-required`; it has no separate
-			// "reconnect" path because re-auth is the same hosted sign-in as a fresh
-			// login.
-			if (response.status === 401 && state.status === 'signed-in') {
-				setState({ status: 'signed-out' });
-			}
+			reflectSignedOutOn401(response.status);
 			return response;
 		},
 		async getProfile() {
-			const { data: response, error } = await tryAsync({
-				try: () =>
-					fetchImpl(API_ROUTES.session.url(baseURL), {
-						credentials: 'include',
-					}),
-				catch: (cause) => AuthError.ProfileUnavailable({ cause }),
-			});
-			if (error) return Err(error);
-			if (!response.ok) {
-				// A 401 means the cookie is gone or expired: reflect signed-out, the
-				// same reaction `fetch` has, then report the read as unavailable.
-				if (response.status === 401 && state.status === 'signed-in') {
-					setState({ status: 'signed-out' });
-				}
-				return AuthError.ProfileUnavailable({
-					cause: {
-						message: `${API_ROUTES.session.pattern} failed with ${response.status}.`,
-						status: response.status,
-					},
-				});
+			const read = await readCookieSession();
+			if (read.ok) {
+				return Ok({ id: read.session.principalId, email: read.session.email });
 			}
-			const { data: user, error: parseError } = await tryAsync({
-				try: async () => {
-					const session = ApiSessionResponse.assert(await response.json());
-					return { id: session.principalId, email: session.email };
+			reflectSignedOutOn401(read.status);
+			return AuthError.ProfileUnavailable({
+				cause: read.cause ?? {
+					message: `${API_ROUTES.session.pattern} failed with ${read.status}.`,
+					status: read.status,
 				},
-				catch: (cause) => AuthError.ProfileUnavailable({ cause }),
 			});
-			if (parseError) return Err(parseError);
-			return Ok(user);
 		},
 		[Symbol.dispose]() {
 			listeners.clear();
