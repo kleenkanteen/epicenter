@@ -2,11 +2,11 @@
  * YjsFileSystem Tests
  *
  * Exercises filesystem-style APIs implemented on top of Yjs-backed file and content state.
- * These tests verify compatibility with common FS operations and storage-mode transitions.
+ * These tests verify compatibility with common FS operations.
  *
  * Key behaviors:
  * - Path operations (`writeFile`, `mkdir`, `rm`, `mv`, `cp`) match expected filesystem semantics.
- * - Timeline-backed content preserves text, binary, and sheet-mode behavior across edits.
+ * - Timeline-backed content preserves text across edits (append and in-place overwrite).
  */
 
 import { describe, expect, test } from 'bun:test';

@@ -9,7 +9,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import * as Y from 'yjs';
-import { attachTimeline } from './timeline.js';
+import { attachTimeline } from './attach-timeline.js';
 
 function setup(key = 'timeline') {
 	const ydoc = new Y.Doc();

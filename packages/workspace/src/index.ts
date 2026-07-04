@@ -111,7 +111,7 @@ export {
 	type RecordsHandle,
 } from './document/attach-records.js';
 export { attachRichText } from './document/attach-rich-text.js';
-export { attachTimeline } from './document/attach-timeline/index.js';
+export { attachTimeline } from './document/attach-timeline.js';
 // `attachChildDocWorker` and its type family (`ChildDocWorker`,
 // `ChildDocWorkerContext`, `ChildDocWorkerFactory`, `ChildDocWorkerHandle`,
 // `ConnectedChildDoc`, `ObservableChildDocLayout`) are intentionally NOT
