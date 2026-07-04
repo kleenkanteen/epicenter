@@ -10,9 +10,12 @@ import type {
 	SyncAuthClient,
 } from './auth-contract.js';
 import { AuthError } from './auth-errors.js';
+import {
+	type AuthFetchInput,
+	fetchWithBearer,
+	resolveTargetUrl,
+} from './bearer-fetch.js';
 import { getProfileVia, readApiSession } from './read-api-session.js';
-
-type AuthFetchInput = Request | string | URL;
 
 /**
  * Construction inputs for the instance-token auth client.
@@ -140,21 +143,6 @@ export function createInstanceTokenAuth({
 	}
 
 	/**
-	 * Resolve any auth-fetch input to its absolute target URL, mirroring the
-	 * OAuth client's resolver: a relative `/path` resolves against `baseURL`.
-	 * Returns null for an unparseable target so callers fail closed.
-	 */
-	function resolveTargetUrl(input: AuthFetchInput): URL | null {
-		try {
-			if (input instanceof Request) return new URL(input.url);
-			if (input instanceof URL) return input;
-			return new URL(input, baseURL);
-		} catch {
-			return null;
-		}
-	}
-
-	/**
 	 * Verify the configured token against `/api/session` and reflect the result
 	 * into state. A 200 installs `signed-in` with the response's principal id; a
 	 * rejected token (`Rejected`) drops to `signed-out`. A network or parse
@@ -191,29 +179,17 @@ export function createInstanceTokenAuth({
 	void confirmSession();
 
 	async function authedFetch(input: AuthFetchInput, init?: RequestInit) {
-		const target = resolveTargetUrl(input);
-		const onEpicenter = target?.origin === epicenterOrigin;
-		const headers = mergeRequestHeaders(input, init);
-		if (onEpicenter) {
-			headers.set('Authorization', `Bearer ${token}`);
-		} else {
-			headers.delete('Authorization');
-		}
-		// A Request carries its own method and body, so pass it through (cloned).
-		// Anything else goes as its resolved absolute URL, so a relative `/path`
-		// lands on baseURL.
-		const normalizedInput: AuthFetchInput =
-			input instanceof Request
-				? (input.clone() as Request)
-				: (target?.href ?? input);
-		const response = await fetchImpl(normalizedInput, {
-			...init,
-			headers,
-			credentials: 'omit',
-			// A bearer-carrying request must never follow a cross-origin redirect:
-			// some runtimes re-send the header to the new origin. Return the 3xx to
-			// the caller instead (mirrors the OAuth client).
-			...(onEpicenter ? { redirect: 'manual' as const } : {}),
+		const onEpicenter =
+			resolveTargetUrl(input, baseURL)?.origin === epicenterOrigin;
+		const response = await fetchWithBearer({
+			input,
+			init,
+			fetch: fetchImpl,
+			baseURL,
+			epicenterOrigin,
+			// The token is static: it is the credential to attach on every
+			// Epicenter-origin request, never refreshed.
+			resolveToken: async () => token,
 		});
 		// A 401 from the instance means the token is gone or revoked: go straight
 		// to signed-out. There is no refresh path for a static token.
@@ -272,23 +248,4 @@ export function createInstanceTokenAuth({
 			verificationListeners.clear();
 		},
 	};
-}
-
-/**
- * Merge Request headers with RequestInit headers using Fetch's own
- * normalization. Mirrors the OAuth client's helper: `HeadersInit` accepts
- * several runtime shapes, including iterable entries TypeScript does not always
- * model directly.
- */
-function mergeRequestHeaders(input: AuthFetchInput, init?: RequestInit) {
-	const headers = new Headers(
-		input instanceof Request ? input.headers : undefined,
-	);
-	const source = init?.headers;
-	if (!source) return headers;
-
-	new Headers(source).forEach((value, key) => {
-		headers.set(key, value);
-	});
-	return headers;
 }

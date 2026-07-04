@@ -8,11 +8,16 @@ import { createLogger, type Logger } from 'wellcrafted/logger';
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import type { AuthFetch, AuthState, SyncAuthClient } from './auth-contract.js';
 import { AuthError, OpenWebSocketDenied } from './auth-errors.js';
-import {
+import type {
 	ApiSessionResponse,
-	type OAuthTokenGrant,
-	type PersistedAuth,
+	OAuthTokenGrant,
+	PersistedAuth,
 } from './auth-types.js';
+import {
+	type AuthFetchInput,
+	fetchWithBearer,
+	resolveTargetUrl,
+} from './bearer-fetch.js';
 import type { OAuthLauncher } from './oauth-launchers/contract.js';
 import {
 	refreshOAuthTokenWithEndpoint,
@@ -24,8 +29,6 @@ import {
 	getProfileVia,
 	readApiSession,
 } from './read-api-session.js';
-
-type AuthFetchInput = Request | string | URL;
 
 /**
  * Construction inputs for the framework-agnostic auth runtime.
@@ -292,65 +295,23 @@ export function createOAuthAppAuth({
 	}
 
 	/**
-	 * Normalize any auth-fetch input to its absolute target URL. The single place
-	 * the four input shapes (Request, URL, relative string, absolute string) are
-	 * resolved: a relative `/path` resolves against `baseURL`, so it always lands
-	 * on the Epicenter origin. Returns null for an unparseable target so callers
-	 * fail closed.
-	 */
-	function resolveTargetUrl(input: AuthFetchInput): URL | null {
-		try {
-			if (input instanceof Request) return new URL(input.url);
-			if (input instanceof URL) return input;
-			return new URL(input, baseURL);
-		} catch {
-			return null;
-		}
-	}
-
-	/**
 	 * The Epicenter bearer is audience-scoped (ADR-0053): it is attached only to
 	 * the origin this client signed into. A request to any other origin is sent
 	 * with no Epicenter credential, so handing this fetch to a custom inference
 	 * backend or any third party can never leak the token.
 	 */
 	function targetsEpicenter(input: AuthFetchInput): boolean {
-		return resolveTargetUrl(input)?.origin === epicenterOrigin;
+		return resolveTargetUrl(input, baseURL)?.origin === epicenterOrigin;
 	}
 
-	async function fetchWithAuth(
-		input: AuthFetchInput,
-		init: RequestInit | undefined,
-		forceRefresh: boolean,
-	) {
-		const target = resolveTargetUrl(input);
-		const headers = headersFromRequest(input, init);
-		const accessToken =
-			target?.origin === epicenterOrigin
-				? await bearerForNetwork(forceRefresh)
-				: null;
-		if (accessToken) {
-			headers.set('Authorization', `Bearer ${accessToken}`);
-		} else {
-			headers.delete('Authorization');
-		}
-		// A Request carries its own method and body, so pass it through (cloned).
-		// Anything else goes as its resolved absolute URL, so a relative `/path`
-		// lands on baseURL; an unparseable input falls through to surface its error.
-		// The clone is cast to `Request` because a Cloudflare Workers consumer types
-		// `Request.clone()` as its CF-flavored Request, which is not `AuthFetchInput`.
-		const normalizedInput: AuthFetchInput =
-			input instanceof Request
-				? (input.clone() as Request)
-				: (target?.href ?? input);
-		return fetchImpl(normalizedInput, {
-			...init,
-			headers,
-			credentials: 'omit',
-			// A bearer-carrying request must never follow a cross-origin redirect:
-			// some runtimes (reqwest in Tauri, older Chromium) re-send the header to
-			// the new origin. Return the 3xx to the caller instead.
-			...(accessToken ? { redirect: 'manual' as const } : {}),
+	function fetchWithAuth(input: AuthFetchInput, init: RequestInit | undefined) {
+		return fetchWithBearer({
+			input,
+			init,
+			fetch: fetchImpl,
+			baseURL,
+			epicenterOrigin,
+			resolveToken: () => bearerForNetwork(false),
 		});
 	}
 
@@ -361,11 +322,11 @@ export function createOAuthAppAuth({
 	 * `getProfile` reuses it so a profile read refreshes a stale token too.
 	 */
 	async function authedFetch(input: AuthFetchInput, init?: RequestInit) {
-		const response = await fetchWithAuth(input, init, false);
+		const response = await fetchWithAuth(input, init);
 		if (response.status !== 401 || !targetsEpicenter(input)) return response;
 		const refreshed = await refreshGrant(true);
 		if (!refreshed) return response;
-		const retryResponse = await fetchWithAuth(input, init, false);
+		const retryResponse = await fetchWithAuth(input, init);
 		if (retryResponse.status === 401) {
 			authSession.pauseNetworkAuth();
 		}
@@ -629,23 +590,4 @@ function authStatesEqual(left: AuthState, right: AuthState) {
 	if (left.status === 'signed-out') return true;
 	if (right.status === 'signed-out') return false;
 	return left.principalId === right.principalId;
-}
-
-/**
- * Merge Request headers with RequestInit headers using Fetch's own normalization.
- *
- * This stays as a helper because `HeadersInit` accepts several runtime shapes,
- * including iterable entries that TypeScript does not always model directly.
- */
-function headersFromRequest(input: Request | string | URL, init?: RequestInit) {
-	const headers = new Headers(
-		input instanceof Request ? input.headers : undefined,
-	);
-	const source = init?.headers;
-	if (!source) return headers;
-
-	new Headers(source).forEach((value, key) => {
-		headers.set(key, value);
-	});
-	return headers;
 }
