@@ -6,7 +6,7 @@ import { Ok, type Result } from 'wellcrafted/result';
 import type {
 	AuthFetch,
 	AuthState,
-	AuthVerificationState,
+	InstanceConnectionStatus,
 	SyncAuthClient,
 } from './auth-contract.js';
 import { AuthError } from './auth-errors.js';
@@ -108,13 +108,14 @@ export function createInstanceTokenAuth({
 		principalId: INSTANCE_PRINCIPAL_ID,
 	};
 	const listeners = new Set<(state: AuthState) => void>();
-	// The boot bearer check verifies against a remote star, so it can be in flight
-	// or fail for a reason `AuthState` cannot carry (only a rejected token drops to
-	// `signed-out`). `verification` runs alongside `state` on its own listener set
-	// so a UI can tell "still verifying" from "unreachable" from "rejected token".
-	let verificationState: AuthVerificationState = { status: 'pending' };
-	const verificationListeners = new Set<
-		(state: AuthVerificationState) => void
+	// The boot bearer check verifies against a remote instance, so it can be in
+	// flight or fail for a reason `AuthState` cannot carry (only a rejected token
+	// drops to `signed-out`). The connection status runs alongside `state` on its
+	// own listener set so a UI can tell "still connecting" from "unreachable"
+	// from "rejected token".
+	let connectionStatus: InstanceConnectionStatus = 'connecting';
+	const connectionListeners = new Set<
+		(status: InstanceConnectionStatus) => void
 	>();
 
 	function setState(next: AuthState) {
@@ -128,9 +129,9 @@ export function createInstanceTokenAuth({
 		}
 	}
 
-	function setVerification(next: AuthVerificationState) {
-		verificationState = next;
-		for (const listener of verificationListeners) {
+	function setConnection(next: InstanceConnectionStatus) {
+		connectionStatus = next;
+		for (const listener of connectionListeners) {
 			try {
 				listener(next);
 			} catch (cause) {
@@ -165,7 +166,7 @@ export function createInstanceTokenAuth({
 	 * only reflects its outcome onto state and the `AuthClient` error contract.
 	 */
 	async function confirmSession(): Promise<Result<undefined, AuthError>> {
-		setVerification({ status: 'pending' });
+		setConnection('connecting');
 		const { data: session, error } = await readApiSession({
 			baseURL,
 			token,
@@ -177,14 +178,11 @@ export function createInstanceTokenAuth({
 			// token is a durable "signed-out"; a transient outage leaves state alone
 			// so it does not look like a bad credential.
 			if (error.name === 'Rejected') setState({ status: 'signed-out' });
-			setVerification({
-				status: 'failed',
-				reason: error.name === 'Rejected' ? 'rejected' : 'unreachable',
-			});
+			setConnection(error.name === 'Rejected' ? 'rejected' : 'unreachable');
 			return AuthError.StartSignInFailed({ cause: error });
 		}
 		setState({ status: 'signed-in', principalId: session.principalId });
-		setVerification({ status: 'verified' });
+		setConnection('connected');
 		return Ok(undefined);
 	}
 
@@ -223,7 +221,7 @@ export function createInstanceTokenAuth({
 			state.status === 'signed-in'
 		) {
 			setState({ status: 'signed-out' });
-			setVerification({ status: 'failed', reason: 'rejected' });
+			setConnection('rejected');
 		}
 		return response;
 	}
@@ -232,7 +230,21 @@ export function createInstanceTokenAuth({
 		get state() {
 			return state;
 		},
-		baseURL,
+		deployment: {
+			kind: 'self-hosted',
+			baseURL,
+			connection: {
+				get status() {
+					return connectionStatus;
+				},
+				onChange(fn) {
+					connectionListeners.add(fn);
+					return () => {
+						connectionListeners.delete(fn);
+					};
+				},
+			},
+		},
 		onStateChange(fn) {
 			listeners.add(fn);
 			return () => {
@@ -248,17 +260,6 @@ export function createInstanceTokenAuth({
 		},
 		fetch: authedFetch,
 		getProfile: () => getProfileVia(authedFetch, baseURL),
-		verification: {
-			get state() {
-				return verificationState;
-			},
-			onChange(fn) {
-				verificationListeners.add(fn);
-				return () => {
-					verificationListeners.delete(fn);
-				};
-			},
-		},
 		async openWebSocket(url, protocols = []) {
 			// The room URL is always built from `baseURL`, so the bearer is always
 			// addressed to its own origin; attach it unconditionally.
@@ -269,7 +270,7 @@ export function createInstanceTokenAuth({
 		},
 		[Symbol.dispose]() {
 			listeners.clear();
-			verificationListeners.clear();
+			connectionListeners.clear();
 		},
 	};
 }

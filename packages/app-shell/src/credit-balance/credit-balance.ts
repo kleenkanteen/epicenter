@@ -90,7 +90,7 @@ type AuthFetch = (
  * display", which the popover renders as absence rather than a scary error. Only a
  * thrown fetch or an unparseable 200 body is a real `RequestFailed`.
  *
- * `apiOrigin` is the API this client signs into (`auth.baseURL`); the path is
+ * `apiOrigin` is the API this client signs into (`auth.deployment.baseURL`); the path is
  * resolved against it so an OAuth app calling a cross-origin API hits the right
  * host, not its own page origin.
  */

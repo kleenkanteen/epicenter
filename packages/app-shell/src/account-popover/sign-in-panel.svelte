@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AuthClient, InstanceSetting } from '@epicenter/auth';
+	import type { AuthClient } from '@epicenter/auth';
 	import { Button } from '@epicenter/ui/button';
 	import { Spinner } from '@epicenter/ui/spinner';
 	import { cn } from '@epicenter/ui/utils';
@@ -8,43 +8,25 @@
 	import Server from '@lucide/svelte/icons/server';
 
 	/**
-	 * The signed-out sign-in panel inside the account popover, the app's only
-	 * auth surface (ADR-0088).
+	 * The signed-out panel inside the account popover, the app's only auth
+	 * surface (ADR-0088).
 	 *
-	 * Renders the hosted primary action plus the self-host instance connect
-	 * affordance.
+	 * Renders entirely from `auth.deployment`: a hosted deployment gets the
+	 * hosted sign-in action, a self-hosted one gets the connect/retry action
+	 * and the live connection copy. All wording lives here; the parent passes
+	 * only what varies per app (the sync noun).
 	 */
 	type SignInPanelProps = {
 		/** The app's auth client; its `startSignIn` drives the primary button. */
 		auth: AuthClient;
+		/** Noun describing what gets synced, e.g. "tabs" or "notes". */
+		syncNoun: string;
 		/**
-		 * Hosted-mode heading. When a self-host override is configured, the panel
-		 * replaces it with "Connect to {host}", so parents supply only the hosted
-		 * copy and cannot forget the flip.
+		 * Open the instance-settings modal. The popover owns that modal, not this
+		 * component, because its lifetime differs: it is root-mounted beside the
+		 * popover so closing the popover cannot tear an open modal down.
 		 */
-		title: string;
-		/**
-		 * Hosted-mode subheading (e.g. "Sign in to sync your recordings across
-		 * devices."), replaced alongside title when an override is configured.
-		 */
-		description: string;
-		/**
-		 * Self-host instance controls. The panel offers connecting to a
-		 * self-hosted instance; grouping means a configure affordance cannot ship
-		 * without the setting that gives it meaning. Required: self-host is a
-		 * real mode on every app's sign-in surface (ADR-0071, ADR-0088).
-		 */
-		instance: {
-			/** The shared instance setting handle this app injected. */
-			setting: InstanceSetting;
-			/**
-			 * Open the instance-settings modal. The shell owns that modal, not this
-			 * component, because its lifetime differs: inline on a full-page screen, but
-			 * root-mounted beside a popover (so closing the popover cannot tear an open
-			 * modal down).
-			 */
-			onConfigure: () => void;
-		};
+		onConfigure: () => void;
 		/**
 		 * When set, the primary sign-in and the connect/change actions are
 		 * disabled, and the reason is shown as a muted line. Lets a host block a
@@ -58,9 +40,8 @@
 
 	let {
 		auth,
-		title,
-		description,
-		instance,
+		syncNoun,
+		onConfigure,
 		disabledReason,
 		class: className,
 	}: SignInPanelProps = $props();
@@ -68,48 +49,54 @@
 	let signingIn = $state(false);
 	let signInError = $state<string | null>(null);
 	const accountLocked = $derived(!!disabledReason);
-	// A self-host override is configured (a non-hosted star with a token is
-	// persisted, ADR-0071), which flips the labels from "sign in / connect" to
-	// "retry / change". Reads the boot snapshot, which only changes across a reload.
-	const configured = $derived(!instance.setting.isDefault());
-
-	// The self-host token client reports whether the configured server accepted its
-	// token; hosted OAuth has no such channel (`auth.verification` is undefined) and
-	// falls back to the generic startSignIn error rendered below.
-	const host = $derived(
-		configured ? new URL(instance.setting.read().baseURL).host : undefined,
+	// The deployment is the one owner of the hosted vs self-hosted fact: a
+	// self-hosted deployment flips the labels from "sign in / connect" to
+	// "retry / change". Fixed at construction; it only changes across a reload.
+	const selfHosted = $derived(
+		auth.deployment.kind === 'self-hosted' ? auth.deployment : undefined,
 	);
-	const verificationState = $derived(auth.verification?.state);
-	const verificationNotice = $derived.by(() => {
-		const v = verificationState;
-		if (!v) return null;
-		switch (v.status) {
-			case 'pending':
-				return { text: `Connecting to ${host}…`, tone: 'text-muted-foreground' };
-			case 'failed':
+	const host = $derived(
+		selfHosted ? new URL(selfHosted.baseURL).host : undefined,
+	);
+
+	// A self-hosted deployment reports whether the configured instance accepted
+	// its token; hosted OAuth has no such channel and falls back to the generic
+	// startSignIn error rendered below.
+	const connectionNotice = $derived.by(() => {
+		if (!selfHosted) return null;
+		switch (selfHosted.connection.status) {
+			case 'connecting':
 				return {
-					text:
-						v.reason === 'rejected'
-							? `${host} rejected the saved token.`
-							: `Couldn't reach ${host}. Check the URL and that your server is running.`,
+					text: `Connecting to ${host}…`,
+					tone: 'text-muted-foreground',
+				};
+			case 'rejected':
+				return {
+					text: `${host} rejected the saved token.`,
 					tone: 'text-destructive',
 				};
-			case 'verified':
+			case 'unreachable':
+				return {
+					text: `Couldn't reach ${host}. Check the URL and that your server is running.`,
+					tone: 'text-destructive',
+				};
+			case 'connected':
 				return null;
 		}
 	});
-	// Busy while the boot check is still verifying or a manual retry is in flight.
-	// A pending boot check has no ceiling here: `fetch` has no default timeout, so
-	// a star that accepts the socket but never answers leaves this on "Connecting…"
-	// until the browser's own timeout fires. Refused connections and 401s fail
-	// fast, so the common failures self-heal into a retryable state.
-	const verifying = $derived(
-		signingIn || verificationState?.status === 'pending',
+	// Busy while the boot check is still connecting or a manual retry is in
+	// flight. A pending boot check has no ceiling here: `fetch` has no default
+	// timeout, so a box that accepts the socket but never answers leaves this on
+	// "Connecting…" until the browser's own timeout fires. Refused connections
+	// and 401s fail fast, so the common failures self-heal into a retryable state.
+	const busy = $derived(
+		signingIn || selfHosted?.connection.status === 'connecting',
 	);
 
 	// One sign-in surface: the primary button and the "retry" action are the same
-	// `auth.startSignIn()`, whose meaning (hosted OAuth vs. verifying the persisted
-	// token) is fixed by the constructed client, so the label follows `configured`.
+	// `auth.startSignIn()`, whose meaning (hosted OAuth vs. verifying the saved
+	// token) is fixed by the constructed client, so the label follows the
+	// deployment kind.
 	async function startSignIn() {
 		signInError = null;
 		signingIn = true;
@@ -124,26 +111,30 @@
 
 <div class={cn('flex flex-col gap-3', className)}>
 	<div class="space-y-1">
-		<p class="text-sm font-medium">{configured ? `Connect to ${host}` : title}</p>
+		<p class="text-sm font-medium">
+			{selfHosted ? `Connect to ${host}` : 'Sign in'}
+		</p>
 		<p class="text-xs text-muted-foreground">
-			{configured ? 'Sign in to your self-hosted instance.' : description}
+			{selfHosted
+				? 'Sign in to your self-hosted instance.'
+				: `Sign in to sync your ${syncNoun} across devices.`}
 		</p>
 	</div>
 	{#if disabledReason}
 		<p class="text-xs text-muted-foreground">{disabledReason}</p>
 	{/if}
-	{#if verificationNotice}
-		<p class="text-xs {verificationNotice.tone}">{verificationNotice.text}</p>
+	{#if connectionNotice}
+		<p class="text-xs {connectionNotice.tone}">{connectionNotice.text}</p>
 	{:else if signInError}
 		<p class="text-xs text-destructive">{signInError}</p>
 	{/if}
-	<Button class="w-full" disabled={verifying || accountLocked} onclick={startSignIn}>
-		{#if verifying}
+	<Button class="w-full" disabled={busy || accountLocked} onclick={startSignIn}>
+		{#if busy}
 			<Spinner class="size-4" />
-			{configured ? 'Connecting…' : 'Signing in…'}
+			{selfHosted ? 'Connecting…' : 'Signing in…'}
 		{:else if auth.state.status === 'reauth-required'}
 			Reconnect
-		{:else if configured}
+		{:else if selfHosted}
 			<RefreshCw class="size-4" />
 			Retry connection
 		{:else}
@@ -156,9 +147,9 @@
 		variant="outline"
 		class="w-full"
 		disabled={accountLocked}
-		onclick={instance.onConfigure}
+		onclick={onConfigure}
 	>
 		<Server class="size-4" />
-		{configured ? 'Change instance' : 'Connect to a self-hosted instance'}
+		{selfHosted ? 'Change instance' : 'Connect to a self-hosted instance'}
 	</Button>
 </div>

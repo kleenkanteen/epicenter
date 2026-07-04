@@ -46,7 +46,11 @@
 	 * which a `Tooltip.Root` needs as an ancestor.
 	 */
 	type AccountPopoverProps = {
-		/** The app's auth client (from `createAppAuthClient()` or the dashboard's `createSameOriginCookieAuth()`). */
+		/**
+		 * The app's auth client (from `createAppAuthClient()`). Its `deployment`
+		 * is the one runtime owner of the hosted vs self-hosted fact; every
+		 * display decision here branches on it, never on the persisted setting.
+		 */
 		auth: AuthClient;
 		/**
 		 * Sync surface slice from the binding's optional `collaboration`.
@@ -79,9 +83,9 @@
 		 */
 		onForgetDevice?: () => void | Promise<void>;
 		/**
-		 * Self-host instance connect for the signed-out panel: the shared sign-in
-		 * panel offers a hosted sign-in button plus a "Connect to a self-hosted
-		 * instance" link that opens the settings modal. Required: this popover is
+		 * Self-host instance connect: what the settings modal needs to persist a
+		 * different deployment choice. The setting handle is write-path only here;
+		 * everything displayed reads `auth.deployment`. Required: this popover is
 		 * the app's only auth surface (ADR-0088), so every app injects its
 		 * instance setting here.
 		 */
@@ -118,16 +122,16 @@
 	const accountCacheKey = $derived(
 		auth.state.status === 'signed-out' ? null : auth.state.principalId,
 	);
-	// Which star this account lives on: a configured self-host override names the
-	// box, and the host IS the identity there (the instance session's email is a
+	// Which star this account lives on: a self-hosted deployment names the box,
+	// and the host IS the identity there (the instance session's email is a
 	// canned placeholder, not an account).
 	const selfHostHost = $derived(
-		instanceConnect.setting.isDefault()
-			? undefined
-			: new URL(instanceConnect.setting.read().baseURL).host,
+		auth.deployment.kind === 'self-hosted'
+			? new URL(auth.deployment.baseURL).host
+			: undefined,
 	);
 	// Optimistic boot (ADR-0075) leaves a self-host user signed-in even when the box
-	// is unreachable, so they usually never see the sign-in panel's verification copy.
+	// is unreachable, so they usually never see the sign-in panel's connection copy.
 	// Surface the unreachable state here instead. `auth.state` still says signed-in
 	// (local workspace identity is known); this line only explains that the
 	// configured server is offline in this runtime, and local work is unaffected, so
@@ -135,8 +139,8 @@
 	// signed-out (see `createInstanceTokenAuth`), which reveals the sign-in panel
 	// that owns the rejected-token copy, so this signed-in surface never sees it.
 	const unreachableNotice = $derived.by(() => {
-		const v = auth.verification?.state;
-		if (v?.status !== 'failed' || v.reason !== 'unreachable') return null;
+		if (auth.deployment.kind !== 'self-hosted') return null;
+		if (auth.deployment.connection.status !== 'unreachable') return null;
 		return `Can't reach ${selfHostHost}. You're working locally; sync resumes when it's back.`;
 	});
 	// Identity lives on the auth client: `state` carries the principal partition,
@@ -165,7 +169,7 @@
 		() =>
 			queryOptions({
 				queryKey: ['account-credits', accountCacheKey],
-				queryFn: () => fetchCreditOverview(auth.fetch, auth.baseURL),
+				queryFn: () => fetchCreditOverview(auth.fetch, auth.deployment.baseURL),
 				enabled: auth.state.status === 'signed-in' && !selfHostHost,
 				staleTime: 60_000,
 			}),
@@ -173,7 +177,9 @@
 	);
 	// The hosted dashboard is where a user tops up; only shown on a hosted star.
 	const dashboardUrl = $derived(
-		selfHostHost ? undefined : new URL('/dashboard', auth.baseURL).toString(),
+		selfHostHost
+			? undefined
+			: new URL('/dashboard', auth.deployment.baseURL).toString(),
 	);
 	const signOut = createMutation(
 		() =>
@@ -372,13 +378,9 @@
 			<div class="p-4">
 				<SignInPanel
 					{auth}
-					title="Sign in"
-					description={`Sign in to sync your ${syncNoun} across devices.`}
+					{syncNoun}
 					{disabledReason}
-					instance={{
-						setting: instanceConnect.setting,
-						onConfigure: openInstanceModal,
-					}}
+					onConfigure={openInstanceModal}
 				/>
 			</div>
 		{/if}
