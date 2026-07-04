@@ -76,6 +76,10 @@ export const authApp = new Hono<CloudEnv>()
 					c.var.authSecrets.GITHUB_CLIENT_ID &&
 						c.var.authSecrets.GITHUB_CLIENT_SECRET,
 				),
+				microsoftEnabled: Boolean(
+					c.var.authSecrets.MICROSOFT_CLIENT_ID &&
+						c.var.authSecrets.MICROSOFT_CLIENT_SECRET,
+				),
 			}),
 		);
 	})

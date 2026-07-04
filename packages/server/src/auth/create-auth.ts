@@ -34,6 +34,8 @@ export const CloudAuthBindings = type({
 	'GOOGLE_CLIENT_SECRET?': 'string',
 	'GITHUB_CLIENT_ID?': 'string',
 	'GITHUB_CLIENT_SECRET?': 'string',
+	'MICROSOFT_CLIENT_ID?': 'string',
+	'MICROSOFT_CLIENT_SECRET?': 'string',
 });
 export type CloudAuthBindings = typeof CloudAuthBindings.infer;
 
@@ -46,8 +48,8 @@ export type CloudAuthBindings = typeof CloudAuthBindings.infer;
  *
  * Wires up:
  * - Drizzle adapter (portable Postgres wire; Hyperdrive on Workers, a pool on Node)
- * - Google OAuth, plus GitHub when its credentials are configured
- *   (email/password is disabled; see {@link BASE_AUTH_CONFIG})
+ * - Google OAuth, plus GitHub and Microsoft when their credentials are
+ *   configured (email/password is disabled; see {@link BASE_AUTH_CONFIG})
  * - Plugins: JWT (ES256), OAuth provider (PKCE)
  *
  * `/api/session` is the single Epicenter session surface; this builder no longer
@@ -125,6 +127,21 @@ export function createAuth({
 						github: {
 							clientId: env.GITHUB_CLIENT_ID,
 							clientSecret: env.GITHUB_CLIENT_SECRET,
+						},
+					}
+				: {}),
+			// Microsoft (Entra / personal MSA), register-when-present like GitHub.
+			// tenantId defaults to 'common' so both work/school and personal
+			// accounts can sign in. Like GitHub, Microsoft is deliberately NOT a
+			// trusted linking provider (see BASE_AUTH_CONFIG): a personal MSA email
+			// is not a guaranteed-verified assertion, so an untrusted Microsoft
+			// identity only links to an existing same-email account when Microsoft
+			// itself reports the email verified.
+			...(env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET
+				? {
+						microsoft: {
+							clientId: env.MICROSOFT_CLIENT_ID,
+							clientSecret: env.MICROSOFT_CLIENT_SECRET,
 						},
 					}
 				: {}),
