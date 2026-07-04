@@ -9,11 +9,11 @@
  * CLI and runtime always agree on which tables exist.
  *
  * Run via:
- *   bun run auth:generate
+ *   bun run auth:generate:remote
  *
  * Env strategy:
  *   - `BETTER_AUTH_SECRET` is required in `process.env`, injected by
- *     `infisical run --env=prod` when invoked via `bun run auth:generate`.
+ *     `infisical run --env=prod` when invoked via `bun run auth:generate:remote`.
  *   - `DATABASE_URL` is read from `process.env` if set (the `:remote` path)
  *     and otherwise falls back to the local Postgres URL parsed from
  *     `wrangler.jsonc` by `wrangler-config.ts`.

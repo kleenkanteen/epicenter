@@ -154,7 +154,7 @@ blob round-trip against whichever store the server points at.
 ### Database commands
 
 ```bash
-bun run auth:generate    # Generate Better Auth schema
+bun run auth:generate:remote # Generate Better Auth schema
 bun run db:generate      # Generate Drizzle migrations
 bun run db:push:local     # Push schema to local Postgres (dev only, use migrations for remote)
 bun run db:migrate:remote # Run migrations against remote (via Infisical)

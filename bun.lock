@@ -684,6 +684,10 @@
       "dependencies": {
         "@epicenter/constants": "workspace:*",
       },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
     },
     "packages/agent-protocol": {
       "name": "@epicenter/agent-protocol",
