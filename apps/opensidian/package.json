@@ -10,8 +10,7 @@
 		"./mount": "./mount.ts"
 	},
 	"scripts": {
-		"dev": "bun run dev:local",
-		"dev:local": "vite dev",
+		"dev": "vite dev",
 		"build": "vite build",
 		"deploy": "wrangler deploy",
 		"preview": "vite preview",

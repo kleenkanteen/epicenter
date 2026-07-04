@@ -131,7 +131,7 @@
 		"dev": "bun run dev:tab-manager",
 		"dev:api": "bun run --cwd apps/api dev",
 		"dev:tab-manager": "bun run --filter @epicenter/api --filter @epicenter/tab-manager dev",
-		"dev:tab-manager:ui": "bun run --cwd apps/tab-manager dev:local",
+		"dev:tab-manager:ui": "bun run --cwd apps/tab-manager dev",
 		"format": "biome check --write --linter-enabled=false",
 		"format:check": "biome ci --linter-enabled=false",
 		"lint": "biome lint --write",

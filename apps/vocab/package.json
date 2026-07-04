@@ -9,8 +9,7 @@
 		"./browser": "./vocab.browser.ts"
 	},
 	"scripts": {
-		"dev": "bun run dev:local",
-		"dev:local": "vite dev",
+		"dev": "vite dev",
 		"build": "NODE_ENV=production vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
