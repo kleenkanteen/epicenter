@@ -2,7 +2,7 @@
  * Epicenter: YJS-First Collaborative Workspace System
  *
  * `@epicenter/workspace` builds typed Yjs-backed workspaces: tables, KV,
- * plain/rich text, timeline, and an action registry. Runtime openers wire the
+ * plain/rich text, and an action registry. Runtime openers wire the
  * workspace's `Y.Doc` to IndexedDB persistence and WebSocket sync via
  * `openCollaboration`, which consumes the server-owned presence channel and
  * exposes the live-peer surface (`peers.list()`).
@@ -111,7 +111,6 @@ export {
 	type RecordsHandle,
 } from './document/attach-records.js';
 export { attachRichText } from './document/attach-rich-text.js';
-export { attachTimeline } from './document/attach-timeline.js';
 // `attachChildDocWorker` and its type family (`ChildDocWorker`,
 // `ChildDocWorkerContext`, `ChildDocWorkerFactory`, `ChildDocWorkerHandle`,
 // `ConnectedChildDoc`, `ObservableChildDocLayout`) are intentionally NOT

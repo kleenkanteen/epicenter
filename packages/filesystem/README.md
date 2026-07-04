@@ -24,7 +24,7 @@ the content operations it needs.
 
 ```typescript
 import {
-	attachTimeline,
+	attachPlainText,
 	createWorkspace,
 	onLocalUpdate,
 } from '@epicenter/workspace';
@@ -51,7 +51,7 @@ function openContentDoc(fileId) {
 	);
 	return {
 		ydoc: contentYdoc,
-		content: attachTimeline(contentYdoc),
+		content: attachPlainText(contentYdoc),
 		whenReady: Promise.resolve(),
 		[Symbol.dispose]() {
 			contentYdoc.destroy();
