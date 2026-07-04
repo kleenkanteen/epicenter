@@ -437,7 +437,7 @@ The manual recorder lives under `services/recorder/index.*.ts` because the recor
 
 ### Multi-provider services
 
-- `transcription/` - Speech-to-text (OpenAI, Groq, ElevenLabs, Speaches, local Whisper/Parakeet/Moonshine)
+- `transcription/` - Speech-to-text (Epicenter, OpenAI, Groq, ElevenLabs, Speaches, local GGUF)
 
 Recording state itself is owned by `$lib/state/manual-recorder.svelte.ts` and `$lib/state/vad-recorder.svelte.ts`, not by services. Services may hold service-local runtime state, like a platform recorder's active session, but app-visible state lives one level up.
 
