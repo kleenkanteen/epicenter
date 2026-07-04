@@ -17,7 +17,7 @@ The one thing that kept the array was compatibility: existing opensidian file bo
 **A child-doc text body is a plain `Y.Text` at `getText('content')`. `attachTimeline` and the `timeline` slot are deleted; the file body layout becomes `attachPlainText`.**
 
 - `@epicenter/filesystem`'s `filesTable` binds `content: attachPlainText` (was `attachTimeline`). File bodies are stored at `getText('content')`, not `getArray('timeline')`.
-- `attachTimeline` (and `packages/workspace/src/document/attach-timeline.ts`) is removed from the published `@epicenter/workspace` API.
+- `attachTimeline` and its `attach-timeline` module are removed from the published `@epicenter/workspace` API.
 - `attachPlainText` gains an `appendText(text)` method, earned by two concrete operations: POSIX `appendFile` in filesystem and opensidian's append-to-body calls. It sits beside `read`/`write` as the third natural verb on a text handle; editors keep binding `binding` directly.
 - opensidian's editor binds `handle.binding` instead of `handle.asText()`. Because `getText('content')` presents a valid (possibly empty) `Y.Text` with no structural write, the empty-doc seed that `asText()` performed is gone, and with it the mutation hazard the editor's hydration gate guarded against.
 
