@@ -130,6 +130,7 @@ test('label honors LOCAL_MAIL_READ_ONLY before resolving labels', async () => {
 	const token: TokenSet = {
 		accountEmail: 'you@example.com',
 		clientIdUsed: 'client-id',
+		environment: 'dev',
 		accessToken: 'access-token',
 		refreshToken: 'refresh-token',
 		accessTokenExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
@@ -173,6 +174,7 @@ test('status --json resolves the sole stored account and prints JSON', async () 
 	const token: TokenSet = {
 		accountEmail: 'you@example.com',
 		clientIdUsed: 'client-id',
+		environment: 'dev',
 		accessToken: 'access-token',
 		refreshToken: 'refresh-token',
 		accessTokenExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),

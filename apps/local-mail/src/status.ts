@@ -1,13 +1,15 @@
 import { existsSync } from 'node:fs';
 import { mailDbPath, openMailDbReadonly } from './db.ts';
 import type { LocalMailRuntime } from './runtime.ts';
-import { isAccessTokenExpired } from './tokens.ts';
+import { type GmailEnvironment, isAccessTokenExpired } from './tokens.ts';
 
 export type MailStatus = {
 	accountEmail: string;
 	dataDir: string;
 	tokenFile: string;
 	connected: boolean;
+	/** The provider-environment the account was connected under (ADR-0105); null when not connected. */
+	environment: GmailEnvironment | null;
 	accessToken: { valid: boolean; expiresAt: string } | null;
 	mirror: 'empty' | 'building' | 'ready';
 	schemaVersion: string | null;
@@ -28,6 +30,7 @@ export async function readMailStatus({
 		dataDir: config.dataDir,
 		tokenFile: config.credentialsPath,
 		connected: token !== null,
+		environment: token?.environment ?? null,
 		accessToken: token
 			? {
 					valid: !isAccessTokenExpired(token, Date.now(), 0),

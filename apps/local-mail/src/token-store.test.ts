@@ -31,6 +31,7 @@ function token(accountEmail: string): TokenSet {
 	return {
 		accountEmail,
 		clientIdUsed: 'test-client',
+		environment: 'dev',
 		accessToken: 'access-token',
 		accessTokenExpiresAt: new Date(Date.now() + 60_000).toISOString(),
 		refreshToken: 'refresh-token',
@@ -41,8 +42,6 @@ function token(accountEmail: string): TokenSet {
 function config(account: string | null): AppConfig {
 	return {
 		dataDir: '/tmp/local-mail-test',
-		clientId: 'client-id',
-		clientSecret: 'client-secret',
 		apiBase: 'https://gmail.googleapis.com',
 		authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
 		tokenUrl: 'https://oauth2.googleapis.com/token',
@@ -62,6 +61,7 @@ describe('token sets round-trip through the real store', () => {
 		const seeded: TokenSet = {
 			accountEmail: 'you@example.com',
 			clientIdUsed: 'test-client',
+			environment: 'dev',
 			accessToken: 'an-expired-access-token',
 			accessTokenExpiresAt: new Date(0).toISOString(),
 			refreshToken: 'a-real-refresh-token',
@@ -86,6 +86,7 @@ describe('token sets round-trip through the real store', () => {
 		await store.set({
 			accountEmail: 'you@example.com',
 			clientIdUsed: 'test-client',
+			environment: 'dev',
 			accessToken: '',
 			accessTokenExpiresAt: new Date(0).toISOString(),
 			refreshToken: 'a-real-refresh-token',

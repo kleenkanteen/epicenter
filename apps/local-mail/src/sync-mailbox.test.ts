@@ -89,8 +89,6 @@ function createFakeGmailClient(seed: {
 
 const config: AppConfig = {
 	dataDir: '/tmp/local-mail-test',
-	clientId: 'test-client',
-	clientSecret: 'test-secret',
 	apiBase: 'http://localhost:0',
 	authorizeUrl: 'http://localhost:0/auth',
 	tokenUrl: 'http://localhost:0/token',
