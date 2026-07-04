@@ -22,8 +22,9 @@ Write one prompt regardless of recipient type, and cover these points. They are 
 3. Reading list: exact paths, commands, and snippets to read first, with why each matters.
 4. Decisions: what is settled and must not be reopened, what is known fact, what is only a recommendation, and which questions are open and whose call they are. Mixing these makes the recipient treat taste as evidence.
 5. Boundaries: what may change, what must not, and what adjacent work is out of scope.
-6. Plan: ordered next steps concrete enough to start without asking for context.
-7. Proof and stop: verification commands, the evidence expected in the final answer, and where to stop instead of continuing into the next phase.
+6. Execution model: handoffs usually target Claude models or orchestrators. Tell the recipient to route token-heavy work through Codex when available: search, grep, file reading, diff inspection, command execution, browser or computer use, and first-pass synthesis. Claude should read Codex's evidence packets and summaries, then spend reasoning budget on ambiguity, tradeoffs, ownership calls, implementation direction, and final synthesis.
+7. Plan: ordered next steps concrete enough to start without asking for context.
+8. Proof and stop: verification commands, the evidence expected in the final answer, and where to stop instead of continuing into the next phase.
 
 ## Rules
 
@@ -31,6 +32,7 @@ Write one prompt regardless of recipient type, and cover these points. They are 
 - Do not duplicate specs, plans, commits, or diffs. Link the stable path and summarize the decision it carries.
 - Use absolute dates. "Today", "yesterday", and "recently" rot.
 - Do not imply the recipient has tools, credentials, apps, or subagents unless the user said so. Write "when available" when a step depends on the harness.
+- For Claude-targeted handoffs, encourage Claude or the orchestrator to route broad search, grep, file reading, diff exploration, command execution, browser or computer use, and first-pass summaries through Codex when available. Claude should consume those Codex outputs as evidence, not redo the same token-heavy exploration, then make the judgment calls.
 - Bound the work. If the recipient should not implement, say so; if implementation may follow, ask for a separate execution handoff after the decision pass.
 
 ## Shape It To The Job
