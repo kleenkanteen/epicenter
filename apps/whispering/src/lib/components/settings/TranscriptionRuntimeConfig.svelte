@@ -1,5 +1,4 @@
 <script lang="ts">
-	import * as Alert from '@epicenter/ui/alert';
 	import { Badge } from '@epicenter/ui/badge';
 	import { Button } from '@epicenter/ui/button';
 	import * as Card from '@epicenter/ui/card';
@@ -10,6 +9,8 @@
 	import * as Select from '@epicenter/ui/select';
 	import { Textarea } from '@epicenter/ui/textarea';
 	import { cn } from '@epicenter/ui/utils';
+	import { createMutation } from '@tanstack/svelte-query';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import CopyablePre from '$lib/components/copyable/CopyablePre.svelte';
 	import {
 		SUPPORTED_LANGUAGES_OPTIONS,
@@ -31,6 +32,7 @@
 	} from '$lib/services/transcription/providers';
 	import { deviceConfig } from '$lib/state/device-config.svelte';
 	import { localModels } from '$lib/state/local-models.svelte';
+	import { recordingActive } from '$lib/state/recording-active.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { createCopyFn } from '$lib/utils/createCopyFn';
 	import { auth } from '#platform/auth';
@@ -112,6 +114,19 @@
 	const KEY_ENTRIES = TRANSCRIPTION_PROVIDERS.filter(
 		(entry): entry is KeyEntry => entry.access === 'key',
 	);
+
+	// Signing in redirects/reloads (Option A), which kills an in-flight browser
+	// recording, so lock the action while a capture is active. Account settings
+	// owns sign-out; this section only makes the hosted transcription route ready.
+	const isSignedIn = $derived(auth.state.status === 'signed-in');
+	const accountLocked = $derived(recordingActive.current);
+	const startSignIn = createMutation(() => ({
+		mutationKey: ['transcription-setup', 'startSignIn'],
+		mutationFn: async () => {
+			const { error } = await auth.startSignIn();
+			if (error) throw error;
+		},
+	}));
 </script>
 
 {#snippet renderServiceIcon(entry: TranscriptionProviderEntry)}
@@ -165,25 +180,44 @@
 </Field.Group>
 
 {#snippet epicenterSection()}
-	{#if auth.state.status === 'signed-in'}
-		<Card.Root>
-			<Card.Header>
-				<Card.Title class="text-base">{PROVIDERS.epicenter.label}</Card.Title>
-				<Card.Description>
-					Transcription runs through your connected Epicenter over your signed-in
-					session. The model is managed for you, so there is nothing to configure
-					here. Hosted usage is metered by AI credits; a self-hosted deployment
-					runs it unmetered.
-				</Card.Description>
-			</Card.Header>
-		</Card.Root>
+	{#if isSignedIn}
+		<Field.Field orientation="horizontal">
+			<Field.Content>
+				<Field.Label>Signed in</Field.Label>
+				<Field.Description>
+					Your Epicenter account is connected. Manage it in
+					<Link href="/settings/account">Account settings</Link>.
+				</Field.Description>
+			</Field.Content>
+			<Badge variant="secondary" class="text-xs">Ready</Badge>
+		</Field.Field>
 	{:else}
-		<Alert.Root variant="warning">
-			<Alert.Title>Sign in required</Alert.Title>
-			<Alert.Description>
-				Sign in to Epicenter to use hosted transcription.
-			</Alert.Description>
-		</Alert.Root>
+		<Field.Field>
+			{#if startSignIn.error}
+				<Field.Description class="text-destructive">
+					{startSignIn.error.message}
+				</Field.Description>
+			{/if}
+			{#if accountLocked}
+				<Field.Description class="text-muted-foreground">
+					Stop recording to sign in.
+				</Field.Description>
+			{/if}
+			<Button
+				class="w-full sm:w-auto sm:self-start"
+				onclick={() => startSignIn.mutate()}
+				disabled={startSignIn.isPending || accountLocked}
+			>
+				{#if startSignIn.isPending}
+					<LoaderCircle class="size-4 animate-spin" />
+					Signing in...
+				{:else if auth.state.status === 'reauth-required'}
+					Reconnect
+				{:else}
+					Sign in with Epicenter
+				{/if}
+			</Button>
+		</Field.Field>
 	{/if}
 {/snippet}
 

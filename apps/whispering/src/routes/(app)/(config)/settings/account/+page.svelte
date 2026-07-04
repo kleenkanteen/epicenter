@@ -19,12 +19,18 @@
 
 	const startSignIn = createMutation(() => ({
 		mutationKey: ['account', 'startSignIn'],
-		mutationFn: () => auth.startSignIn(),
+		mutationFn: async () => {
+			const { error } = await auth.startSignIn();
+			if (error) throw error;
+		},
 	}));
 
 	const signOut = createMutation(() => ({
 		mutationKey: ['account', 'signOut'],
-		mutationFn: () => auth.signOut(),
+		mutationFn: async () => {
+			const { error } = await auth.signOut();
+			if (error) throw error;
+		},
 		onError: (error) => toastOnError(error, 'Failed to sign out'),
 	}));
 </script>
