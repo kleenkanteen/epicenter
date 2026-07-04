@@ -10,6 +10,15 @@
  * `localhost` URL is meaningless elsewhere (ADR-0004). The arktype schema here is
  * the single runtime shape; `Connection` (from `@epicenter/client`) is the
  * matching compile-time type.
+ *
+ * Two axes people conflate. A custom connection here (a base URL + optional key)
+ * is device-local and appears the moment it is added; it is unrelated to sign-in
+ * or to which Epicenter instance is connected. The injected hosted entry is always
+ * present, so its picker group renders regardless of sign-in, but its transport is
+ * the audience-scoped `auth.fetch` (ADR-0053) against the Cloud gateway, so it only
+ * functions when signed into Cloud (signed out it is shown-but-inert; the chat
+ * surface's `onSignIn` catches the send). Instance auth (Cloud OAuth vs self-host
+ * token) is a separate decision that never gates this picker.
  */
 
 import {
@@ -160,6 +169,23 @@ export function createInferenceConnections({
 		): Promise<Result<string[], ListModelsError>> {
 			return listModels(
 				resolveConnection({ baseUrl, apiKey: apiKey || undefined }),
+			);
+		},
+
+		/** Re-discover an already-added connection's models and update its cached
+		 * list, for when a user pulled a new model at the endpoint after connecting.
+		 * Best effort by design: on failure the previously discovered ids stand, so a
+		 * transient outage never empties the group, and nothing is returned because the
+		 * caller has nothing to surface (unlike `discover`, whose error builds the
+		 * connect-form hint). Connect-time `add` still owns first discovery; this is the
+		 * one path that refreshes a stale list in place. */
+		async refresh(baseUrl: string): Promise<void> {
+			const connection = stored.current.find((c) => c.baseUrl === baseUrl);
+			if (!connection) return;
+			const { data, error } = await listModels(resolveConnection(connection));
+			if (error) return;
+			stored.current = stored.current.map((c) =>
+				c.baseUrl === baseUrl ? { ...c, models: data } : c,
 			);
 		},
 

@@ -33,6 +33,26 @@ Use this pattern when you need to:
 - Avoid generic, repetitive AI-style design choices.
 - Match implementation complexity to the chosen visual direction.
 
+## Refactor Fidelity
+
+When redesigning or refactoring an existing UI, treat pixel fidelity as a
+question to classify, not a default requirement. This skill owns visual
+direction, hierarchy, accessibility, important states, and recognizable product
+feel.
+
+If exact spacing, breakpoints, animations, hover states, empty states, DOM shape,
+full component trees, or snapshot fidelity force a large styling or state
+family, switch to [asymmetric-wins](../asymmetric-wins/SKILL.md) for the refusal
+decision. Return here for the visual judgment: fidelity is load-bearing when it
+affects comprehension, accessibility, trust, brand, or regression-sensitive
+state.
+
+Prefer local UI primitives when they preserve the same workflow, hierarchy,
+states, and accessibility contract. Do not reproduce a full HTML tree merely to
+make a design artifact feel precise; use a screenshot, compact sketch, state
+table, or partial tree unless exact DOM structure is the product contract or the
+bug.
+
 ## Design Thinking
 
 Before coding, understand the context and commit to a BOLD aesthetic direction:

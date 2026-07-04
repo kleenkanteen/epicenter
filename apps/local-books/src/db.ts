@@ -4,8 +4,10 @@ import { dirname } from 'node:path';
 import {
 	type EntityDef,
 	isDeleted,
+	type JsonPathSegment,
 	lastUpdatedTime,
 	type QbObject,
+	sqlIdent,
 } from './entities.ts';
 
 /**
@@ -76,21 +78,13 @@ export type EntityStatus = {
 	initialized: boolean;
 };
 
-const IDENT = /^[a-z_][a-z0-9_]*$/;
-function assertIdent(name: string): string {
-	if (!IDENT.test(name)) throw new Error(`Unsafe SQL identifier: ${name}`);
-	return name;
-}
-
-// Generated-column paths are inlined into the CREATE TABLE string literal, so
-// each QB field segment must be a bare identifier (no quotes, dots, or `$`).
-const PATH_SEGMENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
-function jsonExtractPath(segments: string[]): string {
-	for (const seg of segments) {
-		if (!PATH_SEGMENT.test(seg)) {
-			throw new Error(`Unsafe JSON path segment: ${seg}`);
-		}
-	}
+// The registry (`entities.ts`) is the SQL-identifier boundary: it validates and
+// brands every table name, generated-column name (`SqlIdent`), and path segment
+// (`JsonPathSegment`) when it is built, so this module interpolates registry
+// values into SQL without re-checking them. `sqlIdent` is reused at exactly one
+// site below, the schema-migration drop, whose table names come from
+// `sqlite_master` rather than the registry.
+function jsonExtractPath(segments: JsonPathSegment[]): string {
 	return `$.${segments.join('.')}`;
 }
 
@@ -153,7 +147,7 @@ export function openBooksDb(
 					 WHERE type='table' AND name != '_meta' AND name NOT LIKE 'sqlite_%'`,
 				)
 				.all()) {
-				db.exec(`DROP TABLE IF EXISTS ${assertIdent(name)};`);
+				db.exec(`DROP TABLE IF EXISTS ${sqlIdent(name)};`);
 			}
 			// CURSOR_KEYS are compile-time constants, so interpolating them as quoted
 			// literals is safe (no user input reaches this string).
@@ -164,19 +158,19 @@ export function openBooksDb(
 		setMetaStmt.run('schema_version', SCHEMA_VERSION);
 	}
 
-	// Prepared-statement caches, keyed by table.
-	const upsertStmts = new Map<string, ReturnType<typeof db.query>>();
-	const deleteStmts = new Map<string, ReturnType<typeof db.query>>();
+	// `db.query()` caches the compiled statement by SQL text, so the per-table
+	// statements below are prepared once and reused on repeat calls without a
+	// hand-rolled cache.
 
 	function ensureEntityTable(def: EntityDef): void {
-		const table = assertIdent(def.table);
+		const table = def.table;
 		// Each extracted column is a VIRTUAL generated projection of `raw`, so the
 		// blob stays the single source of truth: no write-path extraction, and a
 		// missing field is `json_extract`'s null for free.
 		const extra = def.columns
 			.map(
 				(c) =>
-					`${assertIdent(c.name)} ${c.type} GENERATED ALWAYS AS (json_extract(raw, '${jsonExtractPath(c.path)}')) VIRTUAL`,
+					`${c.name} ${c.type} GENERATED ALWAYS AS (json_extract(raw, '${jsonExtractPath(c.path)}')) VIRTUAL`,
 			)
 			.join(',\n\t\t\t\t');
 		db.exec(`
@@ -192,9 +186,7 @@ export function openBooksDb(
 	}
 
 	function upsertStmtFor(def: EntityDef) {
-		const cached = upsertStmts.get(def.table);
-		if (cached) return cached;
-		const table = assertIdent(def.table);
+		const table = def.table;
 		// Monotonic upsert: a row only ever moves forward. The DO UPDATE applies only
 		// when the incoming object is at least as new as the stored one (by QB
 		// LastUpdatedTime), so a stale write cannot regress the mirror, e.g.
@@ -202,7 +194,7 @@ export function openBooksDb(
 		// ingested a newer bookkeeper edit. A missing timestamp on either side falls
 		// back to last-writer-wins (nothing to order on). The extracted columns are
 		// generated from `raw`, so the upsert writes only the blob and its bookkeeping.
-		const stmt = db.query(
+		return db.query(
 			`INSERT INTO ${table} (id, raw, updated_at, synced_at, deleted)
 			 VALUES (?, ?, ?, ?, 0)
 			 ON CONFLICT(id) DO UPDATE SET
@@ -214,19 +206,15 @@ export function openBooksDb(
 			    OR ${table}.updated_at IS NULL
 			    OR excluded.updated_at >= ${table}.updated_at`,
 		);
-		upsertStmts.set(def.table, stmt);
-		return stmt;
 	}
 
 	function deleteStmtFor(def: EntityDef) {
-		const cached = deleteStmts.get(def.table);
-		if (cached) return cached;
-		const table = assertIdent(def.table);
+		const table = def.table;
 		// On conflict, only flip the flag + timestamps and keep the existing blob (a
 		// CDC delete payload is just a stub); the generated columns keep projecting
 		// that preserved blob, so the last-known scalars survive. Same monotonic guard
 		// as the upsert: a stale delete cannot override a newer live update.
-		const stmt = db.query(
+		return db.query(
 			`INSERT INTO ${table} (id, raw, updated_at, synced_at, deleted)
 			 VALUES (?, ?, ?, ?, 1)
 			 ON CONFLICT(id) DO UPDATE SET
@@ -237,8 +225,6 @@ export function openBooksDb(
 			    OR ${table}.updated_at IS NULL
 			    OR excluded.updated_at >= ${table}.updated_at`,
 		);
-		deleteStmts.set(def.table, stmt);
-		return stmt;
 	}
 
 	function tableExists(name: string): boolean {
@@ -350,13 +336,58 @@ export function openBooksDb(
 			if (!tableExists(def.table)) return null;
 			const row = db
 				.query<{ raw: string }, [string]>(
-					`SELECT raw FROM ${assertIdent(def.table)} WHERE id = ? AND deleted = 0`,
+					`SELECT raw FROM ${def.table} WHERE id = ? AND deleted = 0`,
 				)
 				.get(id);
 			return row?.raw ?? null;
 		},
 
 		readRealmState,
+
+		/**
+		 * A page of an entity's rows, newest first, for the browse surface. Returns
+		 * the id, the bookkeeping columns, and this entity's extracted scalar columns
+		 * (not `raw`, which is heavy and only the detail view needs), plus the total
+		 * row count so a caller can page. An entity with no table yet is empty, not an
+		 * error. The column list is built from the registry def, so every name is a
+		 * static identifier; SQLite sorts NULL `updated_at` last under DESC, so
+		 * never-dated rows fall to the bottom.
+		 */
+		pageRows(
+			def: EntityDef,
+			{ limit, offset }: { limit: number; offset: number },
+		): { rows: Record<string, unknown>[]; total: number } {
+			const table = def.table;
+			if (!tableExists(def.table)) return { rows: [], total: 0 };
+			const total =
+				db.query<{ n: number }, []>(`SELECT count(*) AS n FROM ${table}`).get()
+					?.n ?? 0;
+			const cols = [
+				'id',
+				'updated_at',
+				'synced_at',
+				'deleted',
+				...def.columns.map((c) => c.name),
+			].join(', ');
+			const rows = db
+				.query(
+					`SELECT ${cols} FROM ${table} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
+				)
+				.all(limit, offset) as Record<string, unknown>[];
+			return { rows, total };
+		},
+
+		/**
+		 * One row by id with its verbatim `raw` blob, for the detail view. Unlike
+		 * `getLiveRaw`, this returns soft-deleted rows too (the mirror still holds the
+		 * last-known blob), so the UI can show a removed record. `null` when the table
+		 * or the row does not exist.
+		 */
+		getRow(def: EntityDef, id: string): Record<string, unknown> | null {
+			if (!tableExists(def.table)) return null;
+			const row = db.query(`SELECT * FROM ${def.table} WHERE id = ?`).get(id);
+			return (row as Record<string, unknown>) ?? null;
+		},
 
 		/** Whether this entity has had its first full pull, i.e. its table exists. */
 		isInitialized(def: EntityDef): boolean {
@@ -368,7 +399,7 @@ export function openBooksDb(
 		},
 
 		entityStatus(def: EntityDef): EntityStatus {
-			const table = assertIdent(def.table);
+			const table = def.table;
 			if (!tableExists(def.table)) {
 				return {
 					entity: def.name,

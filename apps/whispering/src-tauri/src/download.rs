@@ -1,30 +1,21 @@
-//! Cancelable HTTP file downloads.
+//! Cancelable background transfers.
 //!
-//! Replaces `tauri-plugin-upload`'s `download` for model files. That plugin
-//! streams `reqwest` -> `tokio::fs` inside a detached `tokio::spawn` and keeps
-//! no handle to the task, so a started download cannot be stopped: dropping the
-//! JS promise leaves the bytes moving in Rust.
+//! A `DownloadManager` registers a running transfer's `AbortHandle` under a
+//! frontend-owned download id, so `cancel_download(id)` can abort the in-flight
+//! transfer. An aborted transfer surfaces as an `Err` on the matching call.
 //!
-//! Here the streaming task's `AbortHandle` is registered in a `DownloadManager`
-//! keyed by a frontend-owned download id, so `cancel_download(id)` can abort the
-//! in-flight transfer. An aborted transfer surfaces as an `Err` on the matching
-//! `download_file` call.
-//!
-//! This module is deliberately layout-agnostic: it streams bytes into the path
-//! it is given (`stream_to_file`) and runs a transfer as a cancelable task
-//! (`DownloadManager::run`). The `.partial` staging convention, the per-file
-//! size check, and the promote-rename live one layer up in
-//! `transcription::model_folder::download_model`, which owns the folder.
+//! This module is deliberately transfer-agnostic: it runs any future as a
+//! cancelable task (`DownloadManager::run`) and carries the progress payload
+//! (`DownloadProgress`). The actual model download lives one layer up in
+//! `transcription::catalog::download_model`, which streams a GGUF into the
+//! shared Hugging Face cache through `hf-hub`.
 
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
 
-use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use tokio::io::AsyncWriteExt;
 
 /// In-flight download registry. Holds one `AbortHandle` per download id while
 /// its transfer task runs; `cancel_download` aborts the task through it. The
@@ -109,60 +100,10 @@ impl DownloadProgress {
     }
 }
 
-/// Stream a URL to a file on disk, reporting this file's running byte count
-/// through `on_progress` (throttled to ~10/sec). Returns the final byte count.
-/// Pure transfer; the caller owns cumulative aggregation, registration, and
-/// cancellation (`DownloadManager::run`).
-pub(crate) async fn stream_to_file(
-    url: &str,
-    file_path: &str,
-    mut on_progress: impl FnMut(u64),
-) -> Result<u64, String> {
-    let response = reqwest::Client::new()
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "request failed with status code {}",
-            response.status().as_u16()
-        ));
-    }
-
-    let mut file = tokio::io::BufWriter::new(
-        tokio::fs::File::create(file_path)
-            .await
-            .map_err(|e| e.to_string())?,
-    );
-
-    let mut bytes_received: u64 = 0;
-    let mut last_emit = Instant::now();
-    // A download fires thousands of small chunks, but each progress send crosses
-    // IPC and repaints the bar, and no one reads progress faster than this.
-    // Throttle to ~10/sec; the true final count is force-sent after the loop.
-    let throttle = Duration::from_millis(100);
-    let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| e.to_string())?;
-        file.write_all(&chunk).await.map_err(|e| e.to_string())?;
-        bytes_received += chunk.len() as u64;
-        if last_emit.elapsed() >= throttle {
-            on_progress(bytes_received);
-            last_emit = Instant::now();
-        }
-    }
-    file.flush().await.map_err(|e| e.to_string())?;
-    // Land on the true final byte count; the throttle may have skipped the last
-    // chunk's update.
-    on_progress(bytes_received);
-    Ok(bytes_received)
-}
-
 /// Abort the in-flight download registered under `download_id`, if any. The
-/// matching `download_model` call then resolves with an `Err` (and its staging
-/// is cleaned up by the dropped task). A no-op when nothing is downloading under
-/// that id, so it is always safe to call.
+/// matching `download_model` call then resolves with an `Err` (and the dropped
+/// task leaves a temp file in the HF cache, never a corrupt final). A no-op when
+/// nothing is downloading under that id, so it is always safe to call.
 #[tauri::command]
 #[specta::specta]
 pub fn cancel_download(download_id: String, manager: State<'_, DownloadManager>) {

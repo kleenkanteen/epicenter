@@ -21,6 +21,7 @@
 		isTranscriptionServiceConfigured,
 	} from '$lib/settings/transcription-validation';
 	import { deviceConfig } from '$lib/state/device-config.svelte';
+	import { localModels } from '$lib/state/local-models.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { tauri } from '#platform/tauri';
 
@@ -87,8 +88,13 @@
 				return settings.get(service.modelSettingKey);
 			case 'self-hosted':
 				return deviceConfig.get(service.endpointConfigKey);
-			case 'local':
-				return deviceConfig.get(service.modelConfigKey);
+			case 'local': {
+				// Resolve the opaque catalog id ("{repo}@{rev}/{file}") to its friendly
+				// name so the Local group's selection subtext reads as a model, not an
+				// HF coordinate. Falls back to the id if the store has not loaded yet.
+				const id = deviceConfig.get(service.modelConfigKey);
+				return localModels.find(id)?.name ?? id;
+			}
 		}
 	}
 
@@ -109,9 +115,7 @@
 	);
 
 	const localServiceSearchKeywords = {
-		whispercpp: 'whisper cpp ggml gguf local offline',
-		parakeet: 'nvidia nemo onnx parakeet local offline',
-		moonshine: 'usefulsensors onnx moonshine local offline',
+		local: 'local offline whisper parakeet gguf ggml on-device private',
 	} satisfies Record<
 		Extract<TranscriptionProviderEntry, { location: 'local' }>['id'],
 		string
@@ -375,7 +379,7 @@
 				<Command.Item
 					value="settings"
 					onSelect={() => {
-						goto('/settings/transcription');
+						goto('/settings/processing');
 						combobox.closeAndFocusTrigger();
 					}}
 					class="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground"

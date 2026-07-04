@@ -29,6 +29,10 @@ export type ParsedArgs = {
 	to?: string;
 	toName?: string;
 	line?: string;
+	/** `app`: print the launch URL instead of opening a browser. */
+	noOpen: boolean;
+	/** `app`: pin the loopback server port (default: ephemeral). */
+	port?: number;
 	help: boolean;
 	version: boolean;
 };
@@ -44,6 +48,7 @@ Usage:
   local-books query "<sql>" [options]
   local-books report <Name> [--start <date>] [--end <date>] [--method <basis>]
   local-books recategorize <Purchase|Bill> <id> --to <accountId> [options]
+  local-books app [--no-open] [--port <n>] [options]
   local-books demo [options]
   local-books mcp [options]
 
@@ -59,6 +64,7 @@ Commands:
   query         Run a read-only SQL query over the local copy (point an AI agent here too).
   report        Run a live QuickBooks statement: ProfitAndLoss, BalanceSheet, CashFlow, AgedReceivables, AgedPayables, TrialBalance.
   recategorize  Move an expense to a different account in QuickBooks (then update the local copy).
+  app           Open your books: keep the mirror fresh and serve the browser UI + API on 127.0.0.1, then open it in your browser.
   demo          Build a sample company you can query right now, with example questions.
   mcp           Serve the read/refresh/write verbs to a coding agent over MCP (stdio). See the README.
 
@@ -72,6 +78,8 @@ Options:
   --to <accountId>                Target account for recategorize (an accounts row id).
   --to-name <name>                Target account display name for recategorize (optional, for readable books).
   --line <lineId>                 Recategorize only this expense line (optional; default all expense lines).
+  --no-open                       Print the launch URL instead of opening a browser (app only).
+  --port <n>                      Pin the app server port (app only; default: ephemeral).
   --realm <id>                    Target company (default: the connected one).
   --data-dir <path>               Where the local copy lives (or LOCAL_BOOKS_DIR).
   --qb-env <sandbox|production>   Which QuickBooks to talk to (default: sandbox). Was --env.
@@ -83,6 +91,9 @@ Environment:
   LOCAL_BOOKS_DIR                   Where the local copy lives.
   LOCAL_BOOKS_TOKEN_FILE            Override the credentials file path (default: <data-dir>/credentials.json).
   LOCAL_BOOKS_READ_ONLY             Disable recategorize (reads only).
+  LOCAL_BOOKS_PORT                  Fallback for pinning the app server port; prefer --port.
+  LOCAL_BOOKS_NO_OPEN               Fallback for making app print the URL without opening a browser; prefer --no-open.
+  LOCAL_BOOKS_DEV / LOCAL_BOOKS_TOKEN  Dev-mode app; the Vite proxy injects the fixed bearer. Auth is never disabled.
 `;
 
 /** Parse a duration like "30s", "30m", "2h" into ms; a bare number means minutes. */
@@ -107,6 +118,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		positionals: [],
 		full: false,
 		entities: [],
+		noOpen: false,
 		help: false,
 		version: false,
 	};
@@ -174,6 +186,19 @@ export function parseArgs(argv: string[]): ParsedArgs {
 			case '--line':
 				args.line = takeValue();
 				break;
+			case '--no-open':
+				args.noOpen = true;
+				break;
+			case '--port': {
+				const value = Number(takeValue());
+				if (!Number.isInteger(value) || value < 0) {
+					throw new Error(
+						`--port must be a non-negative integer, got "${value}"`,
+					);
+				}
+				args.port = value;
+				break;
+			}
 			case '--qb-env': {
 				const value = takeValue();
 				if (value !== 'sandbox' && value !== 'production') {
@@ -217,6 +242,16 @@ export async function runCli(argv: string[]): Promise<number> {
 			return runReport(args);
 		case 'recategorize':
 			return runRecategorize(args);
+		case 'app': {
+			const { runApp } = await import('./app.ts');
+			return runApp({
+				dataDir: args.dataDir,
+				environment: args.environment,
+				realm: args.realm,
+				noOpen: args.noOpen,
+				port: args.port,
+			});
+		}
 		case 'demo':
 			return runDemo(args);
 		case 'mcp':

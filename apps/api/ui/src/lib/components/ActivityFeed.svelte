@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { providerLabel } from '@epicenter/constants/ai-providers';
+	import * as Empty from '@epicenter/ui/empty';
 	import { Skeleton } from '@epicenter/ui/skeleton';
 	import * as Table from '@epicenter/ui/table';
 	import { createQuery } from '@tanstack/svelte-query';
@@ -24,9 +25,17 @@
 		{/each}
 	</div>
 {:else if events.isError}
-	<p class="text-sm text-destructive">Failed to load activity.</p>
+	<Empty.Root class="py-8 border-0" role="alert">
+		<Empty.Header>
+			<Empty.Title class="text-destructive">Failed to load activity</Empty.Title>
+		</Empty.Header>
+	</Empty.Root>
 {:else if !events.data?.events.length}
-	<p class="text-sm text-muted-foreground py-8 text-center">No activity yet.</p>
+	<Empty.Root class="py-8 border-0">
+		<Empty.Header>
+			<Empty.Title>No activity yet</Empty.Title>
+		</Empty.Header>
+	</Empty.Root>
 {:else}
 	<Table.Root>
 		<Table.Header>

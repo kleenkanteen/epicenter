@@ -9,46 +9,57 @@
 	import { Link } from '@epicenter/ui/link';
 	import * as Select from '@epicenter/ui/select';
 	import { Textarea } from '@epicenter/ui/textarea';
-	import type { Snippet } from 'svelte';
 	import CopyablePre from '$lib/components/copyable/CopyablePre.svelte';
-	import { SUPPORTED_LANGUAGES_OPTIONS } from '$lib/constants/languages';
+	import {
+		SUPPORTED_LANGUAGES_OPTIONS,
+		type SupportedLanguage,
+	} from '$lib/constants/languages';
 	import {
 		LOCAL_MODEL_UNLOAD_POLICY_OPTIONS,
 		type LocalModelUnloadPolicy,
 	} from '$lib/constants/local-model-unload-policy';
-	import {
-		MOONSHINE_MODELS,
-		PARAKEET_MODELS,
-		WHISPER_MODELS,
-	} from '$lib/constants/local-models';
+	import { describeTranscriptionDestinationFromConfig } from '$lib/operations/transcription-target';
 	import { TRANSCRIPTION_PROVIDERS } from '$lib/services/transcription/provider-ui';
 	import { PROVIDERS } from '$lib/services/transcription/providers';
 	import { deviceConfig } from '$lib/state/device-config.svelte';
+	import { localModels } from '$lib/state/local-models.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { createCopyFn } from '$lib/utils/createCopyFn';
 	import { tauri } from '#platform/tauri';
+	import AdvancedDisclosure from './AdvancedDisclosure.svelte';
 	import LocalModelSelector from './LocalModelSelector.svelte';
 	import ProviderConfigFields from './ProviderConfigFields.svelte';
 	import TranscriptionServiceSelect from './TranscriptionServiceSelect.svelte';
 
-	let {
-		id = 'selected-transcription-service',
-		label = 'Transcription Service',
-		description,
-		showAdvanced = true,
-		class: className,
-	}: {
-		id?: string;
-		label?: string;
-		description?: string | Snippet;
-		/** When false, hide the advanced fields (unload policy, language, prompt). */
-		showAdvanced?: boolean;
-		class?: string;
-	} = $props();
+	// The Audio stage of the capture pipeline: the transcription destination the
+	// recording is sent to. Like {@link CompletionRuntimeConfig}, this surface owns
+	// its own routing decision and takes no props, so the Privacy & Processing page
+	// renders it as `<TranscriptionRuntimeConfig />`.
 
-	const currentServiceCapabilities = $derived(
-		PROVIDERS[settings.get('transcription.service')].capabilities,
+	const destination = $derived(
+		describeTranscriptionDestinationFromConfig({
+			service: settings.get('transcription.service'),
+			getDeviceConfig: deviceConfig.get,
+		}),
 	);
+
+	// Cloud/self-hosted capability is provider-wide (static). Local capability is
+	// per-GGUF, read from the selected model's Rust `ModelInfo`; nothing selected
+	// yet defaults permissive (Whisper-class), and the runtime independently
+	// ignores a prompt a model does not accept.
+	const currentServiceCapabilities = $derived.by(() => {
+		const service = settings.get('transcription.service');
+		if (service === 'local') {
+			const model = localModels.find(
+				deviceConfig.get(PROVIDERS.local.modelConfigKey),
+			);
+			return {
+				supportsPrompt: model?.supportsPrompt ?? true,
+				supportsLanguage: model?.supportsLanguage ?? true,
+			};
+		}
+		return PROVIDERS[service].capabilities;
+	});
 
 	const selectedTranscriptionProvider = $derived(
 		TRANSCRIPTION_PROVIDERS.find(
@@ -72,7 +83,7 @@
 		)?.label,
 	);
 
-	const isLocalEngine = $derived(
+	const isLocalProvider = $derived(
 		Boolean(tauri) &&
 			PROVIDERS[settings.get('transcription.service')].location === 'local',
 	);
@@ -85,15 +96,16 @@
 	);
 </script>
 
-<Field.Group class={className}>
+<Field.Group>
 	<TranscriptionServiceSelect
-		{id}
-		{label}
-		{description}
+		id="selected-transcription-service"
+		label="Service"
 		bind:selected={() => settings.get('transcription.service'),
 			(selected) =>
 				settings.set('transcription.service', selected)}
 	/>
+
+	<p class="text-muted-foreground text-sm">{destination.summary}</p>
 
 	{#if isSelectedServiceUnavailable && selectedTranscriptionProvider}
 		<Alert.Root variant="warning">
@@ -305,104 +317,28 @@
 				</Field.Description>
 			</Field.Field>
 		</div>
-	{:else if settings.get('transcription.service') === 'whispercpp'}
+	{:else if settings.get('transcription.service') === 'local'}
 		<div class="space-y-4">
 			<LocalModelSelector
-				models={WHISPER_MODELS}
-				title="Whisper Model"
-				description="Download a pre-built model or add your own to the models folder. Models run locally for private, offline transcription."
-				bind:value={() => deviceConfig.get('transcription.whispercpp.model'),
-					(v) => deviceConfig.set('transcription.whispercpp.model', v)}
-			>
-				{#snippet footer()}
-					<Field.Description>
-						Pre-built models are downloaded from
-						<Link
-							href="https://huggingface.co/ggerganov/whisper.cpp"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							Hugging Face
-						</Link>
-						into the models folder. Quantized models (q5_0, q8_0) offer
-						smaller sizes with minimal quality loss.
-					</Field.Description>
-				{/snippet}
-			</LocalModelSelector>
-		</div>
-	{:else if settings.get('transcription.service') === 'parakeet'}
-		<div class="space-y-4">
-			<LocalModelSelector
-				models={PARAKEET_MODELS}
-				title="Parakeet Model"
-				description="Parakeet is the recommended fast local model. It runs on this device, downloads once, and automatically detects supported spoken languages."
-				bind:value={() => deviceConfig.get('transcription.parakeet.model'),
-				(v) => deviceConfig.set('transcription.parakeet.model', v)}
-			>
-				{#snippet footer()}
-					<Field.Description>
-						Pre-built models are downloaded from
-						<Link
-							href="https://github.com/EpicenterHQ/epicenter/releases/tag/models/parakeet-tdt-0.6b-v3-int8"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							GitHub releases
-						</Link>
-						into the models folder. Parakeet models from
-						<Link
-							href="https://github.com/NVIDIA/NeMo"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							NVIDIA NeMo
-						</Link>
-						are directories containing ONNX files.
-					</Field.Description>
-				{/snippet}
-			</LocalModelSelector>
-		</div>
-	{:else if settings.get('transcription.service') === 'moonshine'}
-		<div class="space-y-4">
-			<LocalModelSelector
-				models={MOONSHINE_MODELS}
-				title="Moonshine Model"
-				description="Moonshine is an efficient ONNX model by UsefulSensors. English-only with fast inference and small model sizes (~30 MB)."
-				bind:value={() => deviceConfig.get('transcription.moonshine.model'),
-				(v) => deviceConfig.set('transcription.moonshine.model', v)}
-			>
-				{#snippet footer()}
-					<Field.Description>
-						Pre-built models are downloaded from
-						<Link
-							href="https://huggingface.co/UsefulSensors/moonshine"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							Hugging Face
-						</Link>
-						into the models folder. Your own Moonshine directory must be
-						named
-						<code class="rounded bg-muted px-1 py-0.5 font-mono"
-							>moonshine-&#123;variant&#125;-&#123;lang&#125;</code
-						>
-						(e.g.
-						<code class="rounded bg-muted px-1 py-0.5 font-mono"
-							>moonshine-tiny-en</code
-						>); the variant (tiny/base) tells Whispering the model
-						architecture.
-					</Field.Description>
-				{/snippet}
-			</LocalModelSelector>
+				bind:value={() => deviceConfig.get('transcription.local.selectedModel'),
+					(v) => deviceConfig.set('transcription.local.selectedModel', v)}
+			/>
 		</div>
 	{/if}
 
-	{#if showAdvanced && !isSelectedServiceUnavailable}
-		{#if isLocalEngine}
-			<Field.Field>
-				<Field.Label for="local-model-unload-policy">
-					Unload Model When Idle
-				</Field.Label>
+	{#if !isSelectedServiceUnavailable}
+		<AdvancedDisclosure>
+			<Field.Group>{@render advancedFields()}</Field.Group>
+		</AdvancedDisclosure>
+	{/if}
+</Field.Group>
+
+{#snippet advancedFields()}
+	{#if isLocalProvider}
+		<Field.Field>
+			<Field.Label for="local-model-unload-policy">
+				Unload Model When Idle
+			</Field.Label>
 				<Select.Root
 					type="single"
 					bind:value={
@@ -442,7 +378,7 @@
 			<Select.Root
 				type="single"
 				bind:value={() => settings.get('transcription.language'),
-					(v) => settings.set('transcription.language', v)}
+					(v) => settings.set('transcription.language', v as SupportedLanguage)}
 				disabled={!currentServiceCapabilities.supportsLanguage}
 			>
 				<Select.Trigger id="spoken-language" class="w-full">
@@ -456,10 +392,7 @@
 			</Select.Root>
 			{#if !currentServiceCapabilities.supportsLanguage}
 				<Field.Description>
-					{settings.get('transcription.service') ===
-					'moonshine'
-						? 'Moonshine uses English-only models.'
-						: 'Parakeet detects the spoken language automatically.'}
+					This model detects the spoken language automatically.
 				</Field.Description>
 			{:else}
 				<Field.Description>
@@ -484,5 +417,4 @@
 					: 'This transcription service does not support prompts.'}
 			</Field.Description>
 		</Field.Field>
-	{/if}
-</Field.Group>
+{/snippet}

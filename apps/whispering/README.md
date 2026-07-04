@@ -201,7 +201,7 @@ Your audio never leaves your device. Works without internet. Free forever.
 **First, download a model (required):**
 
 1. Open Whispering
-2. Click **Settings** (⚙️) → **Transcription**
+2. Click **Settings** (⚙️) → **Privacy & Processing**
 3. Select **Whisper C++** from the dropdown
 4. Choose a model (start with `Small` for good balance of speed and accuracy)
 5. Click **Download** button next to the model
@@ -239,7 +239,7 @@ I personally use Groq for most of my transcriptions because it's incredibly fast
 #### Setup Steps
 
 1. Open Whispering
-2. Click **Settings** (⚙️) → **Transcription**
+2. Click **Settings** (⚙️) → **Privacy & Processing**
 3. Select **Groq** from the dropdown
 4. Paste your API key in the API key field
 5. Choose a model (`whisper-large-v3-turbo` is fastest and cheapest)
@@ -263,7 +263,7 @@ I personally use Groq for most of my transcriptions because it's incredibly fast
 
 - **No transcription?** → Double-check API key in Settings
 - **Shortcut not working?** → Bring Whispering to foreground (see macOS section below)
-- **Wrong provider selected?** → Check Settings → Transcription
+- **Wrong provider selected?** → Check Settings → Privacy & Processing
 
 ### Platform-Specific Issues
 
@@ -534,13 +534,13 @@ Whispering stores as much data as possible locally on your device, including rec
    - Cloud completion providers send transcript text to services like OpenAI, Anthropic, Google, Groq, or OpenRouter.
    - Custom completion can point at a local OpenAI-compatible server, such as Ollama or LM Studio. With a local server and no API key, Polish transcript text stays on your device.
 
-   Local transcription does not automatically make Polish local. Audio can stay on-device while transcript text is still sent to a cloud completion provider. The Dictation settings page shows the current boundary.
+   Local transcription does not automatically make Polish local. Audio can stay on-device while transcript text is still sent to a cloud completion provider. **Settings → Privacy & Processing** shows the current boundary for both stages.
 
-You can change both the transcription and completion providers in settings to control which parts of the pipeline stay local.
+You can change both the transcription and completion providers under **Settings → Privacy & Processing** to control which parts of the pipeline stay local.
 
 ### Local Polish with Ollama or LM Studio
 
-Local Polish already works through the Custom completion provider. Run an OpenAI-compatible local server yourself, choose **Custom (OpenAI-compatible)** as the completion provider, paste the server URL, leave the API key empty unless your server requires one, and type the model name you want to use.
+Local Polish already works through the Custom completion provider. Run an OpenAI-compatible local server yourself, then under **Settings → Privacy & Processing** choose **Custom (OpenAI-compatible)** as the text AI provider, paste the server URL, leave the API key empty unless your server requires one, and type the model name you want to use.
 
 Common local URLs:
 
@@ -791,7 +791,7 @@ Local engines (whisper.cpp, Parakeet, Moonshine) are implemented in Rust behind 
    - `PROVIDER_ICONS` in `src/lib/services/transcription/provider-ui.ts`: add your SVG icon.
    - `PROVIDER_FIELDS` in `src/lib/components/settings/ProviderConfigFields.svelte`: declare the API key (and optional endpoint) fields with their labels, placeholders, and docs links. This is where provider-specific copy lives, like where to find the API key.
 
-That's the whole integration. The transcription settings page, the quick-pick selector, the configuration warning badge, and the dispatcher need no edits; they all render and resolve through the registry entry. Only self-hosted and local providers get bespoke sections in `src/routes/(app)/(config)/settings/transcription/+page.svelte`, because their setup instructions are the product copy.
+That's the whole integration. The Privacy & Processing surface, the quick-pick selector, the configuration warning badge, and the dispatcher need no edits; they all render and resolve through the registry entry. Only self-hosted and local providers get bespoke sections in `src/lib/components/settings/TranscriptionRuntimeConfig.svelte`, because their setup instructions are the product copy.
 
 ##### Adding an AI Transformation Adapter
 

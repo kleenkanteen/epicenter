@@ -142,7 +142,19 @@ export function createPersistedState<TSchema extends StandardSchemaV1>({
 		return parseRawValue(window.localStorage.getItem(key));
 	}
 
-	let value = $state(readFromStorage());
+	// `$state.raw`, not `$state`: this store is replace-only. The single writer is
+	// `setValue`, which always assigns a whole new value (`value = nextValue`), and
+	// the `.current` setter routes through `setAndPersist`, so nothing ever mutates a
+	// field in place. A deep proxy would therefore cost proxying on every persisted
+	// array/object for reactivity we never use. `$state.raw` also keeps the value
+	// identity stable (the getter returns the exact reference set, which a JSON store
+	// wants) and makes the `Object.is` dedup in `setValue` compare real references. It
+	// stores by reference and does not freeze, so an accidental `store.current.foo = x`
+	// mutates the in-memory object without triggering reactivity or persistence (the
+	// missing UI update surfaces the mistake, and the next storage re-parse overwrites
+	// it), rather than the `$state` trap where the proxy updates the UI yet the write
+	// is never persisted (silent data loss).
+	let value = $state.raw(readFromStorage());
 	let disposed = false;
 	const listeners = new Set<
 		(value: StandardSchemaV1.InferOutput<TSchema>) => void

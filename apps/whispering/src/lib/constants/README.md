@@ -23,7 +23,6 @@ constants/
 ├── icons/                  # Provider brand SVG assets
 ├── inference.ts            # Text-completion provider/model registry
 ├── languages.ts            # Supported transcription languages
-├── local-models.ts         # Local transcription model download catalogs (data only)
 ├── local-model-unload-policy.ts  # Memory unload-policy setting (mirrored in Rust)
 ├── sounds.ts               # Sound effect names
 ├── transcription.ts        # Transcription service registry

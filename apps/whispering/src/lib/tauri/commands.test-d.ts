@@ -10,9 +10,6 @@ import type { Result } from 'wellcrafted/result';
 import type {
 	commands,
 	IpcRecorderError,
-	LocalModelState,
-	ModelStateEvent,
-	ModelStatus,
 	RecordingArtifact,
 	TranscriptionError,
 	TranscriptionSpec,
@@ -74,50 +71,6 @@ type _SetUnloadPolicyArg = Expect<
 	>
 >;
 
-// get_transcription_state: infallible snapshot for late-mounted observers.
-type _GetTranscriptionState = Expect<
-	Equal<
-		ReturnType<typeof commands.getTranscriptionState>,
-		Promise<LocalModelState>
-	>
->;
-
-type _ModelStateEventShape = Expect<
-	Equal<
-		ModelStateEvent,
-		| { kind: 'loading_started'; state: LocalModelState }
-		| {
-				kind: 'loading_completed';
-				state: LocalModelState;
-				elapsedMs: number;
-		  }
-		| { kind: 'loading_failed'; state: LocalModelState; error: string }
-		| { kind: 'inference_started'; state: LocalModelState }
-		| {
-				kind: 'inference_completed';
-				state: LocalModelState;
-				elapsedMs: number;
-		  }
-		| { kind: 'inference_failed'; state: LocalModelState; error: string }
-		| {
-				kind: 'unloaded';
-				state: LocalModelState;
-				reason: { kind: 'immediate' } | { kind: 'idle'; idleSecs: number };
-		  }
-	>
->;
-
-type _ModelStatusShape = Expect<
-	Equal<
-		ModelStatus,
-		| { kind: 'idle' }
-		| { kind: 'loading' }
-		| { kind: 'ready' }
-		| { kind: 'inferring' }
-		| { kind: 'error'; message: string }
-	>
->;
-
 // open_accessibility_settings: fallible, returns unit as null. Deliberately a
 // bare-string error (tier 2): the frontend wraps it into one PermissionsError
 // variant and only displays the message; it never branches on the cause.
@@ -144,8 +97,7 @@ type _TranscriptionSpecShape = Expect<
 	Equal<
 		TranscriptionSpec,
 		{
-			engine: 'whispercpp' | 'parakeet' | 'moonshine';
-			modelName: string;
+			modelId: string;
 			language?: string | null;
 			initialPrompt?: string | null;
 		}
