@@ -25,10 +25,6 @@ export const QbApiError = defineErrors({
 		status,
 		body,
 	}),
-	Unauthorized: ({ body }: { body: string }) => ({
-		message: `QuickBooks API rejected the access token (401): ${body.slice(0, 300)}`,
-		body,
-	}),
 	Throttled: ({ retries }: { retries: number }) => ({
 		message: `QuickBooks API throttled the request (429) after ${retries} retries.`,
 		retries,
@@ -190,7 +186,6 @@ export function createQbClient(deps: QbClientDeps): QbClient {
 			}
 
 			const body = await response.text().catch(() => '');
-			if (response.status === 401) return QbApiError.Unauthorized({ body });
 			return QbApiError.Http({ status: response.status, body });
 		}
 	}
