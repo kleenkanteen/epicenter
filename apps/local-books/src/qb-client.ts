@@ -15,7 +15,7 @@ import type { TokenError, TokenManager } from './token-manager.ts';
  * lookback. On 429 QuickBooks asks callers to wait ~60s.
  */
 
-export const QbApiError = defineErrors({
+const QbApiError = defineErrors({
 	Network: ({ cause }: { cause: unknown }) => ({
 		message: `Network error calling the QuickBooks API: ${String(cause)}`,
 		cause,
@@ -34,15 +34,15 @@ export const QbApiError = defineErrors({
 		detail,
 	}),
 });
-export type QbApiError = InferErrors<typeof QbApiError>;
+type QbApiError = InferErrors<typeof QbApiError>;
 
 export type QbClientError = QbApiError | TokenError;
 
 /** A page of query results: the objects plus whether more pages may follow. */
-export type QueryPage = { objects: QbObject[]; hasMore: boolean };
+type QueryPage = { objects: QbObject[]; hasMore: boolean };
 
 /** CDC changes grouped by entity name. Deletes are included (status: "Deleted"). */
-export type CdcResult = { changes: Record<string, QbObject[]> };
+type CdcResult = { changes: Record<string, QbObject[]> };
 
 export type QbClient = {
 	readonly realmId: string;
@@ -80,7 +80,7 @@ export type QbClient = {
 	): Promise<Result<Record<string, unknown>, QbClientError>>;
 };
 
-export type QbClientDeps = {
+type QbClientDeps = {
 	config: AppConfig;
 	realmId: string;
 	tokens: TokenManager;
@@ -112,7 +112,7 @@ export function createQbClient(deps: QbClientDeps): QbClient {
 	async function request(
 		path: string,
 		params: Record<string, string>,
-		write?: { method: 'POST'; body: unknown },
+		write?: { body: unknown },
 	): Promise<Result<unknown, QbClientError>> {
 		const url = new URL(`${config.apiBase}/v3/company/${realmId}/${path}`);
 		for (const [key, value] of Object.entries(params))
@@ -129,7 +129,7 @@ export function createQbClient(deps: QbClientDeps): QbClient {
 			let response: Response;
 			try {
 				response = await fetch(url.toString(), {
-					method: write?.method ?? 'GET',
+					method: write ? 'POST' : 'GET',
 					headers: {
 						Authorization: `Bearer ${token.data}`,
 						Accept: 'application/json',
@@ -252,11 +252,7 @@ export function createQbClient(deps: QbClientDeps): QbClient {
 		async update(entity, body) {
 			// The update endpoint is the entity name lowercased; the response wraps
 			// the saved object under its capitalized name (e.g. `{ Purchase: {...} }`).
-			const { data, error } = await request(
-				entity.toLowerCase(),
-				{},
-				{ method: 'POST', body },
-			);
+			const { data, error } = await request(entity.toLowerCase(), {}, { body });
 			if (error) return { data: null, error };
 			const updated = (data as Record<string, unknown>)[entity];
 			if (!updated || typeof updated !== 'object') {
@@ -268,13 +264,10 @@ export function createQbClient(deps: QbClientDeps): QbClient {
 		},
 
 		async report(name, params) {
+			// `request` guarantees an Ok value is a non-null object (it emits
+			// InvalidResponse itself otherwise), so no recheck is needed here.
 			const { data, error } = await request(`reports/${name}`, params);
 			if (error) return { data: null, error };
-			if (data === null || typeof data !== 'object') {
-				return QbApiError.InvalidResponse({
-					detail: `report ${name} response was not a JSON object`,
-				});
-			}
 			return Ok(data as Record<string, unknown>);
 		},
 	};
