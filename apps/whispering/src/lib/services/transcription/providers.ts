@@ -44,7 +44,7 @@ type CloudModel = { name: string; description: string; cost: string };
  * session, on that deployment's house key. Hosted deployments meter it (AI credits);
  * self-host deployments proxy it unmetered. `key`/`endpoint` are external services.
  */
-type ProviderAccess = 'key' | 'endpoint' | 'session' | 'onDevice';
+export type ProviderAccess = 'key' | 'endpoint' | 'session' | 'onDevice';
 
 type KeyProvider = {
 	access: Extract<ProviderAccess, 'key'>;

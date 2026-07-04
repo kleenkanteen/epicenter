@@ -4,7 +4,7 @@
 	import * as Select from '@epicenter/ui/select';
 	import { cn } from '@epicenter/ui/utils';
 	import {
-		TRANSCRIPTION_PROVIDERS,
+		groupedTranscriptionProviders,
 		type TranscriptionProviderEntry,
 	} from '$lib/services/transcription/provider-ui';
 	import { type TranscriptionServiceId } from '$lib/services/transcription/providers';
@@ -22,24 +22,13 @@
 		recommendedServiceId?: TranscriptionServiceId | null;
 	} = $props();
 
-	const localServices = $derived(
-		tauri
-			? TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'onDevice')
-			: [],
-	);
-
-	const cloudServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'key'),
-	);
-
-	const selfHostedServices = $derived(
-		TRANSCRIPTION_PROVIDERS.filter((service) => service.access === 'endpoint'),
-	);
+	// The one grouping source both selectors iterate. A new `access` family lights
+	// up here automatically; it can never be silently dropped the way `session`
+	// (Epicenter) once was from this dropdown.
+	const groups = $derived(groupedTranscriptionProviders({ tauri: Boolean(tauri) }));
 
 	const selectedService = $derived(
-		[...localServices, ...cloudServices, ...selfHostedServices].find(
-			(service) => service.id === selected,
-		),
+		groups.flatMap((group) => group.services).find((s) => s.id === selected),
 	);
 </script>
 
@@ -71,53 +60,22 @@
 			</div>
 		</Select.Trigger>
 		<Select.Content class="max-h-[400px]">
-			{#if localServices.length > 0}
-				<Select.Group>
-					<Select.GroupHeading>Local (Offline)</Select.GroupHeading>
-					{#each localServices as service}
-						<Select.Item value={service.id} label={service.label}>
-							<div class="flex items-start gap-3 py-1">
-								<div class="mt-0.5">{@render renderServiceIcon(service)}</div>
-								<div class="flex-1 min-w-0">
-									<div class="flex items-center gap-2">
-										<span class="font-medium">{service.label}</span>
-										<Badge variant="secondary" class="text-xs">Local</Badge>
-										{#if service.id === recommendedServiceId}
-											<Badge variant="outline" class="text-xs"
-												>Recommended</Badge
-											>
-										{/if}
-									</div>
-									{#if service.description}
-										<div class="text-xs text-muted-foreground mt-1">
-											{service.description}
-										</div>
-									{/if}
-								</div>
-							</div>
-						</Select.Item>
-					{/each}
-				</Select.Group>
-			{/if}
-
-			{#if cloudServices.length > 0}
-				{#if localServices.length > 0}
+			{#each groups as group, i (group.access)}
+				{#if i > 0}
 					<Select.Separator />
 				{/if}
 				<Select.Group>
-					<Select.GroupHeading>Cloud (API)</Select.GroupHeading>
-					{#each cloudServices as service}
+					<Select.GroupHeading>{group.heading}</Select.GroupHeading>
+					{#each group.services as service (service.id)}
 						<Select.Item value={service.id} label={service.label}>
 							<div class="flex items-start gap-3 py-1">
 								<div class="mt-0.5">{@render renderServiceIcon(service)}</div>
 								<div class="flex-1 min-w-0">
 									<div class="flex items-center gap-2">
 										<span class="font-medium">{service.label}</span>
-										<Badge variant="outline" class="text-xs">API</Badge>
+										<Badge variant="outline" class="text-xs">{group.badge}</Badge>
 										{#if service.id === recommendedServiceId}
-											<Badge variant="outline" class="text-xs"
-												>Recommended</Badge
-											>
+											<Badge variant="outline" class="text-xs">Recommended</Badge>
 										{/if}
 									</div>
 									{#if service.description}
@@ -128,9 +86,7 @@
 									{#if service.access === 'key' && service.models.length > 0}
 										<div class="text-xs text-muted-foreground mt-1">
 											{service.models.length}
-											model{service.models.length > 1
-												? 's'
-												: ''}
+											model{service.models.length > 1 ? 's' : ''}
 											available
 										</div>
 									{/if}
@@ -139,34 +95,7 @@
 						</Select.Item>
 					{/each}
 				</Select.Group>
-			{/if}
-
-			{#if selfHostedServices.length > 0}
-				{#if localServices.length > 0 || cloudServices.length > 0}
-					<Select.Separator />
-				{/if}
-				<Select.Group>
-					<Select.GroupHeading>Self-Hosted</Select.GroupHeading>
-					{#each selfHostedServices as service}
-						<Select.Item value={service.id} label={service.label}>
-							<div class="flex items-start gap-3 py-1">
-								<div class="mt-0.5">{@render renderServiceIcon(service)}</div>
-								<div class="flex-1 min-w-0">
-									<div class="flex items-center gap-2">
-										<span class="font-medium">{service.label}</span>
-										<Badge variant="outline" class="text-xs">Self-Hosted</Badge>
-									</div>
-									{#if service.description}
-										<div class="text-xs text-muted-foreground mt-1">
-											{service.description}
-										</div>
-									{/if}
-								</div>
-							</div>
-						</Select.Item>
-					{/each}
-				</Select.Group>
-			{/if}
+			{/each}
 		</Select.Content>
 	</Select.Root>
 </div>

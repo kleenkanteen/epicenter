@@ -25,6 +25,7 @@
 	import { localModels } from '$lib/state/local-models.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { createCopyFn } from '$lib/utils/createCopyFn';
+	import { auth } from '#platform/auth';
 	import { tauri } from '#platform/tauri';
 	import AdvancedDisclosure from './AdvancedDisclosure.svelte';
 	import LocalModelSelector from './LocalModelSelector.svelte';
@@ -324,6 +325,29 @@
 					(v) => deviceConfig.set('transcription.local.selectedModel', v)}
 			/>
 		</div>
+	{:else if selectedTranscriptionProvider?.access === 'session'}
+		{#if auth.state.status === 'signed-in'}
+			<Card.Root>
+				<Card.Header>
+					<Card.Title class="text-lg">
+						{selectedTranscriptionProvider.label}
+					</Card.Title>
+					<Card.Description>
+						Transcription runs through your connected Epicenter over your
+						signed-in session. The model is managed for you, so there is nothing
+						to configure here. Hosted usage is metered by AI credits; a
+						self-hosted deployment runs it unmetered.
+					</Card.Description>
+				</Card.Header>
+			</Card.Root>
+		{:else}
+			<Alert.Root variant="warning">
+				<Alert.Title>Sign in required</Alert.Title>
+				<Alert.Description>
+					Sign in to Epicenter to use hosted transcription.
+				</Alert.Description>
+			</Alert.Root>
+		{/if}
 	{/if}
 
 	{#if !isSelectedServiceUnavailable}
