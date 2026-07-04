@@ -33,14 +33,15 @@ account records the environment it was connected under, and every later sync
 asserts it (ADR-0105):
 
 ```sh
-infisical run --env=dev --path=/apps/local-mail -- \
+infisical run --project-config-dir=. --path=/apps/local-mail -- \
   bun run src/bin.ts connect --gmail-env dev
 ```
 
-The name carries the environment, so which vault environment stores each keyset
-is an orthogonal access-control choice: keep both under one path for a single
-injection, or split them. See [`.env.example`](.env.example) for the canonical
-names. The old unqualified `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` are retired.
+The name carries the provider target. The app-local Infisical config should
+point at your personal secrets project, where both keysets sit under
+`prod /apps/local-mail` for a single injection. See
+[`.env.example`](.env.example) for the canonical names. The old unqualified
+`GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` are retired.
 
 Local Mail requests `gmail.modify` so write-through label changes can round-trip
 through Gmail. Although Google grants send at the same OAuth layer, Local Mail
@@ -53,17 +54,17 @@ here rather than on the first sync, and the account email comes from the
 Gmail profile instead of being typed:
 
 ```sh
-infisical run --env=dev --path=/apps/local-mail -- \
+infisical run --project-config-dir=. --path=/apps/local-mail -- \
   bun run src/bin.ts seed-token <refresh-token> --gmail-env dev
 ```
 
 Build or refresh the mirror:
 
 ```sh
-infisical run --env=dev --path=/apps/local-mail -- \
+infisical run --project-config-dir=. --path=/apps/local-mail -- \
   bun run src/bin.ts sync --full
 
-infisical run --env=dev --path=/apps/local-mail -- \
+infisical run --project-config-dir=. --path=/apps/local-mail -- \
   bun run src/bin.ts sync --watch
 ```
 

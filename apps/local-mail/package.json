@@ -15,10 +15,10 @@
 		"./http/api": "./src/http/api.ts"
 	},
 	"scripts": {
-		"connect:dev": "infisical run --env=dev --path=/apps/local-mail -- bun run src/bin.ts connect --gmail-env dev",
-		"connect:prod": "infisical run --env=dev --path=/apps/local-mail -- bun run src/bin.ts connect --gmail-env prod",
-		"sync": "infisical run --env=dev --path=/apps/local-mail -- bun run src/bin.ts sync",
-		"status": "infisical run --env=dev --path=/apps/local-mail -- bun run src/bin.ts status",
+		"connect:dev": "infisical run --project-config-dir=. --path=/apps/local-mail -- bun run src/bin.ts connect --gmail-env dev",
+		"connect:prod": "infisical run --project-config-dir=. --path=/apps/local-mail -- bun run src/bin.ts connect --gmail-env prod",
+		"sync": "infisical run --project-config-dir=. --path=/apps/local-mail -- bun run src/bin.ts sync",
+		"status": "infisical run --project-config-dir=. --path=/apps/local-mail -- bun run src/bin.ts status",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit && tsc --noEmit -p test-support/tsconfig.json"
 	},

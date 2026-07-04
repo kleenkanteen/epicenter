@@ -63,6 +63,19 @@ shapes, see `docs/adr/`.
   over the relay, and server-owned presence reports which workspace peers are
   online. *Invoke* (the agent's hands) is local to the host that owns the tool
   process, unless a future product re-earns a direct URL-addressed box surface.
+- **Infisical project**: the owner and access-control boundary. The root
+  `.infisical.json` points at Epicenter's hosted/operator project; personal
+  local app credentials belong in a personal Infisical project, reached by each
+  app's ignored local `.infisical.json`.
+- **Infisical environment**: a value-stakes tier inside a project, not an
+  owner. In the Epicenter project, `dev` holds substitute values that can hurt
+  nothing (the local `wrangler dev` bindings) and `prod` holds hosted
+  production/operator credentials. In a personal local-app project, `prod`
+  holds the real provider credentials for the person running the tool. The path
+  groups by app or surface (`/api`, `/ci`, `/ops`, `/apps/<app>`). The provider
+  target rides in the qualified secret name (ADR-0105), never in the
+  environment. Local app scripts keep `--project-config-dir=.` so a missing
+  app-local config fails instead of walking up to the root Epicenter project.
 
 ## Workspace API
 
