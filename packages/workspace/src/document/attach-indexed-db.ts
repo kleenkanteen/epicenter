@@ -52,22 +52,14 @@ export function attachIndexedDb(
 		Promise.withResolvers<void>();
 	const whenLoaded: Promise<unknown> = idb.whenSynced;
 
-	// One teardown path, run at most once, whether teardown is triggered by our
-	// own `ydoc.destroy()` (the cascade below), our own `clearLocal()`, or the
-	// browser evicting the connection (the eviction guard below). `idb.destroy()`
-	// closes the db AND unsubscribes y-indexeddb's `update` listener, so once it
-	// runs no later Yjs write can reach the connection.
-	//
-	// `torndown` is a `let` flag, not the `once()` helper, on purpose: the
-	// eviction guard READS it (via `selfDeleting`/`torndown`) to decide whether we
-	// are already going down and so must NOT fire `onEvicted`. That makes it a
-	// liveness flag, not a pure once-guard (`once` explicitly does not replace
-	// such a boolean). `selfDeleting` records that WE deleted this database (our
-	// own `clearLocal()`), so the `versionchange` it triggers on our still-open
-	// connection tears down cleanly rather than re-booting; only a delete from
-	// ANOTHER connection re-boots.
+	// One teardown path, run at most once, whether triggered by our own
+	// `ydoc.destroy()` (the cascade below), our own `clearLocal()`, or a foreign
+	// eviction (the guard below). `idb.destroy()` closes the db AND unsubscribes
+	// y-indexeddb's `update` listener, so once it runs no later Yjs write can
+	// reach the connection. `torndown` is the idempotency guard: upstream
+	// `destroy()` has none of its own, and the eviction guard also reads it to
+	// skip a reboot when we are already going down.
 	let torndown = false;
-	let selfDeleting = false;
 	async function teardown(): Promise<void> {
 		if (torndown) return;
 		torndown = true;
@@ -78,9 +70,13 @@ export function attachIndexedDb(
 		}
 	}
 
-	const clearLocal = (): Promise<void> => {
-		selfDeleting = true;
-		return clearDocument(databaseName);
+	// Delete our local store. Tear our own connection down FIRST (the shape of
+	// y-indexeddb's own `clearData`), so the delete finds none of our connections
+	// open and never trips the eviction guard below; only a delete from ANOTHER
+	// connection reaches that guard.
+	const clearLocal = async (): Promise<void> => {
+		await teardown();
+		await clearDocument(databaseName);
 	};
 
 	ydoc.once('destroy', () => void teardown());
@@ -92,24 +88,23 @@ export function attachIndexedDb(
 	// and `this.db` pointing at the closed database, so the very next Yjs write
 	// calls `transact()` on a dead handle and throws "Can't start a transaction on
 	// a closed database" straight into the caller (the chat send, the model
-	// write). Take the handler over: teardown always runs (it unsubscribes that
-	// listener so writes stop crashing AND closes the connection so the pending
-	// delete can proceed); we re-boot via `onEvicted` only when ANOTHER connection
-	// deleted the store out from under us, not for our own `clearLocal()` or
-	// `ydoc.destroy()`. Registered after `whenSynced` so it replaces lib0's
-	// handler rather than racing it.
+	// write). Take the handler over so teardown runs instead: it unsubscribes that
+	// listener (writes stop crashing) and closes the connection (the pending
+	// delete can proceed), then re-boots. Our own `clearLocal()`/`ydoc.destroy()`
+	// close first and so never reach here; `torndown` skips the reboot for the one
+	// remaining race, a foreign delete landing while our own teardown is in
+	// flight. Registered after `whenSynced` so it replaces lib0's handler rather
+	// than racing it.
 	void idb.whenSynced.then(() => {
 		const db = idb.db;
 		if (db === null) return;
 		db.onversionchange = () => {
-			const evictedByOther = !selfDeleting && !torndown;
+			if (torndown) return;
 			void teardown();
-			if (evictedByOther) {
-				log.info(
-					`Local IndexedDB "${databaseName}" was deleted by another connection; re-booting.`,
-				);
-				onEvicted();
-			}
+			log.info(
+				`Local IndexedDB "${databaseName}" was deleted by another connection; re-booting.`,
+			);
+			onEvicted();
 		};
 	});
 
@@ -125,9 +120,10 @@ export function attachIndexedDb(
 		/** Delete the local IndexedDB document without destroying the Y.Doc. */
 		clearLocal,
 		/**
-		 * Resolves after `ydoc.destroy()` fires the cascade and the IndexedDB
-		 * connection has actually closed, or after an external eviction tore it
-		 * down. Bundle wipe methods await this before deleting persisted data.
+		 * Resolves once teardown completes and the IndexedDB connection has
+		 * actually closed, whatever triggered it: `ydoc.destroy()`'s cascade,
+		 * `clearLocal()`, or an external eviction. Bundle wipe methods await this
+		 * before deleting persisted data.
 		 */
 		whenDisposed,
 	};
