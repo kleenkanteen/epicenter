@@ -175,7 +175,7 @@ const TOOLS: ToolDescriptor[] = [
 			// The opener loads the token and returns a ready QB client, or a "run
 			// auth" reason. No bespoke not-connected error.
 			const { data: client, error } = await ctx.openQb();
-			if (error !== null) return Err({ message: error });
+			if (error !== null) return Err(error);
 			const db = openBooksDb(ctx.dbPath);
 			try {
 				const outcome = await syncRealm(

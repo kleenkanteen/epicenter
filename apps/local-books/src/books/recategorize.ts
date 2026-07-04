@@ -28,7 +28,7 @@ import { Err, Ok, type Result, trySync } from 'wellcrafted/result';
 import { openBooksDb } from '../db.ts';
 import { entityDef } from '../entities.ts';
 import type { QbClientError } from '../qb-client.ts';
-import type { OpenQbClient } from './qb-access.ts';
+import type { OpenQbClient, QbAccessError } from './qb-access.ts';
 
 /** The line shape that carries an account-based expense category. */
 const LINE_DETAIL = 'AccountBasedExpenseLineDetail';
@@ -61,10 +61,6 @@ export const RecategorizeError = defineErrors({
 	}),
 	UnknownEntity: ({ name }: { name: string }) => ({
 		message: `recategorize targets a Purchase (card/cash/check expense) or a Bill (vendor bill), not "${name}".`,
-	}),
-	NotAuthenticated: ({ detail }: { detail: string }) => ({
-		message: `Recategorize could not reach QuickBooks: ${detail}`,
-		detail,
 	}),
 	NotInMirror: ({ entity, id }: { entity: string; id: string }) => ({
 		message: `No ${entity} ${id} in the local mirror. Run "local-books sync" first.`,
@@ -169,7 +165,9 @@ export async function recategorizeExpense({
 	 * read-only invariant.
 	 */
 	readOnly: boolean;
-}): Promise<Result<RecategorizeResult, RecategorizeError | QbClientError>> {
+}): Promise<
+	Result<RecategorizeResult, RecategorizeError | QbAccessError | QbClientError>
+> {
 	if (readOnly) return RecategorizeError.ReadOnly();
 	const def = entityDef(input.entity);
 	const db = openBooksDb(dbPath);
@@ -224,9 +222,7 @@ export async function recategorizeExpense({
 		}
 
 		const { data: qb, error: openError } = await openQb();
-		if (openError !== null) {
-			return RecategorizeError.NotAuthenticated({ detail: openError });
-		}
+		if (openError !== null) return Err(openError);
 
 		// Sparse update: send the modified Line array with Id + the SyncToken read
 		// from the mirror, plus this entity's mandatory top-level fields carried
