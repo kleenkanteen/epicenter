@@ -4,9 +4,9 @@ import { defineErrors } from 'wellcrafted/error';
 import { createLogger, type Logger } from 'wellcrafted/logger';
 import { Ok, type Result } from 'wellcrafted/result';
 import type {
-	AuthConnectionState,
 	AuthFetch,
 	AuthState,
+	AuthVerificationState,
 	SyncAuthClient,
 } from './auth-contract.js';
 import { AuthError } from './auth-errors.js';
@@ -110,10 +110,12 @@ export function createInstanceTokenAuth({
 	const listeners = new Set<(state: AuthState) => void>();
 	// The boot bearer check verifies against a remote star, so it can be in flight
 	// or fail for a reason `AuthState` cannot carry (only a rejected token drops to
-	// `signed-out`). `connection` runs alongside `state` on its own listener set so
-	// a UI can tell "still connecting" from "unreachable" from "rejected token".
-	let connectionState: AuthConnectionState = { status: 'pending' };
-	const connectionListeners = new Set<(state: AuthConnectionState) => void>();
+	// `signed-out`). `verification` runs alongside `state` on its own listener set
+	// so a UI can tell "still verifying" from "unreachable" from "rejected token".
+	let verificationState: AuthVerificationState = { status: 'pending' };
+	const verificationListeners = new Set<
+		(state: AuthVerificationState) => void
+	>();
 
 	function setState(next: AuthState) {
 		state = next;
@@ -126,9 +128,9 @@ export function createInstanceTokenAuth({
 		}
 	}
 
-	function setConnection(next: AuthConnectionState) {
-		connectionState = next;
-		for (const listener of connectionListeners) {
+	function setVerification(next: AuthVerificationState) {
+		verificationState = next;
+		for (const listener of verificationListeners) {
 			try {
 				listener(next);
 			} catch (cause) {
@@ -163,7 +165,7 @@ export function createInstanceTokenAuth({
 	 * only reflects its outcome onto state and the `AuthClient` error contract.
 	 */
 	async function confirmSession(): Promise<Result<undefined, AuthError>> {
-		setConnection({ status: 'pending' });
+		setVerification({ status: 'pending' });
 		const { data: session, error } = await readApiSession({
 			baseURL,
 			token,
@@ -175,14 +177,14 @@ export function createInstanceTokenAuth({
 			// token is a durable "signed-out"; a transient outage leaves state alone
 			// so it does not look like a bad credential.
 			if (error.name === 'Rejected') setState({ status: 'signed-out' });
-			setConnection({
+			setVerification({
 				status: 'failed',
 				reason: error.name === 'Rejected' ? 'rejected' : 'unreachable',
 			});
 			return AuthError.StartSignInFailed({ cause: error });
 		}
 		setState({ status: 'signed-in', principalId: session.principalId });
-		setConnection({ status: 'connected' });
+		setVerification({ status: 'verified' });
 		return Ok(undefined);
 	}
 
@@ -221,7 +223,7 @@ export function createInstanceTokenAuth({
 			state.status === 'signed-in'
 		) {
 			setState({ status: 'signed-out' });
-			setConnection({ status: 'failed', reason: 'rejected' });
+			setVerification({ status: 'failed', reason: 'rejected' });
 		}
 		return response;
 	}
@@ -246,14 +248,14 @@ export function createInstanceTokenAuth({
 		},
 		fetch: authedFetch,
 		getProfile: () => getProfileVia(authedFetch, baseURL),
-		connection: {
+		verification: {
 			get state() {
-				return connectionState;
+				return verificationState;
 			},
 			onChange(fn) {
-				connectionListeners.add(fn);
+				verificationListeners.add(fn);
 				return () => {
-					connectionListeners.delete(fn);
+					verificationListeners.delete(fn);
 				};
 			},
 		},
@@ -267,7 +269,7 @@ export function createInstanceTokenAuth({
 		},
 		[Symbol.dispose]() {
 			listeners.clear();
-			connectionListeners.clear();
+			verificationListeners.clear();
 		},
 	};
 }

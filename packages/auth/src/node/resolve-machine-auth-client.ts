@@ -92,15 +92,13 @@ export async function resolveMachineAuthClient({
 			fetch,
 			log,
 		});
-		// Settle the connection channel before the daemon reads state. A revoked
-		// token drops to signed-out; an offline star leaves the client optimistically
-		// signed-in (local mounts still serve and cloud sync retries when the network
-		// returns; the `connection` channel carries the "unreachable" reason). Either
-		// way it is a valid daemon state, not an error.
+		// Await the first confirmation so the daemon reads a settled `state` (settle
+		// semantics are in the JSDoc above). A failure here is not fatal: local
+		// mounts still serve, so log it and hand back the client rather than erroring.
 		const { error } = await client.startSignIn();
 		if (error) {
 			log.debug(
-				'Instance token could not be verified against /api/session; the daemon stays signed-out and serves local mounts only.',
+				'Instance token could not be verified against /api/session; the daemon keeps serving local mounts.',
 				{ baseURL, cause: error },
 			);
 		}

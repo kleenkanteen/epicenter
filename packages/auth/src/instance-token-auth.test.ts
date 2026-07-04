@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { asPrincipalId, INSTANCE_PRINCIPAL_ID } from '@epicenter/identity';
 import { BEARER_SUBPROTOCOL_PREFIX } from '@epicenter/sync';
-import type { AuthConnectionState, AuthFetch } from './auth-contract.js';
+import type { AuthFetch, AuthVerificationState } from './auth-contract.js';
 import { createInstanceTokenAuth } from './instance-token-auth.js';
 
 const baseURL = 'http://localhost:8788';
@@ -182,7 +182,7 @@ describe('createInstanceTokenAuth', () => {
 		const auth = createInstanceTokenAuth({ baseURL, token, fetch });
 		await flush();
 		// An unreachable star leaves the optimistic identity: the self-hoster keeps
-		// their principal-scoped local workspace offline (the `connection` channel,
+		// their principal-scoped local workspace offline (the `verification` channel,
 		// not `state`, carries the "unreachable" signal).
 		expect(auth.state).toEqual({
 			status: 'signed-in',
@@ -211,71 +211,71 @@ describe('createInstanceTokenAuth', () => {
 		});
 	});
 
-	test('connection reports pending at boot then connected on a 200', async () => {
+	test('verification reports pending at boot then verified on a 200', async () => {
 		const fetch: AuthFetch = async () => json(sessionBody());
 		const auth = createInstanceTokenAuth({ baseURL, token, fetch });
-		expect(auth.connection?.state).toEqual({ status: 'pending' });
+		expect(auth.verification?.state).toEqual({ status: 'pending' });
 		await flush();
-		expect(auth.connection?.state).toEqual({ status: 'connected' });
+		expect(auth.verification?.state).toEqual({ status: 'verified' });
 	});
 
-	test('connection fails as rejected when the token is refused (401)', async () => {
+	test('verification fails as rejected when the token is refused (401)', async () => {
 		const fetch: AuthFetch = async () => json({}, 401);
 		const auth = createInstanceTokenAuth({ baseURL, token, fetch });
 		await flush();
 		expect(auth.state.status).toBe('signed-out');
-		expect(auth.connection?.state).toEqual({
+		expect(auth.verification?.state).toEqual({
 			status: 'failed',
 			reason: 'rejected',
 		});
 	});
 
-	test('connection fails as unreachable when the star is offline', async () => {
+	test('verification fails as unreachable when the star is offline', async () => {
 		const fetch: AuthFetch = async () => {
 			throw new Error('offline');
 		};
 		const auth = createInstanceTokenAuth({ baseURL, token, fetch });
 		await flush();
-		expect(auth.connection?.state).toEqual({
+		expect(auth.verification?.state).toEqual({
 			status: 'failed',
 			reason: 'unreachable',
 		});
 	});
 
-	test('connection notifies subscribers and recovers on a retry', async () => {
+	test('verification notifies subscribers and recovers on a retry', async () => {
 		let reachable = false;
 		const fetch: AuthFetch = async () => {
 			if (!reachable) throw new Error('offline');
 			return json(sessionBody());
 		};
 		const auth = createInstanceTokenAuth({ baseURL, token, fetch });
-		const seen: AuthConnectionState['status'][] = [];
-		auth.connection?.onChange((s) => seen.push(s.status));
+		const seen: AuthVerificationState['status'][] = [];
+		auth.verification?.onChange((s) => seen.push(s.status));
 		await flush();
-		expect(auth.connection?.state).toEqual({
+		expect(auth.verification?.state).toEqual({
 			status: 'failed',
 			reason: 'unreachable',
 		});
 
 		reachable = true;
 		await auth.startSignIn();
-		expect(auth.connection?.state).toEqual({ status: 'connected' });
-		// The retry moves pending -> connected, both observed after subscribing.
+		expect(auth.verification?.state).toEqual({ status: 'verified' });
+		// The retry moves pending -> verified, both observed after subscribing.
 		expect(seen).toContain('pending');
-		expect(seen).toContain('connected');
+		expect(seen).toContain('verified');
 	});
 
-	test('a 401 on a resource call marks the connection rejected', async () => {
+	test('a 401 on a resource call marks the verification rejected', async () => {
 		const fetch: AuthFetch = async (input) =>
 			String(input).endsWith('/api/session')
 				? json(sessionBody())
 				: json({}, 401);
 		const auth = createInstanceTokenAuth({ baseURL, token, fetch });
 		await flush();
-		expect(auth.connection?.state).toEqual({ status: 'connected' });
+		expect(auth.verification?.state).toEqual({ status: 'verified' });
 
 		await auth.fetch('/api/blobs');
-		expect(auth.connection?.state).toEqual({
+		expect(auth.verification?.state).toEqual({
 			status: 'failed',
 			reason: 'rejected',
 		});
