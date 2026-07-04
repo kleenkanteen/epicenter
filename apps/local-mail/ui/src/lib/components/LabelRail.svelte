@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Input } from '@epicenter/ui/input';
+	import * as Item from '@epicenter/ui/item';
 	import { cn } from '@epicenter/ui/utils';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import MailIcon from '@lucide/svelte/icons/mail';
@@ -39,6 +40,26 @@
 	const userLabels = $derived(labels.filter((l) => l.type === 'user'));
 </script>
 
+{#snippet navRow(id: string | null, label: string, Icon: Component)}
+	<Item.Button
+		size="sm"
+		class={cn(
+			'gap-2 rounded px-2 py-1.5 text-sm',
+			selectedLabel === id
+				? 'bg-accent font-medium text-accent-foreground'
+				: 'text-foreground/80 hover:bg-accent/50',
+		)}
+		onclick={() => onSelect(id)}
+	>
+		<Item.Media>
+			<Icon class="size-4 shrink-0 text-muted-foreground" />
+		</Item.Media>
+		<Item.Content>
+			<span class="truncate">{label}</span>
+		</Item.Content>
+	</Item.Button>
+{/snippet}
+
 <nav class="flex w-56 shrink-0 flex-col border-r border-border bg-background">
 	<div class="border-b border-border p-2">
 		<div class="relative">
@@ -58,21 +79,7 @@
 	<div class="flex-1 min-h-0 overflow-y-auto p-2">
 		<ul class="space-y-0.5">
 			{#each quick as item (item.label)}
-				{@const Icon = item.icon}
-				<li>
-					<button
-						class={cn(
-							'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors',
-							selectedLabel === item.id
-								? 'bg-accent font-medium text-accent-foreground'
-								: 'text-foreground/80 hover:bg-accent/50',
-						)}
-						onclick={() => onSelect(item.id)}
-					>
-						<Icon class="size-4 shrink-0 text-muted-foreground" />
-						<span class="truncate">{item.label}</span>
-					</button>
-				</li>
+				<li>{@render navRow(item.id, item.label, item.icon)}</li>
 			{/each}
 		</ul>
 
@@ -83,18 +90,11 @@
 			<ul class="space-y-0.5">
 				{#each categories as label (label.id)}
 					<li>
-						<button
-							class={cn(
-								'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors',
-								selectedLabel === label.id
-									? 'bg-accent font-medium text-accent-foreground'
-									: 'text-foreground/80 hover:bg-accent/50',
-							)}
-							onclick={() => onSelect(label.id)}
-						>
-							<TagIcon class="size-4 shrink-0 text-muted-foreground" />
-							<span class="truncate">{labelDisplayName(label.id, label.name)}</span>
-						</button>
+						{@render navRow(
+							label.id,
+							labelDisplayName(label.id, label.name),
+							TagIcon,
+						)}
 					</li>
 				{/each}
 			</ul>
@@ -107,18 +107,11 @@
 			<ul class="space-y-0.5">
 				{#each userLabels as label (label.id)}
 					<li>
-						<button
-							class={cn(
-								'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors',
-								selectedLabel === label.id
-									? 'bg-accent font-medium text-accent-foreground'
-									: 'text-foreground/80 hover:bg-accent/50',
-							)}
-							onclick={() => onSelect(label.id)}
-						>
-							<TagIcon class="size-4 shrink-0 text-muted-foreground" />
-							<span class="truncate">{labelDisplayName(label.id, label.name)}</span>
-						</button>
+						{@render navRow(
+							label.id,
+							labelDisplayName(label.id, label.name),
+							TagIcon,
+						)}
 					</li>
 				{/each}
 			</ul>
