@@ -24,36 +24,82 @@ const GITHUB_ICON =
 </svg>`);
 
 /**
+ * Microsoft's four-color logo (fixed brand colors, not `currentColor`).
+ */
+const MICROSOFT_ICON =
+	raw(`<svg width="16" height="16" viewBox="0 0 23 23" aria-hidden="true">
+	<path fill="#F25022" d="M1 1h10v10H1z"/>
+	<path fill="#7FBA00" d="M12 1h10v10H12z"/>
+	<path fill="#00A4EF" d="M1 12h10v10H1z"/>
+	<path fill="#FFB900" d="M12 12h10v10H12z"/>
+</svg>`);
+
+/**
  * Server-rendered sign-in page for the OAuth flow.
  *
  * Better Auth redirects here when a user needs to authenticate. Sign-in is via
  * social IdP only (local email/password is disabled, see
- * {@link BASE_AUTH_CONFIG}): Google always, and GitHub when the deployment has
- * configured GitHub credentials (`githubEnabled`). After successful auth,
- * Better Auth returns a redirect URL to continue the OAuth flow; for non-OAuth
- * sign-ins the page reloads.
+ * {@link BASE_AUTH_CONFIG}): Google always, and GitHub / Microsoft when the
+ * deployment has configured that provider's credentials (`githubEnabled`,
+ * `microsoftEnabled`; both register-when-present, so an unconfigured provider
+ * is simply not offered). After successful auth, Better Auth returns a redirect
+ * URL to continue the OAuth flow; for non-OAuth sign-ins the page reloads.
+ *
+ * The Epicenter mark is rendered above these by {@link AuthLayout}; this page
+ * adds the wordmark, so the header reads mark → "epicenter" → subtitle.
  */
-export function SignInPage({ githubEnabled }: { githubEnabled: boolean }) {
+export function SignInPage({
+	githubEnabled,
+	microsoftEnabled,
+}: {
+	githubEnabled: boolean;
+	microsoftEnabled: boolean;
+}) {
 	return (
 		<>
-			<h1 id="heading">Sign in</h1>
-			<p class="subtitle" id="description">
-				Sign in to your Epicenter account.
-			</p>
+			<div class="signin-head">
+				<h1 id="heading" class="wordmark">
+					epicenter
+				</h1>
+				<p class="subtitle" id="description">
+					Sign in to your account.
+				</p>
+			</div>
 
 			<div id="msg" class="msg hidden" />
 
-			<button type="button" class="btn btn-outline" id="google-btn">
-				{GOOGLE_ICON}
-				Continue with Google
-			</button>
-
-			{githubEnabled ? (
-				<button type="button" class="btn btn-outline" id="github-btn">
-					{GITHUB_ICON}
-					Continue with GitHub
+			<div class="providers">
+				<button
+					type="button"
+					class="btn btn-outline btn-provider"
+					id="google-btn"
+				>
+					{GOOGLE_ICON}
+					<span class="btn-label">Continue with Google</span>
 				</button>
-			) : null}
+
+				{githubEnabled ? (
+					<button
+						type="button"
+						class="btn btn-outline btn-provider"
+						id="github-btn"
+					>
+						{GITHUB_ICON}
+						<span class="btn-label">Continue with GitHub</span>
+					</button>
+				) : null}
+
+				{microsoftEnabled ? (
+					<button
+						type="button"
+						class="btn btn-outline btn-provider"
+						id="microsoft-btn"
+					>
+						{MICROSOFT_ICON}
+						<span class="btn-label">Continue with Microsoft</span>
+					</button>
+				) : null}
+			</div>
 
 			{SIGN_IN_SCRIPT}
 		</>

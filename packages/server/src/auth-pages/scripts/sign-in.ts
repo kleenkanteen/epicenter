@@ -3,21 +3,23 @@ import { raw } from 'hono/html';
 /**
  * Client-side script for the sign-in page.
  *
- * Starts a social sign-in (Google, or GitHub when its button is present) via
- * `fetch` and displays errors. Includes `oauth_query` (signed URL params) in
- * the request so Better Auth's after-hook can continue the OAuth flow. On
- * success, navigates to the returned redirect URL or the followed redirect.
- * Local email/password is disabled (see {@link BASE_AUTH_CONFIG}); the GitHub
- * button only exists when the deployment configured GitHub credentials.
+ * Starts a social sign-in (Google, or GitHub / Microsoft when their button is
+ * present) via `fetch` and displays errors. Includes `oauth_query` (signed URL
+ * params) in the request so Better Auth's after-hook can continue the OAuth
+ * flow. On success, navigates to the returned redirect URL or the followed
+ * redirect. Local email/password is disabled (see {@link BASE_AUTH_CONFIG});
+ * the GitHub and Microsoft buttons only exist when the deployment configured
+ * that provider's credentials.
  */
 export const SIGN_IN_SCRIPT = raw(`<script>
 (() => {
 	const googleBtn = document.getElementById('google-btn');
 	const githubBtn = document.getElementById('github-btn');
+	const microsoftBtn = document.getElementById('microsoft-btn');
 	const msg = document.getElementById('msg');
-	const buttons = [googleBtn, githubBtn].filter(Boolean);
+	const buttons = [googleBtn, githubBtn, microsoftBtn].filter(Boolean);
 
-	const LABELS = { google: 'Google', github: 'GitHub' };
+	const LABELS = { google: 'Google', github: 'GitHub', microsoft: 'Microsoft' };
 
 	// Replicate what oauthProviderClient does: parse the signed OAuth
 	// query params from the URL so Better Auth can continue the flow.
@@ -75,5 +77,7 @@ export const SIGN_IN_SCRIPT = raw(`<script>
 
 	googleBtn.addEventListener('click', () => startSocial('google'));
 	if (githubBtn) githubBtn.addEventListener('click', () => startSocial('github'));
+	if (microsoftBtn)
+		microsoftBtn.addEventListener('click', () => startSocial('microsoft'));
 })();
 </script>`);
