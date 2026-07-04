@@ -5,6 +5,14 @@ import type { AppConfig } from '../src/config.ts';
 import type { TokenStore } from '../src/token-store.ts';
 import type { TokenSet } from '../src/tokens.ts';
 
+// The credential resolver (ADR-0108) reads the Intuit keyset from the environment
+// by its environment-qualified name. Every test drives the sandbox mock server, so
+// seed the sandbox keyset once here for any test that exercises the OAuth/refresh
+// path. `??=` leaves a real environment untouched. The values are placeholders:
+// the mock QB server never checks them.
+process.env.QB_SANDBOX_CLIENT_ID ??= 'test-client';
+process.env.QB_SANDBOX_CLIENT_SECRET ??= 'test-secret';
+
 /** Process-lifetime in-memory token store, for tests. Holds the typed set, no codec. */
 export function createMemoryTokenStore(): TokenStore {
 	const map = new Map<string, TokenSet>();
@@ -23,8 +31,6 @@ export function makeConfig(over: Partial<AppConfig> = {}): AppConfig {
 	return {
 		dataDir: '/tmp/local-books-test',
 		environment: 'sandbox',
-		clientId: 'test-client',
-		clientSecret: 'test-secret',
 		redirectUri: 'http://localhost:8765/callback',
 		scopes: ['com.intuit.quickbooks.accounting'],
 		entities: ['Invoice'],

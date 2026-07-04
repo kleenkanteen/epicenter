@@ -4,18 +4,36 @@ import { defineErrors, type InferErrors } from 'wellcrafted/error';
 import { Ok, type Result } from 'wellcrafted/result';
 
 /**
+ * Which Google OAuth client (dev/unverified vs prod/verified) an account was
+ * connected through. This is the provider-environment axis of ADR-0108: it
+ * selects the keyset by name (`GMAIL_DEV_*` vs `GMAIL_PROD_*`), and every later
+ * use of the token asserts it. `GmailEnvironment` derives from this schema, which
+ * `TokenSetSchema` embeds; `GMAIL_SPEC` mirrors these literals under a `satisfies`
+ * check (see `gmail-credentials.ts`).
+ */
+export const GmailEnvironmentSchema = Type.Union([
+	Type.Literal('dev'),
+	Type.Literal('prod'),
+]);
+export type GmailEnvironment = Static<typeof GmailEnvironmentSchema>;
+
+/**
  * A persisted Google OAuth2 token set for one Gmail account, stored verbatim in
  * the token file keyed by `accountEmail`. Expiries are absolute ISO timestamps
  * (not the relative `expires_in` Google returns) so a process that starts hours
  * later can still decide whether the access token is live without knowing when
  * it was issued. This schema is the single source of truth: `TokenSet` derives
  * from it, and the file token store validates disk bytes against it on read.
- * Same shape as `apps/local-books`' `TokenSetSchema`, minus the QB-specific
- * `realmId`/`environment` fields.
+ *
+ * `clientIdUsed` and `environment` are the two provenance tags: the OAuth client
+ * that minted the token and the provider-environment it was minted for (ADR-0108).
+ * A token written before this field existed fails validation and reads as absent,
+ * so the account is reconnected once through `local-mail connect --gmail-env`.
  */
 export const TokenSetSchema = Type.Object({
 	accountEmail: Type.String({ minLength: 1 }),
 	clientIdUsed: Type.String({ minLength: 1 }),
+	environment: GmailEnvironmentSchema,
 	accessToken: Type.String({ minLength: 1 }),
 	refreshToken: Type.String({ minLength: 1 }),
 	accessTokenExpiresAt: Type.String({ minLength: 1 }),
@@ -61,11 +79,13 @@ export function tokenSetFromGrant(
 	{
 		accountEmail,
 		clientIdUsed,
+		environment,
 		now,
 		fallbackRefreshToken,
 	}: {
 		accountEmail: string;
 		clientIdUsed: string;
+		environment: GmailEnvironment;
 		now: number;
 		fallbackRefreshToken?: string;
 	},
@@ -92,6 +112,7 @@ export function tokenSetFromGrant(
 	return Ok({
 		accountEmail,
 		clientIdUsed,
+		environment,
 		accessToken: payload.access_token,
 		refreshToken,
 		accessTokenExpiresAt: new Date(

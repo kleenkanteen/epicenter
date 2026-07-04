@@ -182,5 +182,8 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0103](0103-stt-overspend-is-guarded-in-trigger-order-never-by-media-preflight.md) | STT overspend is bounded by cheap guards in trigger order, never by media preflight or a reservation lock | Accepted |
 | [0104](0104-hosted-models-are-a-build-time-seed-not-discovered-the-runtime-overlay-is-deferred.md) | Hosted models are a build-time seed catalog, not a discovered one; a runtime overlay is a named deferral | Accepted |
 | [0105](0105-vocab-is-a-multilingual-tutor-and-readings-are-a-client-side-derived-view.md) | Vocab is a multilingual tutor and readings are a client-side derived view | Accepted |
+| [0106](0106-a-child-doc-body-owns-one-layout-the-polymorphic-timeline-is-refused-until-a-product-earns-it.md) | A child-doc body owns one layout; the polymorphic timeline is refused until a product earns it | Accepted |
+| [0107](0107-a-child-doc-text-body-is-a-plain-y-text-the-timeline-array-is-deleted.md) | A child-doc text body is a plain `Y.Text`; the timeline array is deleted | Accepted |
+| [0108](0108-provider-credentials-are-selected-by-target-environment-encoded-in-the-secret-name.md) | Third-party provider credentials are selected by the app's target provider-environment, encoded in the secret name and resolved by one injected helper | Accepted |
 
 When you add an ADR, add its row here.

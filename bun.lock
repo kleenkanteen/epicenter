@@ -680,6 +680,16 @@
         "vite": "catalog:",
       },
     },
+    "ops": {
+      "name": "@epicenter/ops",
+      "dependencies": {
+        "@epicenter/constants": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/agent-protocol": {
       "name": "@epicenter/agent-protocol",
       "version": "0.1.0",
@@ -1446,6 +1456,8 @@
     "@epicenter/matter": ["@epicenter/matter@workspace:apps/matter"],
 
     "@epicenter/matter-core": ["@epicenter/matter-core@workspace:packages/matter-core"],
+
+    "@epicenter/ops": ["@epicenter/ops@workspace:ops"],
 
     "@epicenter/posthog-reverse-proxy": ["@epicenter/posthog-reverse-proxy@workspace:apps/posthog-reverse-proxy"],
 

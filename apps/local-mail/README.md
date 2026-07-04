@@ -26,16 +26,23 @@ Gmail, not a local-only table.
 
 ## Commands
 
-Connect once:
+Connect once. `--gmail-env` picks the OAuth keyset: `dev` reads `GMAIL_DEV_*`
+(the unverified client), `prod` reads `GMAIL_PROD_*` (the verified one). It is
+required only when both keysets are present, and inferred when just one is. The
+account records the environment it was connected under, and every later sync
+asserts it (ADR-0108):
 
 ```sh
-infisical run --env=dev --path=/apps/local-mail -- \
-  bun run src/bin.ts connect
+infisical run --path=/apps/local-mail -- \
+  bun run src/bin.ts connect --gmail-env dev
 ```
 
-Use `--client-id <id>` to override `GMAIL_CLIENT_ID` for the connect command.
-`GMAIL_CLIENT_SECRET` is still required because Google Desktop clients have a
-secret and the token exchange sends it as a form parameter.
+The name carries the provider target. The app-local Infisical config should
+point at your personal secrets project, where both keysets sit under
+`prod /apps/local-mail` for a single injection. Copy
+`.infisical.json.example` to `.infisical.json` and keep the real file local.
+See [`.env.example`](.env.example) for the canonical names. The old
+unqualified `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` are retired.
 
 Local Mail requests `gmail.modify` so write-through label changes can round-trip
 through Gmail. Although Google grants send at the same OAuth layer, Local Mail
@@ -48,17 +55,17 @@ here rather than on the first sync, and the account email comes from the
 Gmail profile instead of being typed:
 
 ```sh
-infisical run --env=dev --path=/apps/local-mail -- \
-  bun run src/bin.ts seed-token <refresh-token>
+infisical run --path=/apps/local-mail -- \
+  bun run src/bin.ts seed-token <refresh-token> --gmail-env dev
 ```
 
 Build or refresh the mirror:
 
 ```sh
-infisical run --env=dev --path=/apps/local-mail -- \
+infisical run --path=/apps/local-mail -- \
   bun run src/bin.ts sync --full
 
-infisical run --env=dev --path=/apps/local-mail -- \
+infisical run --path=/apps/local-mail -- \
   bun run src/bin.ts sync --watch
 ```
 
@@ -140,7 +147,10 @@ Tools:
 
 ## Config
 
-- `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET`: Google OAuth Desktop client keys.
+- `GMAIL_DEV_CLIENT_ID` / `GMAIL_DEV_CLIENT_SECRET`, `GMAIL_PROD_CLIENT_ID` /
+  `GMAIL_PROD_CLIENT_SECRET`: the Google OAuth Desktop client keys, one keyset per
+  environment (ADR-0108). `--gmail-env` selects which the resolver reads, lazily at
+  connect/refresh; a missing keyset fails loudly naming the exact variables.
 - `LOCAL_MAIL_ACCOUNT`: optional account override for `sync`, `query`, and
   `mcp`. Required only when more than one account is connected.
 - `LOCAL_MAIL_DIR`: data directory override.
