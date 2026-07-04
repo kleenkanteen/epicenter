@@ -17,7 +17,7 @@ import Type, { type Static } from 'typebox';
 import { defineErrors, type InferErrors } from 'wellcrafted/error';
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import type { QbClientError } from '../qb-client.ts';
-import type { OpenQbClient } from './qb-access.ts';
+import type { OpenQbClient, QbAccessError } from './qb-access.ts';
 
 /** The reports QuickBooks computes that this verb runs live. */
 export const REPORT_NAMES = [
@@ -31,10 +31,6 @@ export const REPORT_NAMES = [
 export type ReportName = (typeof REPORT_NAMES)[number];
 
 export const ReportError = defineErrors({
-	Unavailable: ({ detail }: { detail: string }) => ({
-		message: `Reports are unavailable: ${detail}`,
-		detail,
-	}),
 	UnknownReport: ({ name }: { name: string }) => ({
 		message: `Unknown report "${name}". Choose one of: ${REPORT_NAMES.join(', ')}.`,
 	}),
@@ -82,11 +78,11 @@ export async function fetchReport({
 }): Promise<
 	Result<
 		{ report: ReportName; data: Record<string, unknown> },
-		ReportError | QbClientError
+		ReportError | QbAccessError | QbClientError
 	>
 > {
 	const { data: qb, error: openError } = await openQb();
-	if (openError !== null) return ReportError.Unavailable({ detail: openError });
+	if (openError !== null) return Err(openError);
 
 	const params: Record<string, string> = {};
 	if (input.start_date) params.start_date = input.start_date;

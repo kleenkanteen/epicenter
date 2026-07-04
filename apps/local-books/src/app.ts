@@ -202,7 +202,7 @@ export async function runApp(
 	 */
 	async function syncNow(): Promise<SyncPassResult> {
 		const { data: client, error: openError } = await openQb();
-		if (openError !== null) return { failed: openError };
+		if (openError !== null) return { failed: openError.message };
 		const db = openBooksDb(mirrorPath);
 		try {
 			const deps: SyncDeps = {

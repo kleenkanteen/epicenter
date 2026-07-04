@@ -7,9 +7,8 @@
  */
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { Err } from 'wellcrafted/result';
 import { createRequestHandler } from '../src/app.ts';
-import type { OpenQbClient } from '../src/books/qb-access.ts';
+import { type OpenQbClient, QbAccessError } from '../src/books/qb-access.ts';
 import { openBooksDb } from '../src/db.ts';
 import { entityDef } from '../src/entities.ts';
 import { createApiApp } from '../src/http/api.ts';
@@ -21,7 +20,8 @@ const BOOT = 'bootstrap-token-abc';
 
 /** An opener that always refuses: report/recategorize live paths are out of scope
  * here (their cores are tested directly), so no test reaches a real QB call. */
-const refusingOpenQb: OpenQbClient = async () => Err('no QuickBooks in tests');
+const refusingOpenQb: OpenQbClient = async () =>
+	QbAccessError.NotAuthenticated({ realmId: 'test-realm' });
 
 /** Seed a mirror with two invoices and one purchase carrying an expense line. */
 function seedMirror(dataDir: string) {

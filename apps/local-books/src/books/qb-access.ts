@@ -9,14 +9,28 @@
  * action wrappers it builds over these cores.
  */
 
-import { Err, Ok, type Result } from 'wellcrafted/result';
+import { defineErrors, type InferErrors } from 'wellcrafted/error';
+import { Ok, type Result } from 'wellcrafted/result';
 import type { AppConfig } from '../config.ts';
 import { createQbClient, type QbClient } from '../qb-client.ts';
 import { createTokenManager } from '../token-manager.ts';
 import type { TokenStore } from '../token-store.ts';
 
-/** Opens a QB client for the realm, or a user-facing reason it cannot. */
-export type OpenQbClient = () => Promise<Result<QbClient, string>>;
+/**
+ * The one way opening a client can fail: the realm has no stored credentials.
+ * This membrane owns the failure so its verbs (`report`, `recategorize`) and the
+ * sync loops propagate it as-is instead of each re-typing "openQb returned Err"
+ * into its own variant with a less accurate prefix.
+ */
+export const QbAccessError = defineErrors({
+	NotAuthenticated: ({ realmId }: { realmId: string }) => ({
+		message: `No stored credentials for company ${realmId}. Run "local-books auth".`,
+	}),
+});
+export type QbAccessError = InferErrors<typeof QbAccessError>;
+
+/** Opens a QB client for the realm, or the reason it cannot. */
+export type OpenQbClient = () => Promise<Result<QbClient, QbAccessError>>;
 
 export function createQbAccess({
 	config,
@@ -35,9 +49,7 @@ export function createQbAccess({
 	return async () => {
 		const token = await store.get(realmId);
 		if (!token) {
-			return Err(
-				`No stored credentials for company ${realmId}. Run "local-books auth".`,
-			);
+			return QbAccessError.NotAuthenticated({ realmId });
 		}
 		const tokens = createTokenManager({ config, store, token, now });
 		return Ok(createQbClient({ config, realmId, tokens, log }));
