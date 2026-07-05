@@ -9,9 +9,9 @@
 //! platform, so there is no per-OS Cargo feature to juggle here.
 //!
 //! `keyring`'s `Entry` calls are blocking OS/D-Bus round-trips (and can block
-//! on a locked keychain waiting for the user), so both commands hop onto
-//! Tokio's blocking pool via `spawn_blocking` instead of running on an async
-//! worker thread.
+//! on a locked keychain waiting for the user), so both commands hop onto the
+//! runtime's blocking pool via `tauri::async_runtime::spawn_blocking` instead
+//! of running on an async worker thread.
 
 use keyring::{Entry, Error as KeyringCrateError};
 use serde::Serialize;
@@ -51,7 +51,7 @@ impl KeyringError {
         }
     }
 
-    fn task_panicked(context: &str, join_err: tokio::task::JoinError) -> Self {
+    fn task_panicked(context: &str, join_err: tauri::Error) -> Self {
         Self::Failed {
             message: format!("{context}: blocking task panicked: {join_err}"),
         }
@@ -65,7 +65,7 @@ impl KeyringError {
 /// platform failure, bad encoding) surfaces as `Err`.
 #[tauri::command]
 pub async fn keyring_read() -> Result<Option<String>, KeyringError> {
-    tokio::task::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         let entry = Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
             .map_err(|e| KeyringError::from_crate_error("opening keyring entry", e))?;
         match entry.get_password() {
@@ -87,7 +87,7 @@ pub async fn keyring_read() -> Result<Option<String>, KeyringError> {
 /// no-op delete being safe to call repeatedly.
 #[tauri::command]
 pub async fn keyring_write(value: Option<String>) -> Result<(), KeyringError> {
-    tokio::task::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         let entry = Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
             .map_err(|e| KeyringError::from_crate_error("opening keyring entry", e))?;
         match value {
