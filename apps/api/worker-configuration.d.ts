@@ -3,8 +3,8 @@
 // Runtime types generated with workerd@1.20260401.1 2026-03-06 enable_request_signal,nodejs_compat
 declare namespace Cloudflare {
 	interface GlobalProps {
-		mainModule: typeof import("./worker/index");
-		durableNamespaces: "Room";
+		mainModule: typeof import('./worker/index');
+		durableNamespaces: 'Room';
 	}
 	interface Env {
 		HYPERDRIVE: Hyperdrive;
@@ -20,15 +20,33 @@ declare namespace Cloudflare {
 		BLOBS_S3_ENDPOINT: string;
 		BLOBS_S3_ACCESS_KEY_ID: string;
 		BLOBS_S3_SECRET_ACCESS_KEY: string;
-		ROOM: DurableObjectNamespace<import("./worker/index").Room>;
+		ROOM: DurableObjectNamespace<import('./worker/index').Room>;
 	}
 }
 interface Env extends Cloudflare.Env {}
 type StringifyValues<EnvType extends Record<string, unknown>> = {
-	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
+	[Binding in keyof EnvType]: EnvType[Binding] extends string
+		? EnvType[Binding]
+		: string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "BETTER_AUTH_SECRET" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "GITHUB_CLIENT_ID" | "GITHUB_CLIENT_SECRET" | "OPENAI_API_KEY" | "AUTUMN_SECRET_KEY" | "GEMINI_API_KEY" | "BLOBS_S3_ENDPOINT" | "BLOBS_S3_ACCESS_KEY_ID" | "BLOBS_S3_SECRET_ACCESS_KEY">> {}
+	interface ProcessEnv
+		extends StringifyValues<
+			Pick<
+				Cloudflare.Env,
+				| 'BETTER_AUTH_SECRET'
+				| 'GOOGLE_CLIENT_ID'
+				| 'GOOGLE_CLIENT_SECRET'
+				| 'GITHUB_CLIENT_ID'
+				| 'GITHUB_CLIENT_SECRET'
+				| 'OPENAI_API_KEY'
+				| 'AUTUMN_SECRET_KEY'
+				| 'GEMINI_API_KEY'
+				| 'BLOBS_S3_ENDPOINT'
+				| 'BLOBS_S3_ACCESS_KEY_ID'
+				| 'BLOBS_S3_SECRET_ACCESS_KEY'
+			>
+		> {}
 }
 
 // Begin runtime types
