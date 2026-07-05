@@ -2,7 +2,6 @@
 	import type { AuthClient } from '@epicenter/auth';
 	import { Button } from '@epicenter/ui/button';
 	import { Spinner } from '@epicenter/ui/spinner';
-	import { cn } from '@epicenter/ui/utils';
 	import Cloud from '@lucide/svelte/icons/cloud';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Server from '@lucide/svelte/icons/server';
@@ -34,8 +33,6 @@
 		 * a recording. Omit to leave the actions enabled.
 		 */
 		disabledReason?: string;
-		/** Layout classes for the action column (width, alignment). */
-		class?: string;
 	};
 
 	let {
@@ -43,7 +40,6 @@
 		syncNoun,
 		onConfigure,
 		disabledReason,
-		class: className,
 	}: SignInPanelProps = $props();
 
 	let signingIn = $state(false);
@@ -109,7 +105,7 @@
 	}
 </script>
 
-<div class={cn('flex flex-col gap-3', className)}>
+<div class="flex flex-col gap-3">
 	<div class="space-y-1">
 		<p class="text-sm font-medium">
 			{selfHosted ? `Connect to ${host}` : 'Sign in'}
