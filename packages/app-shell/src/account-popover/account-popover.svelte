@@ -123,8 +123,7 @@
 		auth.state.status === 'signed-out' ? null : auth.state.principalId,
 	);
 	// Which star this account lives on: a self-hosted deployment names the box,
-	// and the host IS the identity there (the instance session's email is a
-	// canned placeholder, not an account).
+	// and the host IS the identity there. The instance principal has no email.
 	const selfHostHost = $derived(
 		auth.deployment.kind === 'self-hosted'
 			? new URL(auth.deployment.baseURL).host
