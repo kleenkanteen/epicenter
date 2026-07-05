@@ -23,7 +23,7 @@ export function toConnection(
 	const state = auth.state;
 	if (state.status === 'signed-out') return null;
 	return {
-		baseURL: auth.baseURL,
+		baseURL: auth.deployment.baseURL,
 		principalId: state.principalId,
 		nodeId,
 		openWebSocket: auth.openWebSocket,

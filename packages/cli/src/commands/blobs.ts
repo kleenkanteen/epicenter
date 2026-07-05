@@ -245,7 +245,7 @@ async function connectCloud(): Promise<EpicenterClient | null> {
 		return null;
 	}
 	return createEpicenterClient({
-		baseURL: auth.baseURL,
+		baseURL: auth.deployment.baseURL,
 		fetch: (input, init) => auth.fetch(input, init),
 	});
 }

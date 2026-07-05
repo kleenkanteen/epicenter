@@ -87,7 +87,8 @@ Options:
   -v, --version                   Show version.
 
 Environment:
-  QB_CLIENT_ID / QB_CLIENT_SECRET   Your Intuit app keys (required for auth). See the README.
+  QB_SANDBOX_CLIENT_ID / QB_SANDBOX_CLIENT_SECRET          Intuit sandbox app keys (auth --qb-env sandbox).
+  QB_PRODUCTION_CLIENT_ID / QB_PRODUCTION_CLIENT_SECRET    Intuit production app keys (auth --qb-env production).
   LOCAL_BOOKS_DIR                   Where the local copy lives.
   LOCAL_BOOKS_TOKEN_FILE            Override the credentials file path (default: <data-dir>/credentials.json).
   LOCAL_BOOKS_READ_ONLY             Disable recategorize (reads only).

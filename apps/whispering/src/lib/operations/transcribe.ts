@@ -121,7 +121,7 @@ function secretApiKey(key: SecretKey): string | undefined {
  */
 const UPLOAD_DISPATCH = {
 	// Epicenter (`session`) STT: the transport is the signed-in session fetch against
-	// the deployment you are bonded to (`auth.baseURL`, so a self-hosted instance's own
+	// the deployment you are bonded to (`auth.deployment.baseURL`, so a self-hosted instance's own
 	// gateway is used when connected to one), never a stored key. Both deployables mount
 	// this gateway on their house key; a hosted deployment meters it (ADR-0100), a
 	// self-host deployment does not. The model is fixed by the gateway.
@@ -129,7 +129,7 @@ const UPLOAD_DISPATCH = {
 		kind: 'wire',
 		resolve: () => ({
 			fetch: auth.fetch,
-			baseURL: API_ROUTES.ai.baseUrl(auth.baseURL),
+			baseURL: API_ROUTES.ai.baseUrl(auth.deployment.baseURL),
 		}),
 		model: () => PROVIDERS.epicenter.model,
 	},

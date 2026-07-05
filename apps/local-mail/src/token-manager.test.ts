@@ -17,11 +17,15 @@ import { createTokenManager } from './token-manager.ts';
 import type { TokenStore } from './token-store.ts';
 import type { TokenSet } from './tokens.ts';
 
+// The credential resolver (ADR-0108) reads the Google OAuth keyset from the
+// environment by qualified name; seed the dev keyset these tokens were minted by,
+// unconditionally, so the resolved client id matches `clientIdUsed` exactly.
+process.env.GMAIL_DEV_CLIENT_ID = 'client-id-123';
+process.env.GMAIL_DEV_CLIENT_SECRET = 'client-secret-456';
+
 function config(overrides: Partial<AppConfig>): AppConfig {
 	return {
 		dataDir: '/tmp/local-mail-token-manager-test',
-		clientId: 'client-id-123',
-		clientSecret: 'client-secret-456',
 		apiBase: 'http://127.0.0.1:0',
 		authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
 		tokenUrl: 'http://127.0.0.1:0/token',
@@ -39,6 +43,7 @@ function token(overrides: Partial<TokenSet> = {}): TokenSet {
 	return {
 		accountEmail: 'you@example.com',
 		clientIdUsed: 'client-id-123',
+		environment: 'dev',
 		accessToken: 'old-access-token',
 		accessTokenExpiresAt: new Date(0).toISOString(),
 		refreshToken: 'old-refresh-token',

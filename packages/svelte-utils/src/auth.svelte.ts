@@ -38,21 +38,24 @@ function reactiveAuthClient<T extends AuthClient>(auth: T): T {
 			return auth.state;
 		},
 	} as T;
-	// The self-host token client also exposes a remote credential-verification
-	// channel (pending / verified / failed) that changes without touching `state`,
-	// so give it its own subscriber. Clients without one (hosted OAuth, cookie) skip
-	// this and keep the plain spread value (undefined).
-	const source = auth.verification;
-	if (source) {
-		const subscribeVerification = createSubscriber((update) =>
+	// A self-hosted deployment carries a live connection status (connecting /
+	// connected / unreachable / rejected) that changes without touching `state`,
+	// so give it its own subscriber. Hosted deployments are plain data and keep
+	// the spread value.
+	if (auth.deployment.kind === 'self-hosted') {
+		const source = auth.deployment.connection;
+		const subscribeConnection = createSubscriber((update) =>
 			source.onChange(update),
 		);
-		reactive.verification = {
-			get state() {
-				subscribeVerification();
-				return source.state;
+		reactive.deployment = {
+			...auth.deployment,
+			connection: {
+				get status() {
+					subscribeConnection();
+					return source.status;
+				},
+				onChange: source.onChange,
 			},
-			onChange: source.onChange,
 		};
 	}
 	return reactive;

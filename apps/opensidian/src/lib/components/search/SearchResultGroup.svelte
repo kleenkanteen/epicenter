@@ -2,6 +2,7 @@
 	import { asFileId } from '@epicenter/filesystem';
 	import { Badge } from '@epicenter/ui/badge';
 	import * as Collapsible from '@epicenter/ui/collapsible';
+	import * as Item from '@epicenter/ui/item';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import FileTextIcon from '@lucide/svelte/icons/file-text';
 	import { opensidian } from '$lib/opensidian';
@@ -59,15 +60,17 @@
 	<Collapsible.Content>
 		<div class="ml-6 border-l border-border pl-3">
 			{#each group.matches as match, i (i)}
-				<button
-					type="button"
-					class="block w-full cursor-pointer rounded-sm px-2 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+				<Item.Button
+					size="sm"
+					class="cursor-pointer gap-2 px-2 py-1 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
 					onclick={() => handleMatchClick(group.fileId)}
 				>
-					<span class="line-clamp-2 break-all text-xs">
-						{@html sanitizeSnippet(match.snippet)}
-					</span>
-				</button>
+					<Item.Content>
+						<span class="line-clamp-2 break-all text-xs">
+							{@html sanitizeSnippet(match.snippet)}
+						</span>
+					</Item.Content>
+				</Item.Button>
 			{/each}
 		</div>
 	</Collapsible.Content>

@@ -77,7 +77,7 @@ App clients pick a credential model through one dispatcher,
 - `createInstanceTokenAuth(...)` — a self-hosted star (static `instance.token`).
   No OAuth flow, launcher, refresh, or persisted grant; boots optimistically
   `signed-in` as `INSTANCE_PRINCIPAL_ID` and verifies `/api/session` in the
-  background (surfacing the result on its `verification` channel). Carries the
+  background (surfacing the result on `deployment.connection`). Carries the
   bearer subprotocol, so it is a drop-in `SyncAuthClient`.
 - `createSameOriginCookieAuth(...)` — the same-origin dashboard SPA
   (`apps/api/ui`). Uses the first-party Better Auth cookie directly; a plain
@@ -171,6 +171,21 @@ export type AuthState =
 	| { status: 'signed-out' }
 	| { status: 'signed-in'; principalId: PrincipalId }
 	| { status: 'reauth-required'; principalId: PrincipalId };
+
+export type Deployment =
+	| { kind: 'hosted'; baseURL: string }
+	| { kind: 'self-hosted'; baseURL: string; connection: InstanceConnection };
+
+export type InstanceConnectionStatus =
+	| 'connecting'
+	| 'connected'
+	| 'unreachable'
+	| 'rejected';
+
+export type InstanceConnection = {
+	get status(): InstanceConnectionStatus;
+	onChange(fn: (status: InstanceConnectionStatus) => void): () => void;
+};
 ```
 
 The client contract (`packages/auth/src/auth-contract.ts`), trimmed of JSDoc:
@@ -178,13 +193,12 @@ The client contract (`packages/auth/src/auth-contract.ts`), trimmed of JSDoc:
 ```ts
 export type AuthClient = {
 	state: AuthState;
-	baseURL: string;
+	deployment: Deployment;
 	onStateChange(fn: (state: AuthState) => void): () => void;
 	startSignIn(): Promise<Result<undefined, AuthError>>;
 	signOut(): Promise<Result<undefined, AuthError>>;
 	fetch(input: Request | string | URL, init?: RequestInit): Promise<Response>;
 	getProfile(): Promise<Result<Principal, AuthError>>;
-	verification?: AuthVerification; // present only on the instance-token client
 	[Symbol.dispose](): void;
 };
 
@@ -201,12 +215,15 @@ via `getProfile()` by the surface that displays it, never held in state.
 local partition key: even when the OAuth grant needs reauth, the cached
 principal id picks the right local storage partition.
 
+`deployment` is the one runtime owner of the hosted vs self-hosted fact,
+fixed by the factory that built the client. UI branches on `deployment.kind`
+instead of re-deriving the mode from the persisted `InstanceSetting`; only a
+self-hosted deployment carries a live `connection` status (the boot bearer
+check against the instance).
+
 `SyncAuthClient` (adds `openWebSocket`) is the type workspace sync requires. The
 same-origin cookie client is a plain `AuthClient`, so passing it where sync is
-needed is a compile error, not a runtime throw. `verification` is an optional
-capability a UI feature-detects: only `createInstanceTokenAuth` sets it (its
-boot identity is optimistic, so a separate channel reports still-verifying vs
-unreachable vs rejected-token).
+needed is a compile error, not a runtime throw.
 
 Read `auth.state` synchronously. Use `auth.onStateChange(fn)` for future changes
 only; it does not replay. Consumers that need bootstrap behavior must read

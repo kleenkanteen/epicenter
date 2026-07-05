@@ -31,6 +31,7 @@
 			"apps/api/ui",
 			"apps/local-books/ui",
 			"apps/local-mail/ui",
+			"ops",
 			"packages/*",
 			"examples/*"
 		],
@@ -151,8 +152,8 @@
 		"bump-version": "bun run scripts/bump-version.ts",
 		"clean": "bun run scripts/clean.ts",
 		"nuke": "bun run scripts/clean.ts --nuke",
-		"cf:plan:remote": "infisical run --env=prod --path=/ops -- bun run scripts/cf/apply.ts --plan",
-		"cf:apply:remote": "infisical run --env=prod --path=/ops -- bun run scripts/cf/apply.ts",
+		"cf:plan:remote": "bun run --cwd ops cf:plan:remote",
+		"cf:apply:remote": "bun run --cwd ops cf:apply:remote",
 		"cli": "bun packages/cli/src/bin.ts",
 		"cli:local": "EPICENTER_API_URL=http://localhost:8787 bun packages/cli/src/bin.ts",
 		"epicenter:local": "EPICENTER_API_URL=http://localhost:8787 bun run --bun epicenter",

@@ -152,7 +152,7 @@ if (orphans.length > 0) {
 	console.error(
 		`URLs in APPS are not on any declared zone:\n  ${orphans.join('\n  ')}`,
 	);
-	console.error('Add the zone to ZONES in scripts/cf/apply.ts or fix the URL.');
+	console.error('Add the zone to ZONES in ops/cf/apply.ts or fix the URL.');
 	process.exit(1);
 }
 

@@ -26,7 +26,7 @@ Use the product page for old marketing/download links. Use the web app only when
 
 ## Cloudflare Setup
 
-The repo script manages the Cloudflare pieces for zones listed in `scripts/cf/apply.ts`. It currently covers:
+The ops script manages the Cloudflare pieces for zones listed in `ops/cf/apply.ts`. It currently covers:
 
 - `getwhispering.com`
 - `www.getwhispering.com`
@@ -79,7 +79,7 @@ For `whispering.studio`:
 (http.host eq "whispering.studio" or http.host eq "www.whispering.studio")
 ```
 
-For old subdomains like `whispering.bradenwong.com` and `whispering.epicenterhq.com`, add redirect rules in the parent zones (`bradenwong.com` and `epicenterhq.com`). If those zones are not in this Cloudflare account, configure the same 301 at their DNS/hosting provider instead. To manage them from `scripts/cf/apply.ts`, first add those parent zones to the script's `ZONES` list, then add matching entries to `REDIRECTS`.
+For old subdomains like `whispering.bradenwong.com` and `whispering.epicenterhq.com`, add redirect rules in the parent zones (`bradenwong.com` and `epicenterhq.com`). If those zones are not in this Cloudflare account, configure the same 301 at their DNS/hosting provider instead. To manage them from `ops/cf/apply.ts`, first add those parent zones to the script's `ZONES` list, then add matching entries to `REDIRECTS`.
 
 ## Verification
 

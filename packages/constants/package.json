@@ -16,7 +16,8 @@
 		"./vite": "./src/vite.ts",
 		"./ai-providers": "./src/ai-providers.ts",
 		"./api-routes": "./src/api-routes.ts",
-		"./oauth-routes": "./src/oauth-routes.ts"
+		"./oauth-routes": "./src/oauth-routes.ts",
+		"./provider-credentials": "./src/provider-credentials.ts"
 	},
 	"devDependencies": {
 		"@better-auth/oauth-provider": "catalog:",

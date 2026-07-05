@@ -18,49 +18,62 @@ export type AuthFetch = (
 ) => Promise<Response>;
 
 /**
- * Outcome of verifying a client's credential against its star: has the configured
- * server accepted this credential in this runtime? Exposed only by clients that
- * perform a remote bearer verification at boot (the self-host token client,
- * {@link createInstanceTokenAuth}). It rides its own channel because the boot
- * identity {@link AuthState} is optimistic (signed-in the moment a token is held,
- * ADR-0075) and most outcomes leave it untouched: an unreachable star keeps the
- * client signed-in for local-first work, and only a rejected token drops it to
- * `signed-out`. So this is the separate signal a UI reads to explain whether the
- * server is reachable and the credential accepted: still verifying, an unreachable
- * star, or a rejected token.
+ * The one deployment this client talks to (ADR-0069: privacy is which
+ * deployment runs the program). Fixed at construction by the factory that
+ * built the client, so it is the single runtime owner of the hosted vs
+ * self-hosted fact: UI branches on `deployment.kind` instead of re-deriving
+ * the mode from the persisted {@link InstanceSetting}.
+ *
+ * `baseURL` is the origin (optionally with a path prefix) of the API this
+ * client signs into. Client-side partitioning (local storage keys,
+ * BroadcastChannel names) scopes by `(server, principalId)` with it, so two
+ * signed-in deployments on the same machine stay distinct.
+ *
+ * Only the self-hosted arm carries a {@link InstanceConnection}: that client
+ * verifies a static bearer against a remote instance at boot, a lifecycle
+ * hosted OAuth does not have (its identity resolves through the persisted
+ * grant, and `/api/session` verification gates each request instead).
  */
-export type AuthVerificationState =
-	| { status: 'pending' }
-	| { status: 'verified' }
-	| {
-			status: 'failed';
-			/**
-			 * `rejected`: the star answered and refused the token (401/403).
-			 * `unreachable`: no usable answer (offline, wrong origin, or a box that
-			 * did not respond like an Epicenter star).
-			 */
-			reason: 'rejected' | 'unreachable';
-	  };
+export type Deployment =
+	| { kind: 'hosted'; baseURL: string }
+	| { kind: 'self-hosted'; baseURL: string; connection: InstanceConnection };
 
 /**
- * Observable {@link AuthVerificationState}. `onChange` does not replay the current
- * value, mirroring {@link AuthClient.onStateChange}; read `state` once before
- * subscribing when the boot value matters (the Svelte reactive wrapper does).
+ * Whether the configured self-hosted instance has accepted this client's
+ * token in this runtime. Boot identity is optimistic (`signed-in` the moment
+ * a token is held, ADR-0075) and most outcomes leave it untouched: an
+ * unreachable instance keeps the client signed-in for local-first work, and
+ * only a rejected token drops {@link AuthState} to `signed-out`. This status
+ * is the separate fact a UI reads to explain the connection.
+ *
+ * `rejected`: the instance answered and refused the token (401/403).
+ * `unreachable`: no usable answer (offline, wrong origin, or a box that did
+ * not respond like an Epicenter server).
  */
-export type AuthVerification = {
-	get state(): AuthVerificationState;
-	onChange(fn: (state: AuthVerificationState) => void): () => void;
+export type InstanceConnectionStatus =
+	| 'connecting'
+	| 'connected'
+	| 'unreachable'
+	| 'rejected';
+
+/**
+ * Observable {@link InstanceConnectionStatus}. `onChange` does not replay the
+ * current value, mirroring {@link AuthClient.onStateChange}; read `status`
+ * once before subscribing when the boot value matters (the Svelte reactive
+ * wrapper does).
+ */
+export type InstanceConnection = {
+	get status(): InstanceConnectionStatus;
+	onChange(fn: (status: InstanceConnectionStatus) => void): () => void;
 };
 
 export type AuthClient = {
 	state: AuthState;
 	/**
-	 * Origin of the API this client signs into. Exposed so client-side
-	 * partitioning (local storage keys, BroadcastChannel names) can scope by
-	 * `(server, principalId)` and stay distinct across two signed-in deployments on
-	 * the same machine. Mirrors the `baseURL` passed at construction.
+	 * The deployment this client talks to: its kind, its `baseURL`, and (for a
+	 * self-hosted instance) the live connection status. Fixed at construction.
 	 */
-	baseURL: string;
+	deployment: Deployment;
 	/**
 	 * Subscribe to future state changes.
 	 *
@@ -108,18 +121,6 @@ export type AuthClient = {
 	 * off `state`.
 	 */
 	getProfile(): Promise<Result<Principal, AuthError>>;
-	/**
-	 * Remote credential-verification channel, present only on clients that verify
-	 * a remote bearer at boot (the self-host token client). It answers "has the
-	 * configured server accepted this credential in this runtime?", a fact distinct
-	 * from {@link AuthState}, which answers "who owns the local workspace?": a client
-	 * can be `signed-in` (local identity known) while verification is `failed`
-	 * `unreachable` (server offline). Absent on hosted OAuth (identity resolves
-	 * through the persisted grant, not a boot bearer check) and on the same-origin
-	 * cookie client (no remote star), so it is an optional capability a UI
-	 * feature-detects, not a universal field.
-	 */
-	verification?: AuthVerification;
 	[Symbol.dispose](): void;
 };
 

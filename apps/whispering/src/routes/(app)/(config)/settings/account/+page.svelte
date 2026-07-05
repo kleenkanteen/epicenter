@@ -5,6 +5,7 @@
 	import { createMutation } from '@tanstack/svelte-query';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import LogOut from '@lucide/svelte/icons/log-out';
+	import { mutationOptions } from 'wellcrafted/query';
 	import { auth } from '#platform/auth';
 	import { recordingActive } from '$lib/state/recording-active.svelte';
 
@@ -17,16 +18,20 @@
 	// browser recording, so block account changes while a capture is active.
 	const accountLocked = $derived(recordingActive.current);
 
-	const startSignIn = createMutation(() => ({
-		mutationKey: ['account', 'startSignIn'],
-		mutationFn: () => auth.startSignIn(),
-	}));
+	const startSignIn = createMutation(() =>
+		mutationOptions({
+			mutationKey: ['account', 'startSignIn'],
+			mutationFn: () => auth.startSignIn(),
+		}),
+	);
 
-	const signOut = createMutation(() => ({
-		mutationKey: ['account', 'signOut'],
-		mutationFn: () => auth.signOut(),
-		onError: (error) => toastOnError(error, 'Failed to sign out'),
-	}));
+	const signOut = createMutation(() =>
+		mutationOptions({
+			mutationKey: ['account', 'signOut'],
+			mutationFn: () => auth.signOut(),
+			onError: (error) => toastOnError(error, 'Failed to sign out'),
+		}),
+	);
 </script>
 
 <svelte:head> <title>Account - Whispering</title> </svelte:head>
