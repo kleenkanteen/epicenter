@@ -159,6 +159,12 @@
 		connections={inferenceConnections}
 		placeholder="Ask about a word, phrase, or sentence you're learning..."
 		onSignIn={() => void auth.startSignIn()}
+		onUpgrade={() =>
+			void window.open(
+				new URL('/dashboard', auth.deployment.baseURL).toString(),
+				'_blank',
+				'noopener',
+			)}
 	>
 		{#snippet inputAccessory()}
 			<DictationButton disabled={isGenerating} onTranscript={appendTranscript} />

@@ -3,6 +3,7 @@
 		AgentChatThread,
 		ConversationSwitcher,
 	} from '@epicenter/app-shell/agent-chat';
+	import { browser } from 'wxt/browser';
 	import { tabManagerBoot } from '$lib/session.svelte';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
 
@@ -42,6 +43,10 @@
 			resolveToolTitle={(toolName) => actionTitles[toolName]?.title}
 			onAlwaysAllow={alwaysAllowPendingToolCall}
 			onSignIn={() => auth.startSignIn()}
+			onUpgrade={() =>
+				void browser.tabs.create({
+					url: new URL('/dashboard', auth.deployment.baseURL).toString(),
+				})}
 		/>
 	{/if}
 </div>
