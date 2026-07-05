@@ -14,11 +14,6 @@ import type { PlatformAuth } from './types';
 
 const log = createLogger('honeycrisp/platform/auth');
 
-// Allowlisted in `KEYRING_ACCOUNTS` (src-tauri/src/keyring_storage.rs); Rust
-// owns the OS credential-store service name and rejects any account name not
-// on that list.
-const KEYRING_ACCOUNT = 'auth-grant';
-
 const KeyringError = defineErrors({
 	ReadFailed: ({ cause }: { cause: unknown }) => ({
 		message: `Failed to read from the OS keyring: ${extractErrorMessage(cause)}`,
@@ -37,8 +32,7 @@ const KeyringError = defineErrors({
  */
 async function readGrant(): Promise<string | null> {
 	const { data, error } = await tryAsync({
-		try: () =>
-			invoke<string | null>('keyring_read', { account: KEYRING_ACCOUNT }),
+		try: () => invoke<string | null>('keyring_read'),
 		catch: (cause) => KeyringError.ReadFailed({ cause }),
 	});
 	if (error !== null) {
@@ -55,8 +49,7 @@ async function readGrant(): Promise<string | null> {
  */
 async function writeGrant(serialized: string | null): Promise<void> {
 	const { error } = await tryAsync({
-		try: () =>
-			invoke('keyring_write', { account: KEYRING_ACCOUNT, value: serialized }),
+		try: () => invoke('keyring_write', { value: serialized }),
 		catch: (cause) => KeyringError.WriteFailed({ cause }),
 	});
 	if (error !== null) throw error;
