@@ -1,6 +1,10 @@
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
 
+pub mod keyring_storage;
+
+use keyring_storage::{keyring_read, keyring_write};
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let log_plugin = tauri_plugin_log::Builder::new()
@@ -16,6 +20,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .invoke_handler(tauri::generate_handler![keyring_read, keyring_write])
         .setup(|_app| {
             // Register the custom scheme at runtime on Windows and Linux.
             // macOS gets the scheme from the app bundle plist.
