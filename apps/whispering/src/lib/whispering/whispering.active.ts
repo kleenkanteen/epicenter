@@ -10,37 +10,31 @@
  * `reloadOnPrincipalChange` (same subpath, mounted in the root layout) reloads
  * the page so the next boot re-projects.
  *
- * `openWhispering` wraps that doc with the one action every platform needs
- * (`recordings_export_markdown` — the logic is identical on both, see
- * `recordings-markdown-export.ts`) and exports the `satisfiesWorkspace`
- * shape. The two platform leaves (`whispering.browser.ts`,
- * `whispering.tauri.ts`) call this with only their default transcription
- * service; the `#platform/whispering` seam still needs two files so the
- * bundler picks the right one, but the two are otherwise identical.
+ * `openWhisperingBrowser` takes the boot inputs every workspace app passes to
+ * its browser opener (`auth`, `nodeId`) and wraps the doc with the one action
+ * every platform needs (`recordings_export_markdown`, whose logic is identical
+ * on both platforms; see `recordings-markdown-export.ts`). The two platform
+ * leaves (`whispering.browser.ts`, `whispering.tauri.ts`) still choose the
+ * default transcription service and platform auth seam.
  */
 
+import type { SyncAuthClient } from '@epicenter/auth';
 import { toConnection } from '@epicenter/svelte/auth';
-import {
-	createNodeId,
-	defineActions,
-	satisfiesWorkspace,
-} from '@epicenter/workspace';
-import { auth } from '#platform/auth';
+import type { NodeId } from '@epicenter/workspace';
+import { defineActions, satisfiesWorkspace } from '@epicenter/workspace';
 import type { TranscriptionServiceId } from '$lib/services/transcription/providers';
 import { defineWhispering } from '$lib/workspace';
 import { defineRecordingsMarkdownExport } from './recordings-markdown-export';
 
-/**
- * Stable per-node id for relay room addressing, read synchronously from
- * `localStorage` (the async variant is only for the extension's
- * `chrome.storage`). Shared across Epicenter apps on this origin.
- */
-const nodeId = createNodeId({ storage: window.localStorage });
-
-/** Build the `whispering` singleton: the active doc plus the shared recordings-export action. */
-export function openWhispering(
-	defaultTranscriptionService: TranscriptionServiceId,
-) {
+export function openWhisperingBrowser({
+	auth,
+	nodeId,
+	defaultTranscriptionService,
+}: {
+	auth: SyncAuthClient;
+	nodeId: NodeId;
+	defaultTranscriptionService: TranscriptionServiceId;
+}) {
 	const model = defineWhispering(defaultTranscriptionService);
 	const bundle = model.connect(toConnection(auth, nodeId), (workspace) => ({
 		actions: defineActions({
