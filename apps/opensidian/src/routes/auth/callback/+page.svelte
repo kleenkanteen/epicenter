@@ -2,7 +2,7 @@
 	import { Loading } from '@epicenter/ui/loading';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
-	import { auth } from '$platform/auth';
+	import { auth } from '$lib/platform/auth';
 
 	let errorMessage = $state<string | null>(null);
 

@@ -8,8 +8,8 @@
 import { createSignInMigration } from '@epicenter/app-shell/sign-in-migration';
 import { vocabWorkspace } from '@epicenter/vocab';
 import { attachIndexedDb } from '@epicenter/workspace';
+import { auth } from '$lib/platform/auth';
 import { vocab } from '$lib/vocab';
-import { auth } from '$platform/auth';
 
 /**
  * Open a throwaway handle to the signed-out plaintext local doc (the migration

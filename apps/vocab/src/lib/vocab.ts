@@ -17,7 +17,7 @@
 
 import { openVocabBrowser } from '@epicenter/vocab/browser';
 import { createNodeId } from '@epicenter/workspace';
-import { auth } from '$platform/auth';
+import { auth } from '$lib/platform/auth';
 
 const nodeId = createNodeId({ storage: localStorage });
 

@@ -7,7 +7,7 @@
 	import GithubIcon from '$lib/components/icons/GithubIcon.svelte';
 	import { instanceSetting } from '$lib/instance';
 	import { opensidian } from '$lib/opensidian';
-	import { auth } from '$platform/auth';
+	import { auth } from '$lib/platform/auth';
 </script>
 
 <div class="flex items-center border-b">

@@ -8,7 +8,7 @@
 	import { agentMessageText } from '@epicenter/workspace/agent';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { buildHarvestPrompt, parseHarvestCandidates } from '$lib/harvest';
-	import { auth } from '$platform/auth';
+	import { auth } from '$lib/platform/auth';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
 	import { termsState } from '$lib/state/terms.svelte';
 	import DictationButton from './DictationButton.svelte';
