@@ -5,7 +5,7 @@
 	import { createMutation } from '@tanstack/svelte-query';
 	import { mutationOptions } from 'wellcrafted/query';
 	import UserMenu from '$lib/components/UserMenu.svelte';
-	import { auth } from '$platform/auth';
+	import { auth } from '$lib/platform/auth';
 
 	let { children } = $props();
 

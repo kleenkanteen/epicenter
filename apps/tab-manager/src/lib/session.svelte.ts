@@ -41,7 +41,7 @@ import {
 	instanceSettingPromise,
 	oauthLauncher,
 	persistedAuthStoragePromise,
-} from './platform/auth/auth';
+} from './platform/auth';
 import { createBookmarkState } from './state/bookmark-state.svelte';
 import { inferenceConnections } from './state/inference-connections.svelte';
 import { createSavedTabState } from './state/saved-tab-state.svelte';
