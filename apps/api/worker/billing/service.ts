@@ -31,6 +31,8 @@ import {
 	type ServableModel,
 } from '@epicenter/constants/ai-providers';
 import type { PrincipalId } from '@epicenter/identity';
+import type { CloudEnv } from '@epicenter/server';
+import type { Context } from 'hono';
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import { AiChatError } from './ai-chat-errors.js';
 import { createAutumnClient, tryAutumn } from './autumn.js';
@@ -96,6 +98,24 @@ type LockedCheck = {
 	balance: unknown;
 	reservation: Reservation;
 };
+
+/**
+ * Construct a request-scoped billing service from the Hono context. The one
+ * place routes and policies turn `c.var.principal` into a billing service:
+ * billing is cloud-only, so `AUTUMN_SECRET_KEY` is read off this deployment's
+ * own `Cloudflare.Env` (not the portable `ServerBindings`, ADR-0066) through the
+ * same edge cast the runtime-port resolvers use, and a principal with no email
+ * cannot be billed.
+ */
+export function billingServiceFor(c: Context<CloudEnv>) {
+	if (c.var.principal.email === undefined) {
+		throw new Error('Billing requires a principal email.');
+	}
+	return createBillingService(c.env as Cloudflare.Env, {
+		principalId: c.var.principal.id,
+		principalEmail: c.var.principal.email,
+	});
+}
 
 export function createBillingService(
 	env: { AUTUMN_SECRET_KEY: string },

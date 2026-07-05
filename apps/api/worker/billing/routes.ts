@@ -11,11 +11,11 @@
 import type { CloudEnv } from '@epicenter/server';
 import { sValidator } from '@hono/standard-validator';
 import { type } from 'arktype';
-import { type Context, Hono, type MiddlewareHandler } from 'hono';
+import { Hono, type MiddlewareHandler } from 'hono';
 import { isProviderError, mapAutumnError } from './autumn.js';
 import { CHECKOUT_PLAN_IDS } from './catalog.js';
 import { eventsQuerySchema, usageQuerySchema } from './contracts.js';
-import { createBillingService } from './service.js';
+import { billingServiceFor } from './service.js';
 
 /** Single source for the billing URL prefix. The auth glob and the route mount
  *  below both derive from it. Hosted-only; see {@link mountBillingApi}. */
@@ -52,19 +52,6 @@ billingRoutes.onError((err, c) => {
 	return c.json(mapAutumnError(err), 503);
 });
 
-function svc(c: Context<CloudEnv>) {
-	// Billing is cloud-only: `AUTUMN_SECRET_KEY` lives on this deployment's own
-	// `Cloudflare.Env`, not the library's portable `ServerBindings` (ADR-0066),
-	// so read it through the same edge cast the runtime-port resolvers use.
-	if (c.var.principal.email === undefined) {
-		throw new Error('Billing requires a principal email.');
-	}
-	return createBillingService(c.env as Cloudflare.Env, {
-		principalId: c.var.principal.id,
-		principalEmail: c.var.principal.email,
-	});
-}
-
 const previewPlanSchema = type({ planId: 'string' });
 
 const checkoutPlanSchema = type({
@@ -76,40 +63,48 @@ const checkoutTopUpSchema = type({
 	'successUrl?': 'string | undefined',
 });
 
-billingRoutes.get('/overview', async (c) => c.json(await svc(c).getOverview()));
+billingRoutes.get('/overview', async (c) =>
+	c.json(await billingServiceFor(c).getOverview()),
+);
 
 billingRoutes.post('/usage', sValidator('json', usageQuerySchema), async (c) =>
-	c.json(await svc(c).listUsage(c.req.valid('json'))),
+	c.json(await billingServiceFor(c).listUsage(c.req.valid('json'))),
 );
 
 billingRoutes.post(
 	'/events',
 	sValidator('json', eventsQuerySchema),
-	async (c) => c.json(await svc(c).listEvents(c.req.valid('json'))),
+	async (c) =>
+		c.json(await billingServiceFor(c).listEvents(c.req.valid('json'))),
 );
 
-billingRoutes.get('/plans', async (c) => c.json(await svc(c).listPlans()));
+billingRoutes.get('/plans', async (c) =>
+	c.json(await billingServiceFor(c).listPlans()),
+);
 
 billingRoutes.post(
 	'/preview',
 	sValidator('json', previewPlanSchema),
-	async (c) => c.json(await svc(c).previewPlanChange(c.req.valid('json'))),
+	async (c) =>
+		c.json(await billingServiceFor(c).previewPlanChange(c.req.valid('json'))),
 );
 
 billingRoutes.post(
 	'/checkout/plan',
 	sValidator('json', checkoutPlanSchema),
-	async (c) => c.json(await svc(c).checkoutPlan(c.req.valid('json'))),
+	async (c) =>
+		c.json(await billingServiceFor(c).checkoutPlan(c.req.valid('json'))),
 );
 
 billingRoutes.post(
 	'/checkout/top-up',
 	sValidator('json', checkoutTopUpSchema),
-	async (c) => c.json(await svc(c).checkoutTopUp(c.req.valid('json'))),
+	async (c) =>
+		c.json(await billingServiceFor(c).checkoutTopUp(c.req.valid('json'))),
 );
 
 billingRoutes.get('/portal', async (c) => {
 	const returnUrl =
 		c.req.query('returnUrl') ?? new URL('/dashboard', c.req.url).toString();
-	return c.json(await svc(c).openPortal({ returnUrl }));
+	return c.json(await billingServiceFor(c).openPortal({ returnUrl }));
 });

@@ -3,7 +3,7 @@ name: auth
 description: 'Epicenter auth packages: `@epicenter/auth` and the Svelte wrapper at `@epicenter/svelte/auth`, OAuth sessions, identity state, auth-owned fetch/WebSocket, and workspace boot selection. Use when editing Epicenter auth clients, session state, hosted sign-in, or auth/workspace integration.'
 metadata:
   author: epicenter
-  version: '6.0'
+  version: '7.0'
 ---
 
 # Epicenter Auth
@@ -34,14 +34,14 @@ session model.
 Use this composition sentence when explaining the architecture:
 
 ```txt
-Epicenter uses Better Auth for auth-server machinery, OAuth for the app/resource boundary, and AuthState{ownerId} for workspace boot.
+Epicenter uses Better Auth for auth-server machinery, OAuth for the app/resource boundary, and AuthState{principalId} for workspace boot.
 ```
 
 That means Better Auth owns users, account cookies, login, consent, token
 issuing, revocation, JWKS, and metadata. Epicenter clients store
 `PersistedAuth`, not Better Auth sessions. `/api/session` is the adapter that
-verifies an OAuth access token, resolves the request to an `ownerId`, and
-returns `ApiSessionResponse`.
+verifies a credential, resolves the request to a `principalId`, and returns
+`ApiSessionResponse`.
 
 When the user asks whether this is idiomatic Better Auth, be precise:
 
@@ -57,9 +57,44 @@ state and mix-up protections, trusted clients, token signing, refresh token
 rotation, revocation, JWKS, metadata, consent, account sessions, and security
 fixes forever.
 
-## Current Model
+## Vocabulary: principal, not owner
 
-Epicenter app clients use one OAuth app auth factory:
+Client and server speak one identity word: `principalId` (branded `PrincipalId`
+from `@epicenter/identity`). There is no `ownerId` / `OwnerId` in the codebase.
+On a self-hosted instance every valid bearer resolves to the literal
+`INSTANCE_PRINCIPAL_ID` (`'instance'`). If you see `owner` anywhere, it is stale
+prose, not a symbol.
+
+## Current Model: one dispatcher, three credential clients
+
+App clients pick a credential model through one dispatcher,
+`createAppAuthClient(instance, opts)`, which forks on whether a self-host
+`instance.token` is present:
+
+- `createOAuthAppAuth(...)` — the hosted default (no token). PKCE bearer +
+  transparent refresh + a `/api/session` network gate + `openWebSocket`. Every
+  cross-origin / native app uses this (web, extension, Tauri, CLI daemon).
+- `createInstanceTokenAuth(...)` — a self-hosted star (static `instance.token`).
+  No OAuth flow, launcher, refresh, or persisted grant; boots optimistically
+  `signed-in` as `INSTANCE_PRINCIPAL_ID` and verifies `/api/session` in the
+  background (surfacing the result on `deployment.connection`). Carries the
+  bearer subprotocol, so it is a drop-in `SyncAuthClient`.
+- `createSameOriginCookieAuth(...)` — the same-origin dashboard SPA
+  (`apps/api/ui`). Uses the first-party Better Auth cookie directly; a plain
+  `AuthClient` with no `openWebSocket`.
+
+These are three credential models, not mode flags on one client. The old
+`createCookieAuth` / `createBearerAuth` split (and `BearerSession` /
+`auth.bearerToken`) is fully removed; do not reintroduce those names.
+
+`createOAuthAppAuth` and `createInstanceTokenAuth` both attach a bearer, so they
+share one internal transport: `fetchWithBearer` in
+`packages/auth/src/bearer-fetch.ts`, parameterized on how each resolves its
+token (the OAuth client's network gate vs the instance client's static token).
+Do not re-duplicate the attach-bearer-only-to-the-signed-in-origin logic; route
+new bearer clients through that helper.
+
+The hosted OAuth factory in one shape:
 
 ```ts
 const auth = createOAuthAppAuth({
@@ -70,18 +105,18 @@ const auth = createOAuthAppAuth({
 });
 ```
 
-There is exactly one factory. The old split between `createCookieAuth` and
-`createBearerAuth` (and `BearerSession` / `auth.bearerToken`) is fully removed,
-not legacy-but-present. Do not reintroduce those names.
+Apps rarely call these directly: the Svelte wrappers
+(`createHostedBrowserRedirectAuth`, `createHostedDeepLinkAuth` in
+`@epicenter/svelte`) build the launcher and call `createAppAuthClient` for you.
 
 The public surface lives in one package plus a Svelte subpath:
 
 - `@epicenter/auth`: framework-agnostic core. Owns the persisted auth cell,
   refresh, refresh-token revocation, `/api/session` verification, the network
   gate, authenticated fetch, and WebSocket opening. Also exports the Node
-  machine-auth surface for CLI and daemons.
+  machine-auth surface (`@epicenter/auth/node`) for CLI and daemons.
 - `@epicenter/svelte/auth`: Svelte 5 wrapper (in the `@epicenter/svelte`
-  package, which also exports `toConnection`, `reloadOnOwnerChange`,
+  package, which also exports `toConnection`, `reloadOnPrincipalChange`,
   `createSession`, and `SignedIn`). Mirrors `auth.state` through
   `createSubscriber` so templates and `$derived` reads are reactive.
 - `toConnection` from `@epicenter/svelte/auth`: the boot-time projection a
@@ -92,17 +127,18 @@ The API server composes Better Auth like this:
 
 ```txt
 Hono app
-  -> CORS
-  -> per-request DB
-  -> createAuth({ db, env, baseURL })
-  -> /auth/* Better Auth handler
-  -> /api/session (mountSessionApp: cookie-or-bearer + ownership)
-  -> protected resources (bearer + ownership)
+  -> origin/trusted-origin resolution -> CORS
+  -> /api/* CSRF guard for cookie mutations
+  -> per-request DB (mountCloudDb)
+  -> createAuth (mountCloudAuth): /auth/* Better Auth handler + /sign-in + /consent
+  -> /api/session (mountSessionApp: requireCookieOrBearerPrincipal)
+  -> protected resources (requireBearerPrincipal; rooms via requireRoomBearer)
 ```
 
 `createAuth()` configures Better Auth with Drizzle (Postgres via Hyperdrive),
-Google sign-in (plus GitHub when its credentials are present), and exactly two
-plugins:
+Google sign-in always, GitHub / Microsoft / Apple registered when their
+credentials are present (Apple mints an ES256 client-secret JWT), and exactly
+two plugins:
 
 ```ts
 jwt({ jwks: { keyPairConfig: { alg: JWT_SIGNING_ALG } } }), // ES256
@@ -111,7 +147,6 @@ oauthProvider({
 	consentPage: '/consent',
 	requirePKCE: true,
 	accessTokenExpiresIn: 600,
-	cachedTrustedClients: trustedOAuthClientIds,
 	validAudiences: [apiBaseURL],
 	allowDynamicClientRegistration: false,
 	scopes: [...EPICENTER_OAUTH_SCOPES],
@@ -127,8 +162,9 @@ Linking note.
 
 ## Public Surface
 
-Auth has one public client interface (copied verbatim from
-`packages/auth/src/auth-contract.ts`):
+`AuthState` is defined in `@epicenter/identity` (MIT, so the workspace and the
+AGPL auth client share one definition across the license firewall) and
+re-exported from `@epicenter/auth`:
 
 ```ts
 export type AuthState =
@@ -150,7 +186,11 @@ export type InstanceConnection = {
 	get status(): InstanceConnectionStatus;
 	onChange(fn: (status: InstanceConnectionStatus) => void): () => void;
 };
+```
 
+The client contract (`packages/auth/src/auth-contract.ts`), trimmed of JSDoc:
+
+```ts
 export type AuthClient = {
 	state: AuthState;
 	deployment: Deployment;
@@ -162,16 +202,17 @@ export type AuthClient = {
 	[Symbol.dispose](): void;
 };
 
+// A bearer-carrying client that can also open authenticated WebSockets for sync.
 export type SyncAuthClient = AuthClient & {
 	openWebSocket(url: string | URL, protocols?: string[]): Promise<WebSocket>;
 };
 ```
 
-`AuthState` arms carry `principalId` directly. There is no nested
-identity object and no `user` field in state: profile (user/email) is fetched
-by surfaces that display it (`getProfile`), not held in state. `principalId` is
-present in `signed-in` and `reauth-required` because it belongs to local
-workspace operations: even when the OAuth grant needs reauth, the cached
+`AuthState` arms carry `principalId` directly. There is no nested identity
+object and no `user` field in state: profile (the email) is fetched on demand
+via `getProfile()` by the surface that displays it, never held in state.
+`principalId` is present in `signed-in` and `reauth-required` because it is the
+local partition key: even when the OAuth grant needs reauth, the cached
 principal id picks the right local storage partition.
 
 `deployment` is the one runtime owner of the hosted vs self-hosted fact,
@@ -180,9 +221,13 @@ instead of re-deriving the mode from the persisted `InstanceSetting`; only a
 self-hosted deployment carries a live `connection` status (the boot bearer
 check against the instance).
 
-Read `auth.state` synchronously. Use `auth.onStateChange(fn)` for future
-changes only; it does not replay. Consumers that need bootstrap behavior must
-read `auth.state` once and then register the listener.
+`SyncAuthClient` (adds `openWebSocket`) is the type workspace sync requires. The
+same-origin cookie client is a plain `AuthClient`, so passing it where sync is
+needed is a compile error, not a runtime throw.
+
+Read `auth.state` synchronously. Use `auth.onStateChange(fn)` for future changes
+only; it does not replay. Consumers that need bootstrap behavior must read
+`auth.state` once and then register the listener.
 
 Do not expose raw tokens above auth storage and transport boundaries. UI,
 workspace binding, AI fetches, and sync consume capabilities: `auth.fetch` and
@@ -190,10 +235,16 @@ workspace binding, AI fetches, and sync consume capabilities: `auth.fetch` and
 
 ## The Persisted Cell
 
-`PersistedAuth` is the single durable auth record (copied verbatim from
-`packages/auth/src/auth-types.ts`):
+`PersistedAuth` is the single durable auth record for the OAuth client
+(`packages/auth/src/auth-types.ts`):
 
 ```ts
+export const Principal = type({
+	'+': 'delete',
+	id: PrincipalId,
+	'email?': 'string',
+});
+
 export const OAuthTokenGrant = type({
 	'+': 'delete',
 	accessToken: 'string',
@@ -201,46 +252,35 @@ export const OAuthTokenGrant = type({
 	accessTokenExpiresAt: 'number',
 });
 
-export type OAuthTokenGrant = typeof OAuthTokenGrant.infer;
-
 export const PersistedAuth = type({
 	'+': 'delete',
 	grant: OAuthTokenGrant,
-	userId: UserId,
-	ownerId: OwnerId,
+	principalId: PrincipalId,
 });
-
-export type PersistedAuth = typeof PersistedAuth.infer;
 
 export const ApiSessionResponse = type({
 	'+': 'delete',
-	user: AuthUser,
-	ownerId: OwnerId,
+	principalId: PrincipalId,
+	'email?': 'string',
 });
-
-export type ApiSessionResponse = typeof ApiSessionResponse.infer;
 ```
 
-The grant is a nested object; identity is split out:
+The grant is a nested object; identity is a single `principalId`:
 
 ```txt
 PersistedAuth
   grant: { accessToken, refreshToken, accessTokenExpiresAt }  -> online-only server access
-  userId   -> stored explicitly so the instance daemon can read it
-  ownerId  -> local storage partition selection
+  principalId -> local storage partition selection (offline-useful)
 ```
 
 The grant lets the app call the server and is useless offline on its own.
-`userId` / `ownerId` remain useful offline: they select this user's local
-workspace data. `userId` is stored explicitly rather than synthesised from
-`ownerId` so the instance daemon can read it when `ownerId ===
-INSTANCE_OWNER_ID`; on an instance, `ownerId` is the literal pinned id and is
-structurally not a `UserId`. Profile data is intentionally absent; application
-surfaces fetch it when they display it.
+`principalId` stays useful offline: it selects this principal's local workspace
+data. Profile data is intentionally absent; application surfaces fetch it via
+`getProfile()` when they display it.
 
 The app can boot from a cached `PersistedAuth` without calling the network.
-Refresh failure must preserve the cached `ownerId` so local workspace data can
-remain available. The cached owner id selects the local storage partition; it
+Refresh failure must preserve the cached `principalId` so local workspace data
+stays available. The cached principal id selects the local storage partition; it
 does not decrypt anything.
 
 ## Network Gate (local-first invariant)
@@ -260,14 +300,14 @@ signed-out / paused        -> no bearer
 refresh stale grant        -> if refresh fails, no bearer (offline = fail closed)
 unverified -> call /api/session
   ok                       -> mark verified, attach bearer
-  AuthRejected (401/403)   -> pauseNetworkAuth() -> reauth-required
-  Unavailable (offline)    -> no bearer; local workspace boot can continue by ownerId
+  Rejected (401/403)       -> pauseNetworkAuth() -> reauth-required
+  Unavailable (offline)    -> no bearer; local workspace boot can continue by principalId
 ```
 
 Fail closed offline: server access is refused until the current persisted auth
 has been verified by the API, but local workspace boot continues because the
-cached `ownerId` selects the right local partition. A different-`ownerId`
-`/api/session` response wipes the local cell (same-owner guard).
+cached `principalId` selects the right local partition. A different-`principalId`
+`/api/session` response wipes the local cell (same-principal guard).
 
 `auth.fetch` layers retry on top of the gate: verify-before-attach,
 `credentials: 'omit'`, one forced-refresh retry on a 401, and
@@ -292,12 +332,13 @@ shapes:
   resolves identity, and persists `PersistedAuth`.
 
 The return value of `startSignIn` is not the "user is signed in" signal.
-Observe `auth.state.status === 'signed-in'` for completion.
+Observe `auth.state.status === 'signed-in'` for completion. (On the
+instance-token client, `startSignIn` re-runs the `/api/session` verification so
+a UI can retry a connection that was offline at boot.)
 
 ## PersistedAuthStorage Port
 
-Storage is a small port (copied verbatim from
-`packages/auth/src/persisted-auth-storage.ts`):
+Storage is a small port (`packages/auth/src/persisted-auth-storage.ts`):
 
 ```ts
 export type PersistedAuthStorage = {
@@ -318,8 +359,9 @@ Adapters:
   instead of throwing; write failures propagate so an unpersistable credential
   fails its sign-in or refresh.
 - `loadPersistedAuthStorage({ read, write })`: pre-load an async-backed store
-  (extension `chrome.storage.local`, a file) into a synchronous port. Await it
-  before constructing the client so `initial` stays synchronous.
+  (extension `chrome.storage.local`, a file, the Tauri OS keyring) into a
+  synchronous port. Await it before constructing the client so `initial` stays
+  synchronous.
 - `parsePersistedAuth` / `serializePersistedAuth`: the shared decode/encode
   helpers (re-validate against the arktype on both sides).
 
@@ -339,6 +381,8 @@ refuses a file whose permissions are wider than `0o600`.
   storage port. Its launcher errors on `startSignIn` (a human must run
   `epicenter auth login` to refresh the cell); daemons never sign in
   interactively.
+- `resolveMachineAuthClient(...)`: chooses the client for a CLI/daemon run: a
+  configured token yields an instance-token client, otherwise the machine cell.
 - `status` / `logout`: read the cell and reach the server through a regular
   client. `status` returns `'unverified'` on network failure so the CLI can
   still print the cached identity.
@@ -363,7 +407,7 @@ Use `auth.openWebSocket` for sync:
 
 ```ts
 const collaboration = openCollaboration(workspace.ydoc, {
-	url: roomWsUrl({ baseURL, ownerId, guid: workspace.ydoc.guid, nodeId }),
+	url: roomWsUrl({ baseURL, principalId, guid: workspace.ydoc.guid, nodeId }),
 	waitFor: idb.whenLoaded,
 	openWebSocket: signedIn.openWebSocket,
 	onReconnectSignal: signedIn.onReconnectSignal,
@@ -422,10 +466,10 @@ stateless JWT access token  ->  cannot revoke before exp
 
 Workspace apps read identity once at boot with one call.
 `toConnection(auth, nodeId)` projects the auth snapshot: signed out returns
-`null` (bare local IndexedDB storage), signed in returns the owner's
-`ConnectionConfig` (owner-scoped storage plus relay sync).
-`reloadOnOwnerChange(auth)` reloads the page when the owner changes, so the
-next boot re-projects. `AccountPopover` is the account surface; do not gate
+`null` (bare local IndexedDB storage), signed in returns the principal's
+`ConnectionConfig` (principal-scoped storage plus relay sync).
+`reloadOnPrincipalChange(auth)` reloads the page when the principal changes, so
+the next boot re-projects. `AccountPopover` is the account surface; do not gate
 the app shell on sign-in.
 
 Use it in the browser opener:
@@ -459,43 +503,49 @@ Yjs or local storage is a separate destructive user action.
 
 ## Server Routes and Deployment Seam
 
-`/api/session` is mounted via `mountSessionApp(app, { ownership })`, which wires
-`requireCookieOrBearerUser` (the endpoint serves both browser apps and API
-clients) plus `createRequireOwnership`, then mounts the handler. The handler
-returns `{ user: { id, email }, ownerId }`.
+`/api/session` is mounted via `mountSessionApp(app, { auth })`, where the
+deployment injects its auth middleware (`requireCookieOrBearerPrincipal` on the
+cloud, `requireBearerPrincipal` on an instance). The endpoint serves both
+browser apps and API clients. The handler returns `{ principalId, email }` from
+`c.var.principal`.
 
-External-only protected routes (AI chat, rooms) use `requireBearerUser`, which
-skips the cookie path and always answers 401 with a standard OAuth
-`WWW-Authenticate` header. Both auth middlewares verify the bearer through
-`verifyAccessToken` from `oauthProviderResourceClient`:
+Three bearer guards live in the server, differing only in how they extract the
+bearer and how they render a rejection. They share one tail,
+`setPrincipalOrReject(c, next, resolution, reject)` in
+`middleware/require-auth.ts` (do not re-inline the destructure /
+stamp-principal / render-error sequence):
+
+- `requireCookieOrBearerPrincipal` — cookie-first (Better Auth session), else an
+  `Authorization` bearer. `/api/session` and other dual-audience routes.
+- `requireBearerPrincipal` — bearer-only; always answers 401 with a standard
+  OAuth `WWW-Authenticate` header. External-only routes (AI chat).
+- `requireRoomBearer` (in `routes/rooms.ts`) — extracts the bearer from the
+  WebSocket subprotocol and renders a failure as a readable WS close, not an
+  opaque HTTP error.
+
+All three resolve the token through the deployment's `ResolveBearerPrincipal`,
+which returns `Result<Principal, OAuthError>`. The cloud resolver
+(`resolveRequestOAuthPrincipal`) verifies the JWT with `verifyJwsAccessToken`
+from `better-auth/oauth2` against JWKS; an instance closes over its env-token
+resolver instead.
 
 ```txt
 audience = c.var.authBaseURL          (the API origin)
 issuer   = <API origin> + /auth
-jwksUrl  = <API origin> + /auth JWKS
+jwks     = auth.api.getJwks()         (in-process; no HTTP hop to /auth/jwks)
 ```
 
-A token-verification failure (expired, bad audience/issuer/signature) is a real
-401 (`OAuthError.InvalidToken`); an unreachable JWKS is a retryable 503
-(`OAuthError.ServerError`). Never flatten the latter into a 401.
+A token-verification failure (expired, bad audience/issuer/signature, unknown
+subject) is a real 401 (`OAuthError.InvalidToken`); an unreachable JWKS or DB is
+a retryable 503 (`OAuthError.ServerError`). Never flatten the latter into a 401.
 
-The deployment seam lives in `packages/server/src/ownership.ts`:
-
-```ts
-export type OwnershipRule =
-	| { kind: 'perUser' }
-	| { kind: 'instance' };
-
-export const perUser: OwnershipRule = { kind: 'perUser' };
-export const instance: OwnershipRule = { kind: 'instance' };
-```
-
-`resolveOwnerPartition(rule, c)` is the single switch on `rule.kind`. `perUser`
-returns the user's id branded as `OwnerId` (`ownerId === userId`). `instance`
-returns the literal `INSTANCE_OWNER_ID`; there is no admission predicate, since
-the operator bearer already gated the request (ADR-0075).
-`createRequireOwnership` sets `c.var.ownerId` and, on routes with a `:ownerId`
-segment, rejects a URL mismatch with `OwnerMismatch` (403).
+The deployment partition is a single unconditional path shape in
+`packages/server/src/principal.ts`: `principals/<principalId>/<type>/<id>`, with
+one helper per resource type (`doName`, `blobKey`, `blobPrincipalPrefix`). There
+is no `OwnershipRule` engine, `perUser` / `instance` discriminator, or
+`resolveOwnerPartition` switch: per-user vs instance is decided once, at the
+resolver, by which `PrincipalId` the bearer resolves to (a real user id, or the
+literal `INSTANCE_PRINCIPAL_ID`). Everything downstream is principal-blind.
 
 Note: the same-origin dashboard SPA (`apps/api/ui`) uses
 `createSameOriginCookieAuth`, not PKCE. Served same-origin by the API, it already
@@ -503,7 +553,7 @@ holds a first-party Better Auth session cookie after Google sign-in, so minting 
 bearer (and an unused `offline_access` refresh token) via PKCE against its own
 origin would be redundant. The cookie client uses that cookie directly
 (`credentials: 'include'`, no `Authorization`), reads `/api/session` once for
-`ownerId`, and is a plain `AuthClient` (no `openWebSocket`: a billing surface
+`principalId`, and is a plain `AuthClient` (no `openWebSocket`: a billing surface
 has no sync). It is the cookie-credential sibling of `createOAuthAppAuth`, not a
 mode flag on it.
 
@@ -511,13 +561,13 @@ mode flag on it.
 
 - Do not add `auth.bearerToken` or any token reader. Token reading leaks
   transport details back into app code.
-- Do not reintroduce cookie-vs-bearer app factories. Better Auth still uses
-  cookies for hosted sign-in pages, but app resources use OAuth access tokens
-  through the one `createOAuthAppAuth` factory.
+- Do not reintroduce cookie-vs-bearer app factories. The three credential
+  clients are chosen by `createAppAuthClient`, not by a mode flag; app resources
+  use OAuth access tokens through `createOAuthAppAuth`.
 - Do not treat `startSignIn()` resolving as signed-in. State is the source of
   truth; `startSignIn` takes no args.
 - Do not clear local workspace data on refresh failure. Move to
-  `reauth-required` (the runtime pauses network auth) and keep `ownerId`
+  `reauth-required` (the runtime pauses network auth) and keep `principalId`
   available for local partition selection.
 - Do not let `accessTokenExpiresAt` decide local identity state. It is a
   transport refresh hint only; the resource server is the source of truth for
@@ -525,8 +575,13 @@ mode flag on it.
 - Do not send both cookies and bearer tokens to resource routes. The two
   credentials are read by disjoint paths (`requireCookieOrBearerPrincipal`
   cookie-first, `requireBearerPrincipal` bearer-only) and never merge.
+- Do not re-duplicate the bearer transport. Client-side, both bearer clients
+  share `fetchWithBearer` (`bearer-fetch.ts`); server-side, the three guards
+  share `setPrincipalOrReject` (`require-auth.ts`).
 - Do not hide persistence failures in storage adapters. If `set` cannot save
   the refreshed cell, the failure must propagate, not silently look saved.
+- Do not write `ownerId` / `OwnerId`. The identity word is `principalId` /
+  `PrincipalId`; the instance principal is `INSTANCE_PRINCIPAL_ID`.
 - Do not import `requireSignedIn`, `InferSignedIn`, `openFuji`,
   `encryptionKeys`, `EncryptionKeys`, `keyring`, or `Keyring`. They do not
   exist in Epicenter workspace auth. Workspace boot selection goes through

@@ -42,25 +42,11 @@
  */
 
 import type { CloudEnv } from '@epicenter/server';
-import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { AiChatError, AiChatErrorStatus } from './ai-chat-errors.js';
 import type { BillingError } from './errors.js';
-import { createBillingService } from './service.js';
-
-function billingFor(c: Context<CloudEnv>) {
-	// Billing is cloud-only: `AUTUMN_SECRET_KEY` lives on this deployment's own
-	// `Cloudflare.Env`, not the library's portable `ServerBindings` (ADR-0066),
-	// so read it through the same edge cast the runtime-port resolvers use.
-	if (c.var.principal.email === undefined) {
-		throw new Error('Billing requires a principal email.');
-	}
-	return createBillingService(c.env as Cloudflare.Env, {
-		principalId: c.var.principal.id,
-		principalEmail: c.var.principal.email,
-	});
-}
+import { billingServiceFor } from './service.js';
 
 /**
  * Around `/v1/chat/completions` (the OpenAI-compatible gateway, the only metered
@@ -81,7 +67,7 @@ export const chargeOpenAiCreditsWithAutumn = createMiddleware<CloudEnv>(
 			model?: string;
 		};
 
-		const billing = billingFor(c);
+		const billing = billingServiceFor(c);
 		const { data: reservation, error: guardError } =
 			await billing.reserveAiChat({ model: body.model ?? '' });
 		if (guardError) {
@@ -118,7 +104,7 @@ const HOSTED_STT_PROVIDER = 'openai';
  */
 export const chargeOpenAiTranscriptionCredits = createMiddleware<CloudEnv>(
 	async (c, next) => {
-		const billing = billingFor(c);
+		const billing = billingServiceFor(c);
 
 		const { data: gate, error: gateError } = await billing.checkAiCredits();
 		if (gateError) {
