@@ -15,6 +15,13 @@
 			"when": 1782547840267,
 			"tag": "0001_small_kree",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1783290424779,
+			"tag": "0002_fearless_lady_ursula",
+			"breakpoints": true
 		}
 	]
 }
