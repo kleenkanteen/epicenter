@@ -49,7 +49,7 @@ const STUB_AUTH = {
 		status: 'signed-in',
 		principalId: asPrincipalId('user-1'),
 	},
-	baseURL: 'http://localhost:8787',
+	deployment: { kind: 'hosted', baseURL: 'http://localhost:8787' },
 	onStateChange: () => () => {},
 	startSignIn: async () => Ok(undefined),
 	signOut: async () => Ok(undefined),

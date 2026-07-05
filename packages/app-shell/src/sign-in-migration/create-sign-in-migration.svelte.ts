@@ -235,7 +235,7 @@ export function createSignInMigration<
 			);
 		}
 		return {
-			server: new URL(auth.baseURL).host,
+			server: new URL(auth.deployment.baseURL).host,
 			principalId: state.principalId,
 		};
 	}

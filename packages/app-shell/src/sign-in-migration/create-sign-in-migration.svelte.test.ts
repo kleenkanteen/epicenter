@@ -92,7 +92,10 @@ function createAuth(
 			status: 'signed-in',
 			principalId: PRINCIPAL_ID,
 		},
-		baseURL: overrides.baseURL ?? `https://${SERVER}`,
+		deployment: {
+			kind: 'hosted',
+			baseURL: overrides.baseURL ?? `https://${SERVER}`,
+		},
 		onStateChange: () => () => {},
 		startSignIn: async () => Ok(undefined),
 		signOut: async () => Ok(undefined),

@@ -133,33 +133,52 @@ Auth has one public client interface (copied verbatim from
 ```ts
 export type AuthState =
 	| { status: 'signed-out' }
-	| {
-			status: 'signed-in';
-			ownerId: OwnerId;
-	  }
-	| {
-			status: 'reauth-required';
-			ownerId: OwnerId;
-	  };
+	| { status: 'signed-in'; principalId: PrincipalId }
+	| { status: 'reauth-required'; principalId: PrincipalId };
+
+export type Deployment =
+	| { kind: 'hosted'; baseURL: string }
+	| { kind: 'self-hosted'; baseURL: string; connection: InstanceConnection };
+
+export type InstanceConnectionStatus =
+	| 'connecting'
+	| 'connected'
+	| 'unreachable'
+	| 'rejected';
+
+export type InstanceConnection = {
+	get status(): InstanceConnectionStatus;
+	onChange(fn: (status: InstanceConnectionStatus) => void): () => void;
+};
 
 export type AuthClient = {
 	state: AuthState;
-	baseURL: string;
+	deployment: Deployment;
 	onStateChange(fn: (state: AuthState) => void): () => void;
 	startSignIn(): Promise<Result<undefined, AuthError>>;
 	signOut(): Promise<Result<undefined, AuthError>>;
 	fetch(input: Request | string | URL, init?: RequestInit): Promise<Response>;
-	openWebSocket(url: string | URL, protocols?: string[]): Promise<WebSocket>;
+	getProfile(): Promise<Result<Principal, AuthError>>;
 	[Symbol.dispose](): void;
+};
+
+export type SyncAuthClient = AuthClient & {
+	openWebSocket(url: string | URL, protocols?: string[]): Promise<WebSocket>;
 };
 ```
 
-`AuthState` arms carry `ownerId` directly. There is no nested
+`AuthState` arms carry `principalId` directly. There is no nested
 identity object and no `user` field in state: profile (user/email) is fetched
-by surfaces that display it, not held in state. `ownerId` is
+by surfaces that display it (`getProfile`), not held in state. `principalId` is
 present in `signed-in` and `reauth-required` because it belongs to local
-workspace operations: even when the OAuth grant needs reauth, the cached owner
-id picks the right local storage partition.
+workspace operations: even when the OAuth grant needs reauth, the cached
+principal id picks the right local storage partition.
+
+`deployment` is the one runtime owner of the hosted vs self-hosted fact,
+fixed by the factory that built the client. UI branches on `deployment.kind`
+instead of re-deriving the mode from the persisted `InstanceSetting`; only a
+self-hosted deployment carries a live `connection` status (the boot bearer
+check against the instance).
 
 Read `auth.state` synchronously. Use `auth.onStateChange(fn)` for future
 changes only; it does not replay. Consumers that need bootstrap behavior must

@@ -37,7 +37,7 @@ export function openMyApp() {
 	});
 	const idb = attachIndexedDb(workspace.ydoc);                  // local persistence
 	const collaboration = openCollaboration(workspace.ydoc, {     // sync + presence
-		url: roomWsUrl({ baseURL: auth.baseURL, guid: workspace.ydoc.guid, nodeId }),
+		url: roomWsUrl({ baseURL: auth.deployment.baseURL, guid: workspace.ydoc.guid, nodeId }),
 		openWebSocket: auth.openWebSocket,
 		onReconnectSignal: auth.onStateChange,
 		waitFor: idb.whenLoaded,                                    // delta-only on reconnect

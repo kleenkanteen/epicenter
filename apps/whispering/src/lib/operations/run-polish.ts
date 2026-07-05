@@ -62,7 +62,7 @@ export function polishDestination(): string {
 		resolveTranscriptionLocalityFromConfig({
 			service: settings.get('transcription.service'),
 			getDeviceConfig: deviceConfig.get,
-			sessionBaseUrl: auth.baseURL,
+			sessionBaseUrl: auth.deployment.baseURL,
 		}),
 		settings.get('completion.provider'),
 		resolveCompletionState(),

@@ -51,7 +51,9 @@ export type CreateAppAuthClientOptions = {
  * Both branches return a {@link SyncAuthClient}, so the result is a drop-in for
  * principal-scoped cloud sync regardless of which credential model was chosen.
  * There is no persisted mode tag: the credential model is recomputed from the
- * instance at construction, not stored as a discriminator.
+ * instance at construction, not stored as a discriminator. The chosen branch is
+ * recorded once on the client as `deployment.kind`, which is what UI branches
+ * on; nothing downstream re-derives the mode from the persisted instance.
  */
 export function createAppAuthClient(
 	instance: Instance,

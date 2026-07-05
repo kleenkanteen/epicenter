@@ -405,7 +405,9 @@ export function createOAuthAppAuth({
 		get state() {
 			return authSession.state;
 		},
-		baseURL,
+		// OAuth runs only against the hosted star (ADR-0071), so this client is
+		// hosted by construction.
+		deployment: { kind: 'hosted', baseURL },
 		onStateChange(fn) {
 			return authSession.onStateChange(fn);
 		},
