@@ -3,9 +3,9 @@
  *
  * Exports the persisted auth cell loader, the instance setting loader, and the
  * OAuth sign-in launcher. The auth client itself is created after both async
- * cells have loaded, in `../../session.svelte`.
+ * cells have loaded, in `../session.svelte`.
  *
- * @see {@link ../../session.svelte} auth, workspace, and identity wiring
+ * @see {@link ../session.svelte} auth, workspace, and identity wiring
  */
 
 import { loadInstanceSetting, loadPersistedAuthStorage } from '@epicenter/auth';
@@ -24,7 +24,7 @@ import { storage } from '@wxt-dev/storage';
  * IndexedDB data is keyed by userId and survives the reset.
  *
  * `loadPersistedAuthStorage` resolves once chrome.storage has been read;
- * `../../session.svelte` awaits it before constructing the auth client.
+ * `../session.svelte` awaits it before constructing the auth client.
  */
 const authCell = storage.defineItem<string>('local:auth.persisted');
 
@@ -40,7 +40,7 @@ export const persistedAuthStoragePromise = loadPersistedAuthStorage({
  * Persisted instance setting in `chrome.storage.local`: which Epicenter star
  * this install talks to (ADR-0069/0070). The hosted default uses OAuth; a
  * self-hoster pastes the token their box minted (ADR-0071). `chrome.storage` is
- * async, so the snapshot is pre-loaded here and awaited in `../../session.svelte`
+ * async, so the snapshot is pre-loaded here and awaited in `../session.svelte`
  * alongside the auth cell, mirroring `persistedAuthStoragePromise`.
  */
 const instanceCell = storage.defineItem<string>('local:instance');

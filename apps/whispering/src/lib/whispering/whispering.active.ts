@@ -14,8 +14,8 @@
  * its browser opener (`auth`, `nodeId`) and wraps the doc with the one action
  * every platform needs (`recordings_export_markdown`, whose logic is identical
  * on both platforms; see `recordings-markdown-export.ts`). The two platform
- * leaves (`whispering.browser.ts`, `whispering.tauri.ts`) still choose the
- * default transcription service and platform auth seam.
+ * leaves (`whispering.browser.ts`, `whispering.tauri.ts`) supply those inputs
+ * plus their default transcription service.
  */
 
 import type { SyncAuthClient } from '@epicenter/auth';
