@@ -13,7 +13,6 @@ const config = {
 			base: '/dashboard',
 		},
 		alias: {
-			'$platform/auth': './src/lib/platform/auth/auth.ts',
 			// Sibling Worker code (billing contracts, BILLING_ROUTES, BillingError).
 			// Avoids `../../../../worker/...` and makes the deployment seam visible:
 			// the UI knows it is bundled with this Worker, not a third-party API.

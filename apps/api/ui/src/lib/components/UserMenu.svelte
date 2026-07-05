@@ -12,7 +12,7 @@
 	import { mode, toggleMode } from 'mode-watcher';
 	import { billingApi } from '$lib/billing/api';
 	import { billing } from '$lib/billing/queries';
-	import { auth } from '$platform/auth';
+	import { auth } from '$lib/platform/auth';
 
 	const overview = createQuery(() => billing.overview.options);
 

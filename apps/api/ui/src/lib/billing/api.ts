@@ -24,7 +24,7 @@ import type {
 	UsageSeries,
 } from '$api/billing/contracts';
 import { BillingError } from '$api/billing/errors';
-import { auth } from '$platform/auth';
+import { auth } from '$lib/platform/auth';
 
 /** Tagged error for the billing API boundary, split by what actually failed. */
 export const BillingApiError = defineErrors({
