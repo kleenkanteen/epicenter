@@ -7,7 +7,7 @@ export const BASE_AUTH_CONFIG = {
 	basePath: AUTH_BASE_PATH,
 	// Email/password is intentionally disabled. The social IdPs are the only
 	// sign-in methods and assert verified emails; no mail sender is wired up,
-	// so a local account could never verify. better-auth 1.6.18's
+	// so a local account could never verify. better-auth 1.6.23's
 	// `requireLocalEmailVerified` linking gate (default true) closes the old
 	// pre-registered-unverified-account takeover path, but an unverifiable
 	// credential flow is still not one we serve. Do not re-enable without first
@@ -16,7 +16,7 @@ export const BASE_AUTH_CONFIG = {
 	emailAndPassword: { enabled: false },
 	account: {
 		// Only Google is a trusted linking provider. A trusted provider bypasses
-		// the incoming `emailVerified` check (better-auth 1.6.18 `link-account`
+		// the incoming `emailVerified` check (better-auth 1.6.23 `link-account`
 		// gate: `!isTrustedProvider && !userInfo.emailVerified`, plus a
 		// `requireLocalEmailVerified` check on the existing user), so the set must
 		// contain only IdPs that always assert a verified email. Google does;
