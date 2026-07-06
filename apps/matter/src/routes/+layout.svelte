@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '@epicenter/ui/app.css';
+	import { FlushEditsOnHide } from '@epicenter/svelte';
 	import * as Tooltip from '@epicenter/ui/tooltip';
 	import { ModeWatcher } from 'mode-watcher';
 
@@ -11,3 +12,4 @@
 <Tooltip.Provider>{@render children?.()}</Tooltip.Provider>
 
 <ModeWatcher defaultMode="dark" track={false} />
+<FlushEditsOnHide />

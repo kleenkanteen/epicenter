@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-06-30
-- **Relates:** [ADR-0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (the super app is a desktop host composing local surfaces), [ADR-0110](0110-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md) (Super Chat v1 exposes built-in Epicenter apps and supersedes this ADR's former tool-loading decision), [ADR-0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md) (names the `bun build --compile` self-host binary plus Tauri sidecar shape this decision realizes)
+- **Relates:** [ADR-0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (the super app is a desktop host composing local surfaces), [ADR-0111](0111-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md) (Super Chat v1 exposes built-in Epicenter apps and supersedes this ADR's former tool-loading decision), [ADR-0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md) (names the `bun build --compile` self-host binary plus Tauri sidecar shape this decision realizes)
 
 ## Context
 
@@ -12,7 +12,7 @@ question. Super Chat can either use Tauri's usual bundled `frontendDist` shape,
 or it can spawn the same Bun server shape the rest of Epicenter already runs and
 point the Tauri window at that loopback server.
 
-This ADR originally also chose loose TypeScript tool loading. ADR-0110
+This ADR originally also chose loose TypeScript tool loading. ADR-0111
 supersedes that part: Super Chat v1 exposes built-in Epicenter apps and does not
 scan or import arbitrary `.ts` tool files. The live decision here is only the
 shell shape.

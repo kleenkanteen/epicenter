@@ -15,6 +15,7 @@
 		"dev:bun": "bun --watch server.ts",
 		"dev:bun:devauth": "bun server.dev.ts",
 		"dev:dashboard": "bun run --cwd ui build && bun scripts/dev.ts",
+		"smoke:local": "bun scripts/smoke-local.ts",
 		"deploy": "wrangler deploy",
 		"typegen": "wrangler types",
 		"auth:generate:remote": "infisical run --env=prod --path=/ops --path=/api -- bun x @better-auth/cli generate --yes --config ./better-auth.config.ts --output ../../packages/server/src/db/schema/auth.ts",

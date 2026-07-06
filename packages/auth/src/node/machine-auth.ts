@@ -18,7 +18,6 @@
 
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
-import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { EPICENTER_API_URL } from '@epicenter/constants/apps';
 import { EPICENTER_CLI_OAUTH_CLIENT_ID } from '@epicenter/constants/oauth-clients';
 import envPaths from 'env-paths';
@@ -30,13 +29,10 @@ import {
 import { createLogger, type Logger } from 'wellcrafted/logger';
 import { Err, Ok, type Result, tryAsync } from 'wellcrafted/result';
 import type { AuthFetch, SyncAuthClient } from '../auth-contract.js';
-import {
-	ApiSessionResponse,
-	PersistedAuth,
-	type Principal,
-} from '../auth-types.js';
+import { PersistedAuth, type Principal } from '../auth-types.js';
 import { createOAuthAppAuth } from '../create-oauth-app-auth.js';
 import { serializePersistedAuth } from '../persisted-auth-storage.js';
+import { readApiSession } from '../read-api-session.js';
 import { createOobOAuthLauncher } from './oob-launcher.js';
 
 /**
@@ -302,13 +298,16 @@ export async function loginWithOob({
 	}
 	const grant = launchResult.grant;
 
-	const sessionResult = await fetchApiSession(
+	const { data: session, error: sessionError } = await readApiSession({
 		baseURL,
-		grant.accessToken,
 		fetch,
-	);
-	if (sessionResult.error) return Err(sessionResult.error);
-	const session = sessionResult.data;
+		token: grant.accessToken,
+	});
+	if (sessionError) {
+		return Err(
+			MachineAuthRequestError.RequestFailed({ cause: sessionError }).error,
+		);
+	}
 
 	const cell = {
 		grant,
@@ -370,35 +369,30 @@ export async function status({
 	if (clientResult.error) return Err(clientResult.error);
 	const client = clientResult.data;
 
-	let response: Response;
-	try {
-		response = await client.fetch(API_ROUTES.session.pattern);
-	} catch {
+	// `client.fetch` owns the Authorization header (refresh-on-401 fires inside
+	// it), so the token readApiSession is given is overwritten before the wire.
+	const { data: session, error: sessionError } = await readApiSession({
+		baseURL,
+		fetch: client.fetch,
+		token: '',
+	});
+	if (sessionError) {
+		// A malformed 200 body is a real fault worth surfacing; every other
+		// failure (unreachable, rejected, unexpected status) reads as unverified
+		// so the CLI can still print the cached identity.
+		if (sessionError.name === 'Malformed') {
+			return Err(
+				MachineAuthRequestError.RequestFailed({ cause: sessionError }).error,
+			);
+		}
 		return Ok(unverifiedFromCache);
 	}
-
-	if (response.status === 200) {
-		let body: unknown;
-		try {
-			body = await response.json();
-		} catch (cause) {
-			return Err(MachineAuthRequestError.RequestFailed({ cause }).error);
-		}
-		let session: ApiSessionResponse;
-		try {
-			session = ApiSessionResponse.assert(body);
-		} catch (cause) {
-			return Err(MachineAuthRequestError.RequestFailed({ cause }).error);
-		}
-		return Ok({
-			status: 'valid' as const,
-			identity: {
-				user: { id: session.principalId, email: session.email },
-			},
-		});
-	}
-
-	return Ok(unverifiedFromCache);
+	return Ok({
+		status: 'valid' as const,
+		identity: {
+			user: { id: session.principalId, email: session.email },
+		},
+	});
 }
 
 /**
@@ -501,48 +495,4 @@ export async function createMachineAuthClient({
 			now,
 		}),
 	);
-}
-
-/**
- * Resolve the local workspace identity for a freshly exchanged OOB grant.
- *
- * This is intentionally local to machine login. Long-lived clients use
- * `createOAuthAppAuth`, but login needs one explicit `/api/session` call so it
- * can both persist `PersistedAuth` and return the email for CLI output.
- */
-async function fetchApiSession(
-	baseURL: string,
-	accessToken: string,
-	fetch: AuthFetch,
-): Promise<Result<ApiSessionResponse, MachineAuthRequestError>> {
-	let response: Response;
-	try {
-		response = await fetch(API_ROUTES.session.url(baseURL), {
-			headers: { Authorization: `Bearer ${accessToken}` },
-			credentials: 'omit',
-		});
-	} catch (cause) {
-		return Err(MachineAuthRequestError.RequestFailed({ cause }).error);
-	}
-	if (response.status !== 200) {
-		return Err(
-			MachineAuthRequestError.RequestFailed({
-				cause: {
-					message: `${API_ROUTES.session.pattern} returned ${response.status}.`,
-					status: response.status,
-				},
-			}).error,
-		);
-	}
-	let payload: unknown;
-	try {
-		payload = await response.json();
-	} catch (cause) {
-		return Err(MachineAuthRequestError.RequestFailed({ cause }).error);
-	}
-	try {
-		return Ok(ApiSessionResponse.assert(payload));
-	} catch (cause) {
-		return Err(MachineAuthRequestError.RequestFailed({ cause }).error);
-	}
 }

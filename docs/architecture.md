@@ -21,7 +21,7 @@ The dependency shape runs bottom to top. Apps depend on middleware; middleware d
 | @epicenter/svelte      (packages/svelte-utils)                             |
 | @epicenter/filesystem                                                      |
 | @epicenter/skills                                                          |
-| @epicenter/workspace/ai                                                    |
+| @epicenter/workspace/agent                                                 |
 +----------------------------------------------------------------------------+
                                       |
                                       v
@@ -35,7 +35,7 @@ The dependency shape runs bottom to top. Apps depend on middleware; middleware d
 `@epicenter/sync` is the wire format, not the app model. It exports protocol primitives like `encodeSyncStep1`, `encodeSyncUpdate`, `decodeSyncMessage` so server and client can speak the same binary language without duplicating protocol logic.
 `@epicenter/constants` is the routing glue. It gives apps one source of truth for URLs, ports, and versioning so sync endpoints, auth URLs, and cross-app links do not drift.
 `@epicenter/ui` is the shared presentation layer. It knows Svelte components, not Yjs semantics.
-The middleware layer is where workspace data starts feeling like an application. `@epicenter/svelte` turns workspace helpers into reactive Svelte state, `@epicenter/filesystem` turns workspace rows and documents into a POSIX-style filesystem, `@epicenter/skills` proves that whole workspaces can be packaged and embedded as data products, and `@epicenter/workspace/ai` bridges workspace actions into LLM-callable tools.
+The middleware layer is where workspace data starts feeling like an application. `@epicenter/svelte` turns workspace helpers into reactive Svelte state, `@epicenter/filesystem` turns workspace rows and documents into a POSIX-style filesystem, `@epicenter/skills` proves that whole workspaces can be packaged and embedded as data products, and `@epicenter/workspace/agent` projects workspace actions into local agent tool catalogs.
 The apps are thin by comparison. Each app owns a shared `create<App>()` model, then runtime openers attach browser, daemon, or Tauri concerns on top.
 
 ## The lifecycle: define, create, open, attach
@@ -238,7 +238,7 @@ export function openOpensidianBrowser() {
 }
 ```
 
-That bundle then feeds other middleware packages. `attachYjsFileSystem(workspace.ydoc, workspace.tables.files, fileContent)` turns the files table plus content docs into a real virtual filesystem, and its `fs.index` is the single owner of path validity that the sqlite mirror converges to; `actionsToAiTools(workspace)` from `@epicenter/workspace/ai` turns workspace actions into chat tools; per-row content docs use sub-doc primitives like `attachRichText`; `createAppAuthClient()` and `createSameOriginCookieAuth()` from `@epicenter/svelte/auth` coordinate identity, fetch, and WebSocket auth, while `toConnection(auth, nodeId)` supplies the boot-time connection (the signed-in principal and WebSocket transport, or `null` signed out) to the workspace boot call.
+That bundle then feeds other middleware packages. `attachYjsFileSystem(workspace.ydoc, workspace.tables.files, fileContent)` turns the files table plus content docs into a real virtual filesystem, and its `fs.index` is the single owner of path validity that the sqlite mirror converges to; `createLocalToolCatalog(workspace.actions)` from `@epicenter/workspace/agent` exposes the same action handlers to the chat loop; per-row content docs use sub-doc primitives like `attachRichText`; `createAppAuthClient()` and `createSameOriginCookieAuth()` from `@epicenter/svelte/auth` coordinate identity, fetch, and WebSocket auth, while `toConnection(auth, nodeId)` supplies the boot-time connection (the signed-in principal and WebSocket transport, or `null` signed out) to the workspace boot call.
 
 ```text
 createOpensidian()
@@ -249,8 +249,8 @@ createOpensidian()
     |
     +-- attachYjsFileSystem(...)              -> editor + terminal + file tree
     +-- createSqliteIndex({ index: fs.index })-> SQL mirror, paths owned by fs.index
-    +-- actionsToAiTools(...).tools           -> local AI tool execution
-    +-- actionsToAiTools(...).definitions     -> wire payload for chat requests
+    +-- createLocalToolCatalog(actions)       -> local agent tool definitions + resolution
+    +-- agent loop approval policy            -> queries auto, mutations gated
     +-- attachRichText(childYdoc) per file    -> per-row content docs
     +-- fromTable / fromKv / auth             -> reactive Svelte app state
 ```

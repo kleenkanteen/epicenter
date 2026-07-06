@@ -1,4 +1,4 @@
-# 0110. Super Chat v1 exposes built-in Epicenter apps and defers extension surfaces
+# 0111. Super Chat v1 exposes built-in Epicenter apps and defers extension surfaces
 
 - **Status:** Accepted
 - **Date:** 2026-07-06
