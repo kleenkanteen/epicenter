@@ -6,13 +6,13 @@
 	import Grid2x2Icon from '@lucide/svelte/icons/grid-2x2';
 	import KanbanIcon from '@lucide/svelte/icons/kanban';
 	import type { ViewSpec } from '@epicenter/matter-core';
-	import { goto } from '$app/navigation';
-	import { routes, SWITCH_NAV } from '$lib/routes';
+	import { routes } from '$lib/routes';
 	import BoardView from '$lib/components/BoardView.svelte';
 	import TableGrid from '$lib/components/TableGrid.svelte';
 	import type { TableHandle } from '$lib/table.svelte';
 	import { createTableQuery } from '$lib/table-query.svelte';
 	import type { VaultHandle } from '$lib/vault.svelte';
+	import SurfacePill from './SurfacePill.svelte';
 
 	// One table of the active vault. The Vault constructs and disposes the table (it owns the
 	// watcher lifetime) and owns the shared `.matter` mirror the query reads; this pane just
@@ -57,35 +57,21 @@
 		{/if}
 		{#if table.read.view.mode === 'typed' && table.read.view.contract.views.length}
 			<div class="flex min-h-10 items-center gap-1 overflow-x-auto border-b px-3 py-1">
-				<button
-					type="button"
-					aria-current={projection === undefined ? 'true' : undefined}
-					onclick={() => goto(routes.table(table.folderName), SWITCH_NAV)}
-					class={[
-						'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition',
-						projection === undefined
-							? 'bg-muted font-medium text-foreground'
-							: 'text-muted-foreground hover:bg-muted/50',
-					]}
+				<SurfacePill
+					active={projection === undefined}
+					to={routes.table(table.folderName)}
 				>
 					<Grid2x2Icon class="size-4" />
 					Grid
-				</button>
+				</SurfacePill>
 				{#each table.read.view.contract.views as view (view.id)}
-					<button
-						type="button"
-						aria-current={projection?.id === view.id ? 'true' : undefined}
-						onclick={() => goto(routes.projection(table.folderName, view.id), SWITCH_NAV)}
-						class={[
-							'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition',
-							projection?.id === view.id
-								? 'bg-muted font-medium text-foreground'
-								: 'text-muted-foreground hover:bg-muted/50',
-						]}
+					<SurfacePill
+						active={projection?.id === view.id}
+						to={routes.projection(table.folderName, view.id)}
 					>
 						<KanbanIcon class="size-4" />
 						{view.title ?? view.id}
-					</button>
+					</SurfacePill>
 				{/each}
 			</div>
 		{/if}
