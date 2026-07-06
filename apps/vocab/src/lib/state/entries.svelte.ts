@@ -9,7 +9,7 @@
 
 import { InstantString } from '@epicenter/field';
 import { fromTable } from '@epicenter/svelte';
-import { generateEntryId, type Entry, type EntryId } from '@epicenter/vocab';
+import { type Entry, type EntryId, generateEntryId } from '@epicenter/vocab';
 import { vocab } from '$lib/vocab';
 
 function createEntriesState() {
