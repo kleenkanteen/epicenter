@@ -39,10 +39,13 @@ infisical run --path=/apps/local-mail -- \
 
 The name carries the provider target. The app-local Infisical config should
 point at your personal secrets project, where both keysets sit under
-`prod /apps/local-mail` for a single injection. Copy
+`prod /apps/local-mail` for a single injection. This is per-person
+bring-your-own provider configuration, not Epicenter-hosted infrastructure. Copy
 `.infisical.json.example` to `.infisical.json` and keep the real file local.
-See [`.env.example`](.env.example) for the canonical names. The old
-unqualified `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` are retired.
+That file is ignored because each operator has a different personal Infisical
+project. The committed `apps/api` and `ops` configs point at Epicenter's hosted
+project instead. See [`.env.example`](.env.example) for the canonical names. The
+old unqualified `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` are retired.
 
 Local Mail requests `gmail.modify` so write-through label changes can round-trip
 through Gmail. Although Google grants send at the same OAuth layer, Local Mail
