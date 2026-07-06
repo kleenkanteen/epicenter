@@ -112,8 +112,9 @@ mountSessionApp(app, { auth: cookieOrBearer });
 mountRoomsApp(app, { resolveBearerPrincipal: resolveRequestOAuthPrincipal });
 // Content-addressed blob store (supersedes the retired assets surface). v1 is
 // unmetered (no Autumn policy): Autumn's check() denies by default with no plan
-// attached, so deferred quota means not calling it. A `syncBlobStorageWithAutumn`
-// policy slots in here when storage is billed.
+// attached, so deferred quota means not calling it. When storage is billed, a
+// `syncBlobStorageWithAutumn` policy and the `policies` seam it needs land on
+// `mountBlobsApp` together.
 mountBlobsApp(app, { auth: cookieOrBearer });
 mountInferenceApp(app, {
 	auth: bearer,
