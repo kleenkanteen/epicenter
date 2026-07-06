@@ -30,6 +30,7 @@ Use this pattern when you need to:
 - Implement drag-and-drop reordering with fractional indexing.
 - Optimize Yjs storage for high-churn key-value workloads.
 - Review boundaries to prevent raw Yjs type leaks into consumer code.
+- Explain how Epicenter's table, KV, or record stores sit on top of Yjs.
 
 ## Transactions, Origins, And Undo
 
@@ -74,7 +75,9 @@ The other three (`Y.XmlElement`, `Y.XmlFragment`, `Y.XmlText`) are for rich text
 
 ### Client ID
 
-Every Y.Doc gets a random `clientID` on creation. This ID is used for conflict resolution: when two clients write to the same key simultaneously, the **higher clientID wins**, not the later timestamp.
+Every Y.Doc gets a random `clientID` on creation. Raw Yjs conflict ordering can
+use this id, so concurrent writes to the same raw map key are not "latest
+timestamp wins" unless the data structure adds its own timestamp policy.
 
 ```typescript
 const doc = new Y.Doc();
@@ -93,7 +96,10 @@ The actual comparison in source ([updates.js#L357](https://github.com/yjs/yjs/bl
 return dec2.curr.id.client - dec1.curr.id.client; // Higher clientID wins
 ```
 
-This is deterministic (all clients converge to same state) but not intuitive (later edits can lose).
+This is deterministic (all clients converge to the same state) but not
+intuitive: a later edit can lose. Epicenter's table, KV, and record surfaces do
+not expose this raw policy directly; they sit on `YKeyValueLww`, which adds a
+timestamped last-write-wins layer for keyed rows.
 
 ### Shared Types Cannot Move
 
@@ -191,23 +197,28 @@ titleSchema.set('default', 'Untitled');
 
 ## Storage Optimization
 
-### Y.Map vs Y.Array for Key-Value Data
+### Y.Map vs Workspace Keyed Stores
 
 `Y.Map` tombstones retain the key forever. Every `ymap.set(key, value)` creates a new internal item and tombstones the previous one.
 
-For high-churn key-value data (frequently updated rows), consider `YKeyValue` from `yjs/y-utility`:
+In Epicenter, do not reach for upstream `y-utility` from app code. The workspace
+package owns keyed table, KV, and record storage through internal
+`YKeyValueLww`, a timestamped last-write-wins store over a `Y.Array`.
 
 ```typescript
-// YKeyValue stores {key, val} pairs in Y.Array
-// Deletions are structural, not per-key tombstones
-import { YKeyValue } from 'y-utility/y-keyvalue';
+// App code should usually stay at this level.
+workspace.tables.notes.set(note);
+workspace.kv.set('theme.mode', 'dark');
 
-const kv = new YKeyValue(yarray);
-kv.set('myKey', { data: 'value' });
+using messages = workspace.tables.conversations.docs.messages.open(id);
+messages.set(message.id, message);
 ```
 
-**When to use Y.Map**: Bounded keys, rarely changing values (settings, config).
-**When to use YKeyValue**: Many keys, frequent updates, storage-sensitive.
+Use raw `Y.Map` for bounded, rarely changing structures inside a private
+attachment. Use workspace tables, KV, or `attachRecords` for keyed app data.
+Only edit `YKeyValueLww` itself when you are working inside
+`packages/workspace/src/document/y-keyvalue/`; ground that work in the local
+tests and benchmarks.
 
 ### Epoch-Based Compaction
 
@@ -223,9 +234,12 @@ Y.applyUpdate(freshDoc, snapshot);
 
 ## Common Mistakes
 
-### 1. Assuming "Last Write Wins" Means Timestamps
+### 1. Assuming Raw "Last Write Wins" Means Timestamps
 
-It doesn't. Higher clientID wins, not later timestamp. Design around this or add explicit timestamps with `y-lwwmap`.
+It doesn't. Raw Yjs conflict ordering can use clientID, not wall-clock time.
+Design around this, use single-writer keys, or use an Epicenter surface that
+already owns timestamped LWW semantics (`YKeyValueLww` through tables, KV, or
+records).
 
 ### 2. Using Y.Array Position for User-Controlled Order
 
@@ -347,7 +361,7 @@ If documents grow unexpectedly, check for:
 
 - Frequent Y.Map key overwrites
 - "Move" operations on arrays
-- Missing epoch compaction
+- Missing epoch compaction or a runtime doc accidentally created with `gc: false`
 
 ## References
 
@@ -355,7 +369,7 @@ If documents grow unexpectedly, check for:
 - [Yjs Documentation](https://docs.yjs.dev/) - API reference
 - [Yjs INTERNALS.md](https://github.com/yjs/yjs/blob/main/INTERNALS.md) - How Yjs works internally
 - [GitHub issue #520](https://github.com/yjs/yjs/issues/520) - Conflict resolution discussion with dmonad
-- [yjs/y-utility](https://github.com/yjs/y-utility) - YKeyValue and helpers
-- [y-lwwmap](https://github.com/rozek/y-lwwmap) - Timestamp-based LWW
 - [fractional-indexing](https://github.com/rocicorp/fractional-indexing) - Production library
 - [YATA paper](https://www.researchgate.net/publication/310212186_Near_Real-Time_Peer-to-Peer_Shared_Editing_on_Extensible_Data_Types) - Academic foundation
+- `packages/workspace/src/document/y-keyvalue/y-keyvalue-lww.ts` - Epicenter's timestamped keyed store for tables, KV, and records
+- `packages/workspace/src/document/attach-indexed-db.ts` - Epicenter's wrapper around `y-indexeddb`
