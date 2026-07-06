@@ -15,17 +15,13 @@ import type { PlatformAuth } from './types';
 
 const log = createLogger('whispering/platform/auth');
 
-// Allowlisted in `KEYRING_ACCOUNTS` (src-tauri/src/keyring_storage.rs); Rust
-// rejects any account name not on that list.
-const KEYRING_ACCOUNT = 'auth-grant';
-
 /**
  * Tolerant like the `localStorage` adapter's `get`: a keychain read failure
  * (locked keychain, platform error) reads as signed-out rather than crashing
  * app boot. The next sign-in re-establishes the grant.
  */
 async function readGrant(): Promise<string | null> {
-	const { data, error } = await tauriOnly.keyring.read(KEYRING_ACCOUNT);
+	const { data, error } = await tauriOnly.keyring.read();
 	if (error !== null) {
 		log.warn(error);
 		return null;
@@ -39,7 +35,7 @@ async function readGrant(): Promise<string | null> {
  * look saved.
  */
 async function writeGrant(serialized: string | null): Promise<void> {
-	const { error } = await tauriOnly.keyring.write(KEYRING_ACCOUNT, serialized);
+	const { error } = await tauriOnly.keyring.write(serialized);
 	if (error !== null) throw error;
 }
 
