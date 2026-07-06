@@ -11,12 +11,12 @@ The super app is an Epicenter chat that composes the verbs of built-in Epicenter
 
 ## The composition model (mostly shipped)
 
-The discover-and-invoke machine exists and is greenfield-clean. The super app is `composeToolCatalogs([...])` over a set of installed-app `ToolCatalog`s, fed to one transport-blind agent loop. `apps/opensidian/src/lib/session.ts` already runs this pattern for one app.
+The discover-and-invoke machine exists and is greenfield-clean. The super app is `composeToolCatalogs([...])` over a set of built-in-app `ToolCatalog`s, fed to one transport-blind agent loop. `apps/opensidian/src/lib/session.ts` already runs this pattern for one app.
 
 ```
                  +-------------------- desktop super-app host (one process) --------------------+
                  |                                                                              |
-  user-curated   |   import honeycrispWorkspace  -->  createLocalToolCatalog(app.actions) --\   |
+  built-in       |   import honeycrispWorkspace  -->  createLocalToolCatalog(app.actions) --\   |
   Yjs apps  (A)  |   import whisperingWorkspace   -->  createLocalToolCatalog(app.actions) --+-> composeToolCatalogs --> agent loop
                  |   (open in-process as a local peer; Yjs tables are the truth)           /   |       (transport-blind)
                  |                                                                          |   |
@@ -46,7 +46,7 @@ The discover-and-invoke machine exists and is greenfield-clean. The super app is
 **De-risk first, before calling this assembly.** The catalog wiring is shipped, but the one genuinely new piece is the multi-bundle host: opening several apps' iso definitions side by side in one process. Nothing does this today, and possibly for a reason, since each app brings its own sync connection and its own IndexedDB or SQLite attachment, and the workspace-app-composition pattern uses a `session` singleton that may collide when two apps co-mount. So the first concrete task is to prove that two real apps (for example Honeycrisp in-process plus the Local Books stdio facade) co-mount in one process and both answer a tool call. If singletons or lifecycle fight, that contention is the actual Slice 1 work, not the catalog plumbing.
 
 Deliverable: the smallest desktop host that
-1. statically imports one or more user-curated Yjs apps and mounts each app's action registry as a `ToolCatalog` (arm A),
+1. statically imports one or more built-in Yjs apps and mounts each app's action registry as a `ToolCatalog` (arm A),
 2. spawns the shipped `local-books mcp` server and mounts it as a second `ToolCatalog` via a local stdio transport adapter (arm B),
 3. composes them with `composeToolCatalogs` + `namespaceToolCatalog` and runs the existing agent loop, so one chat can call both apps' verbs.
 
