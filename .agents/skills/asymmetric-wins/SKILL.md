@@ -95,9 +95,9 @@ Architecture
 2. List candidate refusal points: fast paths, old shapes, rare modes, provider
    exceptions, compatibility aliases, fallback parsers, exact reproduction,
    partial reflection, hand-reproduced UI structure.
-3. For each candidate, list the code family it forces: methods, adapters,
-   unions, error variants, tests, docs branches, UI states, styling branches,
-   fixtures, screenshots, migrations, local markup, custom CSS, diagram upkeep.
+3. For each candidate, name the deletion prize: methods, adapters, unions,
+   error variants, tests, docs branches, UI states, styling branches, fixtures,
+   screenshots, migrations, local markup, custom CSS, diagram upkeep.
 4. Pick the candidate with the largest code family, not the most visible name.
 5. Ask who loses what if that behavior is refused.
 6. If the loss is a small convenience and the deletion removes a second shape,
@@ -120,7 +120,7 @@ Product sentence:
 Candidate refusal:
   ...
 
-Code family it deletes:
+Deletion prize:
   ...
 
 User loss:
@@ -148,7 +148,7 @@ Can refuse:
   locally reproduced HTML when a shared primitive owns the same contract,
   exhaustive component trees when a smaller artifact preserves the decision
 
-Code family it deletes:
+Deletion prize:
   ...
 
 Replacement artifact:
@@ -198,7 +198,7 @@ Product sentence:
 Candidate refusal:
   Browser SPAs can use Google GIS for a roughly 1-second sign-in.
 
-Code family it deletes:
+Deletion prize:
   signInWithIdToken
   OIDCProvider narrowing
   per-app GIS helpers

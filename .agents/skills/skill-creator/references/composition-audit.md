@@ -45,7 +45,9 @@ claim it. More than one is an over-trigger.
 ```bash
 PHRASE="asymmetric wins"
 for d in */SKILL.md; do
-  sed -n '/^description:/,/^---$/p' "$d" | grep -qi "$PHRASE" && echo "$PHRASE -> $d"
+  awk 'NR==1 && $0=="---" {in_fm=1; next}
+       in_fm && $0=="---" {exit}
+       in_fm {print}' "$d" | grep -qi "$PHRASE" && echo "$PHRASE -> $d"
 done
 ```
 
