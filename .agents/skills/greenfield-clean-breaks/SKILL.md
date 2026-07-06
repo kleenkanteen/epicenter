@@ -1,6 +1,6 @@
 ---
 name: greenfield-clean-breaks
-description: "Greenfield clean-break review and execution for reopening settled decisions, refusing unearned compatibility, collapsing old and new paths, moving ownership boundaries, replacing APIs, redesigning from first principles, and surfacing refusal candidates that delete disproportionate complexity. Use when the user says greenfield, clean break, no users, no compatibility burden, refuse compatibility, remove slop, collapse this, replace the API, trace upward, pressure-test the architecture, or asks whether old behavior can be deleted."
+description: "Greenfield clean-break review and execution for reopening settled decisions, refusing unearned compatibility, collapsing old and new paths, moving ownership boundaries, replacing APIs, redesigning from first principles, and surfacing refusal candidates that delete disproportionate complexity. Use when the user says greenfield clean break, greenfield, clean break, no users, no compatibility burden, refuse compatibility, remove slop, collapse this, replace the API, trace upward, pressure-test the architecture, or asks whether old behavior can be deleted."
 ---
 
 # Greenfield Clean Breaks

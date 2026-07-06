@@ -1,6 +1,6 @@
 ---
 name: writing-voice
-description: 'Voice, tone, and punctuation rules for prose, UI text, tooltips, error messages, comments, JSDoc, markdown, commit messages, and docs. Use when: "fix the tone", "rewrite this", "sounds like AI", "sounds corporate", or deciding whether punctuation earns its emphasis.'
+description: 'Writing voice, tone, and punctuation rules for prose, UI text, tooltips, error messages, comments, JSDoc, markdown, commit messages, and docs. Use when the user says "writing voice", "fix the tone", "rewrite this", "sounds like AI", "sounds corporate", or when deciding whether punctuation earns its emphasis.'
 metadata:
   author: epicenter
   version: '1.0'

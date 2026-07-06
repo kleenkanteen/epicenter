@@ -1,6 +1,6 @@
 ---
 name: fresh-context-review
-description: Fresh-context adversarial review for concrete diffs, state machines, type shapes, lifecycle boundaries, and confusing abstractions. Use when the user asks for "fresh eyes", an independent reviewer, adversarial review of a diff, a state-machine audit, or whether a type or lifecycle shape earns itself. Not for generic helper delegation, executor prompts, ordinary final review, or interactive planning interviews.
+description: Fresh-context review and adversarial review for concrete diffs, state machines, type shapes, lifecycle boundaries, and confusing abstractions. Use when the user asks for "fresh-context review", "fresh eyes", an independent reviewer, adversarial review of a diff, a state-machine audit, or whether a type or lifecycle shape earns itself. Not for generic helper delegation, executor prompts, ordinary final review, or interactive planning interviews.
 ---
 
 # Fresh Context Review
