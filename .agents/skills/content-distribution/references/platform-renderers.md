@@ -159,15 +159,15 @@ Optimize for:
 - Series.
 - Reader replies.
 
-## The Ark
+## Distribution State
 
 Best default:
 
 ```txt
-publication record
+publications/*.md record
   + destination wrappers
   + attempts
   + performance notes
 ```
 
-The Ark should own distribution state, not the source idea. Fuji owns finished writing. The Ark owns where it went, what wrapper was used, and what happened next.
+`publications/` should own distribution state, not the source idea. `pages/` owns finished writing. `publications/` owns where it went, what wrapper was used, and what happened next.
