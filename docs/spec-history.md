@@ -16,7 +16,7 @@
 >
 > **Regenerate (deterministic per ref set, lossless):** `bun scripts/generate-spec-history.ts`. The totals track the refs this clone can see; `--all` is deliberate so the timeline recovers specs that only lived on unmerged or deleted branches.
 
-**1361 specs ever** (550 still in tree, 811 removed).
+**1364 specs ever** (550 still in tree, 814 removed).
 
 
 ## 2026
@@ -134,6 +134,9 @@
 | 2026-06-12 | whispering-endpoint-config-consolidation | removed | specs/20260612T081337-whispering-endpoint-config-consolidation.md |
 | 2026-06-10 | cli-daemon-collapse-waves | in tree | specs/20260610T193000-cli-daemon-collapse-waves.md |
 | 2026-06-10 | matter-optional-fields | in tree | specs/20260610T193727-matter-optional-fields.md |
+| 2026-06-10 | root-readme-public-front-door | removed | specs/20260610T173324-root-readme-public-front-door.md |
+| 2026-06-10 | matter-zennotes-folder-protocol | removed | specs/20260610T174336-matter-zennotes-folder-protocol.md |
+| 2026-06-10 | matter-check-output | removed | specs/20260610T185441-matter-check-output.md |
 | 2026-06-10 | matter-cli-namespace-decision | removed | specs/20260610T185221-matter-cli-namespace-decision.md |
 | 2026-06-07 | matter-note-identity-and-linking | removed | specs/20260607T150000-matter-note-identity-and-linking.md |
 | 2026-06-06 | matter-grid-keyboard-navigation | in tree | specs/20260606T104553-matter-grid-keyboard-navigation.md |

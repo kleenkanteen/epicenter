@@ -1,8 +1,9 @@
 # 0097. Super Chat tool modules receive a host API
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-07-02
-- **Relates:** [ADR-0084](0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md), [ADR-0096](0096-local-workspace-persistence-is-environment-injected.md)
+- **Superseded by:** [ADR-0111](0111-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md)
+- **Relates:** [ADR-0084](0084-super-chat-shell-is-a-bun-hosted-local-server-not-a-bundled-spa.md), [ADR-0096](0096-local-workspace-persistence-is-environment-injected.md)
 
 ## Context
 
@@ -59,8 +60,8 @@ scope. A tool can read from Todos and Honeycrisp because the host exposed those
 handles, not because it reached into process-global state or imported app
 singletons.
 
-The loader now exists in `apps/super-chat/src/tool-loader.ts`. This ADR settles
-what a loaded module exports and what the host passes into it. Trust prompts,
+This ADR settled what a loaded module exported and what the host passed into it.
+ADR-0111 later removed the loader from the v1 shape. Trust prompts,
 installed-state tracking, and third-party delivery remain separate work.
 
 ## Considered alternatives
