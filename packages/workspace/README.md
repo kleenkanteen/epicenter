@@ -22,7 +22,7 @@ Write path:
     -> SQLite mirror and Markdown export refresh
 ```
 
-Agents can still edit ordinary project files. They should not patch generated `.md` files to mutate app data. Give them actions instead: browser chat uses `actionsToAiTools`, scripts use `connectDaemonActions`, and humans or automation can call `epicenter run <action>`. The action writes the Yjs datastore; the materializers write the files back out.
+Agents can still edit ordinary project files. They should not patch generated `.md` files to mutate app data. Give them actions instead: browser chat uses `createLocalToolCatalog`, scripts use `connectDaemonActions`, and humans or automation can call `epicenter run <action>`. The action writes the Yjs datastore; the materializers write the files back out.
 
 The current center is small:
 
@@ -945,7 +945,7 @@ Ordering is just lexical: `collaboration` reads `idb.whenLoaded` as `waitFor` be
 
 Markdown comes from one seam, `attachMarkdownExport` (in `@epicenter/workspace/document/materializer/markdown`): a continuous, one-way Yjs to disk projection with free serialization (custom `filename`, `toMarkdown`, per-table `dir`). It exposes a single `markdown_rebuild` mutation for a destructive full re-export (orphan cleanup after a filename or layout change); there is no import path.
 
-The projection is read-only on purpose. The materialized `.md` is never read back into Yjs, so it carries no round-trip obligation and can shape the output however a human-readable export or a published site wants. App data mutates through validated actions (`epicenter run <action>`, `connectDaemonActions`, or TanStack AI tools created by `actionsToAiTools`), never by editing the materialized files. If an app needs Markdown as the authoring format, that parser/editor belongs in an app action or UI surface that writes Yjs. This export is not that path. The SQLite materializer is the read-only sibling for a relational projection.
+The projection is read-only on purpose. The materialized `.md` is never read back into Yjs, so it carries no round-trip obligation and can shape the output however a human-readable export or a published site wants. App data mutates through validated actions (`epicenter run <action>`, `connectDaemonActions`, or agent tools created by `createLocalToolCatalog`), never by editing the materialized files. If an app needs Markdown as the authoring format, that parser/editor belongs in an app action or UI surface that writes Yjs. This export is not that path. The SQLite materializer is the read-only sibling for a relational projection.
 
 ```typescript
 import { field } from '@epicenter/field';
@@ -1251,7 +1251,7 @@ Every action exposes:
 
 And the action itself is callable. There is no separate `.handler` property on the returned object.
 
-### Type guards and iteration
+### Action iteration
 
 ```typescript
 import Type from 'typebox';
@@ -1259,7 +1259,6 @@ import {
 	defineActions,
 	defineMutation,
 	defineQuery,
-	isAction,
 } from '@epicenter/workspace';
 
 const actions = defineActions({
@@ -1271,9 +1270,7 @@ const actions = defineActions({
 });
 
 for (const [key, action] of Object.entries(actions)) {
-	if (isAction(action)) {
-		console.log(key, action.type);
-	}
+	console.log(key, action.type);
 }
 
 const listAction = actions.posts_list;
@@ -1412,7 +1409,8 @@ What the package does give you is the raw material a server adapter needs:
 
 - `bundle.actions` (the typed `ActionRegistry` owned by the workspace bundle)
 - `defineActions(actions)` to author a flat snake_case registry
-- `toActionMeta(action)` to project an action to its wire-safe metadata
+- action metadata fields (`type`, `title`, `description`, and `input`) for
+  adapters that need a discovery surface
 - iterate with `Object.entries(actions)`
 - action metadata (`type`, `title`, `input`, `description`)
 - direct access to `bundle.tables`, `bundle.kv`, `bundle.collaboration.peers`, and per-row content factories
@@ -1492,8 +1490,6 @@ import {
 	defineActions,
 	defineMutation,
 	defineQuery,
-	isAction,
-	toActionMeta,
 	type Action,
 	type ActionRegistry,
 } from '@epicenter/workspace';
@@ -1562,14 +1558,7 @@ import {
 
 ### Introspection
 
-```typescript
-import {
-	isAction,
-	toActionMeta,
-} from '@epicenter/workspace';
-```
-
-`Object.entries(actions)` lets you iterate the flat registry. Combined with each action's `type`, `title`, `description`, and `input` schema, that is enough to build HTTP, CLI, or MCP adapters without coupling the core package to a transport. `toActionMeta(action)` projects a single action to its wire-safe metadata if you need to ship it across a transport.
+`Object.entries(actions)` lets you iterate the flat registry. Combined with each action's `type`, `title`, `description`, and `input` schema, that is enough to build HTTP, CLI, or MCP adapters without coupling the core package to a transport.
 
 ### IDs and dates
 
@@ -1603,13 +1592,11 @@ The core package does not export an MCP server or own every adapter. What it doe
 
 - actions with `type`, `title`, `description`, and `input`
 - `Object.entries(actions)` to iterate the flat registry
-- `isAction` type guard; narrow on `action.type === 'query' | 'mutation'` for the variant
-- `toActionMeta(action)` to project an action to its wire-safe shape
-- `@epicenter/workspace`: `actionsToAiTools(...)` for TanStack AI tool bindings
+- `@epicenter/workspace/agent`: `createLocalToolCatalog(...)` for local action tools
 
 That is enough to expose workspace actions over HTTP, CLI, TanStack AI, or MCP without coupling the core package to one transport.
 
-For AI editing, expose workspace mutations as tools. `actionsToAiTools(...)` does not teach the model to patch the materialized Markdown folder. It wires tool calls to the same action handlers the UI and CLI use. Query tools can read data; mutation tools write Yjs and are marked `needsApproval: true` by default.
+For AI editing, expose workspace mutations as tools. `createLocalToolCatalog(...)` does not teach the model to patch the materialized Markdown folder. It wires tool calls to the same action handlers the UI and CLI use. Query tools can read data; mutation tools write Yjs.
 
 ### Setup
 
