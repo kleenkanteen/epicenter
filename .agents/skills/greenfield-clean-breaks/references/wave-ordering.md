@@ -21,6 +21,10 @@ Stopping imports before deleting keeps rollback cheap. If verification fails,
 the fallback is still on disk and the rollback can be one import flip or one
 revert.
 
+This is a rollback point, not product compatibility. The old path must be
+unimported before verification; users and callers should already be on the new
+path.
+
 ## Wrong Shape
 
 ```txt
