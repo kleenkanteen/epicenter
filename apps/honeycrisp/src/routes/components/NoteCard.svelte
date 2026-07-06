@@ -3,6 +3,7 @@
 	import * as AlertDialog from '@epicenter/ui/alert-dialog';
 	import { Button } from '@epicenter/ui/button';
 	import * as ContextMenu from '@epicenter/ui/context-menu';
+	import * as Item from '@epicenter/ui/item';
 	import { DateTimeString } from '@epicenter/workspace';
 	import ArchiveRestoreIcon from '@lucide/svelte/icons/archive-restore';
 	import FileTextIcon from '@lucide/svelte/icons/file-text';
@@ -30,10 +31,9 @@
 
 <ContextMenu.Root>
 	<ContextMenu.Trigger>
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="group relative flex cursor-pointer flex-col gap-0.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent/30 {isSelected
+		<Item.Root
+			size="sm"
+			class="cursor-pointer flex-col items-stretch gap-0.5 rounded-lg py-2 hover:bg-accent/30 {isSelected
 				? 'bg-accent'
 				: ''}"
 			onclick={onSelect}
@@ -49,13 +49,13 @@
 					{format(new Date(note.updatedAt), 'h:mm a')}
 				</span>
 			</div>
-			<p class="line-clamp-2 text-xs text-muted-foreground">
+			<Item.Description class="text-xs">
 				{note.preview || 'No content'}
-			</p>
+			</Item.Description>
 
 			{#if isDeleted}
 				<div
-					class="absolute bottom-1 right-2 hidden items-center gap-0.5 group-hover:flex {isSelected
+					class="absolute bottom-1 right-2 hidden items-center gap-0.5 group-hover/item:flex {isSelected
 						? 'flex'
 						: ''}"
 				>
@@ -84,7 +84,7 @@
 				</div>
 			{:else}
 				<div
-					class="absolute bottom-1 right-2 hidden items-center gap-0.5 group-hover:flex {isSelected
+					class="absolute bottom-1 right-2 hidden items-center gap-0.5 group-hover/item:flex {isSelected
 						? 'flex'
 						: ''}"
 				>
@@ -112,7 +112,7 @@
 					</Button>
 				</div>
 			{/if}
-		</div>
+		</Item.Root>
 	</ContextMenu.Trigger>
 
 	<ContextMenu.Content class="w-48">
