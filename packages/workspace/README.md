@@ -1412,7 +1412,6 @@ What the package does give you is the raw material a server adapter needs:
 - action metadata fields (`type`, `title`, `description`, and `input`) for
   adapters that need a discovery surface
 - iterate with `Object.entries(actions)`
-- action metadata (`type`, `title`, `input`, `description`)
 - direct access to `bundle.tables`, `bundle.kv`, `bundle.collaboration.peers`, and per-row content factories
 
 If you want HTTP, CLI, or MCP on top, build or import an adapter around those primitives.
@@ -1596,7 +1595,7 @@ The core package does not export an MCP server or own every adapter. What it doe
 
 That is enough to expose workspace actions over HTTP, CLI, TanStack AI, or MCP without coupling the core package to one transport.
 
-For AI editing, expose workspace mutations as tools. `createLocalToolCatalog(...)` does not teach the model to patch the materialized Markdown folder. It wires tool calls to the same action handlers the UI and CLI use. Query tools can read data; mutation tools write Yjs.
+For AI editing, expose workspace mutations as tools. `createLocalToolCatalog(...)` does not teach the model to patch the materialized Markdown folder. It wires tool calls to the same action handlers the UI and CLI use. Query tools can read data; mutation tools write Yjs. The agent loop runs queries unattended by default, asks before mutations, and denies gated mutations when no approval prompt is wired.
 
 ### Setup
 
