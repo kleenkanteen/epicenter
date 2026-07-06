@@ -60,8 +60,8 @@ scope. A tool can read from Todos and Honeycrisp because the host exposed those
 handles, not because it reached into process-global state or imported app
 singletons.
 
-The loader now exists in `apps/super-chat/src/tool-loader.ts`. This ADR settles
-what a loaded module exports and what the host passes into it. Trust prompts,
+This ADR settled what a loaded module exported and what the host passed into it.
+ADR-0111 later removed the loader from the v1 shape. Trust prompts,
 installed-state tracking, and third-party delivery remain separate work.
 
 ## Considered alternatives
