@@ -33,11 +33,7 @@ describe('buildTermCandidatePrompt', () => {
 describe('parseTermCandidates', () => {
 	test('clean one-span-per-line input passes through verbatim, in order', () => {
 		const raw = '你好\n学习中文\n一鸣惊人';
-		expect(parseTermCandidates(raw)).toEqual([
-			'你好',
-			'学习中文',
-			'一鸣惊人',
-		]);
+		expect(parseTermCandidates(raw)).toEqual(['你好', '学习中文', '一鸣惊人']);
 	});
 
 	test('preserves inner spacing of a legitimate multi-word phrase', () => {
