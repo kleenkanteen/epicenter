@@ -1043,6 +1043,22 @@ export function createTable<
 			// latest shape. Validate against the latest schema directly: no
 			// need to stamp _v, route, and re-migrate just to write back.
 			const merged = { ...current, ...partial, id } as TRow;
+			// A value-equal merge is a no-op: emit nothing (no Yjs transaction,
+			// no IndexedDB append, no sync frame, no LWW timestamp refresh), so
+			// callers that re-derive fields on every source change (Honeycrisp's
+			// title/preview/wordCount extraction per editor transaction) cost
+			// nothing when the derived values did not move (ADR-0110). Guarded to
+			// rows already stamped at the latest version so an update over an
+			// older-version row still persists its migration. Touch semantics
+			// (rewriting equal values to refresh the LWW timestamp) are not a
+			// thing `update()` provides; a caller that needs them writes a real
+			// change.
+			const stored = ykv.get(id);
+			const storedAtLatest =
+				typeof stored === 'object' &&
+				stored !== null &&
+				(stored as Record<string, unknown>)._v === latestVersion;
+			if (storedAtLatest && Value.Equal(current, merged)) return Ok(merged);
 			if (!Value.Check(definition.schema, merged)) {
 				const errors = [...Value.Errors(definition.schema, merged)].map(
 					(e) => ({
