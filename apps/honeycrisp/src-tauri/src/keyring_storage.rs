@@ -24,10 +24,9 @@ const KEYRING_SERVICE: &str = "honeycrisp";
 // bites, suffix this service string per channel, such as `honeycrisp-dev`,
 // rather than sharing one entry across signatures.
 
-// Honeycrisp stores exactly one secret, so the account is a Rust constant
-// rather than a webview-supplied parameter checked against an allowlist
-// (Whispering keeps the allowlist shape because a second account is queued
-// there). A second secret here re-adds the parameter and the allowlist.
+// Honeycrisp stores exactly one secret, so the account is a Rust constant. A
+// future second secret adds its own command pair with its own hardcoded
+// account, not a webview-supplied account parameter and allowlist.
 const KEYRING_ACCOUNT: &str = "auth-grant";
 
 /// Structured failure for both commands.
