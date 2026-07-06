@@ -1,10 +1,14 @@
 # 0084. Super Chat's tools load as vendored TypeScript via Bun's native dynamic import; its shell is a Bun-hosted local server, not a bundled SPA
 
-- **Status:** Proposed (the loading mechanism and shell-packaging shape are settled; third-party delivery via jsrepo is named but not built. The shell shape is prototyped in `apps/super-chat`: loopback bind, per-launch token over stdin, bearer-or-query gate on every request, single stdout port announcement. `bun build --compile` packaging and the Tauri sidecar wiring remain unbuilt)
+- **Status:** Proposed (the tool-loading decision is superseded by [ADR-0110](0110-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md); the shell-packaging shape remains proposed. The shell shape is prototyped in `apps/super-chat`: loopback bind, per-launch token over stdin, bearer-or-query gate on every request, single stdout port announcement. `bun build --compile` packaging and the Tauri sidecar wiring remain unbuilt)
 - **Date:** 2026-06-30
-- **Relates:** [ADR-0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (the super app is a desktop host composing local surfaces; this settles how it loads them and how its shell is packaged), [ADR-0073](0073-tools-speak-mcp-natively-epicenter-owns-only-the-transport-mcp-lacks.md) (MCP is for foreign hosts), [ADR-0081](0081-per-upstream-oauth-concurrency-decides-mirror-topology.md) (the one remaining reason an app needs MCP: an upstream forces box-only ownership), [ADR-0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md) (names the `bun build --compile` self-host binary plus Tauri sidecar shape this decision realizes)
+- **Relates:** [ADR-0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (the super app is a desktop host composing local surfaces; this originally addressed loading and shell packaging, and ADR-0110 now owns loading), [ADR-0073](0073-tools-speak-mcp-natively-epicenter-owns-only-the-transport-mcp-lacks.md) (MCP is for foreign hosts), [ADR-0081](0081-per-upstream-oauth-concurrency-decides-mirror-topology.md) (the one remaining reason an app needs MCP: an upstream forces box-only ownership), [ADR-0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md) (names the `bun build --compile` self-host binary plus Tauri sidecar shape this decision realizes)
 
 ## Context
+
+ADR-0110 supersedes this record's tool-loading decision. The loose TypeScript
+loader described below is historical context, not the current Super Chat v1
+shape. The shell-packaging decision remains proposed here.
 
 ADR-0080 settled that the super app is a single desktop host composing local app surfaces: in-process action registries for user-curated Yjs apps (arm A), local stdio MCP verb facades for apps an upstream forces to be box-owned (arm B, Local Books today). Two questions were left open under that decision: how does the host load a given app's tool code, especially code that doesn't already live in this monorepo, and how does its Tauri shell present it, bundle a static SPA the ordinary Tauri way, or something else.
 

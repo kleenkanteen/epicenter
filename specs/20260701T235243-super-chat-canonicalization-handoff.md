@@ -30,7 +30,7 @@
 >
 > The `chore-remove-fuji` branch landed as merged PR #2245, so the Fuji
 > reconcile (step 8) came in with the `origin/main` merge.
-- **Decision of record:** [ADR-0084](../docs/adr/0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md) for the local Bun shell and TypeScript loader, [ADR-0080](../docs/adr/0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) for the desktop-host shape.
+- **Decision of record:** [ADR-0110](../docs/adr/0110-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md) for built-in Epicenter apps only in v1, [ADR-0084](../docs/adr/0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md) for the local Bun shell, and [ADR-0080](../docs/adr/0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) for the desktop-host shape.
 
 ## Why this exists
 
@@ -43,7 +43,7 @@ Use `/Users/braden/.herdr/worktrees/epicenter/super-chat` as the canonical workt
 Why:
 
 - It is clean and currently aligned with `main` at `62201622de`, the PR #2241 merge that brought in ADR-0084.
-- It contains the most recent architecture decision: Super Chat loads trusted TypeScript with Bun dynamic import and uses a Bun-hosted loopback shell with a per-launch token.
+- It contains the current architecture direction: Super Chat v1 exposes built-in Epicenter apps and uses a Bun-hosted loopback shell with a per-launch token.
 - It avoids basing new work on prototype branches that predate ADR-0084 and still use `apps/super-app` naming.
 
 Do not use these as the base:
@@ -54,12 +54,13 @@ Do not use these as the base:
 
 ## Greenfield product sentence
 
-Super Chat owns one local desktop chat session; installed apps enter through one verb catalog; the Bun sidecar owns tool loading, chat execution, static assets, and the local token gate.
+Super Chat owns one local desktop chat session; built-in Epicenter apps enter through one verb catalog; the Bun sidecar owns chat execution, static assets, and the local token gate.
 
 That sentence refuses a few tempting branches:
 
 - No daemon mount as the composition model. A mount is the CLI/projection path for one app, not the Super Chat host.
 - No MCP for first-party in-process apps. MCP stays for boxed/upstream-constrained apps such as Local Books.
+- No loose in-process TypeScript tool modules in v1. Future scripting starts from an out-of-process runner unless a new ADR explicitly accepts unsafe developer-mode host imports.
 - No separate bundled Tauri SPA plus side IPC. Bun serves the SPA and the API from one loopback origin.
 - No jsrepo production path until trust, pinning, and installed-state tracking are designed.
 - No durable workspace opening handwave. The prototype's in-memory `create()` path is proof of composition, not the final data model.
@@ -68,7 +69,8 @@ That sentence refuses a few tempting branches:
 
 Use these files as inputs:
 
-- `docs/adr/0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md`: current loading and shell decision.
+- `docs/adr/0110-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md`: current v1 app/tool exposure decision.
+- `docs/adr/0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md`: current shell decision; its tool-loading half is superseded by ADR-0110.
 - `specs/20260630T190000-super-app-desktop-host-build-plan.md`: existing draft execution scaffold.
 - `/Users/braden/.herdr/worktrees/epicenter/super-app-slice1/apps/super-app/host.ts`: proof that one chat can compose Honeycrisp, Todos, and Local Books verbs.
 - `/Users/braden/.herdr/worktrees/epicenter/super-app-slice1/apps/super-app/stdio-mcp-catalog.ts`: local stdio MCP adapter for boxed apps.
@@ -112,8 +114,8 @@ ADR-0084's packaging shape is not implemented yet. The prototype does not have:
 - bearer checks on every HTTP and WebSocket request;
 - Tauri sidecar wiring;
 - `bun build --compile` packaging;
-- dynamic scanned tool-file loading;
-- a tool module contract for third-party TypeScript files.
+- third-party app install;
+- user-authored scripting.
 
 ## Fuji answer to preserve
 
@@ -123,33 +125,12 @@ The mount path is for daemon/CLI projection: one folder exports one mounted app 
 
 ## Open architecture decisions
 
-Tool module contract:
-  Implemented by ADR-0097. ADR-0084 settles `scan .ts + import()`; ADR-0097
-  settles what the imported file exports: a default factory receiving the host
-  API as an argument.
-
-```ts
-import type { ToolHost } from '@epicenter/super-chat';
-
-export default function defineToolModule({
-	defineQuery,
-	defineMutation,
-	Type,
-	workspaces,
-}: ToolHost) {
-	return {
-		weather_get: defineQuery({
-			description: 'Current weather for a city',
-			input: Type.Object({ city: Type.String() }),
-			handler: async ({ city }) => `Weather for ${city}`,
-		}),
-	};
-}
-```
-
-Runtime imports from vendored tool files stay out of the contract; type-only
-imports are allowed for editor help. The host injects `defineQuery`,
-`defineMutation`, `Type`, and scoped `workspaces`.
+Loose TypeScript tool modules:
+  Removed from the v1 product shape by ADR-0110. Super Chat no longer scans a
+  tools directory, imports arbitrary `.ts` files into the host process, or
+  exports a `ToolHost` contract. If scripting becomes a real product need, start
+  from an out-of-process TypeScript script runner that exposes `scripts/list`
+  and `scripts/run`, not from host-side dynamic import.
 
 Tool result shape:
   Implemented with ADR-0097. `AgentToolOutcome.content` is the model-facing
@@ -185,10 +166,10 @@ jsrepo:
    > port 0, single stdout port announcement, BYOK OpenAI-compatible engine
    > from env). Static assets are a placeholder page until the SPA slice
    > exists; the serving shape (page + API from one origin) is in place.
-6. [x] Write a small ADR for the tool module contract before dynamic third-party files land.
-   > Implemented by ADR-0097. Tool modules export a default factory receiving
-   > `ToolHost`; runtime helpers are injected, type-only imports are allowed,
-   > and tool outcomes now split model `content` from renderer `details`.
+6. [x] Record the Super Chat v1 extension refusal before removing the loose TypeScript loader.
+   > Implemented by ADR-0110. Super Chat v1 exposes built-in Epicenter apps
+   > only, keeps MCP only for concrete external-tool integrations, and defers
+   > scripting to a future out-of-process runner.
 7. [x] Spec or implement the ungated durable local open path. This is the real gap between "composition proof" and "loads my workspaces."
    > Implemented via ADR-0096: `connect(null, { persistence })` plus `bunLocalPersistence({ dir, nodeId })`. Super Chat now opens Honeycrisp and Todos as durable signed-out local replicas, and `src/host.test.ts` proves a second host over the same data dir reads the first host's todo through the composed catalog.
 8. [x] Reconcile the Fuji removal branch after the canonical app skeleton is clear, so docs do not keep pointing at a deleted app.
@@ -203,10 +184,11 @@ Paste this into a fresh agent session:
 ```txt
 You are working in the Epicenter monorepo. Use `/Users/braden/.herdr/worktrees/epicenter/super-chat` as the canonical worktree for Super Chat. Do not base new work on `feat/super-app-slice1` or `feat/super-app-desktop-host`; use them only as source material.
 
-Goal: turn the current Super Chat architecture into the next concrete slice without losing the greenfield decisions. The canonical decision is ADR-0084: Super Chat loads trusted TypeScript through Bun dynamic import and its shell is a Bun-hosted loopback server with a per-launch token. ADR-0080 remains the desktop-host decision: local apps compose into one host session; remote devices attach to that session, not to per-app endpoints.
+Goal: turn the current Super Chat architecture into the next concrete slice without losing the greenfield decisions. The canonical app/tool exposure decision is ADR-0110: Super Chat v1 exposes built-in Epicenter apps only and defers loose TypeScript modules, third-party app install, and scripting. ADR-0084 remains the shell decision: Super Chat's shell is a Bun-hosted loopback server with a per-launch token. ADR-0080 remains the desktop-host decision: local apps compose into one host session; remote devices attach to that session, not to per-app endpoints.
 
 Important files:
-- `docs/adr/0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md`: current shell and TypeScript loading decision.
+- `docs/adr/0110-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md`: current v1 app/tool exposure decision.
+- `docs/adr/0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md`: current shell decision; its tool-loading half is superseded.
 - `specs/20260630T190000-super-app-desktop-host-build-plan.md`: existing build scaffold.
 - `specs/20260701T235243-super-chat-canonicalization-handoff.md`: canonicalization notes and this prompt.
 - `/Users/braden/.herdr/worktrees/epicenter/super-app-slice1/apps/super-app/host.ts`: runnable proof that Honeycrisp, Todos, and Local Books can compose into one `ToolCatalog`.
@@ -215,16 +197,17 @@ Important files:
 - `/Users/braden/Code/epicenter-worktrees/chore-remove-fuji`: cleanup context proving Fuji's `mount.ts` was not the Super Chat composition path.
 
 Greenfield product sentence:
-Super Chat owns one local desktop chat session; installed apps enter through one verb catalog; the Bun sidecar owns tool loading, chat execution, static assets, and the local token gate.
+Super Chat owns one local desktop chat session; built-in Epicenter apps enter through one verb catalog; the Bun sidecar owns chat execution, static assets, and the local token gate.
 
 Do not reopen these decisions:
 - Do not use daemon `mount.ts` as the Super Chat composition model.
 - Do not use MCP for first-party in-process apps.
+- Do not reintroduce loose in-process TypeScript tool modules for v1.
 - Do not build a bundled Tauri SPA plus a separate IPC channel.
 - Do not treat jsrepo as production-ready until trust, pinning, and installed-state tracking are designed.
 
 Open questions to resolve explicitly:
-- What exact factory-injection contract should a vendored TypeScript tool file export?
+- If user scripting becomes real, what out-of-process TypeScript runner contract should it expose?
 - Should Super Chat transcripts start as append-only JSONL or as an Epicenter workspace?
 - What is the ungated durable local open path for installed Yjs apps?
 - What belongs in the first `apps/super-chat` skeleton versus a later Tauri sidecar slice?
@@ -233,7 +216,7 @@ Suggested next actions:
 1. Inspect current status with `git status --short --branch` in `super-chat`.
 2. Read ADR-0084 and this handoff spec.
 3. Port only the smallest useful pieces from `feat/super-app-slice1` into a new `apps/super-chat` skeleton: catalog composition, in-process app list, local stdio MCP adapter, in-memory store if needed.
-4. Keep static installation first. Add dynamic scanned TypeScript only after the tool module contract ADR exists.
+4. Keep the static built-in app list first. Do not add dynamic scanned TypeScript in v1.
 5. Verify with `bun run --filter @epicenter/super-chat typecheck` or the package's equivalent script once the skeleton exists, plus a runnable scripted-engine smoke test.
 
 Repo constraints:
