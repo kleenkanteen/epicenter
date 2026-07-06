@@ -35,8 +35,9 @@ timings. No surface gets a debounce.
 Two enforcement mechanisms make the middle tier real:
 
 1. **The page-hide blur net is owned by `@epicenter/svelte`** as a
-   `FlushEditsOnHide` component and rendered by every app's root
-   `+layout.svelte`, exactly like `Toaster` and `ModeWatcher`. It force-blurs
+   `FlushEditsOnHide` component, rendered once in the root `+layout.svelte`
+   of every app with blur-committed durable fields (six today; Todos has no
+   such field and renders nothing). It force-blurs
    `document.activeElement` on `visibilitychange`-to-hidden and `pagehide`, so
    every commit-on-blur handler runs synchronously before teardown. Per-app
    copies of the six-line handler are deleted; the copy-paste standard
