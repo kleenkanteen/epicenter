@@ -3,8 +3,8 @@
  *
  * `invokeAction` is the in-process invoker: raw return values get Ok-wrapped,
  * existing `Result`s pass through, thrown errors become `Err(cause)` with the
- * raw thrown value preserved. The RPC wire boundary lives in
- * `document/rpc.ts` and has its own coverage.
+ * raw thrown value preserved. Daemon and tool-boundary coverage lives with
+ * those adapters.
  */
 
 import { describe, expect, test } from 'bun:test';
