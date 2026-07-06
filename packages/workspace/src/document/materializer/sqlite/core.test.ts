@@ -24,7 +24,6 @@ import {
 	defineTable,
 	type Tables,
 } from '../../../index.js';
-import { isAction, isMutation, isQuery } from '../../../shared/actions.js';
 import { nullable } from '../../nullable.js';
 import { attachSqliteMaterializerCore } from './core.js';
 
@@ -714,24 +713,24 @@ describe('attachSqliteMaterializerCore', () => {
 	});
 
 	// ============================================================================
-	// ACTION BRAND Tests
+	// Materializer action tests
 	// ============================================================================
 
-	describe('action brand', () => {
-		test('sqlite_rebuild is detectable via isAction()', async () => {
+	describe('actions', () => {
+		test('sqlite_rebuild is exposed as a mutation action', async () => {
 			const testSetup = setup();
 
 			try {
 				const { sqlite } = testSetup.workspace;
-				expect(isAction(sqlite.actions.sqlite_rebuild)).toBe(true);
-				expect(isMutation(sqlite.actions.sqlite_rebuild)).toBe(true);
+				expect(typeof sqlite.actions.sqlite_rebuild).toBe('function');
+				expect(sqlite.actions.sqlite_rebuild.type).toBe('mutation');
 			} finally {
 				await disposeAndYieldForClose(testSetup);
 			}
 		});
 
 		if (hasFts5) {
-			test('sqlite_search is detectable via isAction() when configured', async () => {
+			test('sqlite_search is exposed as a query action when configured', async () => {
 				const testSetup = setup({
 					build: (t) => ({
 						tables: { posts: t.posts },
@@ -742,10 +741,10 @@ describe('attachSqliteMaterializerCore', () => {
 				try {
 					await testSetup.workspace.sqlite.whenFlushed;
 					const sqliteWithFts = testSetup.workspace.sqlite as unknown as {
-						actions: { sqlite_search: unknown };
+						actions: { sqlite_search: { type?: unknown } };
 					};
-					expect(isAction(sqliteWithFts.actions.sqlite_search)).toBe(true);
-					expect(isQuery(sqliteWithFts.actions.sqlite_search)).toBe(true);
+					expect(typeof sqliteWithFts.actions.sqlite_search).toBe('function');
+					expect(sqliteWithFts.actions.sqlite_search.type).toBe('query');
 				} finally {
 					await disposeAndYieldForClose(testSetup);
 				}

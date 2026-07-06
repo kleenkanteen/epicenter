@@ -178,7 +178,7 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0099](0099-replace-transformations-with-a-dictionary-polish-and-a-portable-recipe-library.md) | Replace Transformations with a Dictionary, an always-on Polish, and a portable Recipe library | Accepted |
 | [0100](0100-ai-credits-are-product-units-and-the-charge-shape-follows-when-cost-is-known.md) | AI credits are product-priced units; the charge shape follows whether cost is known before the call | Accepted (STT overspend remedy refined by 0103) |
 | [0101](0101-native-typed-row-projection-views-are-earned-serially-board-is-first.md) | Native typed-row projection views are earned serially; board is first | Accepted |
-| [0102](0102-vocab-stores-verbatim-terms-under-a-human-owned-note-and-refuses-glosses-srs-and-provenance.md) | Vocab stores verbatim terms under a human-owned note and refuses glosses, SRS, and provenance | Accepted |
+| [0102](0102-vocab-stores-verbatim-entries-under-a-human-owned-note-and-refuses-glosses-srs-and-provenance.md) | Vocab stores verbatim entries under a human-owned note and refuses glosses, SRS, and provenance | Accepted |
 | [0103](0103-stt-overspend-is-guarded-in-trigger-order-never-by-media-preflight.md) | STT overspend is bounded by cheap guards in trigger order, never by media preflight or a reservation lock | Accepted |
 | [0104](0104-hosted-models-are-a-build-time-seed-not-discovered-the-runtime-overlay-is-deferred.md) | Hosted models are a build-time seed catalog, not a discovered one; a runtime overlay is a named deferral | Accepted |
 | [0105](0105-vocab-is-a-multilingual-tutor-and-readings-are-a-client-side-derived-view.md) | Vocab is a multilingual tutor and readings are a client-side derived view | Accepted |
@@ -186,5 +186,6 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0107](0107-a-child-doc-text-body-is-a-plain-y-text-the-timeline-array-is-deleted.md) | A child-doc text body is a plain `Y.Text`; the timeline array is deleted | Accepted |
 | [0108](0108-provider-credentials-are-selected-by-target-environment-encoded-in-the-secret-name.md) | Third-party provider credentials are selected by the app's target provider-environment, encoded in the secret name and resolved by one injected helper | Accepted |
 | [0109](0109-hosted-tauri-auth-keeps-app-owned-keyring-edges-until-three-real-callers-earn-sharing.md) | Hosted Tauri auth keeps app-owned keyring edges until three real callers earn sharing | Accepted |
+| [0110](0110-edit-write-timing-follows-the-value-owner-there-is-no-debounce-tier.md) | Edit write timing follows the value owner; there is no debounce tier | Accepted |
 
 When you add an ADR, add its row here.

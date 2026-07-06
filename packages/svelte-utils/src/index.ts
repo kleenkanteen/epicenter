@@ -2,6 +2,7 @@ export {
 	type BoundAgentConversation,
 	bindAgentConversation,
 } from './agent-conversation.svelte.js';
+export { default as FlushEditsOnHide } from './flush-edits-on-hide.svelte';
 export { fromDisposableCache } from './from-disposable-cache.svelte.js';
 export { fromKv } from './from-kv.svelte.js';
 export {

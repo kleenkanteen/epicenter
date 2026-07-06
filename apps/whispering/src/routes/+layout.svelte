@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import { auth } from '#platform/auth';
 	import { onNavigate } from '$app/navigation';
+	import { FlushEditsOnHide } from '@epicenter/svelte';
 	import { reloadOnPrincipalChange } from '@epicenter/svelte/auth';
 	import { queryClient } from '$lib/rpc/client';
 	import '@epicenter/ui/app.css';
@@ -58,6 +59,7 @@
 	}}
 />
 <ModeWatcher defaultMode="dark" track={false} />
+<FlushEditsOnHide />
 
 <style>
 	/* The default UA view-transition runs 0.25s, which is abrupt for the

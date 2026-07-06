@@ -22,15 +22,13 @@
  * resolver: `Object.entries(actions)` is the iterator, `actions[key]` is
  * the lookup.
  *
- * Callers use `invokeAction`, which Ok-wraps raw values, preserves existing
- * Results, and catches throws as `Err(cause)`. A cross-device MCP route that
- * projects these actions (e.g. `apps/local-books mcp`) maps that `Err` to an
- * `isError` tool result before it crosses the wire.
+ * Boundary callers use `invokeAction`, which Ok-wraps raw values, preserves
+ * existing Results, and catches throws as `Err(cause)`.
  *
  * @module
  */
 
-import Type, { type Static, type TSchema } from 'typebox';
+import type { Static, TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import {
 	type AnyTaggedError,
@@ -122,25 +120,6 @@ export type ActionMeta<
 };
 
 /**
- * Schema for {@link ActionMeta}. Defines the single source of truth for the
- * metadata-only projection used by daemon `/list` and AI tool catalog
- * conversion. The `input` field is `Type.Object()` with additional properties
- * allowed because the node's local input schema is itself a TypeBox/JSON Schema
- * object; the validator only confirms shape, not the inner schema's semantics.
- *
- * `Static<typeof ActionMetaSchema>` collapses the parameterized in-process
- * {@link ActionMeta} to its metadata form (`input?: object`).
- */
-export const ActionMetaSchema = Type.Object({
-	type: Type.Enum(['query', 'mutation']),
-	title: Type.Optional(Type.String()),
-	description: Type.Optional(Type.String()),
-	input: Type.Optional(
-		Type.Object({}, { additionalProperties: Type.Unknown() }),
-	),
-});
-
-/**
  * Flat snake_case key to `ActionMeta` map. The metadata-only projection of an
  * `ActionRegistry`, suitable for surfaces that cannot carry callable handlers,
  * such as the daemon `/list` route.
@@ -152,8 +131,8 @@ export type ActionManifest = Record<string, ActionMeta>;
  * properties attached. Queries are idempotent reads; mutations write. The
  * `type` discriminant lives on the value, so the type stays a single union
  * rather than three named aliases. The local callable shape IS the handler's
- * signature (sync stays sync, raw stays raw); a cross-device MCP route that
- * projects the action normalizes the response before it crosses the wire.
+ * signature (sync stays sync, raw stays raw); boundary adapters normalize
+ * responses through {@link invokeAction}.
  */
 export type Action<
 	TInput extends TSchema | undefined = TSchema | undefined,
@@ -243,8 +222,8 @@ type InvalidActionKey<S extends string> =
 
 /**
  * Regex enforcing `^[a-z][a-z0-9_]{0,63}$` at runtime. Used by
- * `defineActions` for the authoring boundary check. Exported so tests and
- * future external validators can share the single source of truth.
+ * `defineActions` for the authoring boundary check and by tests that pin the
+ * runtime grammar.
  */
 export const ACTION_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 
@@ -291,8 +270,8 @@ export function defineActions<T extends ActionRegistry>(
  *
  * Returns the handler with metadata attached. The action callable IS the
  * handler. Local callers see whatever the handler returns (sync if sync,
- * raw if raw, `Result` if explicit). A cross-device MCP route that projects
- * the action normalizes the response before it crosses the wire.
+ * raw if raw, `Result` if explicit). Boundary callers can normalize the
+ * response with {@link invokeAction}.
  */
 /** No input. `TInput` is explicitly `undefined`. */
 export function defineQuery<R>(
@@ -328,38 +307,6 @@ export function defineMutation({ handler, ...rest }: any): Action {
 }
 
 /**
- * Type guard to check if a value is an action definition.
- *
- * Structural check: anything callable with a `type` of `'query'` or
- * `'mutation'` is an action.
- */
-export function isAction(value: unknown): value is Action {
-	return (
-		typeof value === 'function' &&
-		'type' in value &&
-		(value.type === 'query' || value.type === 'mutation')
-	);
-}
-
-/**
- * Type guard to check if a value is a query action definition.
- */
-export function isQuery(
-	value: unknown,
-): value is Action<TSchema | undefined, unknown, 'query'> {
-	return isAction(value) && value.type === 'query';
-}
-
-/**
- * Type guard to check if a value is a mutation action definition.
- */
-export function isMutation(
-	value: unknown,
-): value is Action<TSchema | undefined, unknown, 'mutation'> {
-	return isAction(value) && value.type === 'mutation';
-}
-
-/**
  * Project a callable action onto its wire-form metadata. Functions drop;
  * live schemas, titles, and descriptions are kept. Used at the daemon
  * `/list` route and any other surface that needs metadata without handlers.
@@ -382,8 +329,7 @@ export function toActionMeta({
  * declared `input` schema. This is the one place the schema is enforced at
  * runtime: a value that reaches a handler has already matched the contract the
  * action published. The daemon maps it to a usage error (bad input, not a
- * handler crash); a cross-device MCP route that projects the action surfaces it
- * as an `isError` tool result.
+ * handler crash).
  */
 export const ActionInputError = defineErrors({
 	InvalidInput: ({
@@ -427,8 +373,7 @@ export function isActionInputError(error: unknown): error is ActionInputError {
  *
  * Otherwise: raw values get `Ok`-wrapped, existing `Result`s pass through, and
  * thrown errors become `Err(cause)` with the raw thrown value under `.error`.
- * A cross-device MCP route that projects these actions maps that `Err` to an
- * `isError` tool result before it crosses the wire; callers in-process see
+ * Boundary adapters decide how to present that `Err`; callers in-process see
  * whatever the handler actually threw or returned.
  *
  * @example

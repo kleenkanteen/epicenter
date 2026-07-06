@@ -45,7 +45,7 @@ export const VOCAB_MODEL = 'gemini-3.5-flash' satisfies ServableModel;
  * The tutor writes plain text only: readings (pinyin, romaji, ...) are a
  * client-side render view added over clean text, never baked into the answer.
  * Keeping the message clean protects it as conversation memory (it is fed back
- * to the model on later turns) and keeps saved terms verbatim (ADR-0102).
+ * to the model on later turns) and keeps saved entries verbatim (ADR-0102).
  */
 export const VOCAB_SYSTEM_PROMPT = `You are a multilingual language tutor. The user is learning a language; answer in that language alongside English, and adapt to whichever language they are studying: infer it from what they ask, and follow if they switch or mix languages.
 
@@ -86,32 +86,32 @@ export const VOCAB_STT_MODEL = 'whisper-1';
 export type VocabMessage = AgentMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Terms
+// Entries
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Branded term id: a nanoid minted when a term is saved. */
-export type TermId = Id & Brand<'TermId'>;
+/** Branded entry id: a nanoid minted when an entry is saved. */
+export type EntryId = Id & Brand<'EntryId'>;
 
-/** Mint a unique {@link TermId}. */
-export const generateTermId = (): TermId => generateId<TermId>();
+/** Mint a unique {@link EntryId}. */
+export const generateEntryId = (): EntryId => generateId<EntryId>();
 
 /**
- * The terms table: the user-curated store of language units of any length
+ * The entries table: the user-curated store of language units of any length
  * (words, phrases, chengyu) captured by selection. One pool, no decks.
  * `stage` is the one acquisition dial (new: saved because you did not know
  * it; understood: you comprehend it; usable: you can produce it). `note` is
  * human-owned: no code path machine-writes it.
  */
-export const termsTable = defineTable({
-	id: field.string<TermId>(),
+export const entriesTable = defineTable({
+	id: field.string<EntryId>(),
 	text: field.string(),
 	note: field.string(),
 	stage: field.select(['new', 'understood', 'usable']),
 	createdAt: field.instant(),
 });
 
-/** One term row. */
-export type Term = InferTableRow<typeof termsTable>;
+/** One entry row. */
+export type Entry = InferTableRow<typeof entriesTable>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Workspace Factory
@@ -131,7 +131,7 @@ export const vocabWorkspace = defineWorkspace({
 	name: 'vocab',
 	tables: {
 		conversations: conversationsTable,
-		terms: termsTable,
+		entries: entriesTable,
 	},
 	kv: {
 		showReadings: defineKv(Type.Boolean(), () => true),

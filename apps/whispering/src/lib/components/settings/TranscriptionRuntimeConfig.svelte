@@ -527,10 +527,12 @@
 			id="transcription-prompt"
 			placeholder="e.g., This is an academic lecture about quantum physics with technical terms like 'eigenvalue' and 'Schrödinger'"
 			disabled={!currentServiceCapabilities.supportsPrompt}
-			bind:value={
-				() => settings.get('transcription.prompt'),
-				(value) => settings.set('transcription.prompt', value)
-			}
+			value={settings.get('transcription.prompt')}
+			onblur={(e) => {
+				const next = e.currentTarget.value;
+				if (next !== settings.get('transcription.prompt'))
+					settings.set('transcription.prompt', next);
+			}}
 		/>
 		<Field.Description>
 			{currentServiceCapabilities.supportsPrompt

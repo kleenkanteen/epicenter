@@ -2,6 +2,7 @@
 	import { Button } from '@epicenter/ui/button';
 	import * as Field from '@epicenter/ui/field';
 	import * as Select from '@epicenter/ui/select';
+	import { Spinner } from '@epicenter/ui/spinner';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { report } from '$lib/report';
 	import type { DeviceIdentifier } from '@epicenter/recorder';
@@ -53,11 +54,11 @@
 		<Field.Label for="manual-recording-device">Recording Device</Field.Label>
 		<Select.Root type="single" disabled>
 			<Select.Trigger id="manual-recording-device" class="w-full">
-				Loading devices...
+				<span class="flex items-center gap-2 text-muted-foreground">
+					<Spinner class="size-3.5" />
+					Loading devices
+				</span>
 			</Select.Trigger>
-			<Select.Content>
-				<Select.Item value="" label="Loading devices..." />
-			</Select.Content>
 		</Select.Root>
 	</Field.Field>
 {:else if getDevicesQuery.isError}

@@ -261,6 +261,64 @@ describe('createTable', () => {
 			expect(saved).toEqual({ id: '1', name: 'Alice', age: 30 });
 		});
 
+		test('update with a value-equal merge emits no Yjs update', () => {
+			const { ydoc, ykv } = setup();
+			const definition = defineTable({
+				id: field.string(),
+				name: field.string(),
+				age: field.number(),
+			});
+			const helper = createTable(ykv, definition, 'test');
+			helper.set({ id: '1', name: 'Alice', age: 25 });
+
+			let updates = 0;
+			ydoc.on('update', () => {
+				updates += 1;
+			});
+			const data = expectOk(helper.update('1', { name: 'Alice', age: 25 }));
+
+			expect(data).toEqual({ id: '1', name: 'Alice', age: 25 });
+			expect(updates).toBe(0);
+
+			// A real change still writes.
+			expectOk(helper.update('1', { age: 26 }));
+			expect(updates).toBeGreaterThan(0);
+		});
+
+		test('update over an older-version row persists its migration even when value-equal', () => {
+			const { ykv, yarray } = setup();
+			const definition = defineTable(
+				{
+					id: field.string(),
+					name: field.string(),
+				},
+				{
+					id: field.string(),
+					name: field.string(),
+					age: field.number(),
+				},
+			).migrate(({ value, version }) => {
+				switch (version) {
+					case 1:
+						return { ...value, age: 0 };
+					case 2:
+						return value;
+				}
+			});
+			const helper = createTable(ykv, definition, 'test');
+			// Insert v1 data directly (raw yarray.push needs `_v` for routing).
+			yarray.push([
+				{ key: '1', val: { id: '1', name: 'Alice', _v: 1 }, ts: 0 },
+			]);
+
+			// The merge equals the migrated read, but the stored row is still v1:
+			// the no-op guard must not skip, so the write re-stamps at v2.
+			const data = expectOk(helper.update('1', { age: 0 }));
+
+			expect(data).toEqual({ id: '1', name: 'Alice', age: 0 });
+			expect(ykv.get('1')).toEqual({ id: '1', name: 'Alice', age: 0, _v: 2 });
+		});
+
 		test('update returns null data for missing rows', () => {
 			const { ykv } = setup();
 			const definition = defineTable({
