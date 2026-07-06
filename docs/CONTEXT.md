@@ -66,7 +66,9 @@ shapes, see `docs/adr/`.
 - **Infisical project**: the owner and access-control boundary. Each secret-using
   runnable surface owns its own `.infisical.json`: `apps/api` and `ops` point
   at Epicenter's hosted/operator project, and personal local apps use ignored
-  app-local configs that point at the operator's personal project.
+  app-local configs that point at the operator's personal project. The ignored
+  configs are per-person bring-your-own provider setup; the committed configs
+  are shared Epicenter infrastructure.
 - **Infisical environment**: a value-stakes tier inside a project, not an
   owner. In the Epicenter project, `dev` holds substitute values that can hurt
   nothing (the local `wrangler dev` bindings) and `prod` holds hosted

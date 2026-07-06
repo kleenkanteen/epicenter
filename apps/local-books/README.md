@@ -148,13 +148,16 @@ Intuit production rejects `http://localhost` redirect URIs, so the one-time `aut
 
 The Intuit keys live in your personal Infisical project at `/apps/local-books`
 under their environment-qualified names (`QB_SANDBOX_*` and
-`QB_PRODUCTION_*`, ADR-0108). Because the name carries the QuickBooks target,
-both keysets sit in `prod` for a single injection. The app-local
-`.infisical.json` points at the personal project; copy
+`QB_PRODUCTION_*`, ADR-0108). This is per-person bring-your-own provider
+configuration, not Epicenter-hosted infrastructure. Because the name carries the
+QuickBooks target, both keysets sit in `prod` for a single injection. The
+app-local `.infisical.json` points at the personal project; copy
 `.infisical.json.example` to `.infisical.json` and keep the real file local.
-The monorepo root has no Infisical config. `--qb-env` alone picks the keyset.
-Instead of exporting keys by hand, wrap a command with Infisical from this app
-directory:
+That file is ignored because each operator has a different personal Infisical
+project. The committed `apps/api` and `ops` configs point at Epicenter's hosted
+project instead. The monorepo root has no Infisical config. `--qb-env` alone
+picks the keyset. Instead of exporting keys by hand, wrap a command with
+Infisical from this app directory:
 
 ```sh
 infisical run --path=/apps/local-books -- bun run src/bin.ts auth --qb-env sandbox
