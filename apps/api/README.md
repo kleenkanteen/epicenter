@@ -130,7 +130,7 @@ bun test             # Run tests
 ```
 
 `smoke:local` is the no-Infisical verification path. It starts `server.dev.ts`,
-runs `scripts/smoke.ts`, keeps its server log and room directory under a
+runs `apps/api/scripts/smoke.ts`, keeps its server log and room directory under a
 temporary directory, and skips the blob leg unless `BLOBS_S3_*` points at a
 local S3-compatible store.
 
