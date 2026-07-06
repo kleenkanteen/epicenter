@@ -120,8 +120,12 @@
 				id="completion-model"
 				placeholder="e.g. llama3.1"
 				autocomplete="off"
-				bind:value={() => settings.get('completion.model'),
-					(value) => settings.set('completion.model', value)}
+				value={settings.get('completion.model')}
+				onblur={(e) => {
+					const next = e.currentTarget.value;
+					if (next !== settings.get('completion.model'))
+						settings.set('completion.model', next);
+				}}
 			/>
 			<Field.Description>
 				The model id your endpoint serves.
