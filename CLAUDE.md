@@ -33,15 +33,23 @@ deliverable. Use Codex for search, grep, broad file inspection, exact file
 reading, diff inspection, command execution, tests, typechecks, browser checks,
 local tools, and focused edits.
 
-## Codex to Claude
+## Consuming Codex Results
 
-Ask Codex to return evidence packets:
+Treat Codex output as evidence, not the decision.
+
+For background jobs, use `/codex:status` to find the job and
+`/codex:result` to retrieve the full output before making the call.
+
+Prefer Codex results that include:
 
 - file references and relevant snippets
 - command output and verification results
 - diffs or patch summaries
-- risks, open questions, and short recommendations
+- risks and open questions
+- short recommendations
 
-Do not use Codex for final ownership calls, taste calls, product direction,
-or final synthesis. Claude should not spend context on broad mechanical
-excavation when Codex can gather the evidence first.
+## Decision Boundary
+
+Claude decides mission, tradeoffs, ownership, product direction, taste calls,
+and final synthesis. Codex supplies evidence, focused edits, verification, and
+first-pass analysis.
