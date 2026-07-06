@@ -9,7 +9,7 @@ import { createSignInMigration } from '@epicenter/app-shell/sign-in-migration';
 import { attachIndexedDb } from '@epicenter/workspace';
 import { opensidianWorkspace } from 'opensidian';
 import { opensidian } from '$lib/opensidian';
-import { auth } from '$platform/auth';
+import { auth } from '$lib/platform/auth';
 
 /**
  * Open a throwaway handle to the signed-out plaintext local doc (the migration

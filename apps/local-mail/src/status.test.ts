@@ -30,8 +30,6 @@ function tempDir() {
 function config(dataDir: string): AppConfig {
 	return {
 		dataDir,
-		clientId: 'test-client',
-		clientSecret: 'test-secret',
 		apiBase: 'http://localhost:0',
 		authorizeUrl: 'http://localhost:0/auth',
 		tokenUrl: 'http://localhost:0/token',

@@ -4,8 +4,9 @@ import {
 	extractErrorMessage,
 	type InferErrors,
 } from 'wellcrafted/error';
-import type { Result } from 'wellcrafted/result';
+import { Ok, type Result } from 'wellcrafted/result';
 import type { AppConfig } from './config.ts';
+import { resolveQbCredentials } from './qb-credentials.ts';
 import {
 	type TokenGrantError,
 	type TokenSet,
@@ -22,11 +23,11 @@ import {
  */
 
 export const OAuthError = defineErrors({
-	MissingCredentials: () => ({
-		message:
-			'Missing QuickBooks credentials. Set QB_CLIENT_ID and QB_CLIENT_SECRET ' +
-			'(or run via `infisical run --path=/apps/local-books`) from your Intuit ' +
-			'app at https://developer.intuit.com.',
+	MissingCredentials: ({ reason }: { reason: string }) => ({
+		// `reason` is the resolver's message, which names the exact missing
+		// environment-qualified variables (ADR-0108); append where to get the keys.
+		message: `${reason} Get your Intuit app keys from your app at https://developer.intuit.com ("Keys & credentials").`,
+		reason,
 	}),
 	AuthorizationDenied: ({
 		error,
@@ -87,21 +88,39 @@ function httpOptions(config: AppConfig) {
 	};
 }
 
+/**
+ * Resolve the Intuit keyset for `config.environment` (ADR-0108), lazily, at the
+ * OAuth/refresh site rather than eagerly in `loadConfig`, so a credential-free
+ * verb never reads keys it does not use. The resolver throws when the qualified
+ * names are absent; convert that into the {@link OAuthError} Result channel so
+ * the loud "Missing QB_<ENV>_CLIENT_ID" message reaches the caller unchanged.
+ */
+function loadOAuthCredentials(
+	config: AppConfig,
+): Result<{ clientId: string; clientSecret: string }, OAuthError> {
+	try {
+		return Ok(resolveQbCredentials(config.environment));
+	} catch (cause) {
+		return OAuthError.MissingCredentials({
+			reason: extractErrorMessage(cause),
+		});
+	}
+}
+
 export async function refreshAccessToken(
 	config: AppConfig,
 	token: TokenSet,
 	now: () => number,
 ): GrantResult {
-	if (!config.clientId || !config.clientSecret) {
-		return OAuthError.MissingCredentials();
-	}
+	const { data: credentials, error } = loadOAuthCredentials(config);
+	if (error) return { data: null, error };
 	const as = authServer(config);
-	const client: oauth.Client = { client_id: config.clientId };
+	const client: oauth.Client = { client_id: credentials.clientId };
 	try {
 		const response = await oauth.refreshTokenGrantRequest(
 			as,
 			client,
-			oauth.ClientSecretBasic(config.clientSecret),
+			oauth.ClientSecretBasic(credentials.clientSecret),
 			token.refreshToken,
 			httpOptions(config),
 		);
@@ -134,9 +153,8 @@ export async function completeAuthorization(
 	}: { callbackUrl: URL; state: string; codeVerifier?: string },
 	now: () => number,
 ): GrantResult {
-	if (!config.clientId || !config.clientSecret) {
-		return OAuthError.MissingCredentials();
-	}
+	const { data: credentials, error } = loadOAuthCredentials(config);
+	if (error) return { data: null, error };
 	const realmId = callbackUrl.searchParams.get('realmId');
 	if (!realmId) {
 		return OAuthError.AuthorizationDenied({
@@ -145,13 +163,13 @@ export async function completeAuthorization(
 		});
 	}
 	const as = authServer(config);
-	const client: oauth.Client = { client_id: config.clientId };
+	const client: oauth.Client = { client_id: credentials.clientId };
 	try {
 		const params = oauth.validateAuthResponse(as, client, callbackUrl, state);
 		const response = await oauth.authorizationCodeGrantRequest(
 			as,
 			client,
-			oauth.ClientSecretBasic(config.clientSecret),
+			oauth.ClientSecretBasic(credentials.clientSecret),
 			params,
 			config.redirectUri,
 			codeVerifier ?? oauth.nopkce,
@@ -180,10 +198,14 @@ export async function completeAuthorization(
 
 function buildAuthorizeUrl(
 	config: AppConfig,
-	{ state, codeChallenge }: { state: string; codeChallenge: string },
+	{
+		state,
+		codeChallenge,
+		clientId,
+	}: { state: string; codeChallenge: string; clientId: string },
 ): string {
 	const url = new URL(config.authorizeUrl);
-	url.searchParams.set('client_id', config.clientId ?? '');
+	url.searchParams.set('client_id', clientId);
 	url.searchParams.set('response_type', 'code');
 	url.searchParams.set('scope', config.scopes.join(' '));
 	url.searchParams.set('redirect_uri', config.redirectUri);
@@ -216,9 +238,8 @@ export async function runAuthorizationFlow(
 	config: AppConfig,
 	options: AuthorizationFlowOptions,
 ): GrantResult {
-	if (!config.clientId || !config.clientSecret) {
-		return OAuthError.MissingCredentials();
-	}
+	const { data: credentials, error } = loadOAuthCredentials(config);
+	if (error) return { data: null, error };
 
 	const state = oauth.generateRandomState();
 	const codeVerifier = oauth.generateRandomCodeVerifier();
@@ -247,7 +268,11 @@ export async function runAuthorizationFlow(
 		},
 	});
 
-	const authorizeUrl = buildAuthorizeUrl(config, { state, codeChallenge });
+	const authorizeUrl = buildAuthorizeUrl(config, {
+		state,
+		codeChallenge,
+		clientId: credentials.clientId,
+	});
 	log('Opening your browser to authorize QuickBooks access...');
 	log(`If it does not open, visit:\n  ${authorizeUrl}`);
 	(options.openBrowser ?? defaultOpenBrowser)(authorizeUrl);

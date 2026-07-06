@@ -28,13 +28,15 @@ For natural-language questions, point an AI coding agent you already use (Claude
 
 You need an Intuit app for the API keys (this is a one-time developer step Intuit requires; your books are still yours). At https://developer.intuit.com, create an app, open **Keys & credentials**, and register `http://localhost:8765/callback` as a redirect URI. Intuit issues two key sets that are not interchangeable: **Development** keys connect sandbox (test) companies; **Production** keys connect your real company and are issued only after Intuit's go-live review. Start with Development and a sandbox company.
 
-Bring your own keys:
+Bring your own keys. The name carries the environment, so the sandbox (Development)
+keyset is `QB_SANDBOX_*` and production is `QB_PRODUCTION_*`; `--qb-env` picks which
+one is read (see [`.env.example`](.env.example) and ADR-0108). Start with sandbox:
 
 ```sh
-export QB_CLIENT_ID=...
-export QB_CLIENT_SECRET=...
+export QB_SANDBOX_CLIENT_ID=...
+export QB_SANDBOX_CLIENT_SECRET=...
 
-local-books auth                 # opens a browser; log into your sandbox company
+local-books auth                 # opens a browser; log into your sandbox company (--qb-env sandbox is the default)
 local-books sync --full          # build the local copy
 local-books status               # see what is connected and synced
 ```
@@ -119,7 +121,7 @@ local-books sync --interval 30m   # refresh now, then every 30 minutes until Ctr
 
 ## Connect your real company (production)
 
-Once a sandbox works, switch to production. You need Production keys from Intuit, and you select the production API with `--qb-env production` (set `LOCAL_BOOKS_QB_ENV=production` once to avoid repeating it):
+Once a sandbox works, switch to production. Set the Production keyset (`QB_PRODUCTION_CLIENT_ID` / `QB_PRODUCTION_CLIENT_SECRET`) and select the production API with `--qb-env production` (set `LOCAL_BOOKS_QB_ENV=production` once to avoid repeating it). The minted token records its environment, so a later `sync` or `status` refuses if you point the wrong `--qb-env` at it:
 
 ```sh
 local-books auth --qb-env production
@@ -144,19 +146,27 @@ Intuit production rejects `http://localhost` redirect URIs, so the one-time `aut
 
 ## Inside the Epicenter monorepo
 
-The Intuit keys live in Infisical at `/apps/local-books`, split by environment: the `dev` environment holds the Development keys, `prod` holds the Production keys. Pick the Infisical environment that matches the QuickBooks deployment you are targeting. Instead of exporting keys by hand, wrap a command with Infisical:
+The Intuit keys live in your personal Infisical project at `/apps/local-books`
+under their environment-qualified names (`QB_SANDBOX_*` and
+`QB_PRODUCTION_*`, ADR-0108). Because the name carries the QuickBooks target,
+both keysets sit in `prod` for a single injection. The app-local
+`.infisical.json` points at the personal project; copy
+`.infisical.json.example` to `.infisical.json` and keep the real file local.
+The monorepo root has no Infisical config. `--qb-env` alone picks the keyset.
+Instead of exporting keys by hand, wrap a command with Infisical from this app
+directory:
 
 ```sh
-infisical run --path=/apps/local-books -- bun run src/bin.ts auth
-infisical run --path=/apps/local-books -- bun run src/bin.ts sync --full
+infisical run --path=/apps/local-books -- bun run src/bin.ts auth --qb-env sandbox
+infisical run --path=/apps/local-books -- bun run src/bin.ts sync --qb-env sandbox --full
 ```
 
-The production invocations are wrapped as `:remote` scripts so you do not assemble the flags by hand:
+The invocations are wrapped as scripts named for the QuickBooks account they touch, so you do not assemble the flags by hand:
 
 ```sh
-bun run auth:remote
-bun run sync:remote --entity Invoice --full
-bun run status:remote
+bun run auth:sandbox
+bun run sync:production --entity Invoice --full
+bun run status:production
 ```
 
 ## Where things live

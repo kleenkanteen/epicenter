@@ -114,7 +114,7 @@ const workspace = createWorkspace({
 const idb = attachIndexedDb(workspace.ydoc);
 const collaboration = openCollaboration(workspace.ydoc, {
 	url: roomWsUrl({
-		baseURL: auth.baseURL,
+		baseURL: auth.deployment.baseURL,
 		guid: workspace.ydoc.guid,
 		nodeId,
 	}),
@@ -226,7 +226,7 @@ export function openOpensidianBrowser() {
 	});
 	const collaboration = openCollaboration(workspace.ydoc, {
 		url: roomWsUrl({
-			baseURL: auth.baseURL,
+			baseURL: auth.deployment.baseURL,
 			guid: workspace.ydoc.guid,
 			nodeId,
 		}),

@@ -2,7 +2,7 @@
  * Epicenter Cloud Worker entry.
  *
  * Composes `@epicenter/server` with the cloud principal resolver and layers
- * cloud-only billing, admin, and dashboard surfaces on top.
+ * cloud-only billing and dashboard surfaces on top.
  * The self-hosted single-partition instance lives in a sibling apps/* folder
  * and composes the same library with `instance` and no Autumn policies
  * (ADR-0075).

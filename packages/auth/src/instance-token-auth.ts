@@ -6,13 +6,16 @@ import { Ok, type Result } from 'wellcrafted/result';
 import type {
 	AuthFetch,
 	AuthState,
-	AuthVerificationState,
+	InstanceConnectionStatus,
 	SyncAuthClient,
 } from './auth-contract.js';
 import { AuthError } from './auth-errors.js';
+import {
+	type AuthFetchInput,
+	fetchWithBearer,
+	resolveTargetUrl,
+} from './bearer-fetch.js';
 import { getProfileVia, readApiSession } from './read-api-session.js';
-
-type AuthFetchInput = Request | string | URL;
 
 /**
  * Construction inputs for the instance-token auth client.
@@ -108,13 +111,14 @@ export function createInstanceTokenAuth({
 		principalId: INSTANCE_PRINCIPAL_ID,
 	};
 	const listeners = new Set<(state: AuthState) => void>();
-	// The boot bearer check verifies against a remote star, so it can be in flight
-	// or fail for a reason `AuthState` cannot carry (only a rejected token drops to
-	// `signed-out`). `verification` runs alongside `state` on its own listener set
-	// so a UI can tell "still verifying" from "unreachable" from "rejected token".
-	let verificationState: AuthVerificationState = { status: 'pending' };
-	const verificationListeners = new Set<
-		(state: AuthVerificationState) => void
+	// The boot bearer check verifies against a remote instance, so it can be in
+	// flight or fail for a reason `AuthState` cannot carry (only a rejected token
+	// drops to `signed-out`). The connection status runs alongside `state` on its
+	// own listener set so a UI can tell "still connecting" from "unreachable"
+	// from "rejected token".
+	let connectionStatus: InstanceConnectionStatus = 'connecting';
+	const connectionListeners = new Set<
+		(status: InstanceConnectionStatus) => void
 	>();
 
 	function setState(next: AuthState) {
@@ -128,29 +132,14 @@ export function createInstanceTokenAuth({
 		}
 	}
 
-	function setVerification(next: AuthVerificationState) {
-		verificationState = next;
-		for (const listener of verificationListeners) {
+	function setConnection(next: InstanceConnectionStatus) {
+		connectionStatus = next;
+		for (const listener of connectionListeners) {
 			try {
 				listener(next);
 			} catch (cause) {
 				log.error(InstanceTokenAuthError.SubscriberThrew({ cause }));
 			}
-		}
-	}
-
-	/**
-	 * Resolve any auth-fetch input to its absolute target URL, mirroring the
-	 * OAuth client's resolver: a relative `/path` resolves against `baseURL`.
-	 * Returns null for an unparseable target so callers fail closed.
-	 */
-	function resolveTargetUrl(input: AuthFetchInput): URL | null {
-		try {
-			if (input instanceof Request) return new URL(input.url);
-			if (input instanceof URL) return input;
-			return new URL(input, baseURL);
-		} catch {
-			return null;
 		}
 	}
 
@@ -165,7 +154,7 @@ export function createInstanceTokenAuth({
 	 * only reflects its outcome onto state and the `AuthClient` error contract.
 	 */
 	async function confirmSession(): Promise<Result<undefined, AuthError>> {
-		setVerification({ status: 'pending' });
+		setConnection('connecting');
 		const { data: session, error } = await readApiSession({
 			baseURL,
 			token,
@@ -177,43 +166,28 @@ export function createInstanceTokenAuth({
 			// token is a durable "signed-out"; a transient outage leaves state alone
 			// so it does not look like a bad credential.
 			if (error.name === 'Rejected') setState({ status: 'signed-out' });
-			setVerification({
-				status: 'failed',
-				reason: error.name === 'Rejected' ? 'rejected' : 'unreachable',
-			});
+			setConnection(error.name === 'Rejected' ? 'rejected' : 'unreachable');
 			return AuthError.StartSignInFailed({ cause: error });
 		}
 		setState({ status: 'signed-in', principalId: session.principalId });
-		setVerification({ status: 'verified' });
+		setConnection('connected');
 		return Ok(undefined);
 	}
 
 	void confirmSession();
 
 	async function authedFetch(input: AuthFetchInput, init?: RequestInit) {
-		const target = resolveTargetUrl(input);
-		const onEpicenter = target?.origin === epicenterOrigin;
-		const headers = mergeRequestHeaders(input, init);
-		if (onEpicenter) {
-			headers.set('Authorization', `Bearer ${token}`);
-		} else {
-			headers.delete('Authorization');
-		}
-		// A Request carries its own method and body, so pass it through (cloned).
-		// Anything else goes as its resolved absolute URL, so a relative `/path`
-		// lands on baseURL.
-		const normalizedInput: AuthFetchInput =
-			input instanceof Request
-				? (input.clone() as Request)
-				: (target?.href ?? input);
-		const response = await fetchImpl(normalizedInput, {
-			...init,
-			headers,
-			credentials: 'omit',
-			// A bearer-carrying request must never follow a cross-origin redirect:
-			// some runtimes re-send the header to the new origin. Return the 3xx to
-			// the caller instead (mirrors the OAuth client).
-			...(onEpicenter ? { redirect: 'manual' as const } : {}),
+		const onEpicenter =
+			resolveTargetUrl(input, baseURL)?.origin === epicenterOrigin;
+		const response = await fetchWithBearer({
+			input,
+			init,
+			fetch: fetchImpl,
+			baseURL,
+			epicenterOrigin,
+			// The token is static: it is the credential to attach on every
+			// Epicenter-origin request, never refreshed.
+			resolveToken: async () => token,
 		});
 		// A 401 from the instance means the token is gone or revoked: go straight
 		// to signed-out. There is no refresh path for a static token.
@@ -223,7 +197,7 @@ export function createInstanceTokenAuth({
 			state.status === 'signed-in'
 		) {
 			setState({ status: 'signed-out' });
-			setVerification({ status: 'failed', reason: 'rejected' });
+			setConnection('rejected');
 		}
 		return response;
 	}
@@ -232,7 +206,21 @@ export function createInstanceTokenAuth({
 		get state() {
 			return state;
 		},
-		baseURL,
+		deployment: {
+			kind: 'self-hosted',
+			baseURL,
+			connection: {
+				get status() {
+					return connectionStatus;
+				},
+				onChange(fn) {
+					connectionListeners.add(fn);
+					return () => {
+						connectionListeners.delete(fn);
+					};
+				},
+			},
+		},
 		onStateChange(fn) {
 			listeners.add(fn);
 			return () => {
@@ -248,17 +236,6 @@ export function createInstanceTokenAuth({
 		},
 		fetch: authedFetch,
 		getProfile: () => getProfileVia(authedFetch, baseURL),
-		verification: {
-			get state() {
-				return verificationState;
-			},
-			onChange(fn) {
-				verificationListeners.add(fn);
-				return () => {
-					verificationListeners.delete(fn);
-				};
-			},
-		},
 		async openWebSocket(url, protocols = []) {
 			// The room URL is always built from `baseURL`, so the bearer is always
 			// addressed to its own origin; attach it unconditionally.
@@ -269,26 +246,7 @@ export function createInstanceTokenAuth({
 		},
 		[Symbol.dispose]() {
 			listeners.clear();
-			verificationListeners.clear();
+			connectionListeners.clear();
 		},
 	};
-}
-
-/**
- * Merge Request headers with RequestInit headers using Fetch's own
- * normalization. Mirrors the OAuth client's helper: `HeadersInit` accepts
- * several runtime shapes, including iterable entries TypeScript does not always
- * model directly.
- */
-function mergeRequestHeaders(input: AuthFetchInput, init?: RequestInit) {
-	const headers = new Headers(
-		input instanceof Request ? input.headers : undefined,
-	);
-	const source = init?.headers;
-	if (!source) return headers;
-
-	new Headers(source).forEach((value, key) => {
-		headers.set(key, value);
-	});
-	return headers;
 }

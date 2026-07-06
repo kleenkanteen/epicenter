@@ -11,7 +11,7 @@
 		buildTermCandidatePrompt,
 		parseTermCandidates,
 	} from '$lib/term-candidates';
-	import { auth } from '$platform/auth';
+	import { auth } from '$lib/platform/auth';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
 	import { termsState } from '$lib/state/terms.svelte';
 	import DictationButton from './DictationButton.svelte';

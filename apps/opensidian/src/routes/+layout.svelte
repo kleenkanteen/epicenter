@@ -7,7 +7,7 @@
 	import * as Tooltip from '@epicenter/ui/tooltip';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
-	import { auth } from '$platform/auth';
+	import { auth } from '$lib/platform/auth';
 	import { opensidian } from '$lib/opensidian';
 	import { signInMigration } from '$lib/migration/sign-in-migration';
 	import '../app.css';

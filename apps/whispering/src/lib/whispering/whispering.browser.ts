@@ -1,9 +1,18 @@
 /**
  * Browser runtime client for Whispering. Consumed everywhere through the
  * `#platform/whispering` seam; see `whispering.active.ts` for what
- * `openWhispering` builds. The web default transcription service is OpenAI.
+ * `openWhisperingBrowser` builds. The web default transcription service is
+ * OpenAI.
  */
 
-import { openWhispering } from './whispering.active';
+import { createNodeId } from '@epicenter/workspace';
+import { auth } from '#platform/auth';
+import { openWhisperingBrowser } from './whispering.active';
 
-export const whispering = openWhispering('OpenAI');
+const nodeId = createNodeId({ storage: window.localStorage });
+
+export const whispering = openWhisperingBrowser({
+	auth,
+	nodeId,
+	defaultTranscriptionService: 'OpenAI',
+});

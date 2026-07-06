@@ -88,6 +88,8 @@ API keys for AI providers are environment secrets (`wrangler secret put`). They 
 Prerequisites: Bun, local PostgreSQL, and Infisical CLI authentication
 (`infisical login`). `bun run dev` pipes secrets from Infisical's dev
 environment into Wrangler via `process.env`, so Postgres alone is not enough.
+This package owns the hosted API `.infisical.json`; account-wide operator
+commands live in `ops`. The monorepo root intentionally has no Infisical config.
 
 ### Local Postgres setup
 
@@ -152,7 +154,7 @@ blob round-trip against whichever store the server points at.
 ### Database commands
 
 ```bash
-bun run auth:generate    # Generate Better Auth schema
+bun run auth:generate:remote # Generate Better Auth schema
 bun run db:generate      # Generate Drizzle migrations
 bun run db:push:local     # Push schema to local Postgres (dev only, use migrations for remote)
 bun run db:migrate:remote # Run migrations against remote (via Infisical)

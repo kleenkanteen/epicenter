@@ -27,7 +27,7 @@ defineWorkspace()
 ```
 src/
   lib/
-    platform/auth/auth.ts  # OAuth auth client
+    platform/auth.ts       # OAuth auth client
     vocab.ts               # openVocabBrowser singleton + Vocab state
     state/
       dictation.svelte.ts              # dictation state and interruption handling

@@ -18,8 +18,6 @@ import type { TokenManager } from './token-manager.ts';
 
 const config: AppConfig = {
 	dataDir: '/tmp/local-mail-gmail-client-test',
-	clientId: 'test-client',
-	clientSecret: 'test-secret',
 	apiBase: 'http://127.0.0.1:0',
 	authorizeUrl: 'http://127.0.0.1:0/auth',
 	tokenUrl: 'http://127.0.0.1:0/token',

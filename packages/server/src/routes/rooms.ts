@@ -44,6 +44,7 @@ import { createOAuthUnauthorizedResourceResponse } from '../auth/oauth-resource.
 import { parseBearer } from '../auth/parse-bearer.js';
 import { isWebSocketUpgrade } from '../is-websocket-upgrade.js';
 import { RequestGuardError } from '../middleware/request-guard-errors.js';
+import { setPrincipalOrReject } from '../middleware/require-auth.js';
 import { doName } from '../principal.js';
 import type { Env, ResolveBearerPrincipal } from '../types.js';
 
@@ -140,10 +141,10 @@ function requireRoomBearer<E extends Env>(
 ): MiddlewareHandler<E> {
 	return createMiddleware<E>(async (c, next) => {
 		const bearer = extractUpgradeBearer(c.req.raw.headers);
-		const { data: principal, error } = bearer
+		const resolution = bearer
 			? await resolveBearerPrincipal(c, bearer)
 			: OAuthError.InvalidToken();
-		if (error) {
+		return setPrincipalOrReject(c, next, resolution, (error) => {
 			const offersMainSubprotocol = parseSubprotocols(
 				c.req.header('sec-websocket-protocol') ?? null,
 			).includes(MAIN_SUBPROTOCOL);
@@ -155,9 +156,7 @@ function requireRoomBearer<E extends Env>(
 				});
 			}
 			return createOAuthUnauthorizedResourceResponse(c, error);
-		}
-		c.set('principal', principal);
-		await next();
+		});
 	});
 }
 

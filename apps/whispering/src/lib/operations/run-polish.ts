@@ -4,6 +4,7 @@ import {
 	type InferErrors,
 } from 'wellcrafted/error';
 import { isErr, Ok, type Result } from 'wellcrafted/result';
+import { auth } from '#platform/auth';
 import { buildPolishSystemPrompt } from '$lib/operations/build-system-prompt';
 import {
 	completeWithGlobalDefault,
@@ -61,6 +62,7 @@ export function polishDestination(): string {
 		resolveTranscriptionLocalityFromConfig({
 			service: settings.get('transcription.service'),
 			getDeviceConfig: deviceConfig.get,
+			sessionBaseUrl: auth.deployment.baseURL,
 		}),
 		settings.get('completion.provider'),
 		resolveCompletionState(),

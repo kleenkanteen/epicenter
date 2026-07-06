@@ -34,9 +34,7 @@
 	// worker bakes `PRODUCTION_API_URL` from @epicenter/constants and local dev
 	// overrides it via `API_PUBLIC_ORIGIN` (apps/api/scripts/dev.ts). This keeps
 	// a single source of truth in TypeScript instead of a duplicated string.
-	"vars": {
-		"ADMIN_USER_IDS": ""
-	},
+	"vars": {},
 	// --- Durable Objects ---
 	"durable_objects": {
 		"bindings": [

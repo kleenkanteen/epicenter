@@ -12,8 +12,6 @@ import { credentialsFilePath, resolveDataDir } from './paths.ts';
  */
 export type AppConfig = {
 	dataDir: string;
-	clientId: string | null;
-	clientSecret: string | null;
 	/** Gmail REST API origin. */
 	apiBase: string;
 	/** Google OAuth2 authorization endpoint. */
@@ -62,9 +60,10 @@ export function loadConfig(): AppConfig {
 
 	return {
 		dataDir,
-		// The bare GMAIL_* names match what Infisical injects at /apps/local-mail.
-		clientId: env('GMAIL_CLIENT_ID') ?? null,
-		clientSecret: env('GMAIL_CLIENT_SECRET') ?? null,
+		// The Google OAuth client keys are NOT read here: they are resolved lazily
+		// at the connect/refresh site by their environment-qualified names
+		// (GMAIL_DEV_* / GMAIL_PROD_*, ADR-0108), selected by the account's
+		// persisted environment. See `resolveGmailCredentials` in gmail-credentials.ts.
 		// The env override exists for the MCP subprocess test, which cannot
 		// inject an AppConfig in-process. The OAuth endpoints have no such
 		// consumer: in-process tests override the AppConfig fields directly.
