@@ -43,18 +43,15 @@ For each phrase you say out loud as a trigger, exactly one description should
 claim it. More than one is an over-trigger.
 
 ```bash
-PHRASE="asymmetric wins"
-for d in */SKILL.md; do
-  awk 'NR==1 && $0=="---" {in_fm=1; next}
-       in_fm && $0=="---" {exit}
-       in_fm {print}' "$d" | grep -qi "$PHRASE" && echo "$PHRASE -> $d"
-done
+bun run skill-creator/scripts/audit-routing-collisions.ts "asymmetric wins"
 ```
 
-Two or more hits = collision. Fix by narrowing every description except the one
-true owner: do not let a hub or manual *open* with a move's name. (This check
-catches the case where a manual was branded "Asymmetric-wins pass" while a
-dedicated `asymmetric-wins` move also existed.)
+The script searches only the `description` field in each skill's frontmatter.
+Exactly one hit = clean routing. Zero hits = no owner. Two or more hits =
+collision. Fix by narrowing every description except the one true owner: do not
+let a hub or manual *open* with a move's name. (This check catches the case where
+a manual was branded "Asymmetric-wins pass" while a dedicated `asymmetric-wins`
+move also existed.)
 
 ### 2. Duplicated bodies
 
