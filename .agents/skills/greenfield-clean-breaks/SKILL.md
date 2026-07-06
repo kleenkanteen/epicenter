@@ -1,46 +1,62 @@
 ---
 name: greenfield-clean-breaks
-description: Greenfield clean-break review for refusing compatibility, finding inconsistent ownership, and deleting unearned branches, fallback states, duplicate paths, and premature abstractions. Use when the user explicitly releases compatibility pressure with phrases like greenfield, no users, clean break, refuse compatibility, remove slop, or asks whether a system should be redesigned from the ideal shape.
+description: "Greenfield clean-break review and execution for refusing unearned compatibility, collapsing old and new paths, changing public shape, moving ownership boundaries, replacing APIs, or redesigning from the ideal shape. Use when the user says greenfield, clean break, no users, no compatibility burden, refuse compatibility, remove slop, collapse this, replace the API, or asks whether old behavior can be deleted."
 ---
 
 # Greenfield Clean Breaks
 
-Use this skill when the user explicitly removes compatibility pressure or asks whether the current shape would survive if designed today.
+Use this skill when the current shape should be judged against the clearest
+final system, not against the easiest incremental patch.
+
+The job:
+
+```txt
+Name the product sentence.
+Refuse unearned compatibility.
+Move ownership to one place.
+Replace old paths cleanly.
+Verify before deletion.
+```
 
 ## References
 
 Load on demand:
 
-- For a thin `/goal` template that invokes this skill, read [references/goal-template.md](references/goal-template.md).
+- If planning a **multi-wave replacement, rollback point, or old-path deletion**, read [references/wave-ordering.md](references/wave-ordering.md).
+- If drafting a **`/goal` for a greenfield or no-compatibility pass**, read [references/goal-template.md](references/goal-template.md).
 
-Examples:
+## Core Loop
 
-```txt
-Assume no users.
-This is greenfield.
-I want a clean break.
-Do not preserve old behavior.
-Refuse compatibility.
-Delete the slop.
-Would we add this if we started today?
-```
-
-This skill does not replace `cohesive-clean-breaks` or `collapse-pass`. It
-gives agents a sharper trigger for clean-break review when compatibility
-pressure has been released or was never earned.
-
-Compose with [fresh-context-review](../fresh-context-review/SKILL.md) when the
-user asks for fresh-context adversarial review of a concrete diff. This skill
-owns the compatibility stance, not reviewer orchestration.
+Run this before editing:
 
 ```txt
-cohesive-clean-breaks   broad redesign and breaking-change mechanics
-asymmetric-wins         refuse a feature to collapse a code family
-collapse-pass           repeated deletion loop
-greenfield-clean-breaks compatibility refusal and ideal-shape review
+1. Write the product sentence.
+2. Name the compatibility contracts that are real.
+3. Name the owner of each important value and invariant.
+4. List branches, options, fallbacks, aliases, helpers, and files that only
+   preserve old shape.
+5. Decide for each: break, migrate, preserve, or defer.
+6. If replacing a live path, build the new path, stop importing the old path,
+   verify, then delete.
+7. Re-run caller counts with rg.
+8. Validate with targeted tests and typecheck.
 ```
 
-Compatibility is a product feature, not the baseline. Before preserving an old shape, name the contract that makes compatibility real.
+## Product Sentence
+
+Write the ideal sentence first:
+
+```txt
+<noun> owns <boundary>; <caller> enters through <single path>; <runtime> does <one job>.
+```
+
+If the sentence needs "or", "also", "legacy", "fallback", or "unless old
+callers", the design is probably keeping two systems alive.
+
+## Compatibility Gate
+
+Compatibility is a product feature. Preserve old behavior only when a real
+contract exists:
 
 ```txt
 published package API
@@ -52,23 +68,18 @@ migration reader for existing data
 explicit product promise
 ```
 
-If no contract exists, treat the old shape as removable. If a contract exists, decide explicitly: break, migrate, or preserve.
-
-## Core Rule
-
-Write the ideal product sentence first.
+If no contract exists, treat the old shape as removable. If a contract exists,
+choose explicitly:
 
 ```txt
-<noun> owns <boundary>; <caller> enters through <single path>; <runtime> does <one job>.
+break     user loss is acceptable or explicitly approved
+migrate   durable data or real callers need a bridge
+preserve  compatibility is the product requirement
 ```
-
-Then judge the current code against that sentence.
-
-If the sentence still works without a branch, option, helper, state field, or compatibility path, delete it.
 
 ## Smell Catalog
 
-In greenfield mode, look for:
+Look for:
 
 ```txt
 two ways to do the same thing
@@ -87,13 +98,12 @@ state copied across layers for convenience
 branches that exist because an invariant is checked too late
 ```
 
-These are not automatically wrong. They are suspicious. Keep one only when you can name the concrete product behavior it preserves.
+These are not automatically wrong. Keep one only when you can name the concrete
+behavior or durable contract it preserves.
 
 ## Ownership Pass
 
 Name one owner for every important value and invariant.
-
-Use project vocabulary, not generic architecture words.
 
 ```txt
 auth session       signed-in identity
@@ -105,140 +115,45 @@ runtime actor      live coordination
 sync engine        protocol bytes
 ```
 
-If two layers can create, repair, reinterpret, or cache the same value, choose one owner and delete the other path.
+If two layers can create, repair, reinterpret, or cache the same value, choose
+one owner and delete the other path.
 
-## Review Loop
+## Related Moves
 
-Run this loop before editing:
+- Use [asymmetric-wins](../asymmetric-wins/SKILL.md) when one small refusal may delete a large code family.
+- Use [radical-options](../radical-options/SKILL.md) when the local fix is trapped inside a bad abstraction.
+- Use [refactoring](../refactoring/SKILL.md) for caller counts, inlining mechanics, and straggler sweeps.
+- Use [typescript](../typescript/SKILL.md) "Go-to-Definition Awareness" when
+  the clean break changes TypeScript exports, aliases, wrappers, or public
+  navigation across packages.
 
-```txt
-1. Write the product sentence.
-2. List current paths that create, read, update, delete, infer, cache, repair, or adapt the thing.
-3. Name the owner of each value.
-4. Mark each extra path as compatibility, fallback, convenience, repair, future option, or real product behavior.
-5. Ask whether the product sentence survives if the path is refused.
-6. If it survives, remove the path and record the refusal.
-7. Re-run caller counts with rg.
-8. Validate with targeted tests and typecheck.
-```
-
-Use this finding format before editing:
+## Finding Format
 
 ```txt
 Product sentence:
   ...
 
-Drift:
+Compatibility contracts:
   ...
 
 Value owners:
   ...
 
-Code family created:
+Drift:
   ...
 
-Greenfield clean break:
+Clean break:
   ...
 
-User loss:
-  ...
-
-Decision:
-  refuse / keep / defer because ...
-```
-
-## Go-to-Definition Awareness
-
-In greenfield mode, any extra Go-to-Def hop has to earn its keep. A developer pressing Go-to-Def from a call site should land on the actual source of truth, not on an alias, a re-export, or a behavior-free wrapper. If nothing earns the hop, delete it.
-
-The smell catalog (re-export chains, no-op adapters, destructure-re-exports,
-identity-obscuring annotations, hand-written aliases over a factory's return
-shape) lives in [typescript](../typescript/SKILL.md) "Go-to-Definition
-Awareness". Apply it, then delete any hop greenfield mode does not need.
-
-## Earned Trigger Test
-
-Do not add a table, public type, API field, route, service, config option, or lifecycle concept for a hypothetical future.
-
-It is earned only when the product has a concrete operation that cannot live in the current owner.
-
-Good earned triggers:
-
-```txt
-rename it
-delete it
-duplicate it
-disable it
-bill it
-permission it separately
-list it as a product object
-audit it as an admin action
-move it across an ownership boundary
-```
-
-Weak triggers:
-
-```txt
-maybe useful later
-keeps options open
-matches another product
-makes tests easier
-preserves an old mental model
-supports old callers when the user said greenfield
-```
-
-## Naming Bias
-
-Prefer names that say what a path actually owns:
-
-```txt
-create*       construction
-list*         read-only listing
-resolve*      pure validation or route resolution
-authorize*    permission checks
-sync*         protocol movement
-dispose*      teardown
-```
-
-Treat these names as review triggers:
-
-```txt
-ensure*
-getOrCreate*
-maybe*
-legacy*
-fallback*
-compat*
-default*
-repair*
-```
-
-Those names can be valid, but they must prove their owner. For example, `ensure*` can be fine for migration or infrastructure setup where creation is the purpose. It is suspicious in a product read path.
-
-## Spec Updates
-
-When a refusal lands, update the relevant spec.
-
-Use this shape:
-
-```txt
-Candidate:
-  ...
-
-Refusal:
+Deletion prize:
   ...
 
 User loss:
   ...
 
 Decision:
-  ...
-
-Trigger to revisit:
-  ...
+  break / migrate / preserve / defer because ...
 ```
-
-The trigger matters. Without it, "deferred" becomes a vague future bucket.
 
 ## Stop And Ask
 
@@ -253,4 +168,19 @@ changing encryption or sync wire format
 removing behavior the user has not actually released from compatibility pressure
 ```
 
-A clean break can remove product compatibility. It does not silently break durable data formats or published contracts unless the user explicitly accepts that break.
+Greenfield pressure can remove product compatibility. It does not silently
+break durable data formats or published contracts.
+
+## Final Check
+
+Ask:
+
+```txt
+Can I explain the new API without saying "or"?
+Does one layer own each invariant?
+Would a new caller find only one obvious path?
+Are examples free of compatibility shapes?
+Did I stop importing the old path before deleting it?
+Did verification pass before deletion?
+Did I delete stale names instead of leaving aliases?
+```

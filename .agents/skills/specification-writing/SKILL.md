@@ -378,7 +378,7 @@ If the spec replaces an old code path with a new one, write separate phases:
 4. Delete the old path                     (final cleanup wave)
 ```
 
-Do not schedule deletion before verification passes. [cohesive-clean-breaks](../cohesive-clean-breaks/SKILL.md) owns the full Build, Prove, Remove rationale.
+Do not schedule deletion before verification passes. [greenfield-clean-breaks](../greenfield-clean-breaks/SKILL.md) owns the full Build, Prove, Remove rationale.
 
 ### Edge Cases
 

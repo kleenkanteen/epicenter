@@ -439,7 +439,7 @@ Mark `specs/20260512T111335-post-oauth-audit-remediation.md` Phase 3 superseded 
 ## Notes for the implementer
 
 - Read the spec at `specs/20260512T220000-session-two-axis-cohesive-reshape.md` before starting. The spec explains *why*; this prompt tells you *what*.
-- Read `.claude/skills/cohesive-clean-breaks/SKILL.md` and `.claude/skills/auth/SKILL.md` for the project conventions this change embodies.
+- Read `.claude/skills/greenfield-clean-breaks/SKILL.md` and `.claude/skills/auth/SKILL.md` for the project conventions this change embodies.
 - The TypeScript compiler is your sweep tool. After Phase 1 and Phase 2 land, every remaining migration site will surface as a type error. Work through them mechanically.
 - For each app, commit at the end of that app's migration. Suggested message: `refactor({app}): migrate to nullable Session<T>`. Keep commits per-app for cherry-pickability.
 - If you discover an app or call site not listed in this prompt, audit it the same way. Do not relitigate the design.

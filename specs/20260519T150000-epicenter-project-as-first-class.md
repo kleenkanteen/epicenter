@@ -113,7 +113,7 @@ same "no manual init" experience.
 
 Today, `discover.ts` scans `<project>/workspaces/*/daemon.ts` and imports
 whatever it finds. That is filesystem-as-registry. The model the codebase is
-already pointing at (per the `cohesive-clean-breaks` skill's own example) is
+already pointing at (per the `greenfield-clean-breaks` skill's own example) is
 config-as-registry:
 
 ```ts
@@ -286,7 +286,7 @@ This is a clean break. The patch removes the `workspaces/` walk-up branch and
 the `~/.epicenter/` references in one PR. No alias, no fallback parser, no
 "if the old marker is present, use it." Existing projects migrate by running
 `epicenter migrate` (separately specced) or by manually creating the config
-file. The reasoning matches the `cohesive-clean-breaks` skill:
+file. The reasoning matches the `greenfield-clean-breaks` skill:
 
 ```
 Compatibility is a feature. If nobody explicitly asked for that feature,
@@ -517,7 +517,7 @@ The breaking change. Old paths gone, no aliases.
 - `apps/fuji/README.md`: update marker references; drop the in-project socket line.
 - `docs/scripting.md` line 46: single-marker walk-up to `epicenter.config.ts`.
 - `.agents/skills/workspace-app-layout/SKILL.md`: replace dual-marker text; add `defineConfig` example.
-- `.agents/skills/cohesive-clean-breaks/SKILL.md`: keep the `defineConfig` example; add a pointer to this spec as the worked example.
+- `.agents/skills/greenfield-clean-breaks/SKILL.md`: keep the `defineConfig` example; add a pointer to this spec as the worked example.
 
 ## Verification
 

@@ -55,8 +55,7 @@ Load only the skills that match the touched surface:
 
 ```txt
 collapse-pass            continuous deletion of unearned indirection
-cohesive-clean-breaks    public API, package boundary, config, lifecycle, naming, or ownership change
-greenfield-clean-breaks  compatibility refusal and ideal-shape review
+greenfield-clean-breaks    public API, package boundary, config, lifecycle, naming, ownership, greenfield, or clean-break decision
 fresh-context-review     independent adversarial review of a concrete diff or design
 asymmetric-wins          refuse a feature to collapse a disproportionate code family
 refactoring              caller counts, inlining, dead exports, stale imports, straggler sweep

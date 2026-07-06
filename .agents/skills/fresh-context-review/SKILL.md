@@ -39,10 +39,9 @@ Load only the relevant local skills before reviewing:
 - `typescript` for type ownership, local shape copies, and discriminated unions
 - `approachability-audit` for first-read clarity
 - `refactoring` for caller counts and helper inlining
-- `cohesive-clean-breaks` for refusing low-value behavior or states
 - `greenfield-clean-breaks` when the user says "greenfield", "no users",
-  "clean break", "refuse compatibility", or asks whether old behavior can be
-  deleted
+  "clean break", "refuse compatibility", asks whether old behavior can be
+  deleted, or the review points to a public-shape or ownership break
 - `define-errors` and `error-handling` when `Result`, `Err`, `Ok`, or
   `defineErrors` shapes are involved
 - `collapse-pass` when the user asks to shrink indirection or delete state
@@ -115,8 +114,8 @@ If the user asks you to act on the review:
 
 1. Add or adjust focused tests first.
 2. Make the correction that resolves the problem at its real owner. Use
-   `greenfield-clean-breaks` only when compatibility pressure has been
-   explicitly released.
+   `greenfield-clean-breaks` when compatibility pressure has been explicitly
+   released or the correction changes public shape.
 3. Re-read every touched file.
 4. Run package typecheck and tests.
 5. Stage only the files you touched when the user asks for staging.

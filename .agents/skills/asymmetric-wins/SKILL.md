@@ -1,6 +1,6 @@
 ---
 name: asymmetric-wins
-description: "Find the small promise to refuse when preserving it forces a large implementation family: trade a measured amount of fidelity, compatibility, modes, or reproducibility to delete disproportionate complexity. Use when the user says \"asymmetric wins\", \"asymmetric win\", \"what can we refuse\", \"what collapses the most code\", \"does this UI refactor need to be pixel perfect\", or when a design adds a fast path, fallback parser, provider-specific SDK, second transport, compatibility alias, exact reproduction requirement, or rare mode beside the canonical path. Pairs with one-sentence-test (detects the opportunity), refactoring (counts the code family), and cohesive-clean-breaks (executes the break)."
+description: "Find the small promise to refuse when preserving it forces a large implementation family: trade a measured amount of fidelity, compatibility, modes, or reproducibility to delete disproportionate complexity. Use when the user says \"asymmetric wins\", \"asymmetric win\", \"what can we refuse\", \"what collapses the most code\", \"does this UI refactor need to be pixel perfect\", or when a design adds a fast path, fallback parser, provider-specific SDK, second transport, compatibility alias, exact reproduction requirement, or rare mode beside the canonical path."
 ---
 
 # Asymmetric Wins
@@ -38,10 +38,9 @@ the loss is load-bearing.
   docs paths, and other code-family evidence before the refusal is executed.
 - `frontend-design` owns visual direction, accessibility, brand, and whether a
   UI detail is load-bearing before pixel fidelity is refused.
-- `cohesive-clean-breaks` executes the resulting breaking change, wave ordering,
+- `greenfield-clean-breaks` executes the resulting breaking change, wave ordering,
   and old-path deletion.
-- `greenfield-clean-breaks` and `radical-options` link here instead of
-  re-deriving the refusal move.
+- `radical-options` links here instead of re-deriving the refusal move.
 
 ## When To Run
 
