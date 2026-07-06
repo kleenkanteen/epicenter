@@ -8,12 +8,12 @@
 	import { agentMessageText } from '@epicenter/workspace/agent';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import {
-		buildTermCandidatePrompt,
-		parseTermCandidates,
-	} from '$lib/term-candidates';
+		buildEntryCandidatePrompt,
+		parseEntryCandidates,
+	} from '$lib/entry-candidates';
 	import { auth } from '$lib/platform/auth';
 	import { inferenceConnections } from '$lib/state/inference-connections.svelte';
-	import { termsState } from '$lib/state/terms.svelte';
+	import { entriesState } from '$lib/state/entries.svelte';
 	import DictationButton from './DictationButton.svelte';
 	import ReadingMarkdown from './ReadingMarkdown.svelte';
 
@@ -34,7 +34,7 @@
 	/** The selection's text with ruby annotations stripped: `toString()` would
 	 * include the reading `<rt>`/`<rp>` nodes, so selecting a word with readings
 	 * shown would capture the reading too instead of the verbatim characters. */
-	function selectedTermText(selection: Selection): string {
+	function selectedEntryText(selection: Selection): string {
 		const fragment = selection.getRangeAt(0).cloneContents();
 		for (const annotation of fragment.querySelectorAll('rt, rp')) {
 			annotation.remove();
@@ -49,7 +49,7 @@
 			return;
 		}
 
-		const text = selectedTermText(selection);
+		const text = selectedEntryText(selection);
 		if (!text) {
 			saveAffordance = null;
 			return;
@@ -65,8 +65,8 @@
 				: selection.focusNode?.parentElement;
 		// Same container required, not just any two: a drag from one message
 		// across the gap into another would otherwise save the whole span.
-		const anchorSource = anchorElement?.closest('[data-term-source]');
-		const focusSource = focusElement?.closest('[data-term-source]');
+		const anchorSource = anchorElement?.closest('[data-entry-source]');
+		const focusSource = focusElement?.closest('[data-entry-source]');
 		if (!anchorSource || anchorSource !== focusSource) {
 			saveAffordance = null;
 			return;
@@ -76,21 +76,21 @@
 		saveAffordance = { text, x: rect.left + rect.width / 2, y: rect.top };
 	}
 
-	function saveSelectedTerm() {
+	function saveSelectedEntry() {
 		if (!saveAffordance) return;
-		termsState.save(saveAffordance.text);
+		entriesState.save(saveAffordance.text);
 		document.getSelection()?.removeAllRanges();
 		saveAffordance = null;
 	}
 
-	/** Cap term candidates so a long answer cannot build a runaway tray. */
-	const TERM_CANDIDATE_CAP = 20;
+	/** Cap entry candidates so a long answer cannot build a runaway tray. */
+	const ENTRY_CANDIDATE_CAP = 20;
 
-	/** The transient term candidates for one settled message, held in component
+	/** The transient entry candidates for one settled message, held in component
 	 * memory only. Nothing here is persisted; a chosen span reaches the pool solely
-	 * through `termsState.save` (ADR-0102). One open at a time, like the selection
+	 * through `entriesState.save` (ADR-0102). One open at a time, like the selection
 	 * affordance above. */
-	let termCandidateRequest = $state<{
+	let entryCandidateRequest = $state<{
 		messageId: string;
 		status: 'loading' | 'ready' | 'error';
 		candidates: string[];
@@ -99,22 +99,22 @@
 		detail?: string;
 	} | null>(null);
 
-	/** Aborts the in-flight term candidate request when the user cancels or starts
+	/** Aborts the in-flight entry candidate request when the user cancels or starts
 	 * another one. */
-	let termCandidateAbortController: AbortController | null = null;
+	let entryCandidateAbortController: AbortController | null = null;
 
 	/** Ask the model for the notable spans in one settled message and open the
 	 * tray with them. It is a one-shot completion (`complete`), so it writes no
 	 * transcript turn and stores no gloss or provenance: the response lives only in
-	 * `termCandidateRequest.candidates` until the user saves or dismisses it. */
-	async function suggestTerms(messageId: string, passage: string) {
+	 * `entryCandidateRequest.candidates` until the user saves or dismisses it. */
+	async function suggestEntries(messageId: string, passage: string) {
 		// Abort any prior request still in flight so it stops consuming the endpoint;
 		// its result is dropped by the stale-message guard below regardless.
-		termCandidateAbortController?.abort();
+		entryCandidateAbortController?.abort();
 		const model = active?.model;
 		if (!model) {
-			termCandidateAbortController = null;
-			termCandidateRequest = {
+			entryCandidateAbortController = null;
+			entryCandidateRequest = {
 				messageId,
 				status: 'error',
 				candidates: [],
@@ -123,21 +123,21 @@
 			return;
 		}
 		const controller = new AbortController();
-		termCandidateAbortController = controller;
-		termCandidateRequest = { messageId, status: 'loading', candidates: [] };
+		entryCandidateAbortController = controller;
+		entryCandidateRequest = { messageId, status: 'loading', candidates: [] };
 		const connection = inferenceConnections.resolveOrHosted(model);
 		const { data, error } = await complete(connection, {
 			model,
-			systemPrompt: buildTermCandidatePrompt(),
+			systemPrompt: buildEntryCandidatePrompt(),
 			userPrompt: passage,
 			signal: controller.signal,
 		});
 		// A dismiss, a cancel, or a request for another message may have superseded
 		// this one while it was in flight; drop the stale result rather than
 		// overwrite. (A cancel nulls the request, so an aborted request lands here.)
-		if (termCandidateRequest?.messageId !== messageId) return;
+		if (entryCandidateRequest?.messageId !== messageId) return;
 		if (error) {
-			termCandidateRequest = {
+			entryCandidateRequest = {
 				messageId,
 				status: 'error',
 				candidates: [],
@@ -145,24 +145,24 @@
 			};
 			return;
 		}
-		termCandidateRequest = {
+		entryCandidateRequest = {
 			messageId,
 			status: 'ready',
-			candidates: parseTermCandidates(data).slice(0, TERM_CANDIDATE_CAP),
+			candidates: parseEntryCandidates(data).slice(0, ENTRY_CANDIDATE_CAP),
 		};
 	}
 
-	/** Close the term candidate tray, aborting the request first when one is still loading. */
-	function dismissTermCandidates() {
-		termCandidateAbortController?.abort();
-		termCandidateAbortController = null;
-		termCandidateRequest = null;
+	/** Close the entry candidate tray, aborting the request first when one is still loading. */
+	function dismissEntryCandidates() {
+		entryCandidateAbortController?.abort();
+		entryCandidateAbortController = null;
+		entryCandidateRequest = null;
 	}
 
-	/** Whether a candidate is already in the pool, derived from terms so it is
+	/** Whether a candidate is already in the pool, derived from entries so it is
 	 * never stored on the candidate and reflects a save immediately. */
-	function isTermSaved(text: string): boolean {
-		return termsState.terms.some((term) => term.text === text);
+	function isEntrySaved(text: string): boolean {
+		return entriesState.entries.some((entry) => entry.text === text);
 	}
 
 	/** Land a dictated transcript in the draft for review, appended to whatever is
@@ -182,9 +182,9 @@
 		class="fixed z-50 -translate-x-1/2 -translate-y-full rounded border bg-popover px-2 py-1 text-xs shadow-sm"
 		style="left: {saveAffordance.x}px; top: {saveAffordance.y - 6}px;"
 		onpointerdown={(event) => event.preventDefault()}
-		onclick={saveSelectedTerm}
+		onclick={saveSelectedEntry}
 	>
-		Save term
+		Save entry
 	</button>
 {/if}
 
@@ -204,31 +204,31 @@
 				rich markdown + readings pass runs once the message settles. -->
 				<div class="whitespace-pre-wrap">{agentMessageText(msg)}</div>
 			{:else}
-				<div data-term-source>
+				<div data-entry-source>
 					<ReadingMarkdown passage={agentMessageText(msg)} {showReadings} />
 				</div>
 
-				{#if termCandidateRequest?.messageId === msg.id}
+				{#if entryCandidateRequest?.messageId === msg.id}
 					<div class="mt-2 rounded-md border bg-muted/40 p-2">
-						{#if termCandidateRequest.status === 'loading'}
+						{#if entryCandidateRequest.status === 'loading'}
 							<div class="flex items-center justify-between gap-2">
 								<p class="text-xs text-muted-foreground">Finding suggestions...</p>
-								<Button variant="ghost" size="sm" onclick={dismissTermCandidates}>
+								<Button variant="ghost" size="sm" onclick={dismissEntryCandidates}>
 									Cancel
 								</Button>
 							</div>
-						{:else if termCandidateRequest.status === 'error'}
+						{:else if entryCandidateRequest.status === 'error'}
 							<div class="flex items-center justify-between gap-2">
 								<div class="min-w-0">
 									<p class="text-xs text-muted-foreground">
-										Couldn't read terms from this message.
+										Couldn't read entries from this message.
 									</p>
-									{#if termCandidateRequest.detail}
+									{#if entryCandidateRequest.detail}
 										<p
 											class="mt-0.5 truncate text-xs text-muted-foreground/70"
-											title={termCandidateRequest.detail}
+											title={entryCandidateRequest.detail}
 										>
-											{termCandidateRequest.detail}
+											{entryCandidateRequest.detail}
 										</p>
 									{/if}
 								</div>
@@ -236,41 +236,41 @@
 									<Button
 										variant="ghost"
 										size="sm"
-										onclick={() => suggestTerms(msg.id, agentMessageText(msg))}
+										onclick={() => suggestEntries(msg.id, agentMessageText(msg))}
 									>
 										Try again
 									</Button>
-									<Button variant="ghost" size="sm" onclick={dismissTermCandidates}>
+									<Button variant="ghost" size="sm" onclick={dismissEntryCandidates}>
 										Dismiss
 									</Button>
 								</div>
 							</div>
-						{:else if termCandidateRequest.candidates.length === 0}
+						{:else if entryCandidateRequest.candidates.length === 0}
 							<div class="flex items-center justify-between gap-2">
-								<p class="text-xs text-muted-foreground">No terms found here.</p>
-								<Button variant="ghost" size="sm" onclick={dismissTermCandidates}>
+								<p class="text-xs text-muted-foreground">No entries found here.</p>
+								<Button variant="ghost" size="sm" onclick={dismissEntryCandidates}>
 									Dismiss
 								</Button>
 							</div>
 						{:else}
 							<div class="mb-1.5 flex items-center justify-between">
 								<span class="text-xs text-muted-foreground">
-									Tap a term to save it
+									Tap an entry to save it
 								</span>
-								<Button variant="ghost" size="sm" onclick={dismissTermCandidates}>
+								<Button variant="ghost" size="sm" onclick={dismissEntryCandidates}>
 									Dismiss
 								</Button>
 							</div>
 							<div class="flex flex-wrap gap-1.5">
-								{#each termCandidateRequest.candidates as candidate (candidate)}
-									{@const saved = isTermSaved(candidate)}
+								{#each entryCandidateRequest.candidates as candidate (candidate)}
+									{@const saved = isEntrySaved(candidate)}
 									<button
 										type="button"
 										class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-sm {saved
 											? 'text-muted-foreground'
 											: 'hover:bg-accent'}"
 										disabled={saved}
-										onclick={() => termsState.save(candidate)}
+										onclick={() => entriesState.save(candidate)}
 									>
 										{#if saved}<CheckIcon class="size-3" />{/if}
 										{candidate}
@@ -283,9 +283,9 @@
 					<button
 						type="button"
 						class="mt-1.5 text-xs text-muted-foreground hover:text-foreground"
-						onclick={() => suggestTerms(msg.id, agentMessageText(msg))}
+						onclick={() => suggestEntries(msg.id, agentMessageText(msg))}
 					>
-						Suggest terms
+						Suggest entries
 					</button>
 				{/if}
 			{/if}

@@ -1,16 +1,16 @@
 /**
- * Term candidates: propose savable spans from one settled assistant message.
+ * Entry candidates: propose savable spans from one settled assistant message.
  *
  * The sibling of {@link buildPracticePrompt} on the read side. Where Practice
- * compiles saved terms into a passage, this asks the model to extract notable
+ * compiles saved entries into a passage, this asks the model to extract notable
  * spans from a passage the user just read, so a whole answer can be triaged into
- * the term pool without dragging a selection over each phrase. Its reason to
+ * the entry pool without dragging a selection over each phrase. Its reason to
  * exist is spans a local segmenter cannot reach (multi-character phrases,
  * chengyu), which is exactly why ADR-0102 retired tap-capture.
  *
  * Nothing here is persisted. The model's output is transient: it becomes a list
  * of candidate strings the user chooses from, and only the chosen `text` flows
- * through the one term writer (`termsState.save`). No gloss, no meaning, no
+ * through the one entry writer (`entriesState.save`). No gloss, no meaning, no
  * provenance, no language, and no candidate metadata is ever stored (ADR-0102).
  *
  * Deliberately language-neutral, like {@link buildPracticePrompt}: it names no
@@ -21,17 +21,17 @@
  */
 
 /**
- * The system prompt for a term-candidate extraction request. The passage to read
+ * The system prompt for an entry-candidate extraction request. The passage to read
  * is sent as the user turn (see `complete`), so this takes no argument: it is
  * the fixed instruction that turns any passage into a bare, one-span-per-line
  * list.
  *
  * It asks for spans only, no glosses, because the meaning lives in the chat the
  * span came from, never in a stored definition (ADR-0102). The parser
- * ({@link parseTermCandidates}) recovers spans even when the model disobeys and
+ * ({@link parseEntryCandidates}) recovers spans even when the model disobeys and
  * adds numbering or a gloss anyway, so this stays a request, not a contract.
  */
-export function buildTermCandidatePrompt(): string {
+export function buildEntryCandidatePrompt(): string {
 	return [
 		'You extract vocabulary spans a language learner might want to save from a passage they just read.',
 		'A span is a verbatim stretch worth learning on its own: a single word, a phrase, or an idiom.',
@@ -41,12 +41,12 @@ export function buildTermCandidatePrompt(): string {
 		'- Extract only spans in the language the learner is studying, not the language used to explain them.',
 		'- Do not number the lines, do not add bullets, and do not wrap spans in quotes.',
 		'- Do not add a meaning, translation, or reading. Output the spans and nothing else.',
-		'- Skip trivial filler and anything not worth saving as its own term.',
+		'- Skip trivial filler and anything not worth saving as its own entry.',
 	].join('\n');
 }
 
 /**
- * Turn one term-candidate response into clean strings.
+ * Turn one entry-candidate response into clean strings.
  *
  * The model is asked for a bare list, but this stays robust to the common ways
  * it strays: numbering (`1.`, `2)`), bullets (`-`, `*`, `•`), a header line
@@ -60,7 +60,7 @@ export function buildTermCandidatePrompt(): string {
  * not mistaken for a gloss. The human is the final filter; this only removes
  * formatting the model wrapped around the spans.
  */
-export function parseTermCandidates(raw: string): string[] {
+export function parseEntryCandidates(raw: string): string[] {
 	const seen = new Set<string>();
 	const candidates: string[] = [];
 	for (const line of raw.split('\n')) {
@@ -84,7 +84,7 @@ function cleanLine(line: string): string {
 	// Leading list marker the model added despite the instruction: "- ", "* ",
 	// "• ", "1. ", "2) ". Requires trailing space so a hyphenated word is safe.
 	span = span.replace(/^(?:[-*•–]|\d+[.)])\s+/, '');
-	// A header like "Vocabulary:" is not a term; a real span never ends in a colon.
+	// A header like "Vocabulary:" is not an entry; a real span never ends in a colon.
 	if (/[:：]\s*$/.test(span)) return '';
 	// The model glossed anyway: keep the part before " - ", a full-width colon, or
 	// ": ". Spaced separators only, so "state-of-the-art" and "你好：世界" survive
