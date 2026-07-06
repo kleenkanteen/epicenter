@@ -62,11 +62,12 @@ const flags: string[] = [];
 // --- Smell 1: terminal-status specs still in the tree ----------------------
 // The status VALUE must START with a terminal word (after optional ~~/** markdown
 // wrappers), so "Partially superseded" and "Draft (not yet implemented)" do not
-// trip; only an unambiguous done/superseded does.
+// trip; only an unambiguous done/superseded does. The line may start as a block
+// quote or list item because specs often carry status in copied review notes.
 // Horizontal whitespace only ([ \t], never \s): the match must stay on the
 // status line so a paragraph several lines below "Status:" cannot cross-match.
 const TERMINAL =
-	/^[ \t]*[*~]*status[*~]*[ \t]*[:=][ \t]*[*~]*[ \t]*(implemented|complete|completed|done|shipped|landed|merged|accepted|approved|superseded|replaced|archived|obsolete|retrospective|reversed)\b/im;
+	/^[ \t]*(?:>[ \t]*)?(?:[-*+][ \t]*)?[*~]*status[*~]*[ \t]*[:=][ \t]*[*~]*[ \t]*(implemented|complete|completed|done|shipped|landed|merged|accepted|approved|superseded|replaced|archived|obsolete|retrospective|reversed)\b/im;
 const specFiles = tracked('*specs/*.md').filter(
 	(p) => !p.endsWith('/README.md'),
 );

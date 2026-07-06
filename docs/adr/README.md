@@ -185,6 +185,7 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0106](0106-a-child-doc-body-owns-one-layout-the-polymorphic-timeline-is-refused-until-a-product-earns-it.md) | A child-doc body owns one layout; the polymorphic timeline is refused until a product earns it | Accepted |
 | [0107](0107-a-child-doc-text-body-is-a-plain-y-text-the-timeline-array-is-deleted.md) | A child-doc text body is a plain `Y.Text`; the timeline array is deleted | Accepted |
 | [0108](0108-provider-credentials-are-selected-by-target-environment-encoded-in-the-secret-name.md) | Third-party provider credentials are selected by the app's target provider-environment, encoded in the secret name and resolved by one injected helper | Accepted |
+| [0109](0109-hosted-tauri-auth-keeps-app-owned-keyring-edges-until-three-real-callers-earn-sharing.md) | Hosted Tauri auth keeps app-owned keyring edges until three real callers earn sharing | Accepted |
 | [0110](0110-edit-write-timing-follows-the-value-owner-there-is-no-debounce-tier.md) | Edit write timing follows the value owner; there is no debounce tier | Accepted |
 
 When you add an ADR, add its row here.
