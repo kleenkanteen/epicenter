@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-07-06
 - **Supersedes:** [ADR-0097](0097-super-chat-tool-modules-receive-a-host-api.md)
-- **Relates:** [ADR-0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md), [ADR-0084](0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md), [ADR-0096](0096-local-workspace-persistence-is-environment-injected.md)
+- **Relates:** [ADR-0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md), [ADR-0084](0084-super-chat-shell-is-a-bun-hosted-local-server-not-a-bundled-spa.md), [ADR-0096](0096-local-workspace-persistence-is-environment-injected.md)
 
 ## Context
 
@@ -72,23 +72,6 @@ by Super Chat operate on Super Chat's own local replicas. Making those replicas
 converge with app UIs is the signed-in Bun connection and relay-sync slice named
 by ADR-0096, not a plugin-loading concern.
 
-## Execution plan
-
-1. Decide whether Local Books is part of Super Chat v1. If yes, keep its stdio
-   MCP adapter as a named external-tool integration. If no, remove MCP from the
-   Super Chat host for now.
-2. Remove loose TypeScript module loading: delete the loader, `ToolHost`
-   contract, `toolsDir` option, loader fixtures, and tests that only cover that
-   path.
-3. Keep built-in app composition: Super Chat imports first-party workspace
-   definitions directly, opens local replicas with environment-injected
-   persistence, and exposes their actions through the tool catalog.
-4. Update Super Chat docs and agent instructions so "installed app" no longer
-   means a dropped `.ts` file.
-5. Schedule the signed-in Bun `connect(connection, { persistence })` slice after
-   the cleanup, because that is what makes Super Chat's replicas converge with
-   app UI replicas.
-
 ## Re-entry triggers
 
 Reopen third-party workspace app install when a real third-party workspace app
@@ -99,7 +82,10 @@ permissions, trust, pinning, and namespace allocation.
 Reopen scripting when a real workflow needs many tool calls and would be simpler
 as one user-authored program. Start from an out-of-process TypeScript script
 runner that exposes `scripts/list` and `scripts/run` through the tool catalog or
-MCP, not from host-side dynamic import.
+MCP, not from host-side dynamic import. When that work starts, use PR #2390 and
+the removed `tool-loader.ts` / `tool-module.ts` code as reference material for
+the old obligations and ergonomics, but redesign the scripting surface from
+scratch instead of resurrecting the deleted host-import contract.
 
 Reopen in-process user code only if the product explicitly wants unsafe local
 developer automation, and record it as such. The default app and scripting paths

@@ -16,7 +16,7 @@
 >
 > **Regenerate (deterministic per ref set, lossless):** `bun scripts/generate-spec-history.ts`. The totals track the refs this clone can see; `--all` is deliberate so the timeline recovers specs that only lived on unmerged or deleted branches.
 
-**1357 specs ever** (564 still in tree, 793 removed).
+**1357 specs ever** (563 still in tree, 794 removed).
 
 
 ## 2026
@@ -30,7 +30,7 @@
 | 2026-07-02 | one-preset-shape-and-derived-migration-guids | removed | specs/20260702T001604-one-preset-shape-and-derived-migration-guids.md |
 | 2026-07-01 | local-mail-up-bun-served-shell | removed | specs/20260701T141500-local-mail-up-bun-served-shell.md |
 | 2026-07-01 | local-mail-phase-2-engine | removed | specs/20260701T140000-local-mail-phase-2-engine.md |
-| 2026-07-01 | super-chat-canonicalization-handoff | in tree | specs/20260701T235243-super-chat-canonicalization-handoff.md |
+| 2026-07-01 | super-chat-canonicalization-handoff | removed | specs/20260701T235243-super-chat-canonicalization-handoff.md |
 | 2026-07-01 | api-keyring-and-vault-wiring | in tree | specs/20260701T150000-api-keyring-and-vault-wiring.md |
 | 2026-07-01 | progressive-sign-in-collapse | removed | specs/20260701T151347-progressive-sign-in-collapse.md |
 | 2026-07-01 | progressive-sign-in-collapse.prompt | removed | specs/20260701T151347-progressive-sign-in-collapse.prompt.md |

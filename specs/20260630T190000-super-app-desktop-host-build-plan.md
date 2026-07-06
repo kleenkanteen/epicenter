@@ -2,12 +2,12 @@
 
 - **Status:** Draft
 - **Date:** 2026-06-30
-- **Decision of record:** [ADR-0080](../docs/adr/0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (the desktop-host shape) and [ADR-0084](../docs/adr/0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md) (how the host loads tools and packages its shell). This spec is the execution scaffolding for both and is deleted when the slices land.
+- **Decision of record:** [ADR-0080](../docs/adr/0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (the desktop-host shape), [ADR-0110](../docs/adr/0110-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md) (v1 app/tool exposure), and [ADR-0084](../docs/adr/0084-super-chat-shell-is-a-bun-hosted-local-server-not-a-bundled-spa.md) (the Bun-hosted shell). This spec is execution scaffolding and is deleted when the remaining slices land.
 - **Relates:** [seam-2 data placement rule](20260630T173000-cross-device-topology-seam-2-the-rule.md) (where each app's data lives), ADR-0079 (the planes), ADR-0047 (client agent loop), ADR-0072/0073 (Local Books off the mesh, MCP verb facade)
 
 ## What this is
 
-The super app is an Epicenter chat that composes the verbs of your installed apps into one agent loop and dispatches on your behalf. ADR-0080 settles its shape: a single desktop host that composes only local app surfaces, reached from other devices as a remote session. This spec records what already exists, what is missing, and the order to build it.
+The super app is an Epicenter chat that composes the verbs of built-in Epicenter apps and named external tools into one agent loop and dispatches on your behalf. ADR-0080 settles its shape: a single desktop host that composes only local app surfaces, reached from other devices as a remote session. This spec records what already exists, what is missing, and the order to build it.
 
 ## The composition model (mostly shipped)
 
@@ -37,7 +37,7 @@ The discover-and-invoke machine exists and is greenfield-clean. The super app is
 
 1. **The multi-bundle host.** Nothing today opens several different apps' iso definitions side by side in one process and composes their registries; a daemon mounts exactly one `Mount` per config. This is the one genuinely new piece for arm A.
 2. **A local stdio-MCP `ToolCatalog` adapter** so arm B joins the same seam. `createMcpGatewayCatalog` exists but is wired to the relay transport, not a co-located subprocess. A small adapter onto a `StdioClientTransport` closes this.
-3. **Discovery is a static install-time list**, not a registry or a presence directory. For arm A it is the set of vendored or statically imported bundles; for arm B it is a local MCP-server config (the Claude Code shape). No registry or directory machinery is needed or wanted for Slice 1.
+3. **Discovery is a static built-in list**, not a registry or a presence directory. For arm A it is the set of statically imported Epicenter-owned bundles; for arm B it is a named external-tool MCP config. No registry or directory machinery is needed or wanted for Slice 1.
 
 ## Build slices (simplest first)
 
@@ -61,16 +61,21 @@ Entry decision before any code: **what is "the session"?** The three options are
 
 Pick one before planning Slice 2. Whichever it is, the confidential default is local-or-end-to-end-to-the-desktop over the user's own overlay; a content-readable hosted broker is refused while sensitive apps are mounted. No per-app endpoints are added. The phone runs no super app; it views the one desktop session.
 
-### Slice 3: a registry for third-party apps (earned, only for live install)
+### Slice 3: third-party apps or scripting (earned, not v1)
 
-Repair the broken jsrepo producer registry (root jsrepo.config.ts points at paths deleted by the folder-routed migration) and add runtime delivery, so a new app can be installed into the host without a rebuild. Worth it only when third-party or user-authored apps are a goal. Mounting stays a deliberate, human-reviewed, pinned install action, never runtime auto-fetch-and-eval: imported TypeScript runs with full ambient authority and is trusted source, not a sandbox (docs/articles/native-typescript-is-not-a-plugin-sandbox.md). Real isolation would be a separate WASM or SES plugin ABI, out of scope until an untrusted-marketplace requirement is real.
+ADR-0110 refuses loose in-process TypeScript modules for v1. Reopen this only
+when a real third-party workspace app or user-authored scripting workflow exists.
+Third-party workspace apps start from a manifest contract. Scripting starts from
+an out-of-process runner. PR #2390 and the removed loader code are useful
+reference material for the old ergonomics and obligations, not a shape to restore
+mechanically.
 
 ## Invariants this build must hold
 
 - The super app composes verbs (action calls and MCP tools), never another app's SQLite or data. Each app's SQLite is its private, per-runtime, derived cache.
 - The super app never reaches an app over a network. Arms A and B are same-desktop; cross-device is the host session (arm C).
 - Cloud-upstream apps keep their mirror private and expose only their MCP verb facade. An A-only host cannot reach them, so arm B is load-bearing, not optional: Local Books and Gmail are exactly the apps the cross-app product goal most needs.
-- Discovery is a static install-time list. Do not revive presence-over-relay, the dispatch subsystem, or a daemon directory.
+- Discovery is a static built-in list. Do not revive presence-over-relay, the dispatch subsystem, a daemon directory, or loose host-side TypeScript imports.
 
 ## The open product question (founder, not engineer)
 

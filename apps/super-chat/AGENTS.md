@@ -2,7 +2,7 @@
 
 One local desktop chat session; built-in apps enter through one verb catalog; the Bun sidecar owns chat execution, static assets, and the local token gate.
 
-Design authority: [ADR-0080](../../docs/adr/0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (desktop host; remote devices attach to the session, never to per-app endpoints), [ADR-0110](../../docs/adr/0110-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md) (v1 exposes built-in Epicenter apps and defers extension surfaces), and [ADR-0084](../../docs/adr/0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md) (the shell is a Bun-hosted loopback server with a per-launch token; its old tool-loading half is superseded).
+Design authority: [ADR-0080](../../docs/adr/0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (desktop host; remote devices attach to the session, never to per-app endpoints), [ADR-0110](../../docs/adr/0110-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md) (v1 exposes built-in Epicenter apps and defers extension surfaces), and [ADR-0084](../../docs/adr/0084-super-chat-shell-is-a-bun-hosted-local-server-not-a-bundled-spa.md) (the shell is a Bun-hosted loopback server with a per-launch token; its old tool-loading half is superseded).
 
 ## Shape
 
