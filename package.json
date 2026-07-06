@@ -132,6 +132,7 @@
 		"check": "bun run format:check && bun run lint:check && bun run typecheck",
 		"dev": "bun run dev:tab-manager",
 		"dev:api": "bun run --cwd apps/api dev",
+		"smoke:local": "bun run --cwd apps/api smoke:local",
 		"dev:tab-manager": "bun run --filter @epicenter/api --filter @epicenter/tab-manager dev",
 		"dev:tab-manager:ui": "bun run --cwd apps/tab-manager dev",
 		"format": "biome check --write --linter-enabled=false",

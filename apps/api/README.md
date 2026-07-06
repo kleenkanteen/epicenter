@@ -123,10 +123,15 @@ There are three layers, each with a different URL source:
 
 ```bash
 bun dev              # Local dev server (uses local Postgres)
+bun run smoke:local  # Runtime-parity smoke with dev auth and fake local env
 bun deploy           # Deploy to Cloudflare Workers
 bun run typecheck    # Type check
 bun test             # Run tests
 ```
+
+`smoke:local` is the no-Infisical verification path. It starts `server.dev.ts`,
+runs `scripts/smoke.ts`, writes room data under a temporary directory, and skips
+the blob leg unless `BLOBS_S3_*` points at a local S3-compatible store.
 
 ### Local blob storage
 

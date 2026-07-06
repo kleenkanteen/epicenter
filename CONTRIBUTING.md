@@ -91,6 +91,8 @@ You can still contribute to the API schema without Infisical access. From `apps/
 
 Write the migration, push it locally, open a PR. A maintainer with Infisical prod access applies it via `bun run db:migrate:remote`.
 
+To check the API runtime without Infisical, run `bun run smoke:local` from the repo root. It boots the Bun API port with dev auth and fake local-only env values, runs the runtime-parity smoke, and skips the blob leg when no local S3 store is configured.
+
 The convention in one line: `:local` works on a fresh clone, `:remote` wraps with `infisical run --env=prod` and is admin-only. See [`docs/articles/local-remote-script-convention.md`](docs/articles/local-remote-script-convention.md) for the full story.
 
 ## Development Workflow
