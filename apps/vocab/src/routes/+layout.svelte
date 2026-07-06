@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { SignInMigrationDialog } from '@epicenter/app-shell/sign-in-migration';
 	import { WorkspaceGate } from '@epicenter/app-shell/workspace-gate';
+	import { FlushEditsOnHide } from '@epicenter/svelte';
 	import { reloadOnPrincipalChange } from '@epicenter/svelte/auth';
 	import { ConfirmationDialog } from '@epicenter/ui/confirmation-dialog';
 	import { Toaster } from '@epicenter/ui/sonner';
@@ -41,3 +42,4 @@
 <ConfirmationDialog />
 <SignInMigrationDialog migration={signInMigration} />
 <ModeWatcher />
+<FlushEditsOnHide />
