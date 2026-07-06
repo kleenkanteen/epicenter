@@ -58,6 +58,15 @@ Two enforcement mechanisms make the middle tier real:
 - A debounced middle tier is refused. Debounce has every failure mode of blur
   (still needs the hide net) plus timers, flush-on-unmount bookkeeping, and
   writes that land mid-typing. Blur is strictly simpler and maps to intent.
+- The net is only as synchronous as the blur handler. `.blur()` dispatches the
+  blur event synchronously, but a handler that defers its write
+  (`requestAnimationFrame`, `setTimeout`, an `await` before the write) escapes
+  the guarantee: rAF callbacks do not run while the document is hidden, and
+  teardown outruns timers. Blur handlers on durable fields write synchronously;
+  a handler that needs a deferred path for a visible-page focus dance (the tree
+  rename inputs wait one frame so a closing context menu does not cancel the
+  edit) branches on `document.visibilityState === 'hidden'` and commits
+  immediately there.
 - Skipped no-op updates mean a caller can no longer "touch" a row to refresh
   its LWW timestamp by rewriting equal values. No current caller does this
   deliberately; if one ever needs touch semantics, that is an explicit new

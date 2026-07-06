@@ -225,6 +225,8 @@ Render `FlushEditsOnHide` from `@epicenter/svelte` once in the root layout
 
 When the page is being hidden (tab close, Cmd+W, tab switch, window minimize, iOS app-switch, bfcache), the component force-blurs the focused element; `.blur()` synchronously dispatches its blur event, which synchronously runs your commit handler, which synchronously updates the Y.Doc: all before the page tears down. One line in one place, and every `<input onblur>` in the app inherits the resilience.
 
+The guarantee is only as synchronous as the handler. A blur handler that defers its write (`requestAnimationFrame`, `setTimeout`, an `await` before the write) escapes the net: rAF callbacks never run while the document is hidden, and teardown outruns timers. If a handler needs a deferred path for a visible-page focus dance (the tree rename inputs wait one frame so a closing context menu does not cancel the edit), branch on `document.visibilityState === 'hidden'` and commit synchronously in that branch.
+
 Do not hand-roll the two listeners per app: `visibilitychange` is a document event and `pagehide` is a window event, and putting either on the wrong special element typechecks loosely and never fires. The component owns that split (see `packages/svelte-utils/src/flush-edits-on-hide.svelte`).
 
 ## The default for new apps
