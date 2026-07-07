@@ -6,10 +6,19 @@
 	/auth/sign-in/social with `oauth_query` (the signed authorize params) so an
 	OAuth re-entry continues the flow after the IdP roundtrip.
 
+	A passkey row renders when the browser exposes WebAuthn
+	(PublicKeyCredential). The server side is always present because this app
+	mounts the Better Auth passkey plugin. Successful authentication sets a
+	standard session cookie, so a full reload with the query string intact
+	re-enters the server's GET /sign-in, which already redirects `?sig=`
+	sessions into the authorize flow.
+
 	Signed in (no `sig` / safe `callbackURL`, which the server redirects before
-	this renders): confirmation of which account this browser holds, plus
-	sign-out. Better Auth's /auth/sign-out rejects a bodyless POST with 415, so
-	the request sends `Content-Type: application/json` and `{}`.
+	this renders): confirmation of which account this browser holds, passkey
+	registration (the plugin requires a fresh session, so this signed-in card is
+	the natural same-origin home for it), plus sign-out. Better Auth's
+	/auth/sign-out rejects a bodyless POST with 415, so the request sends
+	`Content-Type: application/json` and `{}`.
 -->
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
@@ -18,12 +27,17 @@
 	import * as Card from '@epicenter/ui/card';
 	import { Spinner } from '@epicenter/ui/spinner';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
+	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import AuthCard from '$lib/auth/AuthCard.svelte';
 	import ProviderButton from '$lib/auth/ProviderButton.svelte';
 	import { getOAuthQuery } from '$lib/auth/oauth-query';
 	import {
+		authenticateWithPasskey,
+		registerPasskey,
+		supportsPasskeys,
+	} from '$lib/auth/passkey';
+	import {
 		PROVIDER_LABELS,
-		SOCIAL_PROVIDERS,
 		type SocialProvider,
 	} from '$lib/auth/sign-in-context';
 	import type { PageProps } from './$types';
@@ -31,9 +45,7 @@
 	let { data }: PageProps = $props();
 
 	const session = $derived(data.context.session);
-	const enabledProviders = $derived(
-		SOCIAL_PROVIDERS.filter((provider) => data.context.providers[provider]),
-	);
+	const enabledProviders = $derived(data.context.providers);
 	// Better Auth falls back to the email for `user.name`; showing the same
 	// string twice reads as a rendering bug, so only a real name renders.
 	const hasRealName = $derived(
@@ -42,8 +54,14 @@
 			session.name.trim().toLowerCase() !== session.email.trim().toLowerCase(),
 	);
 
+	// The backend always has the passkey plugin; the browser WebAuthn API is the
+	// capability that varies by client.
+	const passkeyAvailable = $derived(supportsPasskeys());
+
 	let busy = $state(false);
 	let signingOut = $state(false);
+	let addingPasskey = $state(false);
+	let passkeyAdded = $state(false);
 	let errorMessage = $state<string | null>(null);
 
 	async function startSocial(provider: SocialProvider) {
@@ -83,6 +101,37 @@
 			errorMessage = 'Network error. Check your connection and try again.';
 			busy = false;
 		}
+	}
+
+	async function startPasskey() {
+		errorMessage = null;
+		busy = true;
+		const result = await authenticateWithPasskey();
+		if (!result.error) {
+			// Reload with the query string intact; the server's GET /sign-in sees
+			// the new session cookie and continues the `?sig=` authorize re-entry
+			// (or the safe callbackURL redirect) with no extra client logic.
+			window.location.reload();
+			return;
+		}
+		// A dismissed browser prompt is expected; reset quietly.
+		errorMessage =
+			result.error.name === 'PromptCancelled' ? null : result.error.message;
+		busy = false;
+	}
+
+	async function addPasskey() {
+		errorMessage = null;
+		passkeyAdded = false;
+		addingPasskey = true;
+		const result = await registerPasskey();
+		if (!result.error) {
+			passkeyAdded = true;
+		} else {
+			errorMessage =
+				result.error.name === 'PromptCancelled' ? null : result.error.message;
+		}
+		addingPasskey = false;
 	}
 
 	async function signOut() {
@@ -137,11 +186,32 @@
 					<Alert.Description>{errorMessage}</Alert.Description>
 				</Alert.Root>
 			{/if}
+			{#if passkeyAdded}
+				<p class="text-sm text-muted-foreground">
+					Passkey added. Use it the next time you sign in.
+				</p>
+			{/if}
+			{#if passkeyAvailable}
+				<Button
+					variant="outline"
+					class="w-full"
+					onclick={addPasskey}
+					disabled={addingPasskey || signingOut}
+				>
+					{#if addingPasskey}
+						<Spinner class="size-3.5" />
+						<span>Adding passkey</span>
+					{:else}
+						<FingerprintIcon class="size-4" />
+						Add a passkey
+					{/if}
+				</Button>
+			{/if}
 			<Button
 				variant="outline"
 				class="w-full"
 				onclick={signOut}
-				disabled={signingOut}
+				disabled={signingOut || addingPasskey}
 			>
 				{#if signingOut}
 					<Spinner class="size-3.5" />
@@ -159,7 +229,7 @@
 			<Card.Description>Sign in to your account</Card.Description>
 		</Card.Header>
 		<Card.Content class="flex flex-col gap-3">
-			{#if enabledProviders.length === 0}
+			{#if enabledProviders.length === 0 && !passkeyAvailable}
 				<Alert.Root variant="destructive">
 					<CircleAlertIcon class="size-4" />
 					<Alert.Description>
@@ -174,6 +244,22 @@
 						onclick={() => startSocial(provider)}
 					/>
 				{/each}
+				{#if passkeyAvailable}
+					<Button
+						variant="outline"
+						class="relative h-11 w-full"
+						disabled={busy}
+						onclick={startPasskey}
+					>
+						<span
+							class="absolute left-4 flex size-4 items-center justify-center"
+							aria-hidden="true"
+						>
+							<FingerprintIcon class="size-4" />
+						</span>
+						Continue with passkey
+					</Button>
+				{/if}
 			{/if}
 			{#if errorMessage}
 				<Alert.Root variant="destructive">
