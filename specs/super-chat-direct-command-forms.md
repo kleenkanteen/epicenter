@@ -20,6 +20,8 @@ A Super Chat direct command form uses an Epicenter-native form contract:
 
 The wire format is still JSON Schema. The app authors the schema with TypeBox and `field.*`; the future direct-command listing will classify the serialized schema with `recognize(...)` from `@epicenter/field` when it has a real caller.
 
+Submission rides the host-owned session command vocabulary over the existing session channel (ADR-0113). A direct form is a producer of the same commands chat sends; it does not get an HTTP command route, a command table, or a second transport.
+
 ## Tool surfaces
 
 ```text
