@@ -8,7 +8,7 @@ metadata:
 
 # Epicenter UI
 
-Reach for a local `@epicenter/ui` component before writing one-off UI. Most state surfaces (loading, empty, pending, error, confirm, command, chat) already have a component that owns spacing, color, accessibility, and composition. This skill covers which local component to reach for and the conventions you cannot derive from upstream shadcn-svelte.
+Reach for a local `@epicenter/ui` component before writing one-off UI. Most state surfaces (loading, empty, pending, error, confirm, command, chat) already have a component that owns spacing, color, accessibility, and composition. This skill covers which local component to reach for and the conventions you cannot derive from upstream shadcn-svelte. Svelte decides which branch renders; this skill decides what the branch looks like.
 
 - Use `svelte` for branch mechanics: `{#if}`, `{#await}`, derived state, query state, lifecycle.
 - Use `styling` for Tailwind details, whether a wrapper element is needed, scroll traps, and disabled-state styling.
@@ -92,21 +92,13 @@ Before copying or forking component internals, escalate in order:
 
 For whether a wrapper element is needed at all, and for scroll-layout traps, defer to `styling`. Before pulling upstream component updates, commit local wrapper state, then reconcile upstream changes against local deltas instead of overwriting the wrapper.
 
-## Boundary With Svelte
-
-Svelte decides which branch renders (`{#if}`, `{#await}`, query status, derived state). Epicenter UI decides what the branch looks like (`Loading`, `Spinner`, `Skeleton`, `Progress`, `Empty`, `Command.Empty`, a `tooltip` prop, or chat typing state).
-
 ## Extras And Chat
 
-- Prefer existing local extras such as copy buttons, snippets, links, and chat components before one-off equivalents.
-- Chat list, bubble variants, typing state, copy actions, and auto-scroll live in local wrappers. Compose them; do not duplicate their internals.
-- Copy a small generic primitive into `packages/ui` when it is stable and visual; wrap instead when Epicenter adds domain behavior or persistent app state.
+Prefer existing local extras (copy buttons, snippets, links, chat) before one-off equivalents; chat list, bubble variants, typing, copy actions, and auto-scroll live in local wrappers, so compose them rather than duplicating their internals. Copy a small generic primitive into `packages/ui` only when it is stable and visual; wrap instead when Epicenter adds domain behavior or persistent app state.
 
 ## Avoid
 
-- Raw `animate-spin`, `LoaderCircleIcon`, or `Loader2Icon` in app code. Use `Spinner`.
-- Bare `Loading...` text with no affordance.
-- Raw `animate-pulse` content placeholders. Use `Skeleton`.
-- Hand-wrapped `Tooltip.*` around a `Button` or `Link` when the `tooltip` prop fits.
-- App imports from `packages/ui/src` or the stock `$lib/components/ui/*` path.
-- Duplicating shadcn-svelte or extras internals instead of importing the local wrapper.
+The positive rules above cover the common mistakes. Two structural traps are easy to fall into from generic shadcn-svelte habits and are worth naming on their own:
+
+- App imports from `packages/ui/src` or the stock `$lib/components/ui/*` path. Import through `@epicenter/ui/*`.
+- Copying shadcn-svelte or extras component internals into an app instead of importing the local wrapper, or forking past step 5 of the composition ladder.
