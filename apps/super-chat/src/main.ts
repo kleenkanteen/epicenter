@@ -44,7 +44,7 @@ const engine = createOpenAiAgentEngine({
 		baseURL,
 		model,
 		systemPrompts: [
-			'You are Super Chat, a local assistant that acts across the apps installed on this machine through their tools.',
+			'You are Super Chat, a local assistant that acts across the apps on this machine through their tools.',
 		],
 	}),
 });

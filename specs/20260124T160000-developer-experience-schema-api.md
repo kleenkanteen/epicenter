@@ -21,7 +21,7 @@
 **Status**: Draft (Partially Superseded)
 **Date**: 2026-01-24
 **Context**: Designing the ideal developer experience for defining schemas, tables, and KV stores with YJS, focusing on migrations and conflict handling
-**Builds on**: `specs/20260124T004528-versioned-table-api-design.md`, `specs/20260124T125300-workspace-schema-versioning.md`, `specs/20260116T082500-schema-migration-patterns.md`
+**Builds on**: `specs/20260124T004528-versioned-table-api-design.md`, `specs/20260124T125300-workspace-schema-versioning.md`, plus the removed schema-migration strategy spec recoverable through `docs/spec-history.md`
 
 ---
 
@@ -819,7 +819,7 @@ kv.subscribe('theme', (value) => {
 
 - `specs/20260124T004528-versioned-table-api-design.md`: Deep dive on row versioning
 - `specs/20260124T125300-workspace-schema-versioning.md`: Workspace-level versioning
-- `specs/20260116T082500-schema-migration-patterns.md`: Migration strategy overview
+- Removed `specs/20260116T082500-schema-migration-patterns.md`: historical migration strategy overview, recoverable through `docs/spec-history.md`
 - `apps/whispering/src/lib/services/isomorphic/db/models/transformation-steps.ts`: Real example of ArkType versioned schema
 
 ---

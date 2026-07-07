@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { buildPracticePrompt } from './practice.js';
 
 describe('buildPracticePrompt', () => {
-	test('lists each term verbatim, one bullet per term, in order', () => {
+	test('lists each entry verbatim, one bullet per entry, in order', () => {
 		const prompt = buildPracticePrompt(['你好', '学习中文', 'chengyu']);
 		expect(prompt).toContain('- 你好\n- 学习中文\n- chengyu');
 	});
@@ -19,7 +19,7 @@ describe('buildPracticePrompt', () => {
 		}
 	});
 
-	test('handles a single term', () => {
+	test('handles a single entry', () => {
 		expect(buildPracticePrompt(['你好'])).toContain('- 你好');
 	});
 });

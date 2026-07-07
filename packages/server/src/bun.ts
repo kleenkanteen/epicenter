@@ -30,7 +30,7 @@ export { createEnvTokenResolver } from './auth/instance-token.js';
 // gets it without importing the main barrel, which would drag in the `Room`
 // Durable Object and its `cloudflare:workers` import.
 export { OAuthError } from './auth/oauth-errors.js';
-export { createDb, type Db } from './db/create-db.js';
+export { createDb } from './db/create-db.js';
 // An opt-in burn-rate cap for the inference `policies` seam (ADR-0076).
 export { rateLimit } from './middleware/rate-limit.js';
 export {
@@ -45,7 +45,6 @@ export {
 // merged into the cloud Bun host's boot validation.
 export { CloudAuthBindings, mountCloudAuth } from './mount-cloud-auth.js';
 export { mountCloudDb } from './mount-cloud-db.js';
-export { doName } from './principal.js';
 // The Bun room backend: an in-process Rooms map + bun:sqlite update log,
 // plus the Bun `websocket` handler and `bindServer` the entry wires. Its `.rooms`
 // is what a Bun entry passes as `createServerApp`'s `resolveRooms`.
@@ -55,7 +54,7 @@ export { mountInferenceApp } from './routes/inference.js';
 export { mountRoomsApp } from './routes/rooms.js';
 export { mountSessionApp } from './routes/session.js';
 export { mountTranscriptionApp } from './routes/transcription.js';
-export { createServerApp, type Identity } from './server-app.js';
+export { createServerApp } from './server-app.js';
 // The portable env contract as both arktype schema (value) and inferred type;
 // the Bun entry validates `process.env` against it at boot (merging its own
 // process config and any secrets it re-requires).

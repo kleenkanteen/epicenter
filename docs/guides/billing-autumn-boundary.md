@@ -156,8 +156,10 @@ own index, so an occasional `ListObjectsV2` SUM over `principals/<principalId>/b
 drives one absolute `autumn.balances.update({ usage })`. That is self-correcting
 (a missed update is overwritten by the next sweep) and needs no second ledger,
 which is exactly why the retired asset path also synced an absolute total rather
-than upload/delete deltas. A `syncBlobStorageWithAutumn` policy is the slot for
-it (`apps/api/worker/index.ts`, beside `chargeOpenAiCreditsWithAutumn`).
+than upload/delete deltas. A `syncBlobStorageWithAutumn` policy will carry it
+(`apps/api/worker/index.ts`, beside `chargeOpenAiCreditsWithAutumn`);
+`mountBlobsApp` takes no `policies` today, so that change adds the seam and the
+policy together.
 
 ## Errors: opaque on the wire, fat in the logs
 

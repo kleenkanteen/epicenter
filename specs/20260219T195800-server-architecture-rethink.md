@@ -477,7 +477,7 @@ Imports the config file, calls `createWorkspace(...).withExtension(...)` etc., a
 - `packages/epicenter/src/cli/discovery.ts`: Config file discovery
 - `specs/20260213T120800-extract-epicenter-server-package.md`: Server extraction (Phase 2 designs room manager)
 - `specs/20260205T120000-static-only-server-architecture.md`: Static API server rewrite
-- `specs/20260205T000000-cli-config-and-composition.md`: Multi-workspace composition
+- Removed `specs/20260205T000000-cli-config-and-composition.md`: historical multi-workspace composition notes are recoverable through `docs/spec-history.md`
 - `specs/20260203T000000-action-system-v2-context-passing.md`: Action system with `client.actions`
 - `specs/20260115T100800-contract.md`: Contract specification
 - `specs/20260115T102836-ai-generated-local-first-apps.md`: AI-generated workspace vision

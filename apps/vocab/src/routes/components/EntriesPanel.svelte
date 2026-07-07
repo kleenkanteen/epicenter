@@ -2,23 +2,23 @@
 	import { Button } from '@epicenter/ui/button';
 	import { Input } from '@epicenter/ui/input';
 	import * as Sidebar from '@epicenter/ui/sidebar';
-	import type { Term, TermId } from '@epicenter/vocab';
+	import type { Entry, EntryId } from '@epicenter/vocab';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash';
-	import { termsState } from '$lib/state/terms.svelte';
+	import { entriesState } from '$lib/state/entries.svelte';
 
 	let {
 		onPractice,
 		generating,
 	}: {
-		onPractice: (termTexts: string[]) => void;
+		onPractice: (entryTexts: string[]) => void;
 		/** A turn is in flight in the active conversation, so a compiled practice
 		 * turn would be dropped by the loop's guard. Disable the trigger instead. */
 		generating: boolean;
 	} = $props();
 
 	/** The one-way cycle a stage button steps through on each click. */
-	const NEXT_STAGE: Record<Term['stage'], Term['stage']> = {
+	const NEXT_STAGE: Record<Entry['stage'], Entry['stage']> = {
 		new: 'understood',
 		understood: 'usable',
 		usable: 'new',
@@ -31,39 +31,39 @@
 	type StageFilter = (typeof STAGE_FILTERS)[number];
 	let stageFilter = $state<StageFilter>('all');
 
-	const filteredTerms = $derived(
+	const filteredEntries = $derived(
 		stageFilter === 'all'
-			? termsState.terms
-			: termsState.terms.filter((term) => term.stage === stageFilter),
+			? entriesState.entries
+			: entriesState.entries.filter((entry) => entry.stage === stageFilter),
 	);
 
 	/** Cap the compiled set so a large pool cannot build a runaway prompt. Newest
-	 * first, since `termsState.terms` already sorts that way. */
+	 * first, since `entriesState.entries` already sorts that way. */
 	const PRACTICE_CAP = 20;
-	const practiceTerms = $derived(filteredTerms.slice(0, PRACTICE_CAP));
+	const practiceEntries = $derived(filteredEntries.slice(0, PRACTICE_CAP));
 
-	let newTerm = $state('');
+	let newEntry = $state('');
 
-	function addTerm() {
-		if (termsState.save(newTerm)) {
-			newTerm = '';
+	function addEntry() {
+		if (entriesState.save(newEntry)) {
+			newEntry = '';
 		}
 	}
 
-	function cycleStage(id: TermId, stage: Term['stage']) {
-		termsState.setStage(id, NEXT_STAGE[stage]);
+	function cycleStage(id: EntryId, stage: Entry['stage']) {
+		entriesState.setStage(id, NEXT_STAGE[stage]);
 	}
 
-	function commitNote(term: Term, note: string) {
-		if (note !== term.note) termsState.setNote(term.id, note);
+	function commitNote(entry: Entry, note: string) {
+		if (note !== entry.note) entriesState.setNote(entry.id, note);
 	}
 </script>
 
 <Sidebar.Group class="group-data-[collapsible=icon]:hidden">
 	<Sidebar.GroupLabel>
-		<span>Terms</span>
+		<span>Entries</span>
 		<span class="ml-auto text-xs text-muted-foreground">
-			usable: {termsState.usableCount}
+			usable: {entriesState.usableCount}
 		</span>
 	</Sidebar.GroupLabel>
 	<Sidebar.GroupContent>
@@ -71,11 +71,11 @@
 			class="flex items-center gap-1 px-2 py-1"
 			onsubmit={(event) => {
 				event.preventDefault();
-				addTerm();
+				addEntry();
 			}}
 		>
-			<Input bind:value={newTerm} placeholder="Term" class="h-7 text-sm" />
-			<Button type="submit" size="icon-sm" variant="outline" aria-label="Add term">
+			<Input bind:value={newEntry} placeholder="Entry" class="h-7 text-sm" />
+			<Button type="submit" size="icon-sm" variant="outline" aria-label="Add entry">
 				<PlusIcon class="size-3.5" />
 			</Button>
 		</form>
@@ -102,51 +102,51 @@
 				size="sm"
 				variant="outline"
 				class="w-full"
-				disabled={generating || practiceTerms.length === 0}
+				disabled={generating || practiceEntries.length === 0}
 				title={generating
 					? 'Finish the current turn to practice'
-					: filteredTerms.length > PRACTICE_CAP
-						? `Practicing the ${PRACTICE_CAP} newest of ${filteredTerms.length}`
+					: filteredEntries.length > PRACTICE_CAP
+						? `Practicing the ${PRACTICE_CAP} newest of ${filteredEntries.length}`
 						: undefined}
-				onclick={() => onPractice(practiceTerms.map((term) => term.text))}
+				onclick={() => onPractice(practiceEntries.map((entry) => entry.text))}
 			>
-				Practice these ({practiceTerms.length})
+				Practice these ({practiceEntries.length})
 			</Button>
 		</div>
 
-		{#if termsState.terms.length === 0}
+		{#if entriesState.entries.length === 0}
 			<p class="px-2 py-1 text-xs text-muted-foreground">
-				Select text in the chat to save it as a term.
+				Select text in the chat to save it as an entry.
 			</p>
-		{:else if filteredTerms.length === 0}
+		{:else if filteredEntries.length === 0}
 			<p class="px-2 py-1 text-xs text-muted-foreground">
-				No {stageFilter} terms yet.
+				No {stageFilter} entries yet.
 			</p>
 		{:else}
 			<Sidebar.Menu>
-				{#each filteredTerms as term (term.id)}
+				{#each filteredEntries as entry (entry.id)}
 					<Sidebar.MenuItem>
 						<div class="flex w-full items-center gap-1.5 px-2 py-1">
-							<span class="shrink-0 font-medium">{term.text}</span>
+							<span class="shrink-0 font-medium">{entry.text}</span>
 							<input
 								class="min-w-0 flex-1 bg-transparent text-xs text-muted-foreground outline-none"
-								value={term.note}
+								value={entry.note}
 								placeholder="Note"
-								onblur={(event) => commitNote(term, event.currentTarget.value)}
+								onblur={(event) => commitNote(entry, event.currentTarget.value)}
 							/>
 							<button
 								type="button"
 								class="shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] text-muted-foreground uppercase hover:bg-accent"
 								title="Cycle stage: new, understood, usable"
-								onclick={() => cycleStage(term.id, term.stage)}
+								onclick={() => cycleStage(entry.id, entry.stage)}
 							>
-								{term.stage}
+								{entry.stage}
 							</button>
 						</div>
 						<Sidebar.MenuAction
 							showOnHover
-							aria-label="Delete term"
-							onclick={() => termsState.remove(term.id)}
+							aria-label="Delete entry"
+							onclick={() => entriesState.remove(entry.id)}
 						>
 							<TrashIcon class="size-3.5" />
 						</Sidebar.MenuAction>
