@@ -397,7 +397,7 @@ Yjs supports multiple providers simultaneously. A phone can connect to desktop, 
    For one-shot Node operations: derive the same child-doc guid and read the room directly.
 4. Await the right readiness signal before reading persisted state. There are two shapes here, and the choice is load-bearing:
    - **One subsystem to wait on.** Expose the subsystem (`storage`, `persistence`, ...) on the bundle root and let consumers reach through: `await bundle.storage.whenLoaded`. Do not alias `whenLoaded`/`whenReady` flat at the bundle root just to save `.storage`; the alias lies about composition.
-   - **Two or more subsystems to compose into one barrier.** Then `whenReady` earns its place: `whenReady: Promise.all([persistence.whenLoaded, unlock.whenChecked, sync.whenConnected])`. Because the field is typed `Promise<unknown>`, `Promise.all([...])` is assignable directly. Consumers `await bundle.whenReady`. The CLI's `run` command, migrations, `@epicenter/filesystem` ops, the sqlite-index materializer, and `{#await}` gates in editors all consume this aggregate.
+   - **Two or more subsystems to compose into one barrier.** Then `whenReady` earns its place: `whenReady: Promise.all([persistence.whenLoaded, unlock.whenChecked, sync.whenConnected])`. Because the field is typed `Promise<unknown>`, `Promise.all([...])` is assignable directly. Consumers `await bundle.whenReady`. Migrations, `@epicenter/filesystem` ops, the sqlite-index materializer, and `{#await}` gates in editors all consume this aggregate.
 
 5. Read and write through `bundle.tables`, `bundle.kv`, and `bundle.collaboration.peers`, and (for per-row content docs) whatever you exposed in the returned bundle.
 6. Iterate `Object.entries(bundle.actions)` and read each action's metadata (`type`, `title`, `description`, `input`) if you want to build adapters such as HTTP, CLI, or MCP.
@@ -1594,7 +1594,7 @@ The core package does not export an MCP server or own every adapter. What it doe
 
 That is enough to expose workspace actions over HTTP, CLI, TanStack AI, or MCP without coupling the core package to one transport.
 
-For AI editing, expose workspace mutations as tools. `createLocalToolCatalog(...)` does not teach the model to patch the materialized Markdown folder. It wires tool calls to the same action handlers the UI and CLI use. Query tools can read data; mutation tools write Yjs. The agent loop runs queries unattended by default, asks before mutations, and denies gated mutations when no approval prompt is wired.
+For AI editing, expose workspace mutations as tools. `createLocalToolCatalog(...)` does not teach the model to patch the materialized Markdown folder. It wires tool calls to the same action handlers the UI uses. Query tools can read data; mutation tools write Yjs. The agent loop runs queries unattended by default, asks before mutations, and denies gated mutations when no approval prompt is wired.
 
 ### Setup
 
