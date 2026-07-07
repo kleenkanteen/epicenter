@@ -25,6 +25,10 @@ export function createSession({ token }: { token: string }) {
 		isGenerating: false,
 		error: null,
 	});
+	let pendingApprovals = $state<
+		SessionResponse['snapshot']['pendingApprovals']
+	>([]);
+	let activity = $state<SessionResponse['snapshot']['activity']>([]);
 	let connection = $state<ConnectionStatus>('connecting');
 	let tools = $state<SessionResponse['tools']>([]);
 
@@ -43,7 +47,9 @@ export function createSession({ token }: { token: string }) {
 			}
 			const body = (await response.json()) as SessionResponse;
 			tools = body.tools;
-			snapshot = body.snapshot;
+			snapshot = body.snapshot.conversation;
+			pendingApprovals = body.snapshot.pendingApprovals;
+			activity = body.snapshot.activity;
 			return true;
 		} catch {
 			connection = 'closed';
@@ -74,7 +80,11 @@ export function createSession({ token }: { token: string }) {
 			} catch {
 				return;
 			}
-			if (parsed.type === 'snapshot') snapshot = parsed.snapshot;
+			if (parsed.type === 'snapshot') {
+				snapshot = parsed.snapshot.conversation;
+				pendingApprovals = parsed.snapshot.pendingApprovals;
+				activity = parsed.snapshot.activity;
+			}
 		};
 		ws.onclose = () => {
 			if (socket !== ws) return;
@@ -106,6 +116,12 @@ export function createSession({ token }: { token: string }) {
 		get tools() {
 			return tools;
 		},
+		get pendingApprovals() {
+			return pendingApprovals;
+		},
+		get activity() {
+			return activity;
+		},
 		/** Returns whether the message went out, so the composer keeps the draft on failure. */
 		send(content: string) {
 			return sendCommand({ type: 'send', content });
@@ -115,6 +131,18 @@ export function createSession({ token }: { token: string }) {
 		},
 		retry() {
 			sendCommand({ type: 'retry' });
+		},
+		approve(
+			requestId: string,
+			approved: boolean,
+			alwaysAllowSession: boolean = false,
+		) {
+			sendCommand({
+				type: 'approve',
+				requestId,
+				approved,
+				...(alwaysAllowSession && { alwaysAllowSession }),
+			});
 		},
 		/** Stop reconnecting and close the socket for good. */
 		dispose() {

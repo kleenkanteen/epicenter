@@ -15,6 +15,10 @@
 		open: 'Connected',
 		closed: 'Disconnected',
 	} as const;
+
+	function formatApprovalInput(input: unknown): string {
+		return JSON.stringify(input, null, 2);
+	}
 </script>
 
 {#if session === null}
@@ -63,6 +67,43 @@
 				</strong>
 				{session.snapshot.error.message}
 			</div>
+		{/if}
+
+		{#if session.pendingApprovals.length > 0}
+			<section class="approvals" aria-label="Pending approvals">
+				{#each session.pendingApprovals as approval (approval.id)}
+					<div class="approval">
+						<div class="approval-copy">
+							<strong>{approval.title ?? approval.toolName}</strong>
+							{#if approval.description}
+								<p>{approval.description}</p>
+							{/if}
+							<pre>{formatApprovalInput(approval.input)}</pre>
+						</div>
+						<div class="approval-actions">
+							<button
+								type="button"
+								onclick={() => session.approve(approval.id, true)}
+							>
+								Approve
+							</button>
+							<button
+								type="button"
+								onclick={() => session.approve(approval.id, true, true)}
+							>
+								Always allow
+							</button>
+							<button
+								type="button"
+								class="secondary"
+								onclick={() => session.approve(approval.id, false)}
+							>
+								Deny
+							</button>
+						</div>
+					</div>
+				{/each}
+			</section>
 		{/if}
 
 		<Composer
@@ -187,6 +228,83 @@
 
 	.error strong {
 		color: #f59396;
+	}
+
+	.approvals {
+		flex: none;
+		display: grid;
+		gap: 8px;
+		margin: 0 12px 8px;
+	}
+
+	.approval {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 12px;
+		align-items: start;
+		padding: 10px;
+		border: 1px solid #5a4a27;
+		border-radius: 6px;
+		background: #272318;
+		color: #e8dcc1;
+	}
+
+	.approval-copy {
+		min-width: 0;
+	}
+
+	.approval-copy strong {
+		display: block;
+		color: #f0e6cc;
+	}
+
+	.approval-copy p {
+		margin: 3px 0 0;
+		color: #b9ad92;
+	}
+
+	.approval-copy pre {
+		margin: 8px 0 0;
+		max-height: 120px;
+		overflow: auto;
+		white-space: pre-wrap;
+		word-break: break-word;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 11.5px;
+		color: #d7cfbd;
+	}
+
+	.approval-actions {
+		display: flex;
+		gap: 6px;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+	}
+
+	.approval-actions button {
+		height: 28px;
+		border: 1px solid #7d6733;
+		border-radius: 5px;
+		background: #d8b44a;
+		color: #1e1a10;
+		font: inherit;
+		font-size: 12px;
+		cursor: pointer;
+	}
+
+	.approval-actions button.secondary {
+		background: transparent;
+		color: #d7cfbd;
+	}
+
+	@media (max-width: 560px) {
+		.approval {
+			grid-template-columns: 1fr;
+		}
+
+		.approval-actions {
+			justify-content: flex-start;
+		}
 	}
 
 	.missing-token {

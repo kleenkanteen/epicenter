@@ -18,11 +18,15 @@ import { todosWorkspace } from '@epicenter/todos';
 import { createNodeId, generateId } from '@epicenter/workspace';
 import {
 	type AgentEngine,
+	type AgentToolCall,
+	type AgentToolDefinition,
 	type Approval,
 	type ConversationHandle,
+	type ConversationSnapshot,
 	composeToolCatalogs,
 	createConversation,
 	createLocalToolCatalog,
+	defaultApprovalDecision,
 	namespaceToolCatalog,
 	type ToolCatalog,
 } from '@epicenter/workspace/agent';
@@ -37,9 +41,8 @@ export type SuperChatHostOptions = {
 	/** The inference backend driving the loop (BYOK, local, or scripted). */
 	engine: AgentEngine;
 	/**
-	 * The approval policy for gated mutations. Omit for the loop's default:
-	 * queries run unattended, mutations are denied (no prompt surface exists
-	 * headless, and deny-by-default is the safe floor until the shell wires one).
+	 * Override the host-owned approval prompt. Tests use this for headless
+	 * auto-approval; the shell omits it so pending mutations surface in-session.
 	 */
 	approval?: Approval;
 	/**
@@ -51,13 +54,70 @@ export type SuperChatHostOptions = {
 	dataDir?: string;
 };
 
+export type PendingApproval = {
+	id: string;
+	toolCallId: string;
+	toolName: string;
+	title?: string;
+	description?: string;
+	input: AgentToolCall['input'];
+	requestedAt: number;
+};
+
+export type SuperChatSessionSnapshot = {
+	conversation: ConversationSnapshot;
+	pendingApprovals: PendingApproval[];
+	activity: SuperChatActivity[];
+};
+
+export type SuperChatActivity = {
+	id: string;
+	createdAt: number;
+	type: 'approval-requested' | 'approval-resolved';
+	requestId: string;
+	toolCallId: string;
+	toolName: string;
+	approved?: boolean;
+};
+
+/** What a session client may ask of the one host-owned session. */
+export type SuperChatClientCommand =
+	| { type: 'send'; content: string }
+	| { type: 'stop' }
+	| { type: 'retry' }
+	| {
+			type: 'approve';
+			requestId: string;
+			approved: boolean;
+			alwaysAllowSession?: boolean;
+	  };
+
+/** What the server pushes: the full render state, on every host change. */
+export type SuperChatServerEvent = {
+	type: 'snapshot';
+	snapshot: SuperChatSessionSnapshot;
+};
+
+export type SuperChatSessionResponse = {
+	tools: AgentToolDefinition[];
+	snapshot: SuperChatSessionSnapshot;
+};
+
 export type SuperChatHost = {
 	/** The one chat session (ADR-0080: a single host session, not per-app). */
 	conversation: ConversationHandle;
 	/** The composed verb surface, for shells that list or introspect tools. */
 	tools: ToolCatalog;
+	/** Read the render state owned by the host session. */
+	snapshot(): SuperChatSessionSnapshot;
+	/** Register for any conversation or approval-state change. */
+	subscribe(listener: () => void): () => void;
+	/** Apply one client command to the host-owned session. */
+	handleCommand(command: SuperChatClientCommand): boolean;
 	[Symbol.asyncDispose](): Promise<void>;
 };
+
+const ACTIVITY_LIMIT = 50;
 
 /**
  * Open the built-in apps, compose their catalogs, and start the one chat
@@ -97,21 +157,73 @@ export async function createSuperChatHost(
 	}
 
 	const tools = composeToolCatalogs(catalogs);
+	const listeners = new Set<() => void>();
+	const notify = () => {
+		for (const listener of listeners) listener();
+	};
+	const activity: SuperChatActivity[] = [];
+	const recordActivity = (
+		entry: Omit<SuperChatActivity, 'id' | 'createdAt'>,
+	) => {
+		activity.push({ id: generateId(), createdAt: Date.now(), ...entry });
+		if (activity.length > ACTIVITY_LIMIT)
+			activity.splice(0, activity.length - ACTIVITY_LIMIT);
+		notify();
+	};
+	const sessionApproval = createSessionApproval(recordActivity);
 	const conversation = createConversation({
 		store: createInMemoryMessageStore(),
 		engine: options.engine,
 		tools,
-		...(options.approval !== undefined && { approval: options.approval }),
+		approval: options.approval ?? sessionApproval.approval,
 		generateId,
 	});
 
 	return {
 		conversation,
 		tools,
+		snapshot() {
+			return {
+				conversation: conversation.snapshot(),
+				pendingApprovals: sessionApproval.pending(),
+				activity: [...activity],
+			};
+		},
+		subscribe(listener) {
+			listeners.add(listener);
+			const unsubscribeConversation = conversation.subscribe(listener);
+			return () => {
+				listeners.delete(listener);
+				unsubscribeConversation();
+			};
+		},
+		handleCommand(command) {
+			switch (command.type) {
+				case 'send':
+					return conversation.send(command.content);
+				case 'stop':
+					conversation.stop();
+					sessionApproval.cancelAll();
+					return true;
+				case 'retry':
+					conversation.retry();
+					return true;
+				case 'approve':
+					return sessionApproval.answer({
+						requestId: command.requestId,
+						approved: command.approved,
+						alwaysAllowSession: command.alwaysAllowSession === true,
+					});
+				default:
+					command satisfies never;
+					return false;
+			}
+		},
 		async [Symbol.asyncDispose]() {
 			// The conversation first (aborts any in-flight turn and disposes the
 			// store), then the subprocess, then the in-process docs.
 			conversation[Symbol.dispose]();
+			sessionApproval.cancelAll();
 			await localBooks?.[Symbol.asyncDispose]();
 			honeycrisp[Symbol.dispose]();
 			todos[Symbol.dispose]();
@@ -119,6 +231,96 @@ export async function createSuperChatHost(
 				honeycrisp.storage.whenDisposed,
 				todos.storage.whenDisposed,
 			]);
+		},
+	};
+}
+
+function createSessionApproval(
+	recordActivity: (entry: Omit<SuperChatActivity, 'id' | 'createdAt'>) => void,
+) {
+	const pending = new Map<
+		string,
+		{
+			prompt: PendingApproval;
+			resolve(approved: boolean): void;
+		}
+	>();
+	const sessionGrants = new Set<string>();
+
+	const approval: Approval = {
+		decide(call, definition) {
+			if (sessionGrants.has(call.toolName)) return 'auto';
+			return defaultApprovalDecision(call, definition);
+		},
+		request(call, definition) {
+			const id = generateId();
+			const prompt: PendingApproval = {
+				id,
+				toolCallId: call.toolCallId,
+				toolName: call.toolName,
+				...(definition.title !== undefined && { title: definition.title }),
+				...(definition.description !== undefined && {
+					description: definition.description,
+				}),
+				input: call.input,
+				requestedAt: Date.now(),
+			};
+			return new Promise<boolean>((resolve) => {
+				pending.set(id, { prompt, resolve });
+				recordActivity({
+					type: 'approval-requested',
+					requestId: id,
+					toolCallId: call.toolCallId,
+					toolName: call.toolName,
+				});
+			});
+		},
+	};
+
+	return {
+		approval,
+		pending() {
+			return [...pending.values()].map(({ prompt }) => prompt);
+		},
+		answer({
+			requestId,
+			approved,
+			alwaysAllowSession,
+		}: {
+			requestId: string;
+			approved: boolean;
+			alwaysAllowSession: boolean;
+		}) {
+			const entry = pending.get(requestId);
+			if (!entry) return false;
+			pending.delete(requestId);
+			if (approved && alwaysAllowSession) {
+				sessionGrants.add(entry.prompt.toolName);
+			}
+			entry.resolve(approved);
+			recordActivity({
+				type: 'approval-resolved',
+				requestId,
+				toolCallId: entry.prompt.toolCallId,
+				toolName: entry.prompt.toolName,
+				approved,
+			});
+			return true;
+		},
+		cancelAll() {
+			if (pending.size === 0) return;
+			const entries = [...pending.values()];
+			pending.clear();
+			for (const entry of entries) {
+				entry.resolve(false);
+				recordActivity({
+					type: 'approval-resolved',
+					requestId: entry.prompt.id,
+					toolCallId: entry.prompt.toolCallId,
+					toolName: entry.prompt.toolName,
+					approved: false,
+				});
+			}
 		},
 	};
 }

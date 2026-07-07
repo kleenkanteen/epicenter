@@ -75,6 +75,10 @@ async function serveHost(host: SuperChatHost, page: string = PAGE) {
 	return server;
 }
 
+function conversationOf(event: ServerEvent) {
+	return event.snapshot.conversation;
+}
+
 describe('createSuperChatServer', () => {
 	test('refuses an empty token at construction', async () => {
 		await using host = await createTestHost({
@@ -129,14 +133,14 @@ describe('createSuperChatServer', () => {
 			expect(session.status).toBe(200);
 			const body = (await session.json()) as {
 				tools: AgentToolDefinition[];
-				snapshot: { messages: unknown[] };
+				snapshot: { conversation: { messages: unknown[] } };
 			};
 			const createTodos = body.tools.find(
 				(t) => t.name === 'todos__todos_create',
 			);
 			expect(createTodos).toBeDefined();
 			expect(createTodos?.inputSchema).toBeDefined();
-			expect(body.snapshot.messages).toEqual([]);
+			expect(body.snapshot.conversation.messages).toEqual([]);
 
 			const oldTools = await fetch(`${server.url.origin}/api/tools`, {
 				headers: { authorization: `Bearer ${TOKEN}` },
@@ -163,9 +167,10 @@ describe('createSuperChatServer', () => {
 			const answered = new Promise<ServerEvent>((resolve, reject) => {
 				ws.addEventListener('message', (event) => {
 					const parsed = JSON.parse(String(event.data)) as ServerEvent;
-					const last = parsed.snapshot.messages.at(-1);
+					const snapshot = conversationOf(parsed);
+					const last = snapshot.messages.at(-1);
 					if (
-						!parsed.snapshot.isGenerating &&
+						!snapshot.isGenerating &&
 						last?.role === 'assistant' &&
 						last.parts.some(
 							(part) =>
@@ -183,12 +188,130 @@ describe('createSuperChatServer', () => {
 			});
 
 			const final = await answered;
-			expect(final.snapshot.error).toBeNull();
-			expect(final.snapshot.messages.map((m) => m.role)).toEqual([
+			expect(conversationOf(final).error).toBeNull();
+			expect(conversationOf(final).messages.map((m) => m.role)).toEqual([
 				'user',
 				'assistant',
 			]);
 			ws.close();
+		} finally {
+			await server.stop(true);
+		}
+	});
+
+	test('a pending approval reappears after reconnect and approval resumes the turn', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([
+				[
+					{
+						type: 'tool-call',
+						toolCallId: 'call-approve',
+						toolName: 'todos__todos_create',
+						input: { title: 'Approve over WebSocket' },
+					},
+				],
+				[{ type: 'text-delta', delta: 'Created over WebSocket.' }],
+			]),
+		});
+		const server = await serveHost(host);
+		try {
+			const url = `${server.url.origin.replace('http', 'ws')}/api/session/stream?token=${TOKEN}`;
+			const firstSocket = new WebSocket(url);
+			const pending = new Promise<ServerEvent>((resolve, reject) => {
+				const timer = setTimeout(
+					() => reject(new Error('timed out waiting for approval')),
+					5000,
+				);
+				firstSocket.addEventListener('message', (event) => {
+					const parsed = JSON.parse(String(event.data)) as ServerEvent;
+					if (parsed.snapshot.pendingApprovals.length === 1) {
+						clearTimeout(timer);
+						resolve(parsed);
+					}
+				});
+				firstSocket.addEventListener('error', () => {
+					clearTimeout(timer);
+					reject(new Error('socket error'));
+				});
+			});
+			firstSocket.addEventListener('open', () => {
+				firstSocket.send(
+					JSON.stringify({ type: 'send', content: 'create a todo' }),
+				);
+			});
+
+			const pendingEvent = await pending;
+			const [approval] = pendingEvent.snapshot.pendingApprovals;
+			expect(approval).toEqual(
+				expect.objectContaining({
+					toolCallId: 'call-approve',
+					toolName: 'todos__todos_create',
+					input: { title: 'Approve over WebSocket' },
+				}),
+			);
+			firstSocket.close();
+
+			const secondSocket = new WebSocket(url);
+			const rehydrated = new Promise<ServerEvent>((resolve, reject) => {
+				const timer = setTimeout(
+					() => reject(new Error('timed out waiting for reconnect state')),
+					5000,
+				);
+				secondSocket.addEventListener('message', (event) => {
+					const parsed = JSON.parse(String(event.data)) as ServerEvent;
+					if (
+						parsed.snapshot.pendingApprovals.some(
+							(candidate) => candidate.id === approval!.id,
+						)
+					) {
+						clearTimeout(timer);
+						resolve(parsed);
+					}
+				});
+				secondSocket.addEventListener('error', () => {
+					clearTimeout(timer);
+					reject(new Error('socket error'));
+				});
+			});
+			const finished = new Promise<ServerEvent>((resolve, reject) => {
+				const timer = setTimeout(
+					() => reject(new Error('timed out waiting for final answer')),
+					5000,
+				);
+				secondSocket.addEventListener('message', (event) => {
+					const parsed = JSON.parse(String(event.data)) as ServerEvent;
+					const snapshot = conversationOf(parsed);
+					const last = snapshot.messages.at(-1);
+					if (
+						!snapshot.isGenerating &&
+						last?.role === 'assistant' &&
+						last.parts.some(
+							(part) =>
+								part.type === 'text' && part.text === 'Created over WebSocket.',
+						)
+					) {
+						clearTimeout(timer);
+						resolve(parsed);
+					}
+				});
+				secondSocket.addEventListener('error', () => {
+					clearTimeout(timer);
+					reject(new Error('socket error'));
+				});
+			});
+			await rehydrated;
+			secondSocket.send(
+				JSON.stringify({
+					type: 'approve',
+					requestId: approval!.id,
+					approved: true,
+				}),
+			);
+
+			const final = await finished;
+			expect(final.snapshot.pendingApprovals).toEqual([]);
+			expect(conversationOf(final).error).toBeNull();
+			secondSocket.close();
 		} finally {
 			await server.stop(true);
 		}
@@ -207,8 +330,9 @@ describe('createSuperChatServer', () => {
 				new Promise<ServerEvent>((resolve, reject) => {
 					ws.addEventListener('message', (event) => {
 						const parsed = JSON.parse(String(event.data)) as ServerEvent;
-						const last = parsed.snapshot.messages.at(-1);
-						if (!parsed.snapshot.isGenerating && last?.role === 'assistant') {
+						const snapshot = conversationOf(parsed);
+						const last = snapshot.messages.at(-1);
+						if (!snapshot.isGenerating && last?.role === 'assistant') {
 							resolve(parsed);
 						}
 					});
@@ -234,8 +358,10 @@ describe('createSuperChatServer', () => {
 				settledAt(watcher),
 				settledAt(driver),
 			]);
-			expect(watched.snapshot.messages).toEqual(drove.snapshot.messages);
-			expect(watched.snapshot.messages.map((m) => m.role)).toEqual([
+			expect(conversationOf(watched).messages).toEqual(
+				conversationOf(drove).messages,
+			);
+			expect(conversationOf(watched).messages.map((m) => m.role)).toEqual([
 				'user',
 				'assistant',
 			]);
@@ -502,10 +628,10 @@ describe('sidecar end-to-end smoke', () => {
 			expect(session.status).toBe(200);
 			const catalog = (await session.json()) as {
 				tools: Array<{ name: string }>;
-				snapshot: { messages: unknown[] };
+				snapshot: { conversation: { messages: unknown[] } };
 			};
 			expect(catalog.tools.map((t) => t.name)).toContain('todos__todos_list');
-			expect(catalog.snapshot.messages).toEqual([]);
+			expect(catalog.snapshot.conversation.messages).toEqual([]);
 
 			// One WebSocket turn: send, then await the settled snapshot.
 			const ws = new WebSocket(
@@ -518,9 +644,10 @@ describe('sidecar end-to-end smoke', () => {
 				);
 				ws.addEventListener('message', (event) => {
 					const parsed = JSON.parse(String(event.data)) as ServerEvent;
-					const last = parsed.snapshot.messages.at(-1);
+					const snapshot = conversationOf(parsed);
+					const last = snapshot.messages.at(-1);
 					if (
-						!parsed.snapshot.isGenerating &&
+						!snapshot.isGenerating &&
 						last?.role === 'assistant' &&
 						last.parts.some(
 							(part) => part.type === 'text' && part.text.includes(FINAL_TEXT),
@@ -545,8 +672,8 @@ describe('sidecar end-to-end smoke', () => {
 				ws.close();
 			}
 
-			expect(final.snapshot.error).toBeNull();
-			const parts = final.snapshot.messages.flatMap((m) => m.parts);
+			expect(conversationOf(final).error).toBeNull();
+			const parts = conversationOf(final).messages.flatMap((m) => m.parts);
 			expect(parts).toContainEqual(
 				expect.objectContaining({
 					type: 'tool-call',

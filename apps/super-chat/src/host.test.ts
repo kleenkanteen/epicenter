@@ -60,6 +60,17 @@ async function settle(host: {
 	}
 }
 
+async function waitFor(
+	predicate: () => boolean,
+	description: string,
+): Promise<void> {
+	for (let i = 0; i < 500; i++) {
+		if (predicate()) return;
+		await new Promise((resolve) => setTimeout(resolve, 5));
+	}
+	throw new Error(`Timed out waiting for ${description}`);
+}
+
 function toolResults(parts: AgentMessagePart[]) {
 	return parts.filter((part) => part.type === 'tool-result');
 }
@@ -106,6 +117,119 @@ describe('createSuperChatHost', () => {
 			type: 'text',
 			text: 'Created your todo.',
 		});
+	});
+
+	test('host-owned approval prompt gates a mutation and approval resumes the turn', async () => {
+		const engine = scriptedEngine([
+			[
+				{
+					type: 'tool-call',
+					toolCallId: 'call-1',
+					toolName: 'todos__todos_create',
+					input: { title: 'Needs approval' },
+				},
+			],
+			[{ type: 'text-delta', delta: 'Created after approval.' }],
+		]);
+		await using host = await createTestHost({ engine });
+
+		expect(host.handleCommand({ type: 'send', content: 'add a todo' })).toBe(
+			true,
+		);
+		await waitFor(
+			() => host.snapshot().pendingApprovals.length === 1,
+			'a pending approval',
+		);
+
+		const [approval] = host.snapshot().pendingApprovals;
+		expect(approval).toEqual(
+			expect.objectContaining({
+				toolCallId: 'call-1',
+				toolName: 'todos__todos_create',
+				input: { title: 'Needs approval' },
+			}),
+		);
+
+		expect(
+			host.handleCommand({
+				type: 'approve',
+				requestId: approval!.id,
+				approved: true,
+			}),
+		).toBe(true);
+		await settle(host);
+
+		const { messages, error } = host.conversation.snapshot();
+		expect(error).toBeNull();
+		expect(host.snapshot().pendingApprovals).toEqual([]);
+		const results = messages.flatMap((m) => toolResults(m.parts));
+		expect(results).toHaveLength(1);
+		expect(results[0]!.isError).toBe(false);
+		expect(host.snapshot().activity).toEqual([
+			expect.objectContaining({
+				type: 'approval-requested',
+				requestId: approval!.id,
+				toolName: 'todos__todos_create',
+			}),
+			expect.objectContaining({
+				type: 'approval-resolved',
+				requestId: approval!.id,
+				toolName: 'todos__todos_create',
+				approved: true,
+			}),
+		]);
+		expect(messages.at(-1)!.parts).toContainEqual({
+			type: 'text',
+			text: 'Created after approval.',
+		});
+	});
+
+	test('always allow approves the next matching mutation without a second prompt', async () => {
+		const engine = scriptedEngine([
+			[
+				{
+					type: 'tool-call',
+					toolCallId: 'call-1',
+					toolName: 'todos__todos_create',
+					input: { title: 'First' },
+				},
+			],
+			[{ type: 'text-delta', delta: 'Created first.' }],
+			[
+				{
+					type: 'tool-call',
+					toolCallId: 'call-2',
+					toolName: 'todos__todos_create',
+					input: { title: 'Second' },
+				},
+			],
+			[{ type: 'text-delta', delta: 'Created second.' }],
+		]);
+		await using host = await createTestHost({ engine });
+
+		host.handleCommand({ type: 'send', content: 'add first' });
+		await waitFor(
+			() => host.snapshot().pendingApprovals.length === 1,
+			'the first approval',
+		);
+		const [approval] = host.snapshot().pendingApprovals;
+		host.handleCommand({
+			type: 'approve',
+			requestId: approval!.id,
+			approved: true,
+			alwaysAllowSession: true,
+		});
+		await settle(host);
+
+		host.handleCommand({ type: 'send', content: 'add second' });
+		await settle(host);
+
+		expect(host.snapshot().pendingApprovals).toEqual([]);
+		const results = host.conversation
+			.snapshot()
+			.messages.flatMap((m) => toolResults(m.parts));
+		expect(results).toHaveLength(2);
+		expect(results.every((result) => result.isError === false)).toBe(true);
 	});
 
 	test('a subprocess that never speaks MCP fails host creation fast', async () => {

@@ -15,28 +15,21 @@
  */
 
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type {
-	AgentToolDefinition,
-	ConversationSnapshot,
-} from '@epicenter/workspace/agent';
 import { Hono } from 'hono';
 import { createBunWebSocket } from 'hono/bun';
-import type { SuperChatHost } from './host.ts';
+import type {
+	SuperChatClientCommand,
+	SuperChatHost,
+	SuperChatServerEvent,
+	SuperChatSessionResponse,
+} from './host.ts';
 import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from './routes.ts';
 
-/** What a WebSocket client may ask of the one chat session. */
-export type ClientCommand =
-	| { type: 'send'; content: string }
-	| { type: 'stop' }
-	| { type: 'retry' };
-
-/** What the server pushes: the full render state, on every loop change. */
-export type ServerEvent = { type: 'snapshot'; snapshot: ConversationSnapshot };
-
-export type SessionResponse = {
-	tools: AgentToolDefinition[];
-	snapshot: ConversationSnapshot;
-};
+export type {
+	SuperChatClientCommand as ClientCommand,
+	SuperChatServerEvent as ServerEvent,
+	SuperChatSessionResponse as SessionResponse,
+} from './host.ts';
 
 export type SuperChatServerOptions = {
 	host: SuperChatHost;
@@ -90,8 +83,8 @@ export function createSuperChatServer({
 	app.get(SESSION_ROUTE.pattern, (c) =>
 		c.json({
 			tools: host.tools.definitions(),
-			snapshot: host.conversation.snapshot(),
-		} satisfies SessionResponse),
+			snapshot: host.snapshot(),
+		} satisfies SuperChatSessionResponse),
 	);
 
 	app.get(
@@ -99,33 +92,21 @@ export function createSuperChatServer({
 		upgradeWebSocket(() => {
 			let unsubscribe: (() => void) | undefined;
 			const push = (ws: { send(data: string): void }) => {
-				const event: ServerEvent = {
+				const event: SuperChatServerEvent = {
 					type: 'snapshot',
-					snapshot: host.conversation.snapshot(),
+					snapshot: host.snapshot(),
 				};
 				ws.send(JSON.stringify(event));
 			};
 			return {
 				onOpen(_event, ws) {
-					unsubscribe = host.conversation.subscribe(() => push(ws));
+					unsubscribe = host.subscribe(() => push(ws));
 					push(ws);
 				},
 				onMessage(event, ws) {
 					const command = parseCommand(event.data);
 					if (!command) return;
-					switch (command.type) {
-						case 'send':
-							host.conversation.send(command.content);
-							break;
-						case 'stop':
-							host.conversation.stop();
-							break;
-						case 'retry':
-							host.conversation.retry();
-							break;
-						default:
-							command satisfies never;
-					}
+					host.handleCommand(command);
 					push(ws);
 				},
 				onClose() {
@@ -145,7 +126,7 @@ function tokensMatch(candidate: string, expected: string): boolean {
 	return timingSafeEqual(a, b);
 }
 
-function parseCommand(data: unknown): ClientCommand | undefined {
+function parseCommand(data: unknown): SuperChatClientCommand | undefined {
 	if (typeof data !== 'string') return undefined;
 	let parsed: unknown;
 	try {
@@ -160,5 +141,19 @@ function parseCommand(data: unknown): ClientCommand | undefined {
 	}
 	if (command.type === 'stop') return { type: 'stop' };
 	if (command.type === 'retry') return { type: 'retry' };
+	if (
+		command.type === 'approve' &&
+		typeof command.requestId === 'string' &&
+		typeof command.approved === 'boolean'
+	) {
+		return {
+			type: 'approve',
+			requestId: command.requestId,
+			approved: command.approved,
+			...(command.alwaysAllowSession === true && {
+				alwaysAllowSession: true,
+			}),
+		};
+	}
 	return undefined;
 }

@@ -54,7 +54,7 @@ socket.addEventListener('message', (event) => {
 	// settles into `messages` (never from `streaming`): a real UI keys one
 	// bubble per message id and swaps its render mode in place; this CLI
 	// harness just waits for settle.
-	const { messages } = frame.snapshot;
+	const { messages } = frame.snapshot.conversation;
 	for (const message of messages.slice(printedMessageCount)) {
 		printTranscriptMessage(message);
 	}
