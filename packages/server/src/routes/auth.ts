@@ -41,7 +41,14 @@ import type { CloudEnv } from '../types.js';
 
 export type SignInContext = {
 	providers: Record<'google' | 'github' | 'microsoft' | 'apple', boolean>;
-	passkeyEnabled: false;
+	/**
+	 * Statically true: the passkey plugin registers unconditionally in
+	 * `authPlugins` (its Relying Party derives from `apiBaseURL`, no secrets
+	 * to be missing), so every build that serves this route has a WebAuthn
+	 * backend. Stays in the contract so the UI keeps one truth source for
+	 * "may I render passkey affordances".
+	 */
+	passkeyEnabled: true;
 	session: { name: string; email: string } | null;
 };
 
@@ -79,7 +86,7 @@ export const authApp = new Hono<CloudEnv>()
 			});
 			return c.json({
 				providers: getSignInProviders(c.var.authSecrets),
-				passkeyEnabled: false,
+				passkeyEnabled: true,
 				session: session
 					? {
 							name: session.user.name,

@@ -71,7 +71,7 @@ test('GET /sign-in/context returns session and provider truth from env', async (
 			microsoft: true,
 			apple: false,
 		},
-		passkeyEnabled: false,
+		passkeyEnabled: true,
 		session: { name: 'Ada Lovelace', email: 'ada@example.com' },
 	});
 });
