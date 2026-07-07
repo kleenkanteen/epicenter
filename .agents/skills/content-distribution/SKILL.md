@@ -1,6 +1,6 @@
 ---
 name: content-distribution
-description: Turn one real idea, vault page, article, photo, screenshot, code diff, spec excerpt, or diagram into platform-native content for LinkedIn, X, Reddit, TikTok, Instagram Reels, YouTube Shorts, Medium, Substack, or a personal-site article. Use when creating or editing files in adaptations/ or publications/, choosing a channel or platform for a page, republishing or updating content that already shipped, or figuring out what's currently live for a given page.
+description: Turn one real idea, vault page, article, photo, screenshot, code diff, spec excerpt, or diagram into platform-native content for LinkedIn, X, Reddit, TikTok, Instagram Reels, YouTube Shorts, Medium, Substack, or a personal-site article. Use when creating or editing files in variants/, choosing a channel or platform for a page, republishing or updating content that already shipped, or figuring out what's currently live for a given page.
 ---
 
 # Content Distribution
@@ -18,8 +18,8 @@ Use one markdown source. Use real artifacts. AI adapts, packages, resizes, rewri
 ```txt
 real idea
   -> pages/<slug>.md (the private draft)
-  -> adaptations/<slug>-<channel>-<format>.md (platform-native rendering)
-  -> publications/<adaptation-stem>-<platform>.md (a shipped placement)
+  -> variants/<slug>-<channel>-<format>-<version>.md (the shaped artifact)
+       placements: [{platform, published_at, url, caption}] (shipped facts)
   -> performance notes
   -> next ideas from replies
 ```
@@ -111,26 +111,34 @@ Reddit:
 
 ## Source Of Truth
 
-`pages/<slug>.md` is the source. `channel` is the content identity (`bradencodes`, `braden-essays`, `epicenter`, ...). In the sibling vault repo, channel promises live at `../vault/specs/20260609T010000-channel-promise-approval-ledger.md`; read that file before picking a channel for a page for the first time because each channel's "what belongs" and "what does not belong" sections are normative. `format` is `short-video | thread | text | article`. `platform` is the distribution surface (`instagram`, `x`, `medium`, `personal-blog`, ...).
+`pages/<slug>.md` is the source. `channel` is the content identity (`bradencodes`, `braden-essays`, `epicenter`, ...). In the sibling vault repo, channel promises live at `../vault/specs/20260609T010000-channel-promise-approval-ledger.md`; read that file before picking a channel for a page for the first time because each channel's "what belongs" and "what does not belong" sections are normative. `format` is `article | social-post | short-video`. A `social-post` body is one or more short written segments separated by `---`: one segment is a one-shot post, several are a thread. `platform` is the distribution surface, and each format ships only to its platform class (the lint enforces this matrix):
+
+```txt
+article      → personal-blog | medium | substack | newsletter
+social-post  → x | linkedin | reddit
+short-video  → instagram | tiktok | youtube
+```
+
+A variant's filename is `<page>-<channel>-<format>-<version>` where `version` is the `YYYY-MM-DD` checkpoint the variant was cut from the page:
 
 ```txt
 pages/2026-06-15-my-page.md
-  -> adaptations/2026-06-15-my-page-bradencodes-thread.md
-       -> publications/2026-06-15-my-page-bradencodes-thread-x.md
-  -> adaptations/2026-06-15-my-page-braden-essays-article.md
-       -> publications/2026-06-15-my-page-braden-essays-article-personal-blog.md
+  -> variants/2026-06-15-my-page-bradencodes-social-post-2026-06-20.md
+       placements: [{platform: x, published_at, url}]
+  -> variants/2026-06-15-my-page-braden-essays-article-2026-06-20.md
+       placements: [{platform: personal-blog, published_at, url}]
 ```
 
-### Both layers are append-only
+### Freeze-on-supersede
 
-Never edit an existing adaptation or publication file's content in place. This is a ledger, not a mutable record.
+The **latest** variant for a `(page, channel, format)` lineage is living: edit it in place to track the page. Cutting a new version freezes its predecessor — never touch a superseded variant again; it is the curated record of what shipped.
 
-- Content changed (revised article, rewritten thread)? Create a **new adaptation** file, dated with its own creation date (not the page's date), so the filename doesn't collide with the original.
-- Shipping again, either an update to something already live or a genuine repost months later? Create a **new publication** row. Point it at the new adaptation if the content changed, or the same adaptation if it's an unchanged repost.
+- Content changed enough to preserve the old checkpoint? Cut a **new variant** with today's date as its `version`; the old one freezes.
+- Shipping the living variant somewhere (first ship, update, or repost)? Append a **placement** to its `placements[]` — one object per platform shipment.
 
-**What's currently live** is derived, not stored: for a given (page, channel, format, platform), the current publication is the one with the latest `published_at`. Older publication rows are history, not stale data to clean up.
+**What's currently live** is derived, not stored: for a given platform, the current placement is the one with the latest `published_at` on the latest variant that carries that platform. Older variants and placements are history, not stale data to clean up.
 
-Current vault schema: `pages/matter.json` requires `title`, `date`, `timezone`, and `status`; `adaptations/matter.json` requires `page`, `channel`, and `format`; `publications/matter.json` requires `adaptation` and `platform`, with optional `scheduled_for`, `published_at`, and `url`. Existing adaptation files may also carry `subtitle` as a channel-specific dek; the page's own `title` stays private and canonical. Leave `published_at` blank until content is actually live.
+Current vault schema: `pages/matter.json` requires `title`, `date`, `timezone`, and `status`; `variants/matter.json` requires `page`, `version`, `channel`, and `format`, with optional `subtitle` (a channel-specific dek; the page's own `title` stays private and canonical). `placements[]` is validated by `bun run publishing-lint`, not Matter: each object has `platform` plus optional `published_at`, `url`, and `caption`. Leave `published_at` off until content is actually live.
 
 ## Do Not
 

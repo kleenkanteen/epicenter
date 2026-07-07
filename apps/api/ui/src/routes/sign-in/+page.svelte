@@ -29,6 +29,7 @@
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import AuthCard from '$lib/auth/AuthCard.svelte';
+	import AuthHeader from '$lib/auth/AuthHeader.svelte';
 	import ProviderButton from '$lib/auth/ProviderButton.svelte';
 	import { getOAuthQuery } from '$lib/auth/oauth-query';
 	import {
@@ -167,12 +168,9 @@
 
 <AuthCard>
 	{#if session}
-		<Card.Header class="justify-items-center text-center">
-			<Card.Title>
-				<h1 class="text-xl font-semibold tracking-tight">You're signed in</h1>
-			</Card.Title>
-			<Card.Description>This browser is ready for Epicenter.</Card.Description>
-		</Card.Header>
+		<AuthHeader title="You're signed in">
+			{#snippet description()}This browser is ready for Epicenter.{/snippet}
+		</AuthHeader>
 		<Card.Content class="flex flex-col gap-1 text-center">
 			{#if hasRealName}
 				<p class="text-sm font-medium">{session.name}</p>
@@ -222,12 +220,9 @@
 			</Button>
 		</Card.Footer>
 	{:else}
-		<Card.Header class="justify-items-center text-center">
-			<Card.Title>
-				<h1 class="text-2xl font-semibold tracking-tight">epicenter</h1>
-			</Card.Title>
-			<Card.Description>Sign in to your account</Card.Description>
-		</Card.Header>
+		<AuthHeader title="epicenter">
+			{#snippet description()}Sign in to your account{/snippet}
+		</AuthHeader>
 		<Card.Content class="flex flex-col gap-3">
 			{#if enabledProviders.length === 0 && !passkeyAvailable}
 				<Alert.Root variant="destructive">
@@ -247,16 +242,12 @@
 				{#if passkeyAvailable}
 					<Button
 						variant="outline"
-						class="relative h-11 w-full"
+						size="lg"
+						class="w-full"
 						disabled={busy}
 						onclick={startPasskey}
 					>
-						<span
-							class="absolute left-4 flex size-4 items-center justify-center"
-							aria-hidden="true"
-						>
-							<FingerprintIcon class="size-4" />
-						</span>
+						<FingerprintIcon class="size-4" />
 						Continue with passkey
 					</Button>
 				{/if}
