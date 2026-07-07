@@ -6,10 +6,18 @@
 	/auth/sign-in/social with `oauth_query` (the signed authorize params) so an
 	OAuth re-entry continues the flow after the IdP roundtrip.
 
+	A passkey row renders behind two independent gates: the server capability
+	(`context.passkeyEnabled`) and the browser capability (PublicKeyCredential).
+	Successful authentication sets a standard session cookie, so a full reload
+	with the query string intact re-enters the server's GET /sign-in, which
+	already redirects `?sig=` sessions into the authorize flow.
+
 	Signed in (no `sig` / safe `callbackURL`, which the server redirects before
-	this renders): confirmation of which account this browser holds, plus
-	sign-out. Better Auth's /auth/sign-out rejects a bodyless POST with 415, so
-	the request sends `Content-Type: application/json` and `{}`.
+	this renders): confirmation of which account this browser holds, passkey
+	registration (the plugin requires a fresh session, so this signed-in card is
+	the natural same-origin home for it), plus sign-out. Better Auth's
+	/auth/sign-out rejects a bodyless POST with 415, so the request sends
+	`Content-Type: application/json` and `{}`.
 -->
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
@@ -18,9 +26,15 @@
 	import * as Card from '@epicenter/ui/card';
 	import { Spinner } from '@epicenter/ui/spinner';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
+	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import AuthCard from '$lib/auth/AuthCard.svelte';
 	import ProviderButton from '$lib/auth/ProviderButton.svelte';
 	import { getOAuthQuery } from '$lib/auth/oauth-query';
+	import {
+		authenticateWithPasskey,
+		registerPasskey,
+		supportsPasskeys,
+	} from '$lib/auth/passkey';
 	import {
 		PROVIDER_LABELS,
 		SOCIAL_PROVIDERS,
@@ -42,8 +56,17 @@
 			session.name.trim().toLowerCase() !== session.email.trim().toLowerCase(),
 	);
 
+	// Two independent gates: the deployment has a WebAuthn backend, and this
+	// browser can run a WebAuthn ceremony. Both must hold or no passkey UI
+	// renders; a dead passkey button is worse than none.
+	const passkeyAvailable = $derived(
+		data.context.passkeyEnabled && supportsPasskeys(),
+	);
+
 	let busy = $state(false);
 	let signingOut = $state(false);
+	let addingPasskey = $state(false);
+	let passkeyAdded = $state(false);
 	let errorMessage = $state<string | null>(null);
 
 	async function startSocial(provider: SocialProvider) {
@@ -83,6 +106,35 @@
 			errorMessage = 'Network error. Check your connection and try again.';
 			busy = false;
 		}
+	}
+
+	async function startPasskey() {
+		errorMessage = null;
+		busy = true;
+		const result = await authenticateWithPasskey();
+		if (result.ok) {
+			// Reload with the query string intact; the server's GET /sign-in sees
+			// the new session cookie and continues the `?sig=` authorize re-entry
+			// (or the safe callbackURL redirect) with no extra client logic.
+			window.location.reload();
+			return;
+		}
+		// `error: null` is a dismissed browser prompt; reset quietly.
+		errorMessage = result.error;
+		busy = false;
+	}
+
+	async function addPasskey() {
+		errorMessage = null;
+		passkeyAdded = false;
+		addingPasskey = true;
+		const result = await registerPasskey();
+		if (result.ok) {
+			passkeyAdded = true;
+		} else {
+			errorMessage = result.error;
+		}
+		addingPasskey = false;
 	}
 
 	async function signOut() {
@@ -137,11 +189,32 @@
 					<Alert.Description>{errorMessage}</Alert.Description>
 				</Alert.Root>
 			{/if}
+			{#if passkeyAdded}
+				<p class="text-sm text-muted-foreground">
+					Passkey added. Use it the next time you sign in.
+				</p>
+			{/if}
+			{#if passkeyAvailable}
+				<Button
+					variant="outline"
+					class="w-full"
+					onclick={addPasskey}
+					disabled={addingPasskey || signingOut}
+				>
+					{#if addingPasskey}
+						<Spinner class="size-3.5" />
+						<span>Adding passkey</span>
+					{:else}
+						<FingerprintIcon class="size-4" />
+						Add a passkey
+					{/if}
+				</Button>
+			{/if}
 			<Button
 				variant="outline"
 				class="w-full"
 				onclick={signOut}
-				disabled={signingOut}
+				disabled={signingOut || addingPasskey}
 			>
 				{#if signingOut}
 					<Spinner class="size-3.5" />
@@ -159,7 +232,7 @@
 			<Card.Description>Sign in to your account</Card.Description>
 		</Card.Header>
 		<Card.Content class="flex flex-col gap-3">
-			{#if enabledProviders.length === 0}
+			{#if enabledProviders.length === 0 && !passkeyAvailable}
 				<Alert.Root variant="destructive">
 					<CircleAlertIcon class="size-4" />
 					<Alert.Description>
@@ -174,6 +247,22 @@
 						onclick={() => startSocial(provider)}
 					/>
 				{/each}
+				{#if passkeyAvailable}
+					<Button
+						variant="outline"
+						class="relative h-11 w-full"
+						disabled={busy}
+						onclick={startPasskey}
+					>
+						<span
+							class="absolute left-4 flex size-4 items-center justify-center"
+							aria-hidden="true"
+						>
+							<FingerprintIcon class="size-4" />
+						</span>
+						Continue with passkey
+					</Button>
+				{/if}
 			{/if}
 			{#if errorMessage}
 				<Alert.Root variant="destructive">

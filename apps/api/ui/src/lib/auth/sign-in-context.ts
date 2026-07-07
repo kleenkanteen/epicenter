@@ -9,8 +9,9 @@
  *
  * `providers` carries the deployment's enablement truth (register-when-present
  * OAuth credentials). A provider absent from the backend never reaches this
- * object, so the UI cannot render a dead button; passkey support lands as a
- * new key here once a WebAuthn backend exists.
+ * object, so the UI cannot render a dead button. `passkeyEnabled` is the same
+ * kind of truth for the WebAuthn backend; the UI additionally gates passkey
+ * affordances on browser support (PublicKeyCredential).
  */
 export type SocialProvider = 'google' | 'github' | 'microsoft' | 'apple';
 
