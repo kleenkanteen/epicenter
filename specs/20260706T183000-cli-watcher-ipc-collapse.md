@@ -160,9 +160,9 @@ If repo scripts do not support package arguments for `bun test`, run targeted te
 
 Goal: once no socket serves actions, `DaemonRuntime` should not require `actions` just to satisfy an old transport.
 
-- [ ] Remove `actions` from `DaemonRuntime` if all remaining callers can use a runtime without it.
-- [ ] Keep workspace actions in connected workspace bundles.
-- [ ] Decide whether materializer maintenance operations should remain action-shaped or become direct materializer methods. Do not do this opportunistically in Wave 1 unless the type collapse forces it.
+- [x] Remove `actions` from `DaemonRuntime` if all remaining callers can use a runtime without it. (Zero non-test callers; `compose` is side-effect only and `MountComposition` is deleted.)
+- [x] Keep workspace actions in connected workspace bundles.
+- [x] Decide whether materializer maintenance operations should remain action-shaped or become direct materializer methods. (Direct methods: `rebuild(table?)` and `search(table, query, options?)`; the action shape existed only for wire introspection.)
 
 ### Wave 3: lifecycle surface rename
 
