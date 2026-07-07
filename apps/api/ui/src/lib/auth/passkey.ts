@@ -18,6 +18,10 @@
 import {
 	startAuthentication,
 	startRegistration,
+	type AuthenticationResponseJSON,
+	type PublicKeyCredentialCreationOptionsJSON,
+	type PublicKeyCredentialRequestOptionsJSON,
+	type RegistrationResponseJSON,
 } from '@simplewebauthn/browser';
 
 export type PasskeyCeremonyResult =
@@ -34,7 +38,7 @@ function isCancelled(cause: unknown): boolean {
 }
 
 export async function authenticateWithPasskey(): Promise<PasskeyCeremonyResult> {
-	let options;
+	let options: PublicKeyCredentialRequestOptionsJSON;
 	try {
 		const response = await fetch(
 			'/auth/passkey/generate-authenticate-options',
@@ -48,7 +52,7 @@ export async function authenticateWithPasskey(): Promise<PasskeyCeremonyResult> 
 		return { ok: false, error: 'Network error starting passkey sign-in.' };
 	}
 
-	let credential;
+	let credential: AuthenticationResponseJSON;
 	try {
 		credential = await startAuthentication({ optionsJSON: options });
 	} catch (cause) {
@@ -75,7 +79,7 @@ export async function authenticateWithPasskey(): Promise<PasskeyCeremonyResult> 
 }
 
 export async function registerPasskey(): Promise<PasskeyCeremonyResult> {
-	let options;
+	let options: PublicKeyCredentialCreationOptionsJSON;
 	try {
 		const response = await fetch('/auth/passkey/generate-register-options', {
 			credentials: 'include',
@@ -92,7 +96,7 @@ export async function registerPasskey(): Promise<PasskeyCeremonyResult> {
 		return { ok: false, error: 'Network error starting passkey setup.' };
 	}
 
-	let credential;
+	let credential: RegistrationResponseJSON;
 	try {
 		credential = await startRegistration({ optionsJSON: options });
 	} catch (cause) {
