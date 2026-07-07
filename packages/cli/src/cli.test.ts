@@ -46,41 +46,28 @@ describe('createCLI', () => {
 		errorSpy.mockRestore();
 	});
 
-	test('help output registers auth, daemon, list, peers, and run', async () => {
+	test('help output registers supported top-level commands', async () => {
 		const help = await captureHelp();
+		expect(help).toMatch(/\bepicenter up\b/);
+		expect(help).toMatch(/\bepicenter down\b/);
+		expect(help).toMatch(/\bepicenter status\b/);
+		expect(help).toMatch(/\bepicenter logs\b/);
 		expect(help).toMatch(/\bauth\b/);
-		expect(help).toMatch(/\bdaemon\b/);
-		expect(help).toMatch(/\blist\b/);
-		expect(help).toMatch(/\bpeers\b/);
-		expect(help).toMatch(/\brun\b/);
-		expect(help).not.toMatch(/\bup\b/);
-		expect(help).not.toMatch(/\bdown\b/);
-		expect(help).not.toMatch(/\bps\b/);
-		expect(help).not.toMatch(/\blogs\b/);
+		expect(help).toMatch(/\bblobs\b/);
+		expect(help).toMatch(/\binit\b/);
+		expect(help).toMatch(/\bmatter\b/);
+		expect(help).not.toMatch(/\bdaemon\b/);
+		expect(help).not.toMatch(/\bepicenter ps\b/);
+		expect(help).not.toMatch(/\blist\b/);
+		expect(help).not.toMatch(/\bpeers\b/);
+		expect(help).not.toMatch(/\bepicenter run\b/);
 	});
 
-	test('daemon help output registers lifecycle subcommands', async () => {
-		const help = await captureHelp(['daemon', '--help']);
-		expect(help).toMatch(/\bup\b/);
-		expect(help).toMatch(/\bdown\b/);
-		expect(help).toMatch(/\bps\b/);
-		expect(help).toMatch(/\blogs\b/);
-	});
-
-	test('daemon without a subcommand shows daemon guidance', async () => {
-		const help = await captureHelp(['daemon']);
-		expect(help).toContain('Specify a subcommand: up, down, ps, or logs');
-		expect(help).toMatch(/\bup\b/);
-		expect(help).toMatch(/\bdown\b/);
-		expect(help).toMatch(/\bps\b/);
-		expect(help).toMatch(/\blogs\b/);
-	});
-
-	test('top-level daemon lifecycle commands are unknown', async () => {
+	test('the daemon namespace and ps alias are gone', async () => {
 		const errorSpy = spyOn(console, 'error').mockImplementation(() => {});
 
 		try {
-			for (const command of ['up', 'down', 'ps', 'logs']) {
+			for (const command of ['daemon', 'ps']) {
 				await expect(createCLI().run([command])).rejects.toThrow(
 					`Unknown argument: ${command}`,
 				);

@@ -1,99 +1,90 @@
-# Action Return Shapes: Local Vs Remote
+# Action Return Shapes: Direct Calls Vs Adapters
 
-Actions have two type surfaces. A local caller sees the handler exactly as it
-was written. A remote caller goes through `collaboration.dispatch()`, so the
-result is always a `Result<T, DispatchError>`.
+Actions have two useful views:
+
+```txt
+direct call     workspace.actions.tabs_close({ ... })
+adapter call    invokeAction(workspace.actions.tabs_close, unknownInput)
+```
+
+A direct caller sees exactly what the handler author wrote. An adapter caller
+gets `Promise<Result<T, unknown>>` from `invokeAction`.
 
 ## Call Contexts
 
-```
-1. LOCAL
-   workspace.actions.tabs_close({...})
-   Same process, direct function call, no wrapping.
+```txt
+1. DIRECT
+   workspace.actions.tabs_close({ tabIds })
+   Same process, direct function call. No wrapping.
 
 2. ADAPTER
-   epicenter run tabs_close
-   LLM calls tabs_close tool
-   In process, adapter formats the handler result for its surface.
+   invokeAction(action, input)
+   epicenter run tabs_close '{}'
+   AI or MCP tool bridge
+   Input validates against the action schema before the handler runs.
 
-3. REMOTE
-   collaboration.dispatch('tabs_close', {...}, { to, signal })
-   Crosses the collaboration wire, always Result-wrapped.
+3. COLLABORATION
+   openCollaboration(...)
+   Sync and presence only. No in-room action dispatch.
 ```
 
 ## One Handler, Every Caller's View
 
-| Caller | Ok path | Err(BrowserApiFailed) | Handler throws |
+| Caller | Raw ok value | Handler returns `Err(BrowserApiFailed)` | Handler throws |
 | --- | --- | --- | --- |
-| Local | `{data:{closedCount:1}, error:null}` | `{data:null, error:BrowserApiFailed}` | throws at `await` |
-| CLI `epicenter run` | prints `{"closedCount":1}`, exit 0 | stderr + exit 1 | stderr stack trace + exit 1 |
-| AI bridge | AI sees `{closedCount:1}` | AI sees tool failure | propagates as tool failure |
-| `collaboration.dispatch()` | `Ok({closedCount:1})` | `Err(DispatchError.ActionFailed{cause: BrowserApiFailed})` | `Err(DispatchError.ActionFailed{cause})` |
+| Direct local call | raw value | `{ data: null, error: BrowserApiFailed }` | throws |
+| `invokeAction` | `Ok(raw)` | same `Err(BrowserApiFailed)` | `Err(cause)` |
+| CLI `epicenter run` | prints success payload | usage/runtime error response | runtime error response |
+| AI bridge | tool success payload | tool failure | tool failure |
 
-Remote dispatch coarsens handler errors into `DispatchError.ActionFailed`.
-Keep typed `Err` values for local callers and in-process adapters. Once a call
-crosses the collaboration wire, the remote caller branches on `DispatchError`.
+`invokeAction` is the adapter boundary. It:
 
-## Where Wrapping Happens
-
-```
-Target (handler owner)                 Caller
-----------------------                 ------
-attachActionRunner                     collaboration.dispatch
-  raw value    -> Ok(raw)               waits for response row
-  Result Ok    -> Ok(data)              returns Result<T, DispatchError>
-  Result Err   -> ActionFailed(cause)
-  throw        -> ActionFailed(cause)
-```
-
-Target-side normalization runs inside `attachActionRunner` in
-`packages/workspace/src/document/dispatch.ts`. The caller receives exactly the
-response row through `collaboration.dispatch()`.
+1. Validates `input` when the action declared an `input` schema.
+2. Calls the handler directly.
+3. Wraps non-`Result` returns in `Ok(...)`.
+4. Preserves returned `Result`s.
+5. Catches thrown errors and returns `Err(cause)`.
 
 ## Handler Rule
 
 Return `Err` for failures local callers should branch on. Throw for bugs and
-invariants. Remote callers always see either your successful data or a
-`DispatchError` variant.
+invariants. Return raw when failure is not a meaningful concept for the
+operation.
+
+Do not return a bare tagged error object. `invokeAction` treats non-`Result`
+returns as success, and the action type guard rejects bare wellcrafted tagged
+errors for this reason.
 
 ## Example
 
 ```typescript
 const local = await workspace.actions.tabs_close({ tabIds: [1] });
 if (local.error) {
-  toast.error(local.error.message);
-  return;
+	toast.error(local.error.message);
+	return;
 }
 
-const remote = await collaboration.dispatch(
-  'tabs_close',
-  { tabIds: [1] },
-  { to: peer.connId, signal: AbortSignal.timeout(10_000) },
+const adapter = await invokeAction<{ closedCount: number }>(
+	workspace.actions.tabs_close,
+	{ tabIds: [1] },
 );
-if (remote.error) {
-  switch (remote.error.name) {
-    case 'ActionFailed':
-      toast.error('Action failed');
-      break;
-    case 'ActionNotFound':
-      toast.error('Action not found');
-      break;
-    case 'Cancelled':
-      toast.error('Request cancelled');
-      break;
-  }
+if (adapter.error) {
+	toast.error(extractErrorMessage(adapter.error));
+	return;
 }
+
+console.log(adapter.data.closedCount);
 ```
 
-If the remote caller needs to know "not found" separately from "handler
-crashed", make that a typed local error and add a narrower remote action
-surface later. The current peer dispatch API intentionally exposes
-`DispatchError`, not each handler's internal error union.
+If a cross-device surface needs this action, expose it through the daemon or a
+tool adapter. Do not resurrect in-room peer dispatch: current collaboration
+publishes presence and syncs Yjs updates only.
 
 ## Invariants
 
-1. Local callers never see `DispatchError`.
+1. Direct callers never get adapter wrapping unless they call `invokeAction`.
 2. Handlers can be sync, async, return raw, return `Result`, or throw.
-3. Remote normalization runs exactly once per RPC, inside `attachActionRunner`.
-4. Remote receivers expect `{ data, error }` from `collaboration.dispatch()`.
-5. `DispatchError` lives in `packages/workspace/src/document/dispatch.ts` and is re-exported from `@epicenter/workspace`.
+3. `invokeAction` normalizes once at the adapter boundary.
+4. Input validation belongs at the adapter boundary when `input` is declared.
+5. `openCollaboration` does not expose `dispatch`; ADR-0073 removed in-room
+   dispatch.

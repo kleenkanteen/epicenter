@@ -1,5 +1,9 @@
 <script lang="ts">
+	import * as Empty from '@epicenter/ui/empty';
+	import { Loading } from '@epicenter/ui/loading';
 	import * as Table from '@epicenter/ui/table';
+	import DatabaseIcon from '@lucide/svelte/icons/database';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import { columnLabel, formatCell, numberFmt } from '$lib/format';
 	import type { EntityRowsPage } from '$lib/types';
 
@@ -35,13 +39,23 @@
 
 	<div class="min-h-0 flex-1 overflow-auto">
 		{#if error}
-			<p class="p-4 text-sm text-destructive">{error}</p>
+			<Empty.Root class="h-full border-0">
+				<Empty.Media variant="icon">
+					<TriangleAlertIcon class="size-5 text-destructive" />
+				</Empty.Media>
+				<Empty.Title>Could not load rows</Empty.Title>
+				<Empty.Description>{error}</Empty.Description>
+			</Empty.Root>
 		{:else if loading}
-			<p class="p-4 text-sm text-muted-foreground">Loading…</p>
+			<Loading class="h-full" label="Loading rows" />
 		{:else if rows.length === 0}
-			<p class="p-4 text-sm text-muted-foreground">
-				No rows. This record type may not be synced yet.
-			</p>
+			<Empty.Root class="h-full border-0">
+				<Empty.Media variant="icon">
+					<DatabaseIcon class="size-5" />
+				</Empty.Media>
+				<Empty.Title>No rows</Empty.Title>
+				<Empty.Description>This record type may not be synced yet.</Empty.Description>
+			</Empty.Root>
 		{:else}
 			<Table.Root class="text-sm">
 				<Table.Header>

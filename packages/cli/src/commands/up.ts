@@ -1,12 +1,10 @@
 /**
- * `epicenter daemon up`: start the long-lived foreground daemon for one Epicenter root.
+ * `epicenter up`: start the long-lived foreground watcher for one Epicenter root.
  *
- * Loads the mount declared in `epicenter.config.ts`, opens it, and exposes a
- * Unix-socket IPC channel for that root. `peers`, `list`, and `run` dispatch to
- * this daemon over IPC; without `daemon up` they error with a hint pointing
- * back here.
+ * Loads the mount declared in `epicenter.config.ts`, opens it, and keeps sync
+ * and materializers alive until the process receives a shutdown signal.
  *
- * One daemon per Epicenter root; one folder declares one mount. Resource
+ * One watcher per Epicenter root; one folder declares one mount. Resource
  * isolation between apps is expressed by separate folders, each its own root.
  *
  * Foreground by design; backgrounding is the user's job.
@@ -26,7 +24,6 @@ import {
 	type InactiveMount,
 	openEpicenterRoot,
 	StartupError,
-	startDaemonServer,
 	unlinkMetadata,
 	type WorkspaceAppError,
 	writeMetadata,
@@ -59,7 +56,7 @@ type UpOptions = {
 	quiet: boolean;
 	cliVersion?: string;
 	/**
-	 * Factory that constructs the daemon's auth client. Production uses the
+	 * Factory that constructs the watcher's auth client. Production uses the
 	 * default (`resolveMachineAuthClient`, which picks the instance-token client
 	 * when a static token is configured via `EPICENTER_TOKEN` /
 	 * `EPICENTER_TOKEN_FILE`, else reads the persisted OAuth cell from disk).
@@ -72,19 +69,18 @@ type UpOptions = {
 };
 
 /**
- * Handle returned by {@link runUp}. The daemon body is exposed as a
+ * Handle returned by {@link runUp}. The watcher body is exposed as a
  * standalone async function (no `process.exit`) so unit tests can drive
- * startup, exercise the IPC handler in-process, and call `teardown()` to
- * release resources without spawning a child. Inactive handles exist only so
- * tests and the command handler can report the reason and release the startup
- * lease; they are not running daemons.
+ * startup and call `teardown()` to release resources without spawning a child.
+ * Inactive handles exist only so tests and the command handler can report the
+ * reason and release the startup lease; they are not running watchers.
  *
  * - `opened` is the single configured mount, either served (`started`) or
  *   reported (`inactive`) when it declined to run.
  * - `metadata` is the daemon metadata for this startup; it is written only
- *   when the mount actually starts and binds a socket.
- * - `teardown()` closes the server, asyncDisposes the runtimes, releases the
- *   lease, and unlinks metadata + socket. Idempotent.
+ *   when the mount actually starts.
+ * - `teardown()` asyncDisposes the runtime, releases the lease, and unlinks
+ *   metadata. Idempotent.
  */
 type UpHandle = {
 	opened:
@@ -95,16 +91,15 @@ type UpHandle = {
 };
 
 /**
- * Daemon body. Opens the configured mount (the root must already have an
- * `epicenter.config.ts`; see `epicenter init`), binds the IPC socket for an
- * active mount, and returns a handle. The yargs `handler` calls this, prints
+ * Watcher body. Opens the configured mount (the root must already have an
+ * `epicenter.config.ts`; see `epicenter init`) and returns a handle. The yargs `handler` calls this, prints
  * the operator-facing banner, installs SIGINT/SIGTERM, and parks the process
  * only when the mount started; tests call it directly and assert on the
  * returned handle.
  *
  * A SQLite daemon lease serializes startup before the mount opens. After that,
  * `openEpicenterRoot` imports `epicenter.config.ts`, claims the Epicenter
- * folder, opens the mount, and `startDaemonServer` binds the socket.
+ * folder, and opens the mount.
  */
 export async function runUp(
 	options: UpOptions,
@@ -139,7 +134,7 @@ export async function runUp(
 	stack.defer(() => lease.release());
 
 	// Load the machine auth client up front. A signed-out machine ("no saved
-	// session") is a valid state: the daemon still serves local mounts and
+	// session") is a valid state: the watcher still serves local mounts and
 	// reports session-only mounts as inactive, so it maps to a `null` session.
 	// Any other storage error is fatal.
 	const createAuthClient = options.createAuthClient ?? resolveMachineAuthClient;
@@ -163,14 +158,6 @@ export async function runUp(
 		stack.defer(async () => {
 			await started.runtime[Symbol.asyncDispose]();
 		});
-
-		const serverResult = await startDaemonServer({
-			lease,
-			mount: started,
-		});
-		if (serverResult.error) return serverResult;
-		const daemonServer = serverResult.data;
-		stack.defer(() => daemonServer.close());
 	}
 
 	if (opened.status === 'started') {
@@ -191,15 +178,15 @@ export async function runUp(
 }
 
 /**
- * Yargs `daemon up` command. Thin glue: parses argv, calls {@link runUp}, prints
- * the operator-facing banner + initial peers snapshot, exits after reporting
+ * Yargs `up` command. Thin glue: parses argv, calls {@link runUp}, prints
+ * the operator-facing banner and initial peers snapshot, exits after reporting
  * inactive mounts, or wires SIGINT/SIGTERM and parks until a signal triggers
  * teardown for active mounts.
  */
 export const upCommand = cmd({
 	command: 'up',
 	describe:
-		'Open the mount in epicenter.config.ts and serve it on the daemon socket (foreground).',
+		'Open the mount in epicenter.config.ts and keep it running in the foreground.',
 	builder: {
 		C: epicenterRootOption,
 		quiet: {
@@ -232,7 +219,9 @@ export const upCommand = cmd({
 			monitorMount(entry, { quiet: options.quiet });
 		}
 
+		const keepAlive = setInterval(() => {}, 2 ** 31 - 1);
 		const onSignal = () => {
+			clearInterval(keepAlive);
 			void handle.teardown().then(
 				() => process.exit(0),
 				() => process.exit(1),
@@ -241,7 +230,8 @@ export const upCommand = cmd({
 		process.once('SIGINT', onSignal);
 		process.once('SIGTERM', onSignal);
 
-		// Park: don't exit. SIGINT/SIGTERM handler clears stdin so node can drain.
+		// Park: don't exit. The watcher no longer binds a socket, so it needs an
+		// explicit event-loop handle even when stdin is closed by a parent process.
 		process.stdin.resume();
 	},
 });

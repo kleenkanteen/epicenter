@@ -6,7 +6,6 @@
 	"description": "Shared Hono server for Epicenter cloud and the self-hosted single-partition instance.",
 	"exports": {
 		".": "./src/index.ts",
-		"./schema": "./src/db/schema/index.ts",
 		"./bun": "./src/bun.ts"
 	},
 	"scripts": {

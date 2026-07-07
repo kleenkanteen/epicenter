@@ -10,7 +10,7 @@
 	import { auth } from '$lib/platform/auth';
 	import { dictation } from '$lib/state/dictation.svelte';
 	import { vocab } from '$lib/vocab';
-	import TermsPanel from './TermsPanel.svelte';
+	import EntriesPanel from './EntriesPanel.svelte';
 
 	let {
 		conversations,
@@ -24,7 +24,7 @@
 		activeConversationId: ConversationId | null;
 		onCreate: () => void;
 		onSwitch: (conversationId: ConversationId) => void;
-		onPractice: (termTexts: string[]) => void;
+		onPractice: (entryTexts: string[]) => void;
 		generating: boolean;
 	} = $props();
 </script>
@@ -89,7 +89,7 @@
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 
-		<TermsPanel {onPractice} {generating} />
+		<EntriesPanel {onPractice} {generating} />
 	</Sidebar.Content>
 
 	<Sidebar.Rail />

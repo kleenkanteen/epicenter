@@ -47,8 +47,8 @@ export type AttachBunSqliteMaterializerOptions<
 	/**
 	 * Optional FTS5 configuration. Keys must match `workspace.tables` keys; values
 	 * list the columns of that table's row to include in the FTS index.
-	 * When provided, the result exposes `sqlite.actions.sqlite_search(...)`; when
-	 * omitted, `sqlite.actions` only contains `sqlite_rebuild`.
+	 * When provided, the result exposes `sqlite.search(...)`; when omitted,
+	 * `search` is undefined.
 	 */
 	fts?: TFts;
 

@@ -1,6 +1,6 @@
 {
 	"name": "@epicenter/super-chat",
-	"description": "One local desktop chat session composing installed apps' verbs into one catalog, hosted by a Bun loopback server.",
+	"description": "One local desktop chat session composing built-in apps' verbs into one catalog, hosted by a Bun loopback server.",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
@@ -20,8 +20,6 @@
 		"@epicenter/workspace": "workspace:*",
 		"@modelcontextprotocol/sdk": "catalog:",
 		"hono": "catalog:",
-		"typebox": "catalog:",
-		"wellcrafted": "catalog:",
 		"yjs": "catalog:"
 	},
 	"devDependencies": {

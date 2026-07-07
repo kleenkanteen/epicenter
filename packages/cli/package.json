@@ -1,7 +1,7 @@
 {
 	"name": "@epicenter/cli",
 	"version": "0.3.0",
-	"description": "CLI for Epicenter workspaces. List and invoke mounted actions locally or on online peers.",
+	"description": "CLI for Epicenter workspaces. Runs the headless watcher that keeps a folder synced and materialized.",
 	"keywords": [
 		"local-first",
 		"CLI",
@@ -36,16 +36,13 @@
 		"@epicenter/identity": "workspace:*",
 		"@epicenter/matter-core": "workspace:*",
 		"@epicenter/workspace": "workspace:*",
-		"@hono/standard-validator": "catalog:",
-		"arktype": "catalog:",
-		"hono": "catalog:",
 		"mime": "catalog:",
-		"typebox": "catalog:",
 		"wellcrafted": "catalog:",
 		"yargs": "catalog:",
 		"yjs": "catalog:"
 	},
 	"devDependencies": {
+		"typebox": "catalog:",
 		"@epicenter/api": "workspace:*",
 		"@epicenter/honeycrisp": "workspace:*",
 		"@epicenter/tab-manager": "workspace:*",

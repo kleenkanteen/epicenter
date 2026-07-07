@@ -29,13 +29,13 @@
 
 	onDestroy(() => chat[Symbol.dispose]());
 
-	/** Compile the chosen terms into a practice turn and send it. Focus lands in
+	/** Compile the chosen entries into a practice turn and send it. Focus lands in
 	 * the active conversation, opening one only when none exists. The passage
-	 * comes back under the tutor system prompt; nothing is written to the terms. */
-	function practice(termTexts: string[]) {
-		if (termTexts.length === 0) return;
+	 * comes back under the tutor system prompt; nothing is written to the entries. */
+	function practice(entryTexts: string[]) {
+		if (entryTexts.length === 0) return;
 		if (!chat.active) chat.createConversation();
-		chat.active?.sendMessage(buildPracticePrompt(termTexts));
+		chat.active?.sendMessage(buildPracticePrompt(entryTexts));
 	}
 </script>
 

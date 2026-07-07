@@ -8,7 +8,7 @@
 
 ## Context
 
-The `epicenter blobs` CLI shipped as two products in one command tree: a content-addressed store, and half of a lockfile-sync layer (`epicenter.blobs.lock`, `pull`, path machinery in `add`) with no `push`, no `status`, and a `rm` that desyncs the map by design. The real workflow the CLI serves is a git vault whose markdown cites big files: the file's disk location stops mattering the moment a document holds a reference to it. The read URL already embeds the content address, `<origin>/api/owners/<ownerId>/blobs/<sha256>`, which makes every citation self-describing.
+The `epicenter blobs` CLI shipped as two products in one command tree: a content-addressed store, and half of a lockfile-sync layer (`epicenter.blobs.lock`, `pull`, path machinery in `add`) with no `push`, no `status`, and a `rm` that desyncs the map by design. The real workflow the CLI serves is a git vault whose markdown cites big files: the file's disk location stops mattering the moment a document holds a reference to it. The read URL embeds the content address, now `<origin>/api/blobs/<sha256>` after ADR-0092, which makes every citation self-describing.
 
 ## Decision
 
@@ -16,7 +16,7 @@ The `epicenter blobs` CLI shipped as two products in one command tree: a content
 
 ## Consequences
 
-A fresh clone cannot bulk-restore binaries to their original disk paths; that workflow is git-lfs's product and Epicenter refuses to compete with it. Any cited blob remains recoverable on any machine because its hash rides in the citation. `rm` breaks every citation of the deleted blob forever, and its help text says so; a safer `gc` (delete only unreferenced) is earned later. URLs couple documents to an origin; the embedded hash keeps a deployment migration a mechanical find-replace rather than data loss. `add` of an http(s) source archives it and prints the URL without writing anything to disk. Execution plan: `specs/20260701T150659-blobs-are-a-url-machine.md`.
+A fresh clone cannot bulk-restore binaries to their original disk paths; that workflow is git-lfs's product and Epicenter refuses to compete with it. Any cited blob remains recoverable on any machine because its hash rides in the citation. `rm` breaks every citation of the deleted blob forever, and its help text says so; a safer `gc` (delete only unreferenced) is earned later. URLs couple documents to an origin; the embedded hash keeps a deployment migration a mechanical find-replace rather than data loss. `add` of an http(s) source archives it and prints the URL without writing anything to disk.
 
 ## Considered alternatives
 

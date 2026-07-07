@@ -2,8 +2,7 @@
  * Epicenter root daemon lease.
  *
  * The lease is the single ownership primitive for daemon startup and lifetime.
- * Sockets are IPC endpoints, metadata is diagnostics, and ping is liveness.
- * None of those decide ownership.
+ * Metadata is diagnostics and pid checks are liveness. Neither decides ownership.
  *
  * SQLite gives us a cross-platform OS-backed lock through an open write
  * transaction. `BEGIN IMMEDIATE` fails with `SQLITE_BUSY` when another process
@@ -19,7 +18,7 @@ import { Ok, type Result } from 'wellcrafted/result';
 
 import { bestEffortSync } from './best-effort.js';
 import { readMetadata } from './metadata.js';
-import { leasePathFor, socketPathFor } from './paths.js';
+import { leasePathFor } from './paths.js';
 import { StartupError } from './startup-errors.js';
 
 function createDaemonLease({
@@ -36,8 +35,6 @@ function createDaemonLease({
 		epicenterRoot,
 		/** SQLite file whose open write transaction owns the daemon lease. */
 		leasePath,
-		/** Filesystem path of the unix socket this daemon binds. */
-		socketPath: socketPathFor(epicenterRoot),
 		/** Release the daemon lease. Idempotent. */
 		release: once((): void => {
 			bestEffortSync(() => {

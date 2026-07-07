@@ -7,7 +7,7 @@
 
 ## One Sentence
 
-A portable authenticated `GET /api/keyring` endpoint derives the ADR-0074 per-owner keyring from a deployment root secret, and Whispering's secrets facade uses it to move bring-class provider keys from plaintext device `localStorage` into the one user-global encrypted vault doc.
+A portable authenticated `GET /api/keyring` endpoint derives the ADR-0074 per-principal keyring from a deployment root secret, and Whispering's secrets facade uses it to move bring-class provider keys from plaintext device `localStorage` into the one user-global encrypted vault doc.
 
 ## Overview
 
@@ -62,9 +62,9 @@ Sign in on any device; the client fetches `GET /api/keyring` with its bearer; th
 | Env contract home | 2 coherence | `ENCRYPTION_SECRETS?` joins portable `ServerBindings` | Same seam as `OPENAI_API_KEY?`: optional, mount 503s when unconfigured (`server-bindings.ts:42`). Not `CloudAuthBindings`: that is the relational-auth substrate (ADR-0076), and instances have no Better Auth but DO need keyrings. |
 | Own endpoint vs enriching `/api/session` | 3 taste | Own endpoint `/api/keyring` | The session projection is cached by clients in plain storage for offline boot; key material must not ride into that cache. A separate endpoint lets each platform pick the key cache substrate (OS keychain on desktop). `create-auth.ts` already records the historical split ("no longer enriches `/auth/get-session` with encryption keys"). Revisit only if a third session-adjacent secret shows up. |
 | Response shape | 1 evidence | `{ keyring: Keyring }`, `Cache-Control: no-store` | `Keyring` (`packages/encryption/src/keys.ts:25`) is already documented as "transport-safe per-label key material delivered through auth sessions." |
-| Derivation label | 1 evidence | `c.var.ownerId` | Matches `deriveKeyring`'s JSDoc (`label` is "typically an OwnerId", info bytes `owner:${label}`), and ownership middleware already resolves it for both deployables. |
-| Auth middleware | 2 coherence | Deployment-supplied, same as `mountSessionApp` | Cloud passes `cookieOrBearer`, instance passes `bearer`. The keyring is the user's own decryption key, not a secret from the user, so any authenticated surface of that owner may read it. |
-| Vault doc identity | 1 evidence | User-global guid constant, owner-scoped persistence | ADR-0074 invariants 2 and 3. Constant lives in `packages/constants` beside the other cross-app identifiers. |
+| Derivation label | 1 evidence | `c.var.principal.id` | Matches `deriveKeyring`'s JSDoc (`label` is typically a `PrincipalId`, info bytes `principal:${label}`), and the deployment auth middleware already resolves it for both deployables. |
+| Auth middleware | 2 coherence | Deployment-supplied, same as `mountSessionApp` | Cloud passes `cookieOrBearer`, instance passes `bearer`. The keyring is the principal's own decryption key, not a secret from the caller, so any authenticated surface for that principal may read it. |
+| Vault doc identity | 1 evidence | User-global guid constant, principal-scoped persistence | ADR-0074 invariants 2 and 3. Constant lives in `packages/constants` beside the other cross-app identifiers. |
 | Per-doc key derivation | 1 evidence | `deriveWorkspaceKey(keyBytes, guid)` per keyring version into a `WorkspaceKeyring` map | Exactly what `activateEncryption` consumes (`keys.ts:41`, `y-keyvalue-lww-encrypted.ts`). The vault guid is the workspaceId label. |
 | Offline keyring cache | 2 coherence | Cache the fetched keyring on device: OS keychain on desktop, `localStorage` on web | Invariant 5 has no `locked` state; an offline boot with a synced vault replica MUST still decrypt, so the keyring must survive offline. Web cache is the same risk class as the grant beside it; desktop keychain is the "bootstrap root" role the keychain commit anticipated. |
 | Secret migration on sign-in | 2 coherence | Write-through device values into the vault, then delete local | Invariant 4 forbids a two-place read. Migration is copy-then-remove: local copy cleared only after a confirmed vault write. |
@@ -76,9 +76,9 @@ Sign in on any device; the client fetches `GET /api/keyring` with its bearer; th
 Server (both deployables)
 
   GET /api/keyring        (auth: cookieOrBearer on cloud, bearer on instance)
-    -> requireOwnership   (c.var.ownerId resolved: user partition | 'instance')
+    -> c.var.principal.id (user principal | INSTANCE_PRINCIPAL_ID)
       -> parseRootKeyring(env.ENCRYPTION_SECRETS)   (503 KeyringNotConfigured when unset)
-        -> deriveKeyring({ rootKeyring, label: ownerId })
+        -> deriveKeyring({ rootKeyring, label: principalId })
           -> { keyring: [{ version, keyBytesBase64 }, ...] }   Cache-Control: no-store
 
 Client (per app, behind the auth session)
@@ -88,7 +88,7 @@ Client (per app, behind the auth session)
          desktop: OS keychain (service 'whispering', account 'vault-keyring')
          web:     localStorage ('whispering.vault.keyring')
     -> vaultDoc = new Y.Doc({ guid: SECRET_VAULT_GUID })
-    -> connectDoc(vaultDoc, { ownerId, ... })        (same primitive as the app doc)
+    -> connectDoc(vaultDoc, { principalId, ... })    (same primitive as the app doc)
     -> kv = createEncryptedYkvLww<string>(vaultDoc, 'secrets')
     -> kv.activateEncryption(toWorkspaceKeyring(keyring, SECRET_VAULT_GUID))
     -> migrate device-local bring-class keys in (copy, confirm, delete local)
@@ -145,7 +145,7 @@ export function createSecrets() {
 ```ts
 export function mountSessionApp<E extends Env = Env>(
 	app: Hono<E>,
-	opts: { auth: MiddlewareHandler<E>; ownership: OwnershipRule },
+	opts: { auth: MiddlewareHandler<E> },
 ): void
 ```
 
@@ -156,16 +156,16 @@ export function mountSessionApp<E extends Env = Env>(
 ### Phase 1: the endpoint
 
 - [ ] **1.1** Add `ENCRYPTION_SECRETS?: 'string'` to `ServerBindings` with a comment following the blobs/AI-key precedent (optional, 503 when reached unconfigured).
-- [ ] **1.2** Add `API_ROUTES.keyring` (`/api/keyring`) in `packages/constants/src/api-routes.ts`. Note: the `quality` script greps `/api/(session|owners|ai)` route literals into `API_ROUTES.*`; check whether its pattern needs `keyring` added.
-- [ ] **1.3** `packages/server/src/routes/keyring.ts`: `mountKeyringApp` with the session-app options shape; handler parses the root keyring once per request, derives for `c.var.ownerId`, returns `{ keyring }` with `Cache-Control: no-store`; 503 typed error when `ENCRYPTION_SECRETS` is unset; 500 (fail closed, log) when it is set but malformed.
+- [ ] **1.2** Add `API_ROUTES.keyring` (`/api/keyring`) in `packages/constants/src/api-routes.ts`. Check any route-literal guards that require API paths to go through `API_ROUTES`.
+- [ ] **1.3** `packages/server/src/routes/keyring.ts`: `mountKeyringApp` with the session-app options shape; handler parses the root keyring once per request, derives for `c.var.principal.id`, returns `{ keyring }` with `Cache-Control: no-store`; 503 typed error when `ENCRYPTION_SECRETS` is unset; 500 (fail closed, log) when it is set but malformed.
 - [ ] **1.4** Mount in `apps/api/worker/index.ts` (auth: `cookieOrBearer`) and both `apps/self-host` entries (auth: `bearer`). Add the secret to the cloud deploy config and the self-host reference config/docs.
 - [ ] **1.5** Response contract type (`ApiKeyringResponse`) exported beside `ApiSessionResponse` so clients and server share it (see Open Question 1 for its package home).
-- [ ] **1.6** Tests: derivation is stable per owner, differs across owners, respects root version order; unconfigured 503; route registered on both deployables.
+- [ ] **1.6** Tests: derivation is stable per principal, differs across principals, respects root version order; unconfigured 503; route registered on both deployables.
 
 ### Phase 2: client fetch + cache
 
 - [ ] **2.1** A `fetchKeyring` client reader beside `readApiSession` (auth-owned fetch, bearer attached, `credentials: 'omit'`).
-- [ ] **2.2** Device cache: desktop keychain entry (`vault-keyring` account via the existing `keyring_read`/`keyring_write` commands), web `localStorage` key. Refresh on every successful fetch; delete on sign-out. Note: `keyring_read`/`keyring_write` were narrowed alongside the auth-grant keychain migration, the service string is now hardcoded to `whispering` in Rust (`keyring_storage.rs`), and the webview may only pass an account name from a fixed allowlist that today contains just `auth-grant`. This wave must add `'vault-keyring'` to that Rust `KEYRING_ACCOUNTS` allowlist before the desktop cache can call these commands.
+- [ ] **2.2** Device cache: desktop keychain entry (`vault-keyring` account via a new vault-cache command pair), web `localStorage` key. Refresh on every successful fetch; delete on sign-out. Note: the auth-grant keyring commands were collapsed to zero-account in both apps (PR #2378). Rust owns the service and account strings, so this wave adds an explicit second command pair for the vault-keyring cache, with each command hardcoding the `vault-keyring` account in Rust, not an allowlist entry or a generic account parameter.
 - [ ] **2.3** Offline boot path: cached keyring hydrates activation before the first fetch resolves.
 
 ### Phase 3: vault doc + facade wire (Whispering first)
@@ -223,7 +223,7 @@ export function mountSessionApp<E extends Env = Env>(
 
 ## Success Criteria
 
-- [ ] `GET /api/keyring` returns a stable per-owner keyring on cloud and instance; 503 when unconfigured; never cached.
+- [ ] `GET /api/keyring` returns a stable per-principal keyring on cloud and instance; 503 when unconfigured; never cached.
 - [ ] Key entered in signed-in Whispering web reads `available` on signed-in Whispering desktop (live verification, two devices).
 - [ ] The relay row for the vault doc holds ciphertext (inspect the DO SQLite in `.wrangler/state`).
 - [ ] Signed-out Whispering behavior is byte-identical to today; device-local pinned secrets never sync.

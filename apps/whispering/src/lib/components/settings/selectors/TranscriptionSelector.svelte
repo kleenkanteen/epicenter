@@ -3,6 +3,7 @@
 	import * as Command from '@epicenter/ui/command';
 	import * as Empty from '@epicenter/ui/empty';
 	import { useCombobox } from '@epicenter/ui/hooks';
+	import { Loading } from '@epicenter/ui/loading';
 	import * as Popover from '@epicenter/ui/popover';
 	import { Progress } from '@epicenter/ui/progress';
 	import { toast } from '@epicenter/ui/sonner';
@@ -243,9 +244,7 @@
 					</Empty.Content>
 				</Empty.Root>
 			{:else if tauri && !localModels.loaded}
-				<div class="p-6 text-center text-sm text-muted-foreground">
-					Loading on-device models…
-				</div>
+				<Loading class="py-8" label="Loading on-device models" />
 			{:else}
 				<Empty.Root class="py-8">
 					<Empty.Media variant="icon">

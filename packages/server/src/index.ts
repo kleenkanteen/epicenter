@@ -29,7 +29,7 @@ export { connectHyperdriveDb } from './db/backends/cloudflare.js';
 // client/pool in drizzle with the auth schema; a cloud entry hands the result to
 // `mountCloudDb`. The Cloudflare per-request `pg.Client` over Hyperdrive comes from
 // `connectHyperdriveDb`; a Bun host builds its own `pg.Pool` inline.
-export { createDb, type Db } from './db/create-db.js';
+export { createDb } from './db/create-db.js';
 // An opt-in burn-rate cap for the inference `policies` seam: caps requests per
 // principal partition so a shared house key cannot be run up unbounded (ADR-0076).
 export { rateLimit } from './middleware/rate-limit.js';
@@ -59,9 +59,6 @@ export {
 // its own boot validation and resolves through `resolveAuthSecrets` (ADR-0076).
 export { CloudAuthBindings, mountCloudAuth } from './mount-cloud-auth.js';
 export { mountCloudDb } from './mount-cloud-db.js';
-// `doName` builds a room's principal-scoped DO name, deployment-agnostic and
-// exported for composing apps.
-export { doName } from './principal.js';
 // Re-export the Cloudflare Durable Object class so each deployment's
 // wrangler.jsonc can resolve `class_name: "Room"` against this entrypoint.
 export { Room } from './room/backends/cloudflare/durable-object.js';
@@ -85,7 +82,7 @@ export { mountTranscriptionApp } from './routes/transcription.js';
 // takes `resolveRooms` (the one runtime-specific portable concern) and an
 // `Identity` (who this deployment is on the web). The cloud's db + Better Auth are
 // NOT here; the cloud adds them via `mountCloudDb` + `mountCloudAuth`.
-export { createServerApp, type Identity } from './server-app.js';
+export { createServerApp } from './server-app.js';
 
 // Binding contract: the portable env the library reads from `c.env`, as both
 // the arktype schema (value) and its inferred type (same name). Each deployment

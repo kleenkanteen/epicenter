@@ -1,6 +1,6 @@
 ---
 name: workspace-api
-description: 'Epicenter workspace API patterns: `defineTable`, `defineKv`, migrations, actions, `createWorkspace`, materializers, `openCollaboration`, and workspace connections. Use when editing workspace schemas, table/KV access, actions, attachments, or collaboration setup.'
+description: 'Epicenter workspace API patterns: `defineWorkspace`, `defineTable`, `defineKv`, table `.docs(...)`, migrations, actions, `connect(...)`, `mount(...)`, materializers, and lower-level `createWorkspace` / `openCollaboration` primitives. Use when editing workspace schemas, table/KV access, row child docs, actions, runtime connections, daemon mounts, or collaboration setup.'
 metadata:
   author: epicenter
   version: '8.0'
@@ -8,7 +8,19 @@ metadata:
 
 # Workspace API
 
-Use this skill for Epicenter workspace definitions, table and KV access, inline action registries, attachment composition, collaboration setup, and workspace connections.
+Use this skill for Epicenter workspace definitions, table and KV access,
+isomorphic action registries, row child docs, runtime connection, daemon mount
+composition, and the lower-level Y.Doc primitives behind them.
+
+Notebook model:
+
+```txt
+defineWorkspace = pure app contract: id, name, tables, kv, actions, child-doc declarations
+connect(...)    = browser/local runtime: storage, optional relay sync, child-doc openers, wipe
+mount(...)      = daemon runtime: Yjs log, cloud sync, materializers, daemon actions
+createWorkspace = low-level root Y.Doc bundle for internals, tests, and older ports
+table.docs(...) = row child-doc declaration; callers open through tables.X.docs.field.open(rowId)
+```
 
 ## Reference Repositories
 
@@ -36,10 +48,13 @@ Use this skill when you are:
 - Adding a version or migration to an existing table definition.
 - Reading, writing, or observing table or KV data.
 - Creating actions with `defineMutation` or `defineQuery`.
-- Composing a live document with `createWorkspace` and surrounding `attach*` primitives (persistence, sync, materializers).
-- Adding `createDisposableCache(builder)` for per-row or fan-out documents.
-- Attaching persistence, collaboration, or materializers around a workspace.
-- Writing server-side Bun scripts with `connectWorkspace()`.
+- Declaring row child docs with `table.docs(...)`.
+- Exporting an app's shared `defineWorkspace({ id, name, tables, kv, actions })`.
+- Opening a browser/local runtime with `workspaceDefinition.connect(...)`.
+- Adding daemon materializers or actions through `workspaceDefinition.mount(...)`.
+- Using lower-level `createWorkspace`, `createDisposableCache`, `attach*`, or
+  `openCollaboration` primitives in package internals, tests, older ports, or
+  specialized runtime code.
 
 ## Core Rules
 
@@ -50,20 +65,27 @@ Use this skill when you are:
 - Do not re-derive row types from runtime table methods or relay them through state files.
 - KV stores use `defineKv(schema, defaultValue)` where `defaultValue` is a **factory** `() => Static<S>`. Prefer one scalar per dot-namespaced key unless the value is a true atomic object.
 - Every table `id` and string foreign key uses a branded type plus a co-located generator. The brand lives as a pure type alias (`type X = string & Brand<'X'>`); the generator uses `generateId<X>()`. Call sites use the generator, never a direct cast.
-- Put isomorphic actions directly on the returned workspace as `actions: defineActions({ ... })` inside `create<App>Workspace()`. Avoid a separate `const actions` unless the same registry must be passed to another owner before return. Extract `createXActions(workspace)` only when the action set is shared, large enough to earn a file, or owns a real invariant. Runtime-specific actions live in the runtime builder where browser, Node, Tauri, or extension APIs are in scope.
-- Construct a workspace with `createWorkspace({ id, tables, kv })` (or a per-app wrapper like `createHoneycrispWorkspace`). The bundle exposes `{ ydoc, tables, kv, [Symbol.dispose] }` and `using workspace` cascades disposal to every store. Only the three materializers (`attachBunSqliteMaterializer`, `attachTursoMaterializer`, `attachMarkdownMaterializer`) take the bundle; persistence, log, and sync primitives take `workspace.ydoc`.
-- Local action calls see the handler shape directly. Remote dispatch wraps raw values and failures in `Promise<Result<T, DispatchError>>`. Read the action return reference before changing handler failure behavior.
+- Export an app's shared model as `defineWorkspace({ id, name, tables, kv, actions })`. The workspace file is the sync contract: schema, branded IDs, KV defaults, isomorphic actions, and `table.docs(...)` child-doc layouts.
+- Put isomorphic actions in the `actions: ({ tables, kv, ydoc }) => defineActions({ ... })` callback. Runtime-specific actions live in `connect(..., compose)` or `mount(..., compose)`, where browser, Node, Tauri, extension, materializer, or daemon APIs are in scope.
+- Use `workspaceDefinition.connect(null)` for local-only browser storage and `workspaceDefinition.connect(connection)` for principal-scoped storage plus relay sync. Connected tables expose row child-doc openers at `tables.X.docs.field.open(rowId)`.
+- Use `workspaceDefinition.mount(...)` for daemon composition: Yjs-log persistence, cloud sync, materializers, and daemon-exposed actions.
+- Treat `createWorkspace({ id, tables, kv })` as the lower-level root constructor for internals, tests, and older ports. It exposes `{ ydoc, tables, kv, actions, [Symbol.dispose] }`; app-facing code normally starts from `defineWorkspace`.
+- Do not import or compute child-doc guids with `docGuid`. The public contract is `tables.X.docs.field.guid(rowId)` and `tables.X.docs.field.open(rowId)`.
+- Local action calls see the handler shape directly. Adapter calls use
+  `invokeAction`, which validates input, wraps raw values in `Ok`, preserves
+  existing `Result`s, and catches throws as `Err(cause)`. Read the action return
+  reference before changing handler failure behavior.
 - Every action method inside the workspace action object should have JSDoc that adds developer-facing value beyond the short `description` field.
-- Keep workspace schema and inline actions isomorphic. If an action file is extracted, it must stay isomorphic too. Keep `client.ts` runtime-specific and outside the `workspace/` folder.
-- Compose attachments inline in the builder after calling `createWorkspace`. Avoid wrapper helpers that hide ordering unless the abstraction owns a real invariant.
-- Use `connectWorkspace()` for one-off Bun scripts that need a connected workspace without app UI bootstrapping.
+- Keep workspace schema and isomorphic actions runtime-neutral. If an action file is extracted, it must stay isomorphic too. Keep runtime singletons and auth subscriptions in `client.ts`, `browser.ts`, `tauri.ts`, or app-specific openers.
+- Compose lower-level attachments inline when you are below `defineWorkspace.connect(...)`. Avoid wrapper helpers that hide ordering unless the abstraction owns a real invariant.
+- For one-off scripts, prefer materialized files or SQLite, or call daemon actions through the daemon client. Do not reintroduce a local `connectWorkspace()` shortcut unless that API exists in the current package surface.
 
 ## Reference Map
 
 - [Schema definition patterns](references/schema-definition-patterns.md): `defineTable`, `defineKv`, row type inference, KV scalar design, and branded IDs.
-- [Actions, layout, and attachments](references/actions-layout-and-attachments.md): inline actions, JSDoc, workspace file layout, attachment ordering, and `connectWorkspace`.
+- [Actions, layout, and attachments](references/actions-layout-and-attachments.md): `defineWorkspace` actions, JSDoc, runtime action composition, file layout, attachment ordering, and script/daemon boundaries.
 - [Deriving action input schemas](references/deriving-action-inputs.md): use `tables.X.schema` and `schema.properties.X` to compose `defineQuery`/`defineMutation` input schemas inline. No helper layer.
-- [Action return shapes](references/action-return-shapes.md): local vs remote action return contracts and error normalization.
+- [Action return shapes](references/action-return-shapes.md): direct calls vs adapter `invokeAction` return contracts and error normalization.
 - [Table, KV, CRUD, and observation](references/table-kv-crud-observation.md): table/KV read, write, observe, and derived-state details.
 - [Table migrations](references/table-migrations.md): migration rules and version evolution examples.
 - [Primitive API](references/primitive-api.md): lower-level primitive contracts and composition details.

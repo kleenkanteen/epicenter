@@ -12,7 +12,7 @@ Sometimes the correct answer is not a cleaner wrapper, a narrower helper, or one
 more option. Sometimes the correct answer is to redesign the surface from the
 product sentence down and delete the old constraint that made the code weird.
 
-Related skills: use [cohesive-clean-breaks](../cohesive-clean-breaks/SKILL.md)
+Related skills: use [greenfield-clean-breaks](../greenfield-clean-breaks/SKILL.md)
 when the radical option changes public contracts, package boundaries, or
 migration strategy. Use [one-sentence-test](../one-sentence-test/SKILL.md) to
 name the system before auditing it. Use

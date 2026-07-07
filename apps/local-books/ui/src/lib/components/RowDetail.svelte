@@ -1,12 +1,16 @@
 <script lang="ts">
 	import { Badge } from '@epicenter/ui/badge';
 	import { Button } from '@epicenter/ui/button';
+	import * as Empty from '@epicenter/ui/empty';
 	import { Input } from '@epicenter/ui/input';
+	import { Loading } from '@epicenter/ui/loading';
 	import {
 		createMutation,
 		createQuery,
 		useQueryClient,
 	} from '@tanstack/svelte-query';
+	import MousePointerClickIcon from '@lucide/svelte/icons/mouse-pointer-click';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import { toast } from 'svelte-sonner';
 	import { api } from '$lib/api';
 	import { columnLabel, formatCell, shortTimestamp } from '$lib/format';
@@ -70,11 +74,23 @@
 
 <aside class="flex w-96 shrink-0 flex-col overflow-hidden border-l border-border bg-background">
 	{#if !entity || !id}
-		<p class="p-4 text-sm text-muted-foreground">Select a row to inspect it.</p>
+		<Empty.Root class="flex-1 border-0">
+			<Empty.Media variant="icon">
+				<MousePointerClickIcon class="size-5" />
+			</Empty.Media>
+			<Empty.Title>No row selected</Empty.Title>
+			<Empty.Description>Select a row to inspect it.</Empty.Description>
+		</Empty.Root>
 	{:else if detail.isPending}
-		<p class="p-4 text-sm text-muted-foreground">Loading…</p>
+		<Loading class="flex-1" label="Loading row" />
 	{:else if detail.error}
-		<p class="p-4 text-sm text-destructive">{detail.error.message}</p>
+		<Empty.Root class="flex-1 border-0">
+			<Empty.Media variant="icon">
+				<TriangleAlertIcon class="size-5 text-destructive" />
+			</Empty.Media>
+			<Empty.Title>Could not load row</Empty.Title>
+			<Empty.Description>{detail.error.message}</Empty.Description>
+		</Empty.Root>
 	{:else if detail.data}
 		<div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
 			<header class="border-b border-border px-4 py-3">

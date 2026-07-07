@@ -1,88 +1,95 @@
 # Scripting
 
-A script is a Bun file that calls a running daemon's actions through `connectDaemonActions`. Both reads and writes default to actions: query actions return typed, strongly-consistent data; mutation actions are the only way to write. There is no `script.ts` recipe to copy. The daemon is the single writer; the script is a short-lived IPC client that holds no Y.Doc.
+Scripts read Epicenter materializations directly. SQLite and Markdown are files on
+disk, so a Bun script can inspect them without opening a Y.Doc, joining sync, or
+calling a running watcher.
 
-For bulk, analytical, FTS, or join-heavy reads, drop to the direct-file SQLite materializer (below): one `O(rows)` SQL scan beats N round-trips. That is the escape hatch, not the default. Actions per [ADR-0021](adr/0021-actions-are-the-only-surface-that-crosses-a-process-boundary.md) are the only surface that crosses the process boundary; the SQLite reader is a separate read-only view of the materialized file, not workspace access.
+Generic off-process writes are deliberately not part of the scripting surface.
+The watcher keeps a folder synchronized and materialized; it is not a callable
+action server. When a real shell workflow needs to mutate app data, add an
+app-specific command or script that opens the workspace in-process under that
+workflow's ownership.
 
-The Epicenter root is the folder that holds `epicenter.config.ts`. That config default-exports one `Mount`; one foreground daemon serves that mount over the root's Unix socket. The CLI addresses actions by their bare key (`epicenter run notes_update`): the daemon serves one mount, so the key alone is unambiguous, and the mount name is just the header `epicenter list` prints. Scripts likewise call actions by their bare keys through `connectDaemonActions`. The `notes` mount below is a local project example, not a first-party package.
-
-## The whole shape
+## The whole read shape
 
 ```ts
-import {
-  connectDaemonActions,
-  findEpicenterRoot,
-  openWorkspaceSqlite,
-} from "@epicenter/workspace/node";
-import type { NotesActions } from "./workspaces/notes/actions";
+import { findEpicenterRoot, openWorkspaceSqlite } from '@epicenter/workspace/node';
 
-// the Epicenter root is the folder that holds epicenter.config.ts
 const epicenterRoot = findEpicenterRoot();
-const cutoff = "2026-01-01T00:00:00Z";
+const cutoff = '2026-01-01T00:00:00Z';
 
-// reads: open the guid-keyed materializer read-only
-const db = openWorkspaceSqlite(epicenterRoot, "notes");
+const db = openWorkspaceSqlite(epicenterRoot, 'notes');
 const stale = db
-  .query("SELECT id FROM notes WHERE pinned = 1 AND updatedAt < ?")
+  .query('SELECT id FROM notes WHERE pinned = 1 AND updatedAt < ?')
   .all(cutoff);
-
-// writes: typed proxy over unix socket to the daemon
-const notes = await connectDaemonActions<NotesActions>({ epicenterRoot });
-for (const note of stale) {
-  await notes.notes_update({ id: note.id, pinned: false });
-}
 
 db.close();
 ```
 
-That is the whole API. No machine auth in the script process, no encryption setup, no Y.Doc reconstruction, no WebSocket.
+The Epicenter root is the folder that holds `epicenter.config.ts`. That config
+default-exports one mount. `epicenter up` opens the mount, joins sync when
+signed in, and refreshes materializers. Scripts can read the materialized files
+whether or not the watcher is currently running.
 
-## Bulk reads: the SQLite materializer (escape hatch)
+## SQLite materializer
 
-Default reads go through query actions (see Writes below: the same proxy serves
-both). Reach for SQLite only when one scan beats many round-trips, or when you
-need FTS, joins, or aggregates no action publishes.
+`openWorkspaceSqlite(epicenterRoot, workspaceId)` opens the guid-keyed convention
+path `.epicenter/sqlite/<workspaceId>.db` read-only. First-party mounts write
+there. A mount that passed a custom `filePath` to its materializer needs
+`openSqliteReader({ filePath })` with that same explicit path.
 
-Readers never have to go through actions: a read cannot diverge the source of
-truth, so it needs no single-writer bottleneck (unlike writes). The choice is
-purely consistency versus speed. A query action runs against the live in-memory
-Y.Doc, so it is strongly consistent (read-after-write safe) at the cost of an
-RPC. The SQLite materializer is a separate file the daemon refreshes after the
-fact, so it is eventually consistent but pays no per-row round-trip. Pick the
-action when you just wrote and need to see it; pick SQLite for bulk scans where
-slight staleness is fine.
+Neither helper inspects `epicenter.config.ts`. `.epicenter/` is generated machine
+state, not a source layout or route registry. The watcher's
+`attachBunSqliteMaterializer` keeps that file fresh; the script opens it
+read-only with `PRAGMA query_only = 1`, so an errant `INSERT` fails at the driver
+instead of silently diverging.
 
-`openWorkspaceSqlite(epicenterRoot, workspaceId)` opens the guid-keyed
-convention path `.epicenter/sqlite/<workspaceId>.db` read-only; first-party
-mounts write there. A mount that passed a custom `filePath` to its
-materializer needs `openSqliteReader({ filePath })` with that same explicit
-path. Neither helper inspects `epicenter.config.ts`. `.epicenter/` is generated
-machine state, not a source layout or route registry. The daemon's `attachBunSqliteMaterializer` keeps that file fresh;
-the script opens it read-only with `PRAGMA query_only = 1`, so an errant `INSERT`
-fails at the driver instead of silently diverging.
+The materializer is the same SQL surface an app can use for fast local reads:
+column-typed rows, FTS5 indexes, and normal joins. Query cost is
+`O(rows-returned)` rather than `O(history)`, so cron jobs do not pay the
+seconds-of-Y.Doc-replay tax that an in-process snapshot would cost.
 
-The materializer is the same SQL surface the daemon serves to the SPA: column-typed rows, FTS5 indexes, normal joins. Query cost is `O(rows-returned)` rather than `O(history)`, so cron jobs do not pay the seconds-of-Y.Doc-replay tax that an in-process snapshot would cost.
+For ranked search with snippets, use `openSqliteReader({ filePath })`; it wraps
+the same database and exposes a `search()` helper. For typed Drizzle queries,
+pass the returned `db` to `drizzle(db, { schema })`; the per-app schema lives in
+the app's npm package.
 
-For ranked search with snippets, use `openSqliteReader({ filePath })`; it wraps the
-same database and exposes a `search()` helper. For typed Drizzle queries, pass the
-returned `db` to `drizzle(db, { schema })` (the per-app schema lives in the app's
-npm package).
+## Markdown materializer
 
-## Writes: typed invoke through the daemon
+Markdown exports are read-only projections. A script can scan, publish, archive,
+or lint them like ordinary files. It must not edit generated Markdown to mutate
+app data, because the materializer never reads Markdown back into Yjs.
 
-`connectDaemonActions<TActions>({ epicenterRoot })` returns a typed proxy. The proxy translates `notes.notes_update({ ... })` into a `POST /run` over the daemon's Unix socket in the OS runtime directory. The daemon validates the input against the action's declared schema (invalid input comes back as a usage error), invokes the action in-process against the live Y.Doc, and returns a JSON `Result<T>`.
+If an app wants Markdown as an authoring format, that parser/editor belongs in an
+app action, UI surface, or app-specific CLI command that writes Yjs directly.
+The generic materialized Markdown export is not a round-trip format.
 
-The mount name comes from the single `Mount.name` default-exported by `epicenter.config.ts`. An app factory like `notes()` returns a mount whose name is `notes`; the CLI prints that label as the header for `epicenter list`.
+## Writes
 
-Two consequences fall out:
+There is no replacement for `connectDaemonActions` in this wave. That is the
+point of the collapse: a live watcher is not a local action server.
 
-- **Strong read-after-write happens inside the action.** If a script wants the side effect to be visible to its next read, it should await the action result rather than reading SQLite again immediately. The action handler sees fresh in-memory state; the materializer is eventually consistent.
-- **Type safety is opt-in.** `TActions` is the app's action-registry type. The runtime never imports app code into the script process; only the type information flows across.
+Choose one of these shapes when a concrete write workflow appears:
 
-`epicenterRoot` is your Epicenter folder (the folder that holds `epicenter.config.ts`). It defaults to `findEpicenterRoot()`, which walks up from `process.cwd()` looking for that config. Pass an explicit `epicenterRoot` to opt out (cron jobs that run from `/` should).
+```txt
+App UI or local tool:
+  open the workspace in-process
+  call the app's action registry
 
-## What if the daemon is not running?
+App-specific CLI command:
+  parse the workflow's real inputs
+  claim or respect the root lease
+  open the workspace in-process
+  call the app action or direct domain service
+  exit
+```
 
-Action calls (reads and writes both) fail with `DaemonError.Required`, because `connectDaemonActions` first does a health check against the socket and surfaces a clear error when no daemon is listening. There is no auto-spawn from the script process; explicit lifecycle is the contract. Start one with `epicenter daemon up` before running the script.
+Do not reintroduce a generic `run <action>` protocol unless a real caller needs
+stable off-process action names, schemas, concurrency semantics, and error
+mapping.
 
-SQLite escape-hatch reads still succeed: the materializer is just a file on disk, and opening it read-only does not require any running process. So a script that does only bulk SQLite reads need not call `connectDaemonActions` at all; anything that calls an action (the default for both reads and writes) needs the daemon up. Compose the two when both are needed.
+## What if the watcher is not running?
+
+SQLite and Markdown reads still work against the last materialized state. They
+may be stale. Start `epicenter up` when the script needs the folder to
+keep syncing and refreshing in the background.

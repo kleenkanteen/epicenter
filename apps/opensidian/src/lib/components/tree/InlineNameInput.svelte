@@ -77,6 +77,13 @@
 			e.stopPropagation();
 		}}
 		onblur={() => {
+			// FlushEditsOnHide force-blurs on page hide, and rAF never runs
+			// while the document is hidden: commit synchronously there or the
+			// rename is lost.
+			if (document.visibilityState === 'hidden') {
+				confirm();
+				return;
+			}
 			// Defer to next frame so transient focus shifts settle. Without
 			// this, context menu close restores focus to the trigger element,
 			// which blurs the input and cancels it before the user can type.

@@ -61,6 +61,15 @@
 			e.stopPropagation();
 		}}
 		onblur={() => {
+			// FlushEditsOnHide force-blurs on page hide, and rAF never runs
+			// while the document is hidden: commit synchronously there or the
+			// rename is lost. The deferred path exists only for transient
+			// focus shifts while the page is visible (the closing context
+			// menu restoring focus must not cancel the edit).
+			if (document.visibilityState === 'hidden') {
+				confirm();
+				return;
+			}
 			requestAnimationFrame(() => {
 				if (inputEl && document.activeElement !== inputEl) {
 					confirm();

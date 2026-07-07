@@ -15,9 +15,7 @@ let workDir: string;
 
 beforeEach(() => {
 	originalRuntimeDir = process.env.EPICENTER_RUNTIME_DIR;
-	// `/tmp/...` is short on every POSIX platform; needed because
-	// socketPathFor enforces a strict path-length guard that macOS's
-	// `os.tmpdir()` would blow.
+	// `/tmp/...` keeps runtime-path tests isolated without touching user state.
 	runtimeRoot = mkdtempSync('/tmp/eps-meta-');
 	process.env.EPICENTER_RUNTIME_DIR = runtimeRoot;
 	mkdirSync(runtimeRoot, { recursive: true });
