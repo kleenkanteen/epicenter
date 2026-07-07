@@ -9,7 +9,7 @@ Design authority: [ADR-0080](../../docs/adr/0080-the-super-app-is-a-desktop-host
 - `src/host.ts` composes the static built-in list: in-process Yjs apps (arm A) as durable local `connect(null, { persistence })` replicas over their action registries, boxed apps (arm B, Local Books) as a local stdio MCP subprocess via `src/stdio-mcp-catalog.ts`. Every source is namespaced (`todos__`, `localbooks__`) and merged with `composeToolCatalogs` into the one `ToolCatalog` the agent loop consumes.
 - The in-process apps use `bunLocalPersistence({ dir, nodeId })` under the host data directory. This is signed-out local durability only; sign-in and relay sync for the host are a later enhancement.
 - Transcripts are durable locally: the host's own workspace (`src/workspace.ts`) holds the canonical conversations table (ADR-0055), null-connected under the same persistence directory, so finished messages survive restarts without touching a relay. Boot resumes the most recent row by `updatedAt`; a row is minted lazily on the first send; `clear` starts a fresh conversation. Relay sync for transcripts is a deliberate later wave that rides host sign-in and requires an ADR-0080 amendment before any data reaches the relay.
-- Command semantics belong to the host session, not the WebSocket adapter. Chat sends, direct invocations, approval answers, activity, and later palette or voice commands must route through one host-owned session command surface.
+- Command semantics belong to the host session, not the WebSocket adapter. Chat sends, direct invocations, approval answers, and later palette or voice commands must route through one host-owned session command surface.
 
 ## Refusals (do not reopen without a new ADR)
 

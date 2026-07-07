@@ -7,17 +7,17 @@
 ## Context
 
 Super Chat is gaining an operator surface over the same composed catalog that
-chat uses: visible commands, approval prompts, and recent activity. The tempting
-shape is a new command route such as `POST /api/direct-command/run`, but the
-host already has a live session channel for chat turns, snapshots, and remote
-attach. Adding a second command transport would force route schemas, request
-correlation, proxy-timeout behavior, and a second place to explain approval
-policy.
+chat uses: visible commands, approval prompts, and direct invocation records. The
+tempting shape is a new command route such as `POST /api/direct-command/run`,
+but the host already has a live session channel for chat turns, snapshots, and
+remote attach. Adding a second command transport would force route schemas,
+request correlation, proxy-timeout behavior, and a second place to explain
+approval policy.
 
 The deeper boundary is not HTTP versus WebSocket. The host owns the session:
 transcript state, the composed tool catalog, pending approvals, session-scoped
-grants, activity, and command semantics. Transports deliver frames and render
-snapshots.
+grants, direct invocation records, and command semantics. Transports deliver
+frames and render snapshots.
 
 ## Decision
 
@@ -27,10 +27,10 @@ commands enter the host session through one command vocabulary. The current
 browser transport is the token-gated loopback session WebSocket from ADR-0084;
 that WebSocket is an adapter, not the owner of command semantics.
 
-The host must own pending approvals and activity in memory and include them in
-session hydration and pushed session state. A reconnecting window or a second
-attached client should re-render the same pending approval from host state
-instead of relying on the socket that first saw it.
+The host must own pending approvals and direct invocation records in memory and
+include them in session hydration and pushed session state. A reconnecting
+window or a second attached client should re-render the same pending approval
+from host state instead of relying on the socket that first saw it.
 
 Super Chat must not add a generic HTTP command route, a Tauri IPC command path,
 a stdio command protocol for the browser UI, a generic synced command table, or

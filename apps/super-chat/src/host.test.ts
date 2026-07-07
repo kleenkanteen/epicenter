@@ -195,19 +195,6 @@ describe('createSuperChatHost', () => {
 		const results = messages.flatMap((m) => toolResults(m.parts));
 		expect(results).toHaveLength(1);
 		expect(results[0]!.isError).toBe(false);
-		expect(host.snapshot().activity).toEqual([
-			expect.objectContaining({
-				type: 'approval-requested',
-				requestId: approval!.id,
-				toolName: 'todos__todos_create',
-			}),
-			expect.objectContaining({
-				type: 'approval-resolved',
-				requestId: approval!.id,
-				toolName: 'todos__todos_create',
-				approved: true,
-			}),
-		]);
 		expect(messages.at(-1)!.parts).toContainEqual({
 			type: 'text',
 			text: 'Created after approval.',

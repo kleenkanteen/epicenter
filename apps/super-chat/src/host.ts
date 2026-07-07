@@ -79,16 +79,15 @@ export type PendingApproval = {
 export type SuperChatSessionSnapshot = {
 	conversation: ConversationSnapshot;
 	pendingApprovals: PendingApproval[];
-	activity: SuperChatActivity[];
 	invocations: SuperChatInvocation[];
 };
 
 /**
  * One direct tool invocation, from command to settled outcome. This is a
- * record with a lifecycle, not an event, so it lives beside `activity` rather
- * than inside it: the host mutates `status` in place and pushes a fresh
- * snapshot. Direct invocations never touch the conversation transcript; the
- * model must not see operator-plane runs as chat history.
+ * record with a lifecycle, not an event: the host mutates `status` in place
+ * and pushes a fresh snapshot. Direct invocations never touch the
+ * conversation transcript; the model must not see operator-plane runs as
+ * chat history.
  */
 export type SuperChatInvocation = {
 	id: string;
@@ -98,16 +97,6 @@ export type SuperChatInvocation = {
 	content?: string;
 	requestedAt: number;
 	settledAt?: number;
-};
-
-export type SuperChatActivity = {
-	id: string;
-	createdAt: number;
-	type: 'approval-requested' | 'approval-resolved';
-	requestId: string;
-	toolCallId: string;
-	toolName: string;
-	approved?: boolean;
 };
 
 /** What a session client may ask of the one host-owned session. */
@@ -204,7 +193,6 @@ export type SuperChatHost = {
 	[Symbol.asyncDispose](): Promise<void>;
 };
 
-const ACTIVITY_LIMIT = 50;
 const INVOCATION_LIMIT = 20;
 
 /**
@@ -256,16 +244,7 @@ export async function createSuperChatHost(
 	const notify = () => {
 		for (const listener of listeners) listener();
 	};
-	const activity: SuperChatActivity[] = [];
-	const recordActivity = (
-		entry: Omit<SuperChatActivity, 'id' | 'createdAt'>,
-	) => {
-		activity.push({ id: generateId(), createdAt: Date.now(), ...entry });
-		if (activity.length > ACTIVITY_LIMIT)
-			activity.splice(0, activity.length - ACTIVITY_LIMIT);
-		notify();
-	};
-	const sessionApproval = createSessionApproval(recordActivity);
+	const sessionApproval = createSessionApproval(notify);
 	// One approval policy for the whole session: chat turns and direct
 	// invocations must share it so mutation policy cannot drift by caller.
 	const approval = options.approval ?? sessionApproval.approval;
@@ -384,7 +363,6 @@ export async function createSuperChatHost(
 			return {
 				conversation: conversation.snapshot(),
 				pendingApprovals: sessionApproval.pending(),
-				activity: [...activity],
 				invocations: invocations.map((invocation) => ({ ...invocation })),
 			};
 		},
@@ -459,9 +437,13 @@ export async function createSuperChatHost(
 	};
 }
 
-function createSessionApproval(
-	recordActivity: (entry: Omit<SuperChatActivity, 'id' | 'createdAt'>) => void,
-) {
+/**
+ * The session's one approval gate: pending prompts and session-scoped grants,
+ * host-local and non-durable by design (an unanswered prompt dies with the
+ * process). `notify` fires on every pending-set change so attached clients
+ * re-render prompts from host state, not from the socket that first saw them.
+ */
+function createSessionApproval(notify: () => void) {
 	const pending = new Map<
 		string,
 		{
@@ -491,12 +473,7 @@ function createSessionApproval(
 			};
 			return new Promise<boolean>((resolve) => {
 				pending.set(id, { prompt, resolve });
-				recordActivity({
-					type: 'approval-requested',
-					requestId: id,
-					toolCallId: call.toolCallId,
-					toolName: call.toolName,
-				});
+				notify();
 			});
 		},
 	};
@@ -522,29 +499,15 @@ function createSessionApproval(
 				sessionGrants.add(entry.prompt.toolName);
 			}
 			entry.resolve(approved);
-			recordActivity({
-				type: 'approval-resolved',
-				requestId,
-				toolCallId: entry.prompt.toolCallId,
-				toolName: entry.prompt.toolName,
-				approved,
-			});
+			notify();
 			return true;
 		},
 		cancelAll() {
 			if (pending.size === 0) return;
 			const entries = [...pending.values()];
 			pending.clear();
-			for (const entry of entries) {
-				entry.resolve(false);
-				recordActivity({
-					type: 'approval-resolved',
-					requestId: entry.prompt.id,
-					toolCallId: entry.prompt.toolCallId,
-					toolName: entry.prompt.toolName,
-					approved: false,
-				});
-			}
+			for (const entry of entries) entry.resolve(false);
+			notify();
 		},
 	};
 }

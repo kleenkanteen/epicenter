@@ -12,7 +12,6 @@
 import type { ConversationSnapshot } from '@epicenter/workspace/agent';
 import type {
 	PendingApproval,
-	SuperChatActivity,
 	SuperChatClientCommand,
 	SuperChatInvocation,
 } from '../host.ts';
@@ -35,7 +34,6 @@ export function createSession({ token }: { token: string }) {
 		error: null,
 	});
 	let pendingApprovals = $state<PendingApproval[]>([]);
-	let activity = $state<SuperChatActivity[]>([]);
 	let invocations = $state<SuperChatInvocation[]>([]);
 	let connection = $state<ConnectionStatus>('connecting');
 	let tools = $state<SuperChatSessionResponse['tools']>([]);
@@ -57,7 +55,6 @@ export function createSession({ token }: { token: string }) {
 			tools = body.tools;
 			snapshot = body.snapshot.conversation;
 			pendingApprovals = body.snapshot.pendingApprovals;
-			activity = body.snapshot.activity;
 			invocations = body.snapshot.invocations;
 			return true;
 		} catch {
@@ -92,7 +89,6 @@ export function createSession({ token }: { token: string }) {
 			if (parsed.type === 'snapshot') {
 				snapshot = parsed.snapshot.conversation;
 				pendingApprovals = parsed.snapshot.pendingApprovals;
-				activity = parsed.snapshot.activity;
 				invocations = parsed.snapshot.invocations;
 			}
 		};
@@ -128,9 +124,6 @@ export function createSession({ token }: { token: string }) {
 		},
 		get pendingApprovals() {
 			return pendingApprovals;
-		},
-		get activity() {
-			return activity;
 		},
 		get invocations() {
 			return invocations;
