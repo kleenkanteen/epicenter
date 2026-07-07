@@ -1,5 +1,5 @@
 /**
- * Unit-level tests for `epicenter daemon up`.
+ * Unit-level tests for `epicenter up`.
  *
  * These tests run `runUp` in-process against tiny root-and-mount fixtures.
  * They never spawn a child or call `process.exit`; each test owns a temp

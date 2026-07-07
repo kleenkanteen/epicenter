@@ -51,6 +51,9 @@ The first cleanup deletes the external IPC plane while preserving headless
 operation. `epicenter daemon up` still opens a mount, syncs, materializes, logs
 presence and sync status, and tears down. `daemon down`, `daemon ps`, and
 `daemon logs` continue to operate through metadata, pid liveness, and log files.
+A later wave promoted these lifecycle commands to top-level `epicenter up`,
+`down`, `status`, and `logs`, deleting the `daemon` namespace with no
+compatibility aliases.
 
 The trade-off is explicit: users lose the generic shell escape hatch
 `epicenter run <action>`, action introspection through `epicenter list`, on-demand

@@ -1,10 +1,10 @@
 /**
- * `epicenter daemon up`: start the long-lived foreground watcher for one Epicenter root.
+ * `epicenter up`: start the long-lived foreground watcher for one Epicenter root.
  *
  * Loads the mount declared in `epicenter.config.ts`, opens it, and keeps sync
  * and materializers alive until the process receives a shutdown signal.
  *
- * One daemon per Epicenter root; one folder declares one mount. Resource
+ * One watcher per Epicenter root; one folder declares one mount. Resource
  * isolation between apps is expressed by separate folders, each its own root.
  *
  * Foreground by design; backgrounding is the user's job.
@@ -56,7 +56,7 @@ type UpOptions = {
 	quiet: boolean;
 	cliVersion?: string;
 	/**
-	 * Factory that constructs the daemon's auth client. Production uses the
+	 * Factory that constructs the watcher's auth client. Production uses the
 	 * default (`resolveMachineAuthClient`, which picks the instance-token client
 	 * when a static token is configured via `EPICENTER_TOKEN` /
 	 * `EPICENTER_TOKEN_FILE`, else reads the persisted OAuth cell from disk).
@@ -134,7 +134,7 @@ export async function runUp(
 	stack.defer(() => lease.release());
 
 	// Load the machine auth client up front. A signed-out machine ("no saved
-	// session") is a valid state: the daemon still serves local mounts and
+	// session") is a valid state: the watcher still serves local mounts and
 	// reports session-only mounts as inactive, so it maps to a `null` session.
 	// Any other storage error is fatal.
 	const createAuthClient = options.createAuthClient ?? resolveMachineAuthClient;
@@ -178,7 +178,7 @@ export async function runUp(
 }
 
 /**
- * Yargs `daemon up` command. Thin glue: parses argv, calls {@link runUp}, prints
+ * Yargs `up` command. Thin glue: parses argv, calls {@link runUp}, prints
  * the operator-facing banner and initial peers snapshot, exits after reporting
  * inactive mounts, or wires SIGINT/SIGTERM and parks until a signal triggers
  * teardown for active mounts.

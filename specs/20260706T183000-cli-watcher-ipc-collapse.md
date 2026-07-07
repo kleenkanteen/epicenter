@@ -168,11 +168,11 @@ Goal: once no socket serves actions, `DaemonRuntime` should not require `actions
 
 Goal: make the CLI say what the product is.
 
-- [ ] Promote `daemon up` to `up`.
-- [ ] Promote `daemon down` to `down`.
-- [ ] Rename `daemon ps` to `status`.
-- [ ] Promote `daemon logs` to `logs`.
-- [ ] Decide whether to keep temporary aliases. Default clean-break answer: no aliases unless a real external compatibility contract is named.
+- [x] Promote `daemon up` to `up`.
+- [x] Promote `daemon down` to `down`.
+- [x] Rename `daemon ps` to `status`.
+- [x] Promote `daemon logs` to `logs`.
+- [x] Decide whether to keep temporary aliases. (No aliases: no package script, workflow, or external contract invokes the `daemon` namespace; the only callers were this repo's tests and docs, updated in the same change.)
 
 ### Wave 4: one-shot sync
 

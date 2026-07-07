@@ -11,7 +11,7 @@
  * root's `.epicenter/` subdir), see `document/workspace-paths.ts`. Different
  * audience, different rationale.
  *
- * Pure helpers: no side effects, no directory creation. The `daemon up`
+ * Pure helpers: no side effects, no directory creation. The `up`
  * command owns the `mkdir`/`chmod` work; consumers here are free to call
  * these from anywhere without worrying about filesystem mutation.
  */

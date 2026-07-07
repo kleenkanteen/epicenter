@@ -5,7 +5,7 @@
  * canonical `name`, which is propagated into the mount context so handlers can
  * use it for logging.
  *
- * The host calls `open(ctx)` once on `epicenter daemon up`. A mount can do one
+ * The host calls `open(ctx)` once on `epicenter up`. A mount can do one
  * of two things:
  *
  *   - return a `DaemonRuntime` (async dispose, optionally `collaboration`), or

@@ -1,5 +1,5 @@
 /**
- * Wave 8 end-to-end coverage for `epicenter daemon up` lifecycle.
+ * Wave 8 end-to-end coverage for the `epicenter up` watcher lifecycle.
  *
  * ## Acceptance-criteria coverage map
  *
@@ -7,18 +7,18 @@
  * § "Acceptance criteria". Each line below cites the criterion and the test
  * that exercises it (or the infra gap that blocks coverage).
  *
- *   [ok] `daemon up` prints "online (<mount>)" on stderr,
+ *   [ok] `up` prints "online (<mount>)" on stderr,
  *        followed by the initial peers snapshot.
- *        Covered by `daemon up lifecycle: online banner + peers snapshot + clean exit`.
+ *        Covered by `up lifecycle: online banner + peers snapshot + clean exit`.
  *   [ok] Ctrl-C / SIGTERM exits cleanly with no orphan metadata.
  *        Covered by the same test, which asserts files are gone post-shutdown.
- *   [ok] `epicenter daemon ps` lists the running daemon (pid / uptime).
- *        Covered by `ps lists the running daemon while up is alive`.
- *   [ok] `epicenter daemon logs -C <p>` tails the rotating log (default 50 lines).
- *        Covered by `logs prints recent lines from the daemon's log file`.
- *   [ok] `epicenter daemon down -C <p>` shuts down gracefully.
- *        Covered by `down terminates the daemon gracefully via signal`.
- *   [ok] Two `daemon up`s same project: second exits 1 with
+ *   [ok] `epicenter status` lists the running watcher (pid / uptime).
+ *        Covered by `status lists the running watcher while up is alive`.
+ *   [ok] `epicenter logs -C <p>` tails the rotating log (default 50 lines).
+ *        Covered by `logs prints recent lines from the watcher's log file`.
+ *   [ok] `epicenter down -C <p>` shuts down gracefully.
+ *        Covered by `down terminates the watcher gracefully via signal`.
+ *   [ok] Two `up`s same project: second exits 1 with
  *        "daemon already running (pid=X)".
  *        Covered by `second up against the same dir exits 1`.
  *   [gap] Stale-auth fast-fail with literal "401 Unauthorized" message.
@@ -48,7 +48,7 @@ const BIN_PATH = join(import.meta.dir, '..', 'src', 'bin.ts');
 type EnvOverrides = Disposable & {
 	/** Stable home; logs and other HOME-derived paths resolve from this. */
 	home: string;
-	/** Stable runtime dir for daemon metadata and lease files. */
+	/** Stable runtime dir for watcher metadata and lease files. */
 	runtimeDir: string;
 	/** Stable auth data dir for machine auth. */
 	dataDir: string;
@@ -60,7 +60,7 @@ function makeEnv(): EnvOverrides {
 	const runtimeDir = mkdtempSync('/tmp/eps-e2e-rt-');
 	const dataDir = mkdtempSync('/tmp/eps-e2e-data-');
 	mkdirSync(runtimeDir, { recursive: true });
-	// No machine-auth grant is written, so the daemon runs SIGNED-OUT. These
+	// No machine-auth grant is written, so the watcher runs SIGNED-OUT. These
 	// lifecycle tests assert metadata, log, and signal behavior, not
 	// cross-device; the demo fixture's stubbed collaboration already supplies
 	// the peers snapshot.
@@ -99,13 +99,13 @@ async function waitFor(
 }
 
 /**
- * Spawn `epicenter daemon up -C <fixture>` and wait until it prints the
+ * Spawn `epicenter up -C <fixture>` and wait until it prints the
  * "online" banner on stderr. Returns the child + a buffered stderr string
  * the caller can keep reading from. The caller is responsible for
  * sending SIGTERM and awaiting exit.
  */
 async function spawnUp(env: EnvOverrides, dir: string) {
-	const child = spawn('bun', ['run', BIN_PATH, 'daemon', 'up', '-C', dir], {
+	const child = spawn('bun', ['run', BIN_PATH, 'up', '-C', dir], {
 		cwd: dir,
 		env: childEnv(env),
 		stdio: ['ignore', 'pipe', 'pipe'],
@@ -170,7 +170,7 @@ function runtimeLeftovers(runtimeRoot: string): string[] {
 	);
 }
 
-describe('daemon up lifecycle (scaled down, no real cross-peer)', () => {
+describe('up lifecycle (scaled down, no real cross-peer)', () => {
 	test('online banner + peers snapshot + clean exit on SIGTERM', async () => {
 		const env = makeEnv();
 		try {
@@ -198,12 +198,12 @@ describe('daemon up lifecycle (scaled down, no real cross-peer)', () => {
 		}
 	}, 30000);
 
-	test('ps lists the running daemon while up is alive', async () => {
+	test('status lists the running watcher while up is alive', async () => {
 		const env = makeEnv();
 		try {
 			const { child } = await spawnUp(env, FIXTURE_DIR);
 			try {
-				const result = await runCli(env, ['daemon', 'ps']);
+				const result = await runCli(env, ['status']);
 				expect(result.exitCode).toBe(0);
 				// console.table renders pid + dir as plain text columns.
 				expect(result.stdout).toContain(String(child.pid));
@@ -217,11 +217,11 @@ describe('daemon up lifecycle (scaled down, no real cross-peer)', () => {
 		}
 	}, 30000);
 
-	test('down terminates the daemon gracefully via signal', async () => {
+	test('down terminates the watcher gracefully via signal', async () => {
 		const env = makeEnv();
 		try {
 			const { child } = await spawnUp(env, FIXTURE_DIR);
-			const result = await runCli(env, ['daemon', 'down', '-C', FIXTURE_DIR]);
+			const result = await runCli(env, ['down', '-C', FIXTURE_DIR]);
 			expect(result.exitCode).toBe(0);
 			const code = await awaitExit(child);
 			expect(code).toBe(0);
@@ -237,15 +237,15 @@ describe('daemon up lifecycle (scaled down, no real cross-peer)', () => {
 		}
 	}, 30000);
 
-	test("logs prints recent lines from the daemon's log file", async () => {
+	test("logs prints recent lines from the watcher's log file", async () => {
 		const env = makeEnv();
 		try {
 			const { child } = await spawnUp(env, FIXTURE_DIR);
 			try {
-				const result = await runCli(env, ['daemon', 'logs', '-C', FIXTURE_DIR]);
+				const result = await runCli(env, ['logs', '-C', FIXTURE_DIR]);
 				// Log file lives under the platform log directory from env-paths
 				// (macOS `~/Library/Logs/epicenter`, Linux `$XDG_STATE_HOME/.../log`).
-				// If the daemon has emitted anything by now, `logs` succeeds with
+				// If the watcher has emitted anything by now, `logs` succeeds with
 				// some output. A bare exitCode=0 is the load-bearing assertion.
 				expect(result.exitCode).toBe(0);
 			} finally {
@@ -262,7 +262,7 @@ describe('daemon up lifecycle (scaled down, no real cross-peer)', () => {
 		try {
 			const { child } = await spawnUp(env, FIXTURE_DIR);
 			try {
-				const result = await runCli(env, ['daemon', 'up', '-C', FIXTURE_DIR]);
+				const result = await runCli(env, ['up', '-C', FIXTURE_DIR]);
 				expect(result.exitCode).toBe(1);
 				expect(result.stderr).toContain('daemon already running (pid=');
 			} finally {
