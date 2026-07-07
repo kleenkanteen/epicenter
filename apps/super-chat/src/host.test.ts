@@ -110,7 +110,7 @@ describe('createSuperChatHost', () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
-		const names = host.tools.definitions().map((d) => d.name);
+		const names = host.toolDefinitions().map((d) => d.name);
 		expect(names).toContain('todos__todos_create');
 		expect(names).toContain('todos__todos_list');
 		expect(names).toContain('honeycrisp__folders_delete');
@@ -282,8 +282,8 @@ describe('createSuperChatHost', () => {
 		});
 
 		// The read-only hint projects to a `query`, so no approval is needed.
-		const customers = host.tools
-			.definitions()
+		const customers = host
+			.toolDefinitions()
 			.find((d) => d.name === 'localbooks__customers');
 		expect(customers?.kind).toBe('query');
 
@@ -574,16 +574,21 @@ describe('createSuperChatHost', () => {
 		);
 
 		expect(typeof host.snapshot().invocations[0]!.content).toBe('string');
-		// The created todo reads back through the catalog: the approved mutation
-		// really ran, not just settled.
-		const list = await host.tools.resolve(
-			{ toolCallId: 'verify-list', toolName: 'todos__todos_list', input: {} },
-			new AbortController().signal,
+		// The created todo reads back through the product invocation path: the
+		// approved mutation really ran, not just settled.
+		host.handleCommand({
+			type: 'invoke',
+			toolName: 'todos__todos_list',
+			input: {},
+		});
+		await waitFor(
+			() => host.snapshot().invocations[1]?.status === 'succeeded',
+			'the verification list invocation to settle',
 		);
-		expect(list.details).toContainEqual(
-			expect.objectContaining({ title: 'Approved directly' }),
+		expect(host.snapshot().invocations[1]!.content).toContain(
+			'Approved directly',
 		);
-		// The result stays a session record; the transcript is untouched.
+		// Direct invocation results stay session records; the transcript is untouched.
 		expect(host.snapshot().conversation.messages).toEqual([]);
 	});
 
@@ -670,15 +675,15 @@ describe('createSuperChatHost', () => {
 				model: TEST_MODEL,
 				approval: APPROVE_ALL,
 			});
-			const result = await host.tools.resolve(
-				{
-					toolCallId: 'call-create',
-					toolName: 'todos__todos_create',
-					input: { title: 'Survives restart' },
-				},
-				new AbortController().signal,
+			host.handleCommand({
+				type: 'invoke',
+				toolName: 'todos__todos_create',
+				input: { title: 'Survives restart' },
+			});
+			await waitFor(
+				() => host.snapshot().invocations[0]?.status === 'succeeded',
+				'the create invocation to settle',
 			);
-			expect(result.isError).toBe(false);
 		}
 
 		await using host = await createSuperChatHost({
@@ -686,17 +691,17 @@ describe('createSuperChatHost', () => {
 			engine: scriptedEngine([[]]),
 			model: TEST_MODEL,
 		});
-		const result = await host.tools.resolve(
-			{
-				toolCallId: 'call-list',
-				toolName: 'todos__todos_list',
-				input: {},
-			},
-			new AbortController().signal,
+		host.handleCommand({
+			type: 'invoke',
+			toolName: 'todos__todos_list',
+			input: {},
+		});
+		await waitFor(
+			() => host.snapshot().invocations[0]?.status === 'succeeded',
+			'the list invocation to settle',
 		);
-		expect(result.isError).toBe(false);
-		expect(result.details).toContainEqual(
-			expect.objectContaining({ title: 'Survives restart' }),
+		expect(host.snapshot().invocations[0]!.content).toContain(
+			'Survives restart',
 		);
 	});
 });

@@ -26,6 +26,7 @@ import { createNodeId, generateId, InstantString } from '@epicenter/workspace';
 import {
 	type AgentEngine,
 	type AgentToolCall,
+	type AgentToolDefinition,
 	type Approval,
 	type ConversationSnapshot,
 	composeToolCatalogs,
@@ -182,8 +183,8 @@ export function parseSuperChatCommand(
 }
 
 export type SuperChatHost = {
-	/** The composed verb surface, for shells that list or introspect tools. */
-	tools: ToolCatalog;
+	/** The model-visible tool surface, for shells that list or introspect tools. */
+	toolDefinitions(): AgentToolDefinition[];
 	/** Read the render state owned by the host session. */
 	snapshot(): SuperChatSessionSnapshot;
 	/** Register for any conversation or approval-state change. */
@@ -358,7 +359,9 @@ export async function createSuperChatHost(
 	};
 
 	return {
-		tools,
+		toolDefinitions() {
+			return tools.definitions();
+		},
 		snapshot() {
 			return {
 				conversation: conversation.snapshot(),

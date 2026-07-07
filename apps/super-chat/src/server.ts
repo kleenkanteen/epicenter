@@ -92,7 +92,7 @@ export function createSuperChatServer({
 
 	app.get(SESSION_ROUTE.pattern, (c) =>
 		c.json({
-			tools: host.tools.definitions(),
+			tools: host.toolDefinitions(),
 			snapshot: host.snapshot(),
 		} satisfies SuperChatSessionResponse),
 	);

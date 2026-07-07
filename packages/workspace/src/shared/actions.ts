@@ -10,7 +10,9 @@
  * is the lookup.
  *
  * Boundary callers use `invokeAction`, which Ok-wraps raw values, preserves
- * existing Results, and catches throws as `Err(cause)`.
+ * existing Results, and catches throws as `Err(cause)`. Actions declared in an
+ * isomorphic workspace definition are published app commands: hosts may expose
+ * them as model-visible tools and direct-invocation targets.
  *
  * @module
  */
