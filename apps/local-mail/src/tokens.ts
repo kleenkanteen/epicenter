@@ -1,4 +1,4 @@
-import { Type, type Static } from 'typebox';
+import { type Static, Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { defineErrors, type InferErrors } from 'wellcrafted/error';
 import { Ok, type Result } from 'wellcrafted/result';
