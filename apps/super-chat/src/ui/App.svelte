@@ -73,13 +73,11 @@
 			<section class="approvals" aria-label="Pending approvals">
 				{#each session.pendingApprovals as approval (approval.id)}
 					<div class="approval">
-						<div class="approval-copy">
-							<strong>{approval.title ?? approval.toolName}</strong>
-							{#if approval.description}
-								<p>{approval.description}</p>
-							{/if}
-							<pre>{formatApprovalInput(approval.input)}</pre>
-						</div>
+						<strong>{approval.title ?? approval.toolName}</strong>
+						{#if approval.description}
+							<p>{approval.description}</p>
+						{/if}
+						<pre>{formatApprovalInput(approval.input)}</pre>
 						<div class="approval-actions">
 							<button
 								type="button"
@@ -237,11 +235,10 @@
 		margin: 0 12px 8px;
 	}
 
+	/* Always stacked: copy above actions, at every width. Approvals are rare
+	   and sit above the composer, so vertical space is the honest dimension;
+	   one layout serves the desktop window and a remote phone alike. */
 	.approval {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 12px;
-		align-items: start;
 		padding: 10px;
 		border: 1px solid #5a4a27;
 		border-radius: 6px;
@@ -249,21 +246,17 @@
 		color: #e8dcc1;
 	}
 
-	.approval-copy {
-		min-width: 0;
-	}
-
-	.approval-copy strong {
+	.approval strong {
 		display: block;
 		color: #f0e6cc;
 	}
 
-	.approval-copy p {
+	.approval p {
 		margin: 3px 0 0;
 		color: #b9ad92;
 	}
 
-	.approval-copy pre {
+	.approval pre {
 		margin: 8px 0 0;
 		max-height: 120px;
 		overflow: auto;
@@ -278,7 +271,7 @@
 		display: flex;
 		gap: 6px;
 		flex-wrap: wrap;
-		justify-content: flex-end;
+		margin-top: 10px;
 	}
 
 	.approval-actions button {
@@ -295,16 +288,6 @@
 	.approval-actions button.secondary {
 		background: transparent;
 		color: #d7cfbd;
-	}
-
-	@media (max-width: 560px) {
-		.approval {
-			grid-template-columns: 1fr;
-		}
-
-		.approval-actions {
-			justify-content: flex-start;
-		}
 	}
 
 	.missing-token {

@@ -53,9 +53,9 @@ function createTestHost(options: Omit<SuperChatHostOptions, 'dataDir'>) {
 }
 
 async function settle(host: {
-	conversation: { snapshot(): { isGenerating: boolean } };
+	snapshot(): { conversation: { isGenerating: boolean } };
 }) {
-	for (let i = 0; i < 500 && host.conversation.snapshot().isGenerating; i++) {
+	for (let i = 0; i < 500 && host.snapshot().conversation.isGenerating; i++) {
 		await new Promise((resolve) => setTimeout(resolve, 5));
 	}
 }
@@ -103,10 +103,10 @@ describe('createSuperChatHost', () => {
 			approval: APPROVE_ALL,
 		});
 
-		host.conversation.send('add buy milk to my todos');
+		host.handleCommand({ type: 'send', content: 'add buy milk to my todos' });
 		await settle(host);
 
-		const { messages, error } = host.conversation.snapshot();
+		const { messages, error } = host.snapshot().conversation;
 		expect(error).toBeNull();
 		const results = messages.flatMap((m) => toolResults(m.parts));
 		expect(results).toHaveLength(1);
@@ -159,7 +159,7 @@ describe('createSuperChatHost', () => {
 		).toBe(true);
 		await settle(host);
 
-		const { messages, error } = host.conversation.snapshot();
+		const { messages, error } = host.snapshot().conversation;
 		expect(error).toBeNull();
 		expect(host.snapshot().pendingApprovals).toEqual([]);
 		const results = messages.flatMap((m) => toolResults(m.parts));
@@ -225,9 +225,9 @@ describe('createSuperChatHost', () => {
 		await settle(host);
 
 		expect(host.snapshot().pendingApprovals).toEqual([]);
-		const results = host.conversation
+		const results = host
 			.snapshot()
-			.messages.flatMap((m) => toolResults(m.parts));
+			.conversation.messages.flatMap((m) => toolResults(m.parts));
 		expect(results).toHaveLength(2);
 		expect(results.every((result) => result.isError === false)).toBe(true);
 	});
@@ -270,10 +270,10 @@ describe('createSuperChatHost', () => {
 			.find((d) => d.name === 'localbooks__customers');
 		expect(customers?.kind).toBe('query');
 
-		host.conversation.send('who owes me money?');
+		host.handleCommand({ type: 'send', content: 'who owes me money?' });
 		await settle(host);
 
-		const { messages, error } = host.conversation.snapshot();
+		const { messages, error } = host.snapshot().conversation;
 		expect(error).toBeNull();
 		const results = messages.flatMap((m) => toolResults(m.parts));
 		expect(results).toHaveLength(1);

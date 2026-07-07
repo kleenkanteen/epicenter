@@ -19,9 +19,7 @@ import { createNodeId, generateId } from '@epicenter/workspace';
 import {
 	type AgentEngine,
 	type AgentToolCall,
-	type AgentToolDefinition,
 	type Approval,
-	type ConversationHandle,
 	type ConversationSnapshot,
 	composeToolCatalogs,
 	createConversation,
@@ -92,20 +90,39 @@ export type SuperChatClientCommand =
 			alwaysAllowSession?: boolean;
 	  };
 
-/** What the server pushes: the full render state, on every host change. */
-export type SuperChatServerEvent = {
-	type: 'snapshot';
-	snapshot: SuperChatSessionSnapshot;
-};
-
-export type SuperChatSessionResponse = {
-	tools: AgentToolDefinition[];
-	snapshot: SuperChatSessionSnapshot;
-};
+/**
+ * Validate one already-parsed frame against the command vocabulary. The host
+ * owns what a valid command is (ADR-0113); transports own only the framing
+ * that produced the value.
+ */
+export function parseSuperChatCommand(
+	value: unknown,
+): SuperChatClientCommand | undefined {
+	if (value === null || typeof value !== 'object') return undefined;
+	const command = value as Record<string, unknown>;
+	if (command.type === 'send' && typeof command.content === 'string') {
+		return { type: 'send', content: command.content };
+	}
+	if (command.type === 'stop') return { type: 'stop' };
+	if (command.type === 'retry') return { type: 'retry' };
+	if (
+		command.type === 'approve' &&
+		typeof command.requestId === 'string' &&
+		typeof command.approved === 'boolean'
+	) {
+		return {
+			type: 'approve',
+			requestId: command.requestId,
+			approved: command.approved,
+			...(command.alwaysAllowSession === true && {
+				alwaysAllowSession: true,
+			}),
+		};
+	}
+	return undefined;
+}
 
 export type SuperChatHost = {
-	/** The one chat session (ADR-0080: a single host session, not per-app). */
-	conversation: ConversationHandle;
 	/** The composed verb surface, for shells that list or introspect tools. */
 	tools: ToolCatalog;
 	/** Read the render state owned by the host session. */
@@ -180,7 +197,6 @@ export async function createSuperChatHost(
 	});
 
 	return {
-		conversation,
 		tools,
 		snapshot() {
 			return {

@@ -5,13 +5,21 @@
  * every initial payload and `snapshot` event replaces it wholesale, so the
  * client never accumulates a second transcript that could drift.
  *
- * Server types are imported type-only so no server runtime code (Hono, Bun
- * WebSocket glue) enters the browser bundle.
+ * Host and server types are imported type-only so no server runtime code
+ * (Hono, Bun WebSocket glue, node builtins) enters the browser bundle.
  */
 
 import type { ConversationSnapshot } from '@epicenter/workspace/agent';
+import type {
+	PendingApproval,
+	SuperChatActivity,
+	SuperChatClientCommand,
+} from '../host.ts';
 import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from '../routes.ts';
-import type { ClientCommand, ServerEvent, SessionResponse } from '../server.ts';
+import type {
+	SuperChatServerEvent,
+	SuperChatSessionResponse,
+} from '../server.ts';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 
@@ -25,12 +33,10 @@ export function createSession({ token }: { token: string }) {
 		isGenerating: false,
 		error: null,
 	});
-	let pendingApprovals = $state<
-		SessionResponse['snapshot']['pendingApprovals']
-	>([]);
-	let activity = $state<SessionResponse['snapshot']['activity']>([]);
+	let pendingApprovals = $state<PendingApproval[]>([]);
+	let activity = $state<SuperChatActivity[]>([]);
 	let connection = $state<ConnectionStatus>('connecting');
-	let tools = $state<SessionResponse['tools']>([]);
+	let tools = $state<SuperChatSessionResponse['tools']>([]);
 
 	let socket: WebSocket | undefined;
 	let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -45,7 +51,7 @@ export function createSession({ token }: { token: string }) {
 				connection = 'closed';
 				return false;
 			}
-			const body = (await response.json()) as SessionResponse;
+			const body = (await response.json()) as SuperChatSessionResponse;
 			tools = body.tools;
 			snapshot = body.snapshot.conversation;
 			pendingApprovals = body.snapshot.pendingApprovals;
@@ -74,7 +80,7 @@ export function createSession({ token }: { token: string }) {
 		};
 		ws.onmessage = (event) => {
 			if (typeof event.data !== 'string') return;
-			let parsed: ServerEvent;
+			let parsed: SuperChatServerEvent;
 			try {
 				parsed = JSON.parse(event.data);
 			} catch {
@@ -96,7 +102,7 @@ export function createSession({ token }: { token: string }) {
 	}
 
 	/** Returns whether the command actually went out over an open socket. */
-	function sendCommand(command: ClientCommand): boolean {
+	function sendCommand(command: SuperChatClientCommand): boolean {
 		if (socket?.readyState !== WebSocket.OPEN) return false;
 		socket.send(JSON.stringify(command));
 		return true;

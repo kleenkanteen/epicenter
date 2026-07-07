@@ -9,6 +9,7 @@
  * Key behaviors:
  * - Every route 401s without the token (bearer header or `?token=` query)
  * - `/` returns exactly the page string the server was constructed with
+ * - Malformed WebSocket frames drop silently without killing the socket
  * - The real vite build emits one document with no external asset references
  * - The spawned `main.ts` sidecar announces a port, serves the built SPA, and
  *   drives a tool-calling turn against an OpenAI-compatible endpoint
@@ -24,17 +25,17 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type {
-	AgentEngine,
-	AgentToolDefinition,
-	EngineChunk,
-} from '@epicenter/workspace/agent';
+import type { AgentEngine, EngineChunk } from '@epicenter/workspace/agent';
 import {
 	createSuperChatHost,
 	type SuperChatHost,
 	type SuperChatHostOptions,
 } from './host.ts';
-import { createSuperChatServer, type ServerEvent } from './server.ts';
+import {
+	createSuperChatServer,
+	type SuperChatServerEvent,
+	type SuperChatSessionResponse,
+} from './server.ts';
 
 const TOKEN = 'per-launch-secret';
 
@@ -75,9 +76,57 @@ async function serveHost(host: SuperChatHost, page: string = PAGE) {
 	return server;
 }
 
-function conversationOf(event: ServerEvent) {
+function conversationOf(event: SuperChatServerEvent) {
 	return event.snapshot.conversation;
 }
+
+function streamUrl(server: { url: URL }): string {
+	return `${server.url.origin.replace('http', 'ws')}/api/session/stream?token=${TOKEN}`;
+}
+
+/**
+ * Resolve on the first pushed frame matching `predicate`; reject on socket
+ * error or timeout. The listener attaches synchronously at call time, so call
+ * this before (or in the same task as) the send that should trigger it.
+ */
+function nextSnapshot(
+	ws: WebSocket,
+	predicate: (event: SuperChatServerEvent) => boolean,
+	description: string,
+	timeoutMs = 5000,
+): Promise<SuperChatServerEvent> {
+	return new Promise((resolve, reject) => {
+		const timer = setTimeout(
+			() => reject(new Error(`timed out waiting for ${description}`)),
+			timeoutMs,
+		);
+		ws.addEventListener('message', (event) => {
+			const parsed = JSON.parse(String(event.data)) as SuperChatServerEvent;
+			if (!predicate(parsed)) return;
+			clearTimeout(timer);
+			resolve(parsed);
+		});
+		ws.addEventListener('error', () => {
+			clearTimeout(timer);
+			reject(new Error('socket error'));
+		});
+	});
+}
+
+/** The turn settled and the last assistant message contains `text`. */
+const settledWith =
+	(text: string) =>
+	(event: SuperChatServerEvent): boolean => {
+		const snapshot = conversationOf(event);
+		const last = snapshot.messages.at(-1);
+		return (
+			!snapshot.isGenerating &&
+			last?.role === 'assistant' &&
+			last.parts.some(
+				(part) => part.type === 'text' && part.text.includes(text),
+			)
+		);
+	};
 
 describe('createSuperChatServer', () => {
 	test('refuses an empty token at construction', async () => {
@@ -131,10 +180,7 @@ describe('createSuperChatServer', () => {
 				headers: { authorization: `Bearer ${TOKEN}` },
 			});
 			expect(session.status).toBe(200);
-			const body = (await session.json()) as {
-				tools: AgentToolDefinition[];
-				snapshot: { conversation: { messages: unknown[] } };
-			};
+			const body = (await session.json()) as SuperChatSessionResponse;
 			const createTodos = body.tools.find(
 				(t) => t.name === 'todos__todos_create',
 			);
@@ -162,27 +208,12 @@ describe('createSuperChatServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const url = `${server.url.origin.replace('http', 'ws')}/api/session/stream?token=${TOKEN}`;
-			const ws = new WebSocket(url);
-			const answered = new Promise<ServerEvent>((resolve, reject) => {
-				ws.addEventListener('message', (event) => {
-					const parsed = JSON.parse(String(event.data)) as ServerEvent;
-					const snapshot = conversationOf(parsed);
-					const last = snapshot.messages.at(-1);
-					if (
-						!snapshot.isGenerating &&
-						last?.role === 'assistant' &&
-						last.parts.some(
-							(part) =>
-								part.type === 'text' && part.text === 'Hello from the host.',
-						)
-					) {
-						resolve(parsed);
-					}
-				});
-				ws.addEventListener('error', () => reject(new Error('socket error')));
-				setTimeout(() => reject(new Error('timed out')), 5000);
-			});
+			const ws = new WebSocket(streamUrl(server));
+			const answered = nextSnapshot(
+				ws,
+				settledWith('Hello from the host.'),
+				'the settled turn',
+			);
 			ws.addEventListener('open', () => {
 				ws.send(JSON.stringify({ type: 'send', content: 'hi' }));
 			});
@@ -215,25 +246,12 @@ describe('createSuperChatServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const url = `${server.url.origin.replace('http', 'ws')}/api/session/stream?token=${TOKEN}`;
-			const firstSocket = new WebSocket(url);
-			const pending = new Promise<ServerEvent>((resolve, reject) => {
-				const timer = setTimeout(
-					() => reject(new Error('timed out waiting for approval')),
-					5000,
-				);
-				firstSocket.addEventListener('message', (event) => {
-					const parsed = JSON.parse(String(event.data)) as ServerEvent;
-					if (parsed.snapshot.pendingApprovals.length === 1) {
-						clearTimeout(timer);
-						resolve(parsed);
-					}
-				});
-				firstSocket.addEventListener('error', () => {
-					clearTimeout(timer);
-					reject(new Error('socket error'));
-				});
-			});
+			const firstSocket = new WebSocket(streamUrl(server));
+			const pending = nextSnapshot(
+				firstSocket,
+				(event) => event.snapshot.pendingApprovals.length === 1,
+				'a pending approval',
+			);
 			firstSocket.addEventListener('open', () => {
 				firstSocket.send(
 					JSON.stringify({ type: 'send', content: 'create a todo' }),
@@ -251,55 +269,17 @@ describe('createSuperChatServer', () => {
 			);
 			firstSocket.close();
 
-			const secondSocket = new WebSocket(url);
-			const rehydrated = new Promise<ServerEvent>((resolve, reject) => {
-				const timer = setTimeout(
-					() => reject(new Error('timed out waiting for reconnect state')),
-					5000,
-				);
-				secondSocket.addEventListener('message', (event) => {
-					const parsed = JSON.parse(String(event.data)) as ServerEvent;
-					if (
-						parsed.snapshot.pendingApprovals.some(
-							(candidate) => candidate.id === approval!.id,
-						)
-					) {
-						clearTimeout(timer);
-						resolve(parsed);
-					}
-				});
-				secondSocket.addEventListener('error', () => {
-					clearTimeout(timer);
-					reject(new Error('socket error'));
-				});
-			});
-			const finished = new Promise<ServerEvent>((resolve, reject) => {
-				const timer = setTimeout(
-					() => reject(new Error('timed out waiting for final answer')),
-					5000,
-				);
-				secondSocket.addEventListener('message', (event) => {
-					const parsed = JSON.parse(String(event.data)) as ServerEvent;
-					const snapshot = conversationOf(parsed);
-					const last = snapshot.messages.at(-1);
-					if (
-						!snapshot.isGenerating &&
-						last?.role === 'assistant' &&
-						last.parts.some(
-							(part) =>
-								part.type === 'text' && part.text === 'Created over WebSocket.',
-						)
-					) {
-						clearTimeout(timer);
-						resolve(parsed);
-					}
-				});
-				secondSocket.addEventListener('error', () => {
-					clearTimeout(timer);
-					reject(new Error('socket error'));
-				});
-			});
-			await rehydrated;
+			// A fresh socket re-renders the same pending approval from host state
+			// (ADR-0113): the prompt outlives the transport that first saw it.
+			const secondSocket = new WebSocket(streamUrl(server));
+			await nextSnapshot(
+				secondSocket,
+				(event) =>
+					event.snapshot.pendingApprovals.some(
+						(candidate) => candidate.id === approval!.id,
+					),
+				'the rehydrated approval',
+			);
 			secondSocket.send(
 				JSON.stringify({
 					type: 'approve',
@@ -308,7 +288,11 @@ describe('createSuperChatServer', () => {
 				}),
 			);
 
-			const final = await finished;
+			const final = await nextSnapshot(
+				secondSocket,
+				settledWith('Created over WebSocket.'),
+				'the final answer',
+			);
 			expect(final.snapshot.pendingApprovals).toEqual([]);
 			expect(conversationOf(final).error).toBeNull();
 			secondSocket.close();
@@ -323,22 +307,19 @@ describe('createSuperChatServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const url = `${server.url.origin.replace('http', 'ws')}/api/session/stream?token=${TOKEN}`;
-			const watcher = new WebSocket(url);
-			const driver = new WebSocket(url);
-			const settledAt = (ws: WebSocket) =>
-				new Promise<ServerEvent>((resolve, reject) => {
-					ws.addEventListener('message', (event) => {
-						const parsed = JSON.parse(String(event.data)) as ServerEvent;
-						const snapshot = conversationOf(parsed);
-						const last = snapshot.messages.at(-1);
-						if (!snapshot.isGenerating && last?.role === 'assistant') {
-							resolve(parsed);
-						}
-					});
-					setTimeout(() => reject(new Error('timed out')), 5000);
-				});
-			const bothOpen = Promise.all(
+			const watcher = new WebSocket(streamUrl(server));
+			const driver = new WebSocket(streamUrl(server));
+			const watcherSettled = nextSnapshot(
+				watcher,
+				settledWith('Shared.'),
+				'the watcher settling',
+			);
+			const driverSettled = nextSnapshot(
+				driver,
+				settledWith('Shared.'),
+				'the driver settling',
+			);
+			await Promise.all(
 				[watcher, driver].map(
 					(ws) =>
 						new Promise<void>((resolve) =>
@@ -346,7 +327,6 @@ describe('createSuperChatServer', () => {
 						),
 				),
 			);
-			await bothOpen;
 			driver.send(
 				JSON.stringify({ type: 'send', content: 'hi from device 2' }),
 			);
@@ -355,8 +335,8 @@ describe('createSuperChatServer', () => {
 			// conversation per host process, devices attach to the session
 			// (ADR-0080), not to their own thread.
 			const [watched, drove] = await Promise.all([
-				settledAt(watcher),
-				settledAt(driver),
+				watcherSettled,
+				driverSettled,
 			]);
 			expect(conversationOf(watched).messages).toEqual(
 				conversationOf(drove).messages,
@@ -367,6 +347,37 @@ describe('createSuperChatServer', () => {
 			]);
 			watcher.close();
 			driver.close();
+		} finally {
+			await server.stop(true);
+		}
+	});
+
+	test('malformed frames drop silently without killing the session socket', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[{ type: 'text-delta', delta: 'Still alive.' }]]),
+		});
+		const server = await serveHost(host);
+		try {
+			const ws = new WebSocket(streamUrl(server));
+			const settled = nextSnapshot(
+				ws,
+				settledWith('Still alive.'),
+				'the turn after garbage frames',
+			);
+			ws.addEventListener('open', () => {
+				// Deliberate until commands carry ids (Wave 2): an error outcome
+				// would have nothing to name, so bad frames drop instead of erroring.
+				ws.send('not json');
+				ws.send(JSON.stringify({ type: 'launch-missiles' }));
+				ws.send(JSON.stringify({ type: 'send', content: 'hi' }));
+			});
+			const final = await settled;
+			expect(conversationOf(final).error).toBeNull();
+			expect(conversationOf(final).messages.map((m) => m.role)).toEqual([
+				'user',
+				'assistant',
+			]);
+			ws.close();
 		} finally {
 			await server.stop(true);
 		}
@@ -626,10 +637,7 @@ describe('sidecar end-to-end smoke', () => {
 				headers: { authorization: `Bearer ${TOKEN}` },
 			});
 			expect(session.status).toBe(200);
-			const catalog = (await session.json()) as {
-				tools: Array<{ name: string }>;
-				snapshot: { conversation: { messages: unknown[] } };
-			};
+			const catalog = (await session.json()) as SuperChatSessionResponse;
 			expect(catalog.tools.map((t) => t.name)).toContain('todos__todos_list');
 			expect(catalog.snapshot.conversation.messages).toEqual([]);
 
@@ -637,35 +645,16 @@ describe('sidecar end-to-end smoke', () => {
 			const ws = new WebSocket(
 				`ws://127.0.0.1:${port}/api/session/stream?token=${TOKEN}`,
 			);
-			const settled = new Promise<ServerEvent>((resolve, reject) => {
-				const timer = setTimeout(
-					() => reject(new Error('the turn never settled')),
-					20_000,
-				);
-				ws.addEventListener('message', (event) => {
-					const parsed = JSON.parse(String(event.data)) as ServerEvent;
-					const snapshot = conversationOf(parsed);
-					const last = snapshot.messages.at(-1);
-					if (
-						!snapshot.isGenerating &&
-						last?.role === 'assistant' &&
-						last.parts.some(
-							(part) => part.type === 'text' && part.text.includes(FINAL_TEXT),
-						)
-					) {
-						clearTimeout(timer);
-						resolve(parsed);
-					}
-				});
-				ws.addEventListener('error', () => {
-					clearTimeout(timer);
-					reject(new Error('socket error'));
-				});
-			});
+			const settled = nextSnapshot(
+				ws,
+				settledWith(FINAL_TEXT),
+				'the settled turn',
+				20_000,
+			);
 			ws.addEventListener('open', () => {
 				ws.send(JSON.stringify({ type: 'send', content: 'list my todos' }));
 			});
-			let final: ServerEvent;
+			let final: SuperChatServerEvent;
 			try {
 				final = await settled;
 			} finally {

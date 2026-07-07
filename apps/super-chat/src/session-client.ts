@@ -17,7 +17,7 @@
 
 import type { AgentMessage } from '@epicenter/workspace/agent';
 import { SESSION_STREAM_ROUTE } from './routes.ts';
-import type { ServerEvent } from './server.ts';
+import type { SuperChatServerEvent } from './server.ts';
 
 const [, , origin, token] = process.argv;
 if (!origin || !token) {
@@ -48,7 +48,7 @@ socket.addEventListener('open', () => {
 });
 
 socket.addEventListener('message', (event) => {
-	const frame = JSON.parse(String(event.data)) as ServerEvent;
+	const frame = JSON.parse(String(event.data)) as SuperChatServerEvent;
 	// Print only messages not shown yet; the server pushes the whole snapshot on
 	// every change, this client just diffs by count. A message renders once it
 	// settles into `messages` (never from `streaming`): a real UI keys one

@@ -17,19 +17,29 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
 import { createBunWebSocket } from 'hono/bun';
-import type {
-	SuperChatClientCommand,
-	SuperChatHost,
-	SuperChatServerEvent,
-	SuperChatSessionResponse,
+import type { AgentToolDefinition } from '@epicenter/workspace/agent';
+import {
+	parseSuperChatCommand,
+	type SuperChatHost,
+	type SuperChatSessionSnapshot,
 } from './host.ts';
 import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from './routes.ts';
 
-export type {
-	SuperChatClientCommand as ClientCommand,
-	SuperChatServerEvent as ServerEvent,
-	SuperChatSessionResponse as SessionResponse,
-} from './host.ts';
+/**
+ * The transport frames (ADR-0113: the host owns command semantics and session
+ * state; the transport owns how they travel). The server pushes the full
+ * render state on every host change; `/api/session` returns the same snapshot
+ * plus the tool catalog for hydration.
+ */
+export type SuperChatServerEvent = {
+	type: 'snapshot';
+	snapshot: SuperChatSessionSnapshot;
+};
+
+export type SuperChatSessionResponse = {
+	tools: AgentToolDefinition[];
+	snapshot: SuperChatSessionSnapshot;
+};
 
 export type SuperChatServerOptions = {
 	host: SuperChatHost;
@@ -104,7 +114,10 @@ export function createSuperChatServer({
 					push(ws);
 				},
 				onMessage(event, ws) {
-					const command = parseCommand(event.data);
+					const command = parseSuperChatCommand(parseFrame(event.data));
+					// Malformed frames drop silently for now: our own clients send
+					// typed commands, and an error outcome has nothing to name until
+					// the direct-invocation vocabulary adds command ids (Wave 2).
 					if (!command) return;
 					host.handleCommand(command);
 					push(ws);
@@ -126,34 +139,12 @@ function tokensMatch(candidate: string, expected: string): boolean {
 	return timingSafeEqual(a, b);
 }
 
-function parseCommand(data: unknown): SuperChatClientCommand | undefined {
+/** Transport framing only: one text frame to one JSON value, or nothing. */
+function parseFrame(data: unknown): unknown {
 	if (typeof data !== 'string') return undefined;
-	let parsed: unknown;
 	try {
-		parsed = JSON.parse(data);
+		return JSON.parse(data);
 	} catch {
 		return undefined;
 	}
-	if (parsed === null || typeof parsed !== 'object') return undefined;
-	const command = parsed as Record<string, unknown>;
-	if (command.type === 'send' && typeof command.content === 'string') {
-		return { type: 'send', content: command.content };
-	}
-	if (command.type === 'stop') return { type: 'stop' };
-	if (command.type === 'retry') return { type: 'retry' };
-	if (
-		command.type === 'approve' &&
-		typeof command.requestId === 'string' &&
-		typeof command.approved === 'boolean'
-	) {
-		return {
-			type: 'approve',
-			requestId: command.requestId,
-			approved: command.approved,
-			...(command.alwaysAllowSession === true && {
-				alwaysAllowSession: true,
-			}),
-		};
-	}
-	return undefined;
 }
