@@ -19,7 +19,11 @@ import { dirname } from 'node:path';
 export function readProviderFile(filePath: string): Record<string, string> {
 	try {
 		const parsed: unknown = JSON.parse(readFileSync(filePath, 'utf8'));
-		if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+		if (
+			typeof parsed !== 'object' ||
+			parsed === null ||
+			Array.isArray(parsed)
+		) {
 			return {};
 		}
 		const entries = Object.entries(parsed);

@@ -119,10 +119,9 @@ function httpOptions(config: AppConfig) {
  * Resolve the BYO Gmail OAuth client lazily at the connect/refresh site rather
  * than eagerly in `loadConfig`, so credential-free verbs never read secrets.
  */
-function loadGmailCredentials(config: AppConfig): Result<
-	{ clientId: string; clientSecret: string },
-	OAuthError
-> {
+function loadGmailCredentials(
+	config: AppConfig,
+): Result<{ clientId: string; clientSecret: string }, OAuthError> {
 	try {
 		return Ok(resolveGmailCredentials(gmailCredentialSource(config.dataDir)));
 	} catch (cause) {

@@ -4,7 +4,10 @@ import {
 	resolveProviderCredentials,
 } from '@epicenter/constants/provider-credentials';
 import { providerFilePath } from './paths.ts';
-import { readProviderFile, writeProviderFileIfAbsent } from './provider-store.ts';
+import {
+	readProviderFile,
+	writeProviderFileIfAbsent,
+} from './provider-store.ts';
 
 /**
  * The single BYO Google OAuth Desktop client Local Mail connects through
@@ -18,9 +21,10 @@ export const GMAIL_SPEC = {
 	environmentRoles: ['CLIENT_ID', 'CLIENT_SECRET'],
 } as const satisfies ProviderCredentialSpec<'default'>;
 
-export function resolveGmailCredentials(
-	read?: CredentialSource,
-): { clientId: string; clientSecret: string } {
+export function resolveGmailCredentials(read?: CredentialSource): {
+	clientId: string;
+	clientSecret: string;
+} {
 	const credentials = resolveProviderCredentials(GMAIL_SPEC, 'default', read);
 	return {
 		clientId: credentials.CLIENT_ID,
@@ -39,9 +43,7 @@ export function gmailCredentialSource(dataDir: string): CredentialSource {
 		const fromEnv = process.env[name];
 		if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
 		const fromFile = file[name];
-		return fromFile !== undefined && fromFile.length > 0
-			? fromFile
-			: undefined;
+		return fromFile !== undefined && fromFile.length > 0 ? fromFile : undefined;
 	};
 }
 

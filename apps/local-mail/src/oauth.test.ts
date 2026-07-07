@@ -31,7 +31,8 @@ let configId = 0;
 
 function config(overrides: Partial<AppConfig>): AppConfig {
 	const dataDir =
-		overrides.dataDir ?? `/tmp/local-mail-oauth-test-${process.pid}-${configId}`;
+		overrides.dataDir ??
+		`/tmp/local-mail-oauth-test-${process.pid}-${configId}`;
 	configId += 1;
 	return {
 		dataDir,
