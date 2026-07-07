@@ -5,6 +5,7 @@
  * hands the token to anything else that ever runs on this origin.
  */
 
+import '@epicenter/ui/app.css';
 import { mount } from 'svelte';
 import App from './App.svelte';
 
