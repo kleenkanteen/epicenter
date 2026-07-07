@@ -15,7 +15,7 @@ Default output: return only the prompt. If the user is designing or reviewing th
 
 ## One Sentence
 
-A handoff prompt gives Claude context, starting points, proof targets, and a strong bias to use Codex creatively, while leaving Claude free to rethink the plan and choose the delegation shape.
+A handoff prompt gives Claude context, starting points, proof targets, and a strong bias to use `/codex:rescue` creatively, while leaving Claude free to rethink the plan and choose the delegation shape.
 
 ## Mental Model
 
@@ -27,7 +27,7 @@ Claude owns:
   context selection
   ambiguity and tradeoffs
   implementation direction
-  Codex delegation choices
+  `/codex:rescue` delegation choices
   final synthesis
 
 Codex can help with:
@@ -43,7 +43,7 @@ Codex can help with:
   small prototypes
 ```
 
-Do not pre-orchestrate the session. Prime Claude to use Codex, suggest seams when they are obvious, and explicitly allow Claude to revise, split, skip, or invent Codex calls after reading live context.
+Do not pre-orchestrate the session. Prime Claude to use the literal `/codex:rescue` command, suggest seams when they are obvious, and explicitly allow Claude to revise, split, skip, or invent Codex calls after reading live context.
 
 ## Ground Before Writing
 
@@ -89,7 +89,7 @@ Watch-outs:
   Only real hazards: dirty user work, destructive git, production or deploy actions, migrations, security, licensing/package boundaries, obsolete paths to avoid, or explicit user non-goals.
 
 Codex posture:
-  Tell Claude to look actively for Codex-shaped work. For substantial work, list candidate seams, but make them examples, not a queue.
+  Tell Claude to look actively for work worth delegating through `/codex:rescue`. For substantial work, list candidate seams, but make them examples, not a queue.
 
 Proof and stop:
   Likely verification commands or evidence targets, plus where to stop.
@@ -97,13 +97,13 @@ Proof and stop:
 
 ## Codex Posture
 
-Always prime Claude that Codex is available. For tiny handoffs, one sentence is enough:
+Always prime Claude that Codex is available through the literal `/codex:rescue` command. For tiny handoffs, one sentence is enough:
 
 ```txt
-Use Codex where it buys speed, breadth, focused execution, or independent verification.
+Use /codex:rescue where it buys speed, breadth, focused execution, or independent verification.
 ```
 
-For substantial coding, review, debugging, migration, or verification work, suggest candidate `/codex:rescue` seams. Shape them as options:
+For substantial coding, review, debugging, migration, or verification work, suggest candidate `/codex:rescue` seams. Name the command in the handoff so Claude does not have to infer it from “Codex.” Shape seams as options:
 
 ```txt
 Candidate Codex seams:
