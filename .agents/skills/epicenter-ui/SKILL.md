@@ -53,14 +53,28 @@ Dialog, Modal, Sheet, and Drawer need an accessible title. Use an `sr-only` titl
 
 Waiting and absence states, chosen by what the user is waiting for:
 
-- Generic full-surface pending, spinner plus optional caption: `Loading` (it wraps `Empty.Root` plus `Spinner` and accepts sizing `class`, so it usually needs no outer `div`).
+- Generic full-surface pending, spinner plus optional caption: `Loading` (it wraps `Empty.Root` plus `Spinner` and accepts a sizing `class` plus a `label` caption, so it usually needs no outer `div`).
 - Full-surface pending that needs a title, description, media, or actions: compose `Empty.Root` with `Spinner`.
 - Known progress: `Progress`.
 - Known content shape: `Skeleton`.
-- Button action pending: disable the `Button` and put a `Spinner` inside it; keep the label when the action needs context.
+- Button action pending: disable the `Button` and put a `Spinner` inside it; keep the label when the action needs context, though icon-only pending is fine for a compact row action the tooltip or a nearby label already names.
 - Command search with no match: `Command.Empty`.
 - No rows, files, or results, or a failed surface: `Empty.*`, with different copy for truly-empty versus filter-empty. TanStack Table is headless, so render `Empty.*` yourself when `rows.length === 0`.
 - Chat assistant typing: `Chat.BubbleMessage typing` (`LoadingDots` is chat-only).
+
+`Loading` is the common case: pass the surrounding layout as `class` and the caption as `label`.
+
+```svelte
+<Loading class="h-dvh" label="Checking session" />
+```
+
+For inline pending inside an existing surface, drop to a bare `Spinner` and add a wrapper only when no existing element can take the layout classes.
+
+```svelte
+<div class="flex h-full items-center justify-center">
+	<Spinner class="size-5 text-muted-foreground" />
+</div>
+```
 
 ## Never Hand-Roll A Spinner
 
