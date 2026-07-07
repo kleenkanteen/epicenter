@@ -3,8 +3,8 @@
  *
  * `.mount()` is a pure coordinator over an injected node runtime, so these
  * tests inject a stub `NodeMountRuntime` and assert what the coordinator hands
- * the runtime: the resolved base URL, the runtime action set, and the
- * materializer list drained on teardown. No node:* or bun:* modules are touched.
+ * the runtime: the resolved base URL and the materializer list drained on
+ * teardown. No node:* or bun:* modules are touched.
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -55,8 +55,7 @@ type AttachSpy = {
 /**
  * A stub node runtime: `defineSessionMount` passes through (so the test calls
  * `open(ctx)` directly), and `attachInfrastructure` records its options instead
- * of touching disk or sockets. The materializer helpers return fixed
- * single-action registries so the merge is observable.
+ * of touching disk or sockets.
  */
 function stubRuntime(spy: AttachSpy): NodeMountRuntime {
 	return {
@@ -123,7 +122,7 @@ const open = (mount: { open: (c: SessionMountContext) => unknown }): any =>
 	mount.open(ctx);
 
 describe('definition.mount', () => {
-	test('without compose: serves base actions, no materializers, falls back to hosted URL', () => {
+	test('without compose: no materializers, falls back to hosted URL', () => {
 		const spy: AttachSpy = { childDocGuids: [] };
 		const mount = demoWorkspace.mount({
 			runtime: stubRuntime(spy),
@@ -134,58 +133,31 @@ describe('definition.mount', () => {
 		const runtime = open(mount);
 
 		expect(spy.baseURL).toBe('https://hosted.example');
-		expect(Object.keys(runtime.actions)).toEqual(['items_count']);
 		expect(spy.materializers).toEqual([]);
 		expect(typeof runtime[Symbol.asyncDispose]).toBe('function');
 	});
 
-	test('with compose: serves the composed action set, tracks materializers', () => {
+	test('with compose: tracks materializers for ordered teardown', () => {
 		const spy: AttachSpy = { childDocGuids: [] };
 		const mount = demoWorkspace.mount({
 			baseURL: 'https://explicit.example',
 			runtime: stubRuntime(spy),
-			compose: ({ workspace, scope }) => {
+			compose: ({ scope }) => {
 				// The real body would call `attachMountSqlite` / `attachMountMarkdown`
 				// here, which enroll their own drain through `scope.registerDrain`.
-				// Stub them as drainables with one-action registries and register them
-				// by hand, so both the merge into the served set and the coordinator's
-				// drain collection are observable without touching disk. Note the
-				// return carries `actions` only: the materializers reach teardown
-				// purely through registration, never through the returned object.
-				const rebuild = defineQuery({
-					description: 'rebuild',
-					handler: () => null,
-				});
-				const sqlite = {
-					whenDisposed: Promise.resolve(),
-					actions: { sqlite_rebuild: rebuild },
-				};
-				const markdown = {
-					whenDisposed: Promise.resolve(),
-					actions: { markdown_rebuild: rebuild },
-				};
-				scope.registerDrain(sqlite);
-				scope.registerDrain(markdown);
-				return {
-					actions: defineActions({
-						...workspace.actions,
-						...sqlite.actions,
-						...markdown.actions,
-					}),
-				};
+				// Stub them as drainables and register them by hand, so the
+				// coordinator's drain collection is observable without touching disk.
+				// compose returns nothing: the materializers reach teardown purely
+				// through registration.
+				scope.registerDrain({ whenDisposed: Promise.resolve() });
+				scope.registerDrain({ whenDisposed: Promise.resolve() });
 			},
 		});
 
-		const runtime = open(mount);
+		open(mount);
 
 		// The explicit base URL wins over the env/hosted fallback.
 		expect(spy.baseURL).toBe('https://explicit.example');
-		// The runtime action set is the composed one: base + both materializers.
-		expect(Object.keys(runtime.actions).sort()).toEqual([
-			'items_count',
-			'markdown_rebuild',
-			'sqlite_rebuild',
-		]);
 		// Both materializers are listed for ordered teardown.
 		expect(spy.materializers).toHaveLength(2);
 	});

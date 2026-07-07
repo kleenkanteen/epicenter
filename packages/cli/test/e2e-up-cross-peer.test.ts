@@ -42,7 +42,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 
-const FIXTURE_DIR = join(import.meta.dir, 'fixtures/inline-actions');
+const FIXTURE_DIR = join(import.meta.dir, 'fixtures/demo-mount');
 const BIN_PATH = join(import.meta.dir, '..', 'src', 'bin.ts');
 
 type EnvOverrides = Disposable & {
@@ -61,9 +61,9 @@ function makeEnv(): EnvOverrides {
 	const dataDir = mkdtempSync('/tmp/eps-e2e-data-');
 	mkdirSync(runtimeDir, { recursive: true });
 	// No machine-auth grant is written, so the daemon runs SIGNED-OUT. These
-	// lifecycle tests assert socket / metadata / IPC behavior, not cross-device;
-	// the demo fixture's stubbed collaboration already supplies the peers
-	// snapshot.
+	// lifecycle tests assert metadata, log, and signal behavior, not
+	// cross-device; the demo fixture's stubbed collaboration already supplies
+	// the peers snapshot.
 	return {
 		home,
 		runtimeDir,

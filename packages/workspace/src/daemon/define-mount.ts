@@ -8,7 +8,7 @@
  * The host calls `open(ctx)` once on `epicenter daemon up`. A mount can do one
  * of two things:
  *
- *   - return a `DaemonRuntime` (`actions`, optionally `collaboration`), or
+ *   - return a `DaemonRuntime` (async dispose, optionally `collaboration`), or
  *   - return `inactive(reason)` to say "I cannot run right now," typically
  *     because it needs a signed-in `session` and there is none.
  *

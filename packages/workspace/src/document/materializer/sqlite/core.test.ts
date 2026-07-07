@@ -359,7 +359,7 @@ describe('attachSqliteMaterializerCore', () => {
 
 				expect(getRows(testSetup.db, 'posts')).toEqual([]);
 
-				await testSetup.workspace.sqlite.actions.sqlite_rebuild({});
+				await testSetup.workspace.sqlite.rebuild();
 
 				expect(getRows(testSetup.db, 'posts')).toEqual([
 					{ id: 'post-1', published: null, title: 'Persisted in Yjs' },
@@ -389,9 +389,7 @@ describe('attachSqliteMaterializerCore', () => {
 				expect(getRows(testSetup.db, 'posts')).toEqual([]);
 				expect(getRows(testSetup.db, 'notes')).toHaveLength(1);
 
-				await testSetup.workspace.sqlite.actions.sqlite_rebuild({
-					table: 'posts',
-				});
+				await testSetup.workspace.sqlite.rebuild('posts');
 
 				expect(getRows(testSetup.db, 'posts')).toEqual([
 					{ id: 'post-1', published: null, title: 'Post row' },
@@ -408,11 +406,9 @@ describe('attachSqliteMaterializerCore', () => {
 			try {
 				await testSetup.workspace.sqlite.whenFlushed;
 
-				expect(() =>
-					testSetup.workspace.sqlite.actions.sqlite_rebuild({
-						table: 'nonexistent',
-					}),
-				).toThrow('not in the materialized table set');
+				expect(() => testSetup.workspace.sqlite.rebuild('nonexistent')).toThrow(
+					'not in the materialized table set',
+				);
 			} finally {
 				await disposeAndYieldForClose(testSetup);
 			}
@@ -576,7 +572,7 @@ describe('attachSqliteMaterializerCore', () => {
 					originalClose();
 				};
 
-				const rebuild = testSetup.workspace.sqlite.actions.sqlite_rebuild({});
+				const rebuild = testSetup.workspace.sqlite.rebuild();
 				await insertStarted.promise;
 
 				testSetup.workspace[Symbol.dispose]();
@@ -602,18 +598,15 @@ describe('attachSqliteMaterializerCore', () => {
 	// ============================================================================
 
 	describe('search', () => {
-		test('sqlite_search action is absent when fts is not configured', async () => {
+		test('search is absent when fts is not configured', async () => {
 			const testSetup = setup();
 
 			try {
 				await testSetup.workspace.sqlite.whenFlushed;
 
 				// No FTS was passed, so the layer was never constructed and the
-				// search action is never added to the registry.
-				expect(
-					(testSetup.workspace.sqlite.actions as Record<string, unknown>)
-						.sqlite_search,
-				).toBeUndefined();
+				// materializer carries no search method.
+				expect(testSetup.workspace.sqlite.search).toBeUndefined();
 			} finally {
 				await disposeAndYieldForClose(testSetup);
 			}
@@ -642,18 +635,9 @@ describe('attachSqliteMaterializerCore', () => {
 
 					await testSetup.workspace.sqlite.whenFlushed;
 
-					const sqliteWithFts = testSetup.workspace.sqlite as unknown as {
-						actions: {
-							sqlite_search: (
-								input: Record<string, unknown>,
-							) => Promise<unknown>;
-						};
-					};
-					const results = (await sqliteWithFts.actions.sqlite_search({
-						table: 'posts',
-						query: 'mirror',
-						limit: 10,
-					})) as Array<{ id: string; snippet: string; rank: number }>;
+					const { search } = testSetup.workspace.sqlite;
+					if (!search) throw new Error('expected search with fts configured');
+					const results = await search('posts', 'mirror', { limit: 10 });
 
 					expect(results).toHaveLength(1);
 					expect(results[0]?.id).toBe('post-1');
@@ -664,7 +648,7 @@ describe('attachSqliteMaterializerCore', () => {
 				}
 			});
 
-			test('sqlite_search supports snippetColumn', async () => {
+			test('search supports snippetColumn', async () => {
 				const testSetup = setup({
 					build: (t) => ({
 						tables: { posts: t.posts },
@@ -681,23 +665,14 @@ describe('attachSqliteMaterializerCore', () => {
 
 					await testSetup.workspace.sqlite.whenFlushed;
 
-					const sqliteWithFts = testSetup.workspace.sqlite as unknown as {
-						actions: {
-							sqlite_search: (
-								input: Record<string, unknown>,
-							) => Promise<unknown>;
-						};
-					};
-					const results = (await sqliteWithFts.actions.sqlite_search({
-						table: 'posts',
-						query: 'mirror',
+					const { search } = testSetup.workspace.sqlite;
+					if (!search) throw new Error('expected search with fts configured');
+					const results = await search('posts', 'mirror', {
 						snippetColumn: 'title',
-					})) as Array<{ id: string; snippet: string; rank: number }>;
-					const fallbackResults = (await sqliteWithFts.actions.sqlite_search({
-						table: 'posts',
-						query: 'mirror',
+					});
+					const fallbackResults = await search('posts', 'mirror', {
 						snippetColumn: 'missing',
-					})) as Array<{ id: string; snippet: string; rank: number }>;
+					});
 
 					expect(results).toHaveLength(1);
 					expect(results[0]?.snippet).toContain('<mark>mirror</mark>');
@@ -705,46 +680,6 @@ describe('attachSqliteMaterializerCore', () => {
 					expect(fallbackResults[0]?.snippet).not.toContain(
 						'<mark>mirror</mark>',
 					);
-				} finally {
-					await disposeAndYieldForClose(testSetup);
-				}
-			});
-		}
-	});
-
-	// ============================================================================
-	// Materializer action tests
-	// ============================================================================
-
-	describe('actions', () => {
-		test('sqlite_rebuild is exposed as a mutation action', async () => {
-			const testSetup = setup();
-
-			try {
-				const { sqlite } = testSetup.workspace;
-				expect(typeof sqlite.actions.sqlite_rebuild).toBe('function');
-				expect(sqlite.actions.sqlite_rebuild.type).toBe('mutation');
-			} finally {
-				await disposeAndYieldForClose(testSetup);
-			}
-		});
-
-		if (hasFts5) {
-			test('sqlite_search is exposed as a query action when configured', async () => {
-				const testSetup = setup({
-					build: (t) => ({
-						tables: { posts: t.posts },
-						fts: { posts: ['title'] },
-					}),
-				});
-
-				try {
-					await testSetup.workspace.sqlite.whenFlushed;
-					const sqliteWithFts = testSetup.workspace.sqlite as unknown as {
-						actions: { sqlite_search: { type?: unknown } };
-					};
-					expect(typeof sqliteWithFts.actions.sqlite_search).toBe('function');
-					expect(sqliteWithFts.actions.sqlite_search.type).toBe('query');
 				} finally {
 					await disposeAndYieldForClose(testSetup);
 				}

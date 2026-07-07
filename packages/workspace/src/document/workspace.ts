@@ -303,9 +303,7 @@ export type ConnectOptions<
  * Receive-side twin of {@link MountComposeContext}, but deliberately not shaped
  * to rhyme with it: this *is* the connected workspace (it also bases
  * {@link ConnectedWorkspace}), so the composer extends it, whereas a mount
- * composer receives the workspace wrapped in a `{ workspace, scope }` bag. The
- * names rhyme only where the shapes do, on the return twins
- * {@link ConnectComposition} / {@link MountComposition}.
+ * composer receives the workspace wrapped in a `{ workspace, scope }` bag.
  */
 export type ConnectedWorkspaceContext<
 	TTables extends TableDefinitions,
@@ -334,9 +332,7 @@ export type ConnectedWorkspace<
 
 /**
  * What a `connect(connection, compose)` runtime builder returns: the final action
- * registry plus any runtime-only handles the app wants on the bundle. The
- * browser twin of {@link MountComposition}: both are "what the compose callback
- * composes," one for the browser runtime, one for the daemon.
+ * registry plus any runtime-only handles the app wants on the bundle.
  *
  * `actions` is required, not optional: a runtime builder is exactly where
  * browser-only actions get layered onto the base registry, and that returned
@@ -420,8 +416,7 @@ export type MountComposeScope = {
  * Receive-side twin of {@link ConnectedWorkspaceContext}, but deliberately not
  * shaped to rhyme: that one *is* the connected workspace, while this one wraps
  * the unconnected root in a `{ workspace, scope }` bag, since a mount composer
- * attaches its own materializers rather than extending the workspace. The rhyme
- * lives on the return twins {@link MountComposition} / {@link ConnectComposition}.
+ * attaches its own materializers rather than extending the workspace.
  */
 export type MountComposeContext<
 	TTables extends TableDefinitions,
@@ -430,22 +425,6 @@ export type MountComposeContext<
 > = {
 	readonly workspace: Workspace<TTables, TKv, TActions>;
 	readonly scope: MountComposeScope;
-};
-
-/**
- * What a mount's `compose` callback returns: the action registry the daemon
- * serves. The daemon twin of {@link ConnectComposition}.
- *
- * `actions` is the explicit served set, exactly as the browser `connect`
- * composer is: this is where the daemon refuses browser-only actions and admits
- * its materializer actions. Materializer teardown is deliberately not returned
- * here: each `attachMount*` helper enrolls its own drain through
- * `scope.registerDrain`, so the served-action choice is the only decision a body
- * makes. The asymmetry is the point: draining a materializer is an obligation
- * (always wanted), while which actions to serve is a policy (the body's call).
- */
-export type MountComposition<TActions extends ActionRegistry> = {
-	readonly actions: TActions;
 };
 
 /**
@@ -526,15 +505,12 @@ export type MountWorkerFactory<TRowId extends string, THandle> = (
  * optional composer, and the optional child-doc workers.
  *
  * `runtime` is the injected node bag from `nodeMountRuntime()`; `.mount()`
- * itself imports no node module. `compose` is optional: omit it to serve the
- * workspace's base actions with no materializers (a pure sync-and-persist
- * mirror); provide it to attach materializers (each enrolling its own drain
- * through `scope.registerDrain`) and choose the served action set.
- *
- * `compose` returns `MountComposition<ActionRegistry>`: the served set is its
- * own decision and never surfaces on the returned non-generic {@link Mount}, so
- * the option carries no `TRuntimeActions` generic and the coordinator reads both
- * the compose and no-compose branches as one composition type, no cast.
+ * itself imports no node module. `compose` is optional: omit it for a pure
+ * sync-and-persist mirror; provide it to attach materializers, each enrolling
+ * its own drain through `scope.registerDrain`. It returns nothing: the watcher
+ * is not a callable action server (ADR-0112), so there is no served action set
+ * to choose. Workspace actions stay an in-process concept on the workspace
+ * bundles apps open themselves.
  */
 export type MountOptions<
 	TTables extends TableDefinitions,
@@ -549,12 +525,12 @@ export type MountOptions<
 	/** Injected node runtime, built by `nodeMountRuntime()`. */
 	readonly runtime: NodeMountRuntime;
 	/**
-	 * Attach materializers and select the served actions. Omit for a pure
-	 * sync-and-persist mirror. See {@link MountComposition}.
+	 * Attach materializers, each enrolling its own drain through
+	 * `scope.registerDrain`. Omit for a pure sync-and-persist mirror.
 	 */
 	readonly compose?: (
 		context: MountComposeContext<TTables, TKv, TActions>,
-	) => MountComposition<ActionRegistry>;
+	) => void;
 	/**
 	 * Register daemon child-doc workers: the always-on observe loops that host a
 	 * live replica of a row's child doc and watch it (ADR-0024/0025). Keyed by
@@ -924,10 +900,8 @@ export function defineWorkspace<
 	 * `defineSessionMount`, resolve the base URL, `create()` the root, run the
 	 * caller's `compose`, attach mount infrastructure, and assemble the runtime.
 	 *
-	 * `compose` is the one place watcher-local actions are chosen, so a mount cannot
-	 * accidentally include browser-only actions: omit it to use the base
-	 * `workspace.actions` with no materializers, or return an explicit
-	 * `{ actions }` after attaching materializers, which enroll their own drain.
+	 * `compose` exists to attach materializers, which enroll their own drain
+	 * through `scope.registerDrain`; omit it for a pure sync-and-persist mirror.
 	 *
 	 * The mount's display label is the definition's `name`, declared once on the
 	 * definition rather than restated at every call site.
@@ -952,14 +926,10 @@ export function defineWorkspace<
 						drains.push(drainable);
 					},
 				};
-				// Both branches are one composition type: compose returns
-				// `MountComposition<ActionRegistry>`, and the no-compose fallback's
-				// `workspace.actions` (`TActions`) widens to the same. No generic to
-				// bridge, so no cast.
-				const composition: MountComposition<ActionRegistry> =
-					mountOptions.compose
-						? mountOptions.compose({ workspace, scope })
-						: { actions: workspace.actions };
+				// compose is side-effect only: it attaches materializers, which
+				// enroll their own drain through `scope.registerDrain`. Nothing to
+				// collect from its return; the watcher serves no actions (ADR-0112).
+				mountOptions.compose?.({ workspace, scope });
 				// Schema-driven child-doc workers. The coordinator reads the layout
 				// and guid deriver from the definition (never re-passed by the app),
 				// so a worker cannot interpret a body with a layout that disagrees
@@ -983,8 +953,7 @@ export function defineWorkspace<
 				}
 				// `attachInfrastructure` wires sync/presence and drains every
 				// registered materializer in order on shutdown, so it runs after
-				// compose has registered them. The composition's actions stay on the
-				// returned daemon runtime bundle.
+				// compose has registered them.
 				const infrastructure = runtime.attachInfrastructure(
 					workspace.ydoc,
 					ctx,
@@ -1000,7 +969,6 @@ export function defineWorkspace<
 				return {
 					...workspace,
 					...infrastructure,
-					actions: composition.actions,
 				};
 			},
 		});
