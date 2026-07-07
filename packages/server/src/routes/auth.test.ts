@@ -44,7 +44,7 @@ function createAuthRouteApp({
 	return app;
 }
 
-test('GET /sign-in/context returns session and provider truth from env', async () => {
+test('GET /sign-in/context returns session and enabled providers from env', async () => {
 	const app = createAuthRouteApp({
 		session: { user: { name: 'Ada Lovelace', email: 'ada@example.com' } },
 		authSecrets: {
@@ -65,13 +65,7 @@ test('GET /sign-in/context returns session and provider truth from env', async (
 	expect(response.status).toBe(200);
 	const body = (await response.json()) as unknown;
 	expect(body).toEqual({
-		providers: {
-			google: true,
-			github: false,
-			microsoft: true,
-			apple: false,
-		},
-		passkeyEnabled: false,
+		providers: ['google', 'microsoft'],
 		session: { name: 'Ada Lovelace', email: 'ada@example.com' },
 	});
 });
