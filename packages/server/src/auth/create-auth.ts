@@ -110,7 +110,7 @@ export function configuredProviders(env: CloudAuthBindings) {
  * - Drizzle adapter (portable Postgres wire; Hyperdrive on Workers, a pool on Node)
  * - Google OAuth, plus GitHub, Microsoft, and Apple when their credentials are
  *   configured (email/password is disabled; see {@link BASE_AUTH_CONFIG})
- * - Plugins: JWT (ES256), OAuth provider (PKCE)
+ * - Plugins: JWT (ES256), OAuth provider (PKCE), passkey (WebAuthn)
  *
  * `/api/session` is the single Epicenter session surface; this builder no longer
  * enriches `/auth/get-session` with encryption keys.
