@@ -12,8 +12,10 @@ The CLI daemon was introduced as a mandatory local process for `epicenter run`,
 framing the daemon as a callable peer in a device mesh: a device was either
 online and callable, or it was offline. That rationale no longer matches the
 system. The mesh peer, `run --peer`, in-room action dispatch, and relay action
-channel were deleted. `packages/workspace/src/daemon/action-handler.ts` now says
-cross-device runs are not a `/run` concern.
+channel were deleted.
+<!-- doc-path-check: ignore-next-line -->
+`packages/workspace/src/daemon/action-handler.ts` now says cross-device runs are
+not a `/run` concern.
 
 The useful product need that remains is different: a user can run Epicenter
 headlessly for one folder so the workspace stays synchronized and materialized.

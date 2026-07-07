@@ -20,6 +20,7 @@ startup state enum).
 
 `run`, `list`, and `peers` require a live local daemon and have no `loadConfig`
 cold-path fallback. They dispatch over the Unix socket via `getDaemon(root)`
+<!-- doc-path-check: ignore-next-line -->
 (`packages/workspace/src/daemon/client.ts`), which pings the socket and returns
 `DaemonError.Required` when nothing answers; the command prints the hint and
 exits non-zero. The daemon is started by `epicenter daemon up` and is a long-lived
