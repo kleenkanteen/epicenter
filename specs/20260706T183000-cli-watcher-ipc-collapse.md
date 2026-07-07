@@ -14,23 +14,22 @@ Keep Epicenter's headless watcher, but delete the external daemon IPC plane so a
 Read first:
 
 - One Sentence
-- Target shape
-- Wave 1
+- Current target shape
+- Remaining review focus
 - Success criteria
 
-Read when changing deeper architecture:
+Read historical sections when changing deeper architecture:
 
 - Design decisions
-- Runtime shape follow-up
-- Open questions
+- Implementation plan
 
 Historical only:
 
 - Earlier clean-break analysis named the broader radical-options pass; this spec is the narrower execution slice.
 
-## Current shape
+## Historical shape before the collapse
 
-The CLI has two products tangled together:
+The CLI used to have two products tangled together:
 
 ```txt
 Headless watcher:
@@ -52,35 +51,35 @@ Callable action server:
     -> action registry exposed by the mount runtime
 ```
 
-The first product is still useful. The second product is the collapse target.
+The first product was useful. The second product was the collapse target.
 
-## Target shape
+## Current target shape
 
-`epicenter daemon up` remains for the first implementation wave. It opens one app mount headlessly for one folder, keeps sync and materializers alive, writes logs and metadata, and shuts down cleanly. It does not bind a socket and nothing can call it.
+The shipped CLI exposes the headless watcher directly: `epicenter up`, `down`, `status`, and `logs`. `up` opens one app mount headlessly for one folder, keeps sync and materializers alive, writes logs and metadata, and shuts down cleanly. It does not bind a socket and nothing can call it.
 
 ```txt
-CLI after Wave 1:
-  daemon up      keep, no socket
-  daemon down    keep, metadata + pid signal
-  daemon ps      keep, metadata + pid liveness
-  daemon logs    keep, log file tail/read
-  auth           keep
-  init           keep
-  blobs          keep
-  matter         keep
+CLI after Waves 1-3:
+  up        keep, no socket
+  down      keep, metadata + pid signal
+  status    keep, metadata + pid liveness
+  logs      keep, log file tail/read
+  auth      keep
+  init      keep
+  blobs     keep
+  matter    keep
 
-  run            delete
-  list           delete
-  peers          delete
+  run       deleted
+  list      deleted
+  peers     deleted
 ```
 
-Workspace actions stay. Apps, local tools, tests, and future app-specific commands can call actions in-process. This spec deletes only the generic off-process daemon action bus.
+Workspace actions stay. Apps, local tools, tests, and future app-specific commands can call actions in-process. This spec deleted only the generic off-process daemon action bus.
 
 ## Motivation
 
-The current daemon IPC plane preserves an old story: the daemon as a callable peer. ADR-0009 says `run`, `list`, and `peers` require a daemon because the daemon represents an online callable device. That no longer matches the code. The mesh peer, `run --peer`, and relay action dispatch were deleted; `action-handler.ts` explicitly says cross-device runs are not a `/run` concern.
+The removed daemon IPC plane preserved an old story: the daemon as a callable peer. ADR-0009 said `run`, `list`, and `peers` required a daemon because the daemon represented an online callable device. That stopped matching the code before this collapse. The mesh peer, `run --peer`, relay action dispatch, and the daemon action handler are all gone.
 
-The current shape creates problems:
+That shape created problems:
 
 1. The watcher has to carry an action registry because the socket can serve it, even though the sync/materialization product does not need external calls.
 2. `connectDaemonActions` and the daemon client create a public-looking script surface with no production caller.
@@ -101,22 +100,20 @@ The desired state is smaller: a headless watcher plus explicit future verbs when
 
 ## Architecture
 
-Before:
+Removed path:
 
 ```txt
 epicenter run/list/peers
-  -> getDaemon(root)
-    -> socketPathFor(root)
-      -> daemonClient(socket)
-        -> Unix socket transport
-          -> Hono app
-            -> mount.runtime.actions / mount.runtime.collaboration.peers
+  -> daemon client
+    -> Unix socket transport
+      -> Hono app
+        -> mount.runtime.actions / mount.runtime.collaboration.peers
 ```
 
-After Wave 1:
+Current path:
 
 ```txt
-epicenter daemon up
+epicenter up
   -> claim lease
   -> openEpicenterRoot
     -> load epicenter.config.ts
@@ -176,92 +173,55 @@ Goal: make the CLI say what the product is.
 
 ### Wave 4: one-shot sync
 
-Goal: add `epicenter sync` only after the watcher runtime is smaller.
+Refused for now. `epicenter sync` is not needed without a concrete workflow, and its convergence contract would be easy to over-promise. Keep `epicenter up` as the lifecycle surface until a real user needs one-shot sync and can name what "done" means.
 
-Open design question: what proves convergence? Candidate signal: root doc `whenConnected`, child-doc sync completion for materialized rows, and materializer flush/drain. Do not add `sync` until this contract is explicit.
+## PR strategy history
 
-## PR strategy
+Wave 1 was reviewable on its own because the headless watcher remained while the callable action server disappeared. Wave 3 then renamed the lifecycle surface to top-level commands with no compatibility aliases.
 
-Open a PR after Wave 1 if the diff is reviewable and green. Wave 1 is already a coherent product change: the headless watcher remains, but the callable action server is gone. It should not wait for rename churn or `sync`.
-
-Recommended PR title:
+The durable PR summary was:
 
 ```txt
-Collapse daemon IPC into a headless watcher
-```
-
-Recommended PR body shape:
-
-```txt
-This keeps `epicenter daemon up` as the headless sync/materialization process, but removes the generic local action server around it.
-
 Before:
   run/list/peers -> daemon client -> Unix socket -> Hono app -> action registry
 
 After:
-  daemon up opens the mount, syncs, materializes, writes logs and metadata, and cannot be called.
+  up opens the mount, syncs, materializes, writes logs and metadata, and cannot be called.
 
 Workspace actions remain in-process for apps and local tools. Future write workflows should earn explicit app verbs instead of reviving a generic daemon action bus.
 ```
 
-## When to use a bigger orchestrator review
+## Remaining review focus
 
-Use a bigger orchestrator before Wave 2 or Wave 3, not before Wave 1, unless Wave 1 uncovers a real production caller for IPC.
-
-Wave 1 is evidence-backed and mechanically bounded. The risky design questions come next:
-
-- whether `DaemonRuntime.actions` disappears entirely;
-- whether materializer operations stay action-shaped;
-- whether lifecycle commands get clean-break renames without aliases;
-- what `sync` means and how it proves convergence.
-
-A good orchestrator prompt after Wave 1:
-
-```txt
-Review the Wave 1 diff for the CLI watcher IPC collapse. Challenge whether any remaining `daemon`, `actions`, socket, or RPC-shaped boundary still exists only because the old callable-server model leaked through. Do not propose compatibility aliases unless you can name a real contract. Focus on Wave 2: should `DaemonRuntime.actions` disappear, and should materializer rebuild/search remain action-shaped or become direct materializer methods?
-```
+Waves 1-3 are shipped. Wave 4 is refused for now: do not add `epicenter sync` without a concrete workflow and a crisp definition of "done."
 
 ## Edge cases
 
 ### Inactive mount
 
-`daemon up` may still return an inactive mount when a session-required app is signed out. It should report the reason, release the lease, and exit without metadata for a running watcher.
+`epicenter up` may still return an inactive mount when a session-required app is signed out. It should report the reason, release the lease, and exit without metadata for a running watcher.
 
 ### Mount with collaboration
 
-`daemon up` should still print initial peers and sync status from the in-process collaboration object. Deleting `epicenter peers` removes only the on-demand query path.
-
-### Existing socket files
-
-If runtime-file sweeping currently removes stale sockets, keep the cleanup if it also handles metadata/log hygiene. Delete socket-specific cleanup only when no caller or test depends on it.
+`epicenter up` should still print initial peers and sync status from the in-process collaboration object. Deleting `epicenter peers` removes only the on-demand query path.
 
 ### External package consumers
 
 `@epicenter/workspace` is published. Removing `connectDaemonActions` and daemon client exports is a clean break. Pause if we decide published compatibility matters for the current release; otherwise ADR-0112 is the decision record.
 
-## Open questions
+## Refused follow-up
 
-1. Should `daemon` vocabulary be renamed internally to `watcher`?
-   - Recommendation: not in Wave 1. Delete behavior first, rename once the shape is smaller.
-
-2. Should materializer rebuild/search remain workspace actions?
-   - Recommendation: defer to Wave 2. The answer is probably “direct materializer methods,” but collapsing the external IPC plane should not wait on it.
-
-3. Should `epicenter peers` be replaced by `status --peers`?
-   - Recommendation: no. Presence is visible in watcher logs or app UI until a real operator workflow needs an on-demand command.
-
-4. Should `run` return later as an app-specific command generator?
-   - Recommendation: no generic return. Add explicit verbs for real workflows, such as import, capture, or post.
+Do not add `epicenter sync` as speculative symmetry with `up`. A one-shot command only earns itself when a real workflow needs it and can define convergence across root-doc sync, child-doc sync, and materializer flush/drain.
 
 ## Success criteria
 
-- [x] `epicenter daemon up` starts a mount, syncs, materializes, writes metadata, logs status, and tears down.
+- [x] `epicenter up` starts a mount, syncs, materializes, writes metadata, logs status, and tears down.
 - [x] No Unix socket is bound by the watcher.
 - [x] `epicenter run`, `epicenter list`, and `epicenter peers` are gone from the CLI.
 - [x] No exported daemon client or `connectDaemonActions` surface remains without a non-test caller.
 - [x] Workspace actions still work in-process.
 - [x] Package tests and typechecks pass for `packages/cli` and `packages/workspace`.
-- [ ] ADR-0112 is accepted or left Proposed for PR review, and ADR-0009 is no longer the active decision after merge.
+- [x] ADR-0112 is accepted, and ADR-0009 is no longer the active decision after merge.
 
 ## References
 
@@ -270,7 +230,4 @@ If runtime-file sweeping currently removes stale sockets, keep the cleanup if it
 - `packages/cli/src/commands/up.ts` - watcher startup owner.
 - `packages/cli/src/cli.ts` - CLI command registration.
 - `packages/workspace/src/config/open-epicenter-root.ts` - config-to-mounted-runtime startup path.
-- `packages/workspace/src/daemon/types.ts` - runtime shape to trim after IPC deletion.
-- `packages/workspace/src/daemon/app.ts` - Hono IPC app to delete in Wave 1.
-- `packages/workspace/src/daemon/client.ts` - daemon client to delete in Wave 1.
-- `packages/workspace/src/client/connect-daemon-actions.ts` - documented script proxy to delete in Wave 1.
+- `packages/workspace/src/daemon/types.ts` - watcher runtime shape after IPC deletion.

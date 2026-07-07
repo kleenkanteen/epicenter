@@ -22,7 +22,7 @@
 	} = $props();
 </script>
 
-<Button variant="outline" size="lg" class="w-full gap-2" {disabled} {onclick}>
+<Button variant="outline" size="lg" class="w-full" {disabled} {onclick}>
 	{#if provider === 'google'}
 		<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
 			<path
