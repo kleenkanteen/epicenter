@@ -42,7 +42,7 @@
 // ACTION SYSTEM
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { Action, ActionManifest, ActionRegistry } from './shared/actions';
+export type { Action, ActionRegistry } from './shared/actions';
 export {
 	defineActions,
 	defineMutation,

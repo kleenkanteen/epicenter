@@ -165,8 +165,8 @@ export type DefineWorkspaceOptions<
 	TActions extends ActionRegistry,
 > = CreateWorkspaceOptions<TTables, TKv> & {
 	/**
-	 * Human-facing display label: `epicenter list`'s header, the `${name}-*`
-	 * materializer logger prefix, and the "Sign in to enable <name>." message. A
+	 * Human-facing display label: the `${name}-*` materializer logger prefix and
+	 * the "Sign in to enable <name>." message. A
 	 * display name only, not an identity seed: it never feeds the guid, the node
 	 * id, the Y.Doc `clientID`, or the action namespace, so the app's `id` owns
 	 * the namespace and the `name` is free to be a friendly label.
@@ -752,7 +752,7 @@ export function createWorkspace<
  *                                persistence, cloud sync, and materializers, with
  *                                node dependencies injected through
  *                                `options.runtime`. Its `compose` mirrors the
- *                                browser one (select daemon actions, attach
+ *                                browser one (select watcher-local actions, attach
  *                                materializers); see `mount` below.
  *
  * `connect()` is `create()` plus the browser storage/transport bundle
@@ -924,8 +924,8 @@ export function defineWorkspace<
 	 * `defineSessionMount`, resolve the base URL, `create()` the root, run the
 	 * caller's `compose`, attach mount infrastructure, and assemble the runtime.
 	 *
-	 * `compose` is the one place daemon actions are chosen, so a mount cannot
-	 * accidentally serve browser-only actions: omit it to serve the base
+	 * `compose` is the one place watcher-local actions are chosen, so a mount cannot
+	 * accidentally include browser-only actions: omit it to use the base
 	 * `workspace.actions` with no materializers, or return an explicit
 	 * `{ actions }` after attaching materializers, which enroll their own drain.
 	 *

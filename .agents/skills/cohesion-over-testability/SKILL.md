@@ -21,7 +21,7 @@ and find a different way to pay the regression-coverage bill: integration
 tests through the real boundary, type-level invariants, or deletion of a
 test that was insuring trivial branch logic at high seam cost.
 
-Related skills: [cohesive-clean-breaks](../cohesive-clean-breaks/SKILL.md)
+Related skills: [greenfield-clean-breaks](../greenfield-clean-breaks/SKILL.md)
 owns the decision once you find a candidate; [refactoring](../refactoring/SKILL.md)
 for caller counting and inlining mechanics; [radical-options](../radical-options/SKILL.md)
 when the helper is honoring a bad shape; [testing](../testing/SKILL.md)

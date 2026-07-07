@@ -17,7 +17,7 @@ After drafting the minimal version, a closer mental-inlining pass revealed three
 
 3. **Silent-failure category for async builds.** Sync builds throw synchronously and propagate. Async builds reject: into a `.catch` handler that the spec proposed handling via `console.error` and leaving payload null. New error path that swallows visibly to dev tools but silently to the user.
 
-4. **Speculation about future apps.** No other async-backed app exists today. The cohesive-clean-breaks rule: "Don't design for hypothetical future requirements." If a future Tauri-filesystem or mobile app needs async builds, widen the API then, with the new app as concrete grounding.
+4. **Speculation about future apps.** No other async-backed app exists today. The greenfield-clean-breaks rule: "Don't design for hypothetical future requirements." If a future Tauri-filesystem or mobile app needs async builds, widen the API then, with the new app as concrete grounding.
 
 The asymmetric-option check should have flagged this earlier: the proposal saves ~25 lines in one isolated file (where the smell is local and documented by structure) and adds ~30 lines of central framework code plus a UX regression plus a new error category. Net negative.
 
@@ -428,4 +428,4 @@ Do not require sync builds to declare they're sync. The signature accepts
 - `apps/tab-manager/src/entrypoints/sidepanel/App.svelte`: current triple-await
 - `specs/20260512T220000-session-two-axis-cohesive-reshape.md`: parent spec
 - `.agents/skills/radical-options/SKILL.md`: framework that talked us out of the bigger redesign
-- `.agents/skills/cohesive-clean-breaks/SKILL.md`: guides the "smallest widening that earns its keep" decision
+- `.agents/skills/greenfield-clean-breaks/SKILL.md`: guides the "smallest widening that earns its keep" decision

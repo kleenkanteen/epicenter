@@ -1,24 +1,30 @@
 # @epicenter/cli
 
-> Introspect and invoke `defineQuery` / `defineMutation` actions exposed by the configured mount.
+> Run Epicenter headlessly for one folder so it stays synchronized and materialized.
 
-Each verb is a one-line shell shortcut for one workspace primitive:
+Each verb is a shell shortcut for one workspace or lifecycle job:
 
+```txt
+                 +------------+---------------------------------------------+
+                 | Verb       | Job                                         |
+                 +------------+---------------------------------------------+
+   Watch         | daemon up  | open mount, sync, materialize, stay alive  |
+   Stop          | daemon down| signal the recorded watcher pid            |
+   Inspect       | daemon ps  | list watcher metadata and pid liveness     |
+   Logs          | daemon logs| read the watcher log file                  |
+                 +------------+---------------------------------------------+
+
+ Supporting systems: auth (machine session), init (root creation), blobs, matter
 ```
-                 +------------+---------------------------------------------+
-                 | Verb       | Workspace primitive                         |
-                 +------------+---------------------------------------------+
-   Enumerate     | list       | Object.entries(runtime.actions)             |
-   Invoke        | run        | local daemon invoke                         |
-   Presence      | peers      | collaboration.peers.list()                  |
-                 +------------+---------------------------------------------+
 
- Supporting systems: auth (machine session), daemon (process lifecycle)
-```
+The resident process is not a callable action server. Workspace actions remain
+in-process for apps and local tools.
 
 ## Targeting an environment
 
-When you iterate on `apps/api`, you want CLI commands hitting your local server, not prod. The CLI reads `EPICENTER_API_URL` from the environment; named scripts wrap the two real workflows so the target is always explicit.
+When you iterate on `apps/api`, you want CLI commands hitting your local server,
+not prod. The CLI reads `EPICENTER_API_URL` from the environment; named scripts
+wrap the two real workflows so the target is always explicit.
 
 | I want to...                                          | I run...                                                               |
 | ----------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -27,15 +33,26 @@ When you iterate on `apps/api`, you want CLI commands hitting your local server,
 | Use the published binary (end user)                   | `epicenter auth login`                                                 |
 | Override the target anywhere                          | `EPICENTER_API_URL=https://staging.example.com bun run cli auth login` |
 
-Tokens are stored per API target so prod and local sessions coexist. Each target writes one file at `<dataDir>/auth/<host>.json`, where `<dataDir>` is the platform user-data directory from `env-paths('epicenter')` and `<host>` is the API host with `:` replaced by `_`. A fresh `cli:local auth login` will not overwrite your prod session. The daemon freezes its target at boot; to retarget, `daemon down` then `daemon up` again.
+Tokens are stored per API target so prod and local sessions coexist. Each target
+writes one file at `<dataDir>/auth/<host>.json`, where `<dataDir>` is the
+platform user-data directory from `env-paths('epicenter')` and `<host>` is the
+API host with `:` replaced by `_`. A fresh `cli:local auth login` will not
+overwrite your prod session. The daemon freezes its target at boot; to retarget,
+`daemon down` then `daemon up` again.
 
-`EPICENTER_DATA_DIR=<path>` overrides `<dataDir>` itself (the user-data directory above; today the only user-global state stored there is cached credentials). Escape hatch for Nix, snap, ephemeral homes, and the test suite.
+`EPICENTER_DATA_DIR=<path>` overrides `<dataDir>` itself. Today the only
+global user state stored there is cached credentials. This is the escape hatch
+for Nix, snap, ephemeral homes, and the test suite.
 
-The same env var and scripts apply to every command that talks to the API, including `daemon`, not just `auth`.
+The same env var and scripts apply to every command that talks to the API,
+including `daemon`, not just `auth`.
 
 ## Commands
 
-`epicenter daemon up` opens the mount the Epicenter root's `epicenter.config.ts` declares. `list`, `run`, and `peers` dispatch to that local daemon over its Unix socket.
+`epicenter daemon up` opens the mount declared by the Epicenter root's
+`epicenter.config.ts`. It runs in the foreground, owns the root's lease, joins
+sync when signed in, and keeps materializers alive until it receives SIGINT or
+SIGTERM.
 
 ```bash
 epicenter auth login
@@ -44,62 +61,59 @@ epicenter daemon up -C ~/workspace
 epicenter daemon ps
 epicenter daemon logs -C ~/workspace
 epicenter daemon down -C ~/workspace
-
-epicenter list -C ~/workspace
-epicenter list entries_update -C ~/workspace
-
-epicenter run entries_update '{"id":"entry_1","tags":["triaged"]}' -C ~/workspace
-
-epicenter peers -C ~/workspace
 ```
 
-`-C` is a start directory for Epicenter-root discovery. Discovery walks upward until it finds `epicenter.config.ts`, then the daemon opens the mount that config declares. Discovery is upward-only and never scans down, so run from inside your Epicenter folder (or any directory under it) or pass `-C <epicenter-root>`. From a repo whose Epicenter folder lives at `repo/apps`, that is `epicenter daemon up -C apps`.
+`-C` is a start directory for Epicenter-root discovery. Discovery walks upward
+until it finds `epicenter.config.ts`, then the daemon opens the mount that config
+declares. Discovery is upward-only and never scans down, so run from inside your
+Epicenter folder (or any directory under it) or pass `-C <epicenter-root>`. From
+a repo whose Epicenter folder lives at `repo/apps`, that is
+`epicenter daemon up -C apps`.
 
 ## Exit codes
 
-`run` is the only command with granular codes, so a script can branch on the failure kind:
+`daemon up` exits `1` on startup failure (already running, bad config, auth) and
+`0` on clean shutdown. `daemon down`, `ps`, and `logs` exit `0`: a missing daemon
+or an empty log is reported, not treated as an error.
 
-| Code | `run` | `list`, `peers` |
-| --- | --- | --- |
-| `0` | success | success |
-| `1` | usage error (unknown action, action input that fails the action's schema) or no daemon running | any failure (no daemon, bad arguments) |
-| `2` | runtime error: the local action returned `Err` | (not used) |
+Error text goes to stderr. Human-readable command output goes to stdout.
 
-`daemon up` exits `1` on startup failure (already running, bad config, auth) and `0` on clean shutdown. `daemon down`, `ps`, and `logs` exit `0`: a missing daemon or an empty log is reported, not treated as an error.
+## Epicenter roots and mounts
 
-Error text goes to stderr; machine-readable output (`--format json|jsonl`, tables, and `run` results) goes to stdout.
-
-## Epicenter Roots And Mounts
-
-`epicenter.config.ts` marks the Epicenter root and declares its mount. One folder is one app is one mount: the default export is a single `Mount`. App packages ship mount factories that return `Mount` values; `Mount.name` is the display label `epicenter list` prints as its header. The folder that holds `epicenter.config.ts` is your Epicenter folder: Epicenter owns its direct children, so the mount's visible markdown projection is a direct child folder.
+`epicenter.config.ts` marks the Epicenter root and declares its mount. One folder
+is one app is one mount: the default export is a single `Mount`. The folder that
+holds `epicenter.config.ts` is your Epicenter folder. Epicenter owns its direct
+children, so the mount's visible markdown projection is a direct child folder.
 
 ```ts
-import notes from "./workspaces/notes/mount";
+import notes from './workspaces/notes/mount';
 
 export default notes;
 ```
 
-The default-exported `Mount.name` is `notes`, so `epicenter list` prints `notes` as its header regardless of the Epicenter folder name. Actions are addressed by their bare key (`epicenter run notes_update`): the daemon serves one mount, so the key alone is unambiguous.
+The folder that holds `epicenter.config.ts` is your Epicenter folder.
+`.epicenter/` and the generated projection are direct children:
 
-The folder that holds `epicenter.config.ts` is your Epicenter folder. `.epicenter/` and the generated projection are direct children:
-
-```
-repo/                      unreserved repo root
-└── my-notes/               Epicenter root (folder name is your choice)
+```txt
+repo/                        unreserved repo root
+└── my-notes/                 Epicenter root (folder name is your choice)
     ├── epicenter.config.ts   tracked, marks the Epicenter root
     ├── .epicenter/           ignored, machine state for this root
     └── notes/                generated Markdown projection (one folder per table)
 ```
 
-Put `epicenter.config.ts` in a folder dedicated to one app. The marker is the config file, not the folder name. Run several apps by giving each its own folder, each its own root.
+Put `epicenter.config.ts` in a folder dedicated to one app. The marker is the
+config file, not the folder name. Run several apps by giving each its own folder,
+each its own root.
 
-Writing a custom mount inline uses `defineMount` from `@epicenter/workspace/daemon`:
+Writing a custom mount inline uses `defineMount` from
+`@epicenter/workspace/daemon`:
 
 ```ts
-import { defineMount } from "@epicenter/workspace/daemon";
+import { defineMount } from '@epicenter/workspace/daemon';
 
 export default defineMount({
-  name: "notes",
+  name: 'notes',
   async open({ epicenterRoot, mount, session }) {
     // Open the long-lived runtime.
     // `mount` is the canonical mount name carried on the Mount object.
@@ -108,27 +122,20 @@ export default defineMount({
 });
 ```
 
-`Mount.name` is the header `epicenter list` prints; actions are addressed by their bare key.
-
-`.epicenter/` holds the Epicenter root's generated machine state such as SQLite materializers, Yjs update logs, markdown materializers, and its generated `.gitignore`. It is not a registry. Runtime files live outside the Epicenter root: sockets and daemon metadata use the OS runtime directory, while daemon logs use the platform log directory from `env-paths`.
+`.epicenter/` holds the Epicenter root's generated machine state such as SQLite
+materializers, Yjs update logs, markdown materializers, and its generated
+`.gitignore`. It is not a registry. Runtime metadata uses the OS runtime
+directory, while daemon logs use the platform log directory from `env-paths`.
 
 ## Scripting
 
-Use scripts for anything beyond one-shot CLI calls:
-
-```ts
-import { connectDaemonActions } from "@epicenter/workspace/node";
-import type { NotesActions } from "./workspaces/notes/actions";
-
-const notes = await connectDaemonActions<NotesActions>();
-
-await notes.notes_update({ id, pinned: false });
-```
-
-Scripts get normal TypeScript control flow. The CLI stays small: list, run, peers, and daemon lifecycle.
+Scripts should read materialized files or SQLite directly. Generic off-process
+action invocation is deliberately not part of the CLI surface. When a real write
+workflow needs shell access, add an explicit app command for that workflow rather
+than a generic action bus.
 
 ## Public API
 
 ```ts
-import { createCLI } from "@epicenter/cli";
+import { createCLI } from '@epicenter/cli';
 ```

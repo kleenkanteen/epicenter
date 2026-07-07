@@ -12,11 +12,10 @@
  * `@epicenter/auth/src/node/machine-auth.test.ts`.
  *
  * Key behaviors:
- * - happy path loads epicenter.config.ts, writes metadata, binds the
- *   socket, and replies to ping
+ * - happy path loads epicenter.config.ts and writes metadata
  * - startup failures release the daemon lease
  * - held SQLite leases short-circuit before mount module import
- * - orphan socket files are swept and replaced by a fresh daemon
+ * - stale metadata from dead pids does not block a fresh watcher
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
@@ -34,10 +33,7 @@ import { MachineAuthStorageError } from '@epicenter/auth/node';
 import { asPrincipalId } from '@epicenter/identity';
 import {
 	claimDaemonLease,
-	daemonClient,
 	metadataPathFor,
-	pingDaemon,
-	socketPathFor,
 	writeMetadata,
 } from '@epicenter/workspace/node';
 import { Err, Ok } from 'wellcrafted/result';
@@ -83,9 +79,6 @@ let workDir: string;
 beforeEach(() => {
 	originalRuntimeDir = process.env.EPICENTER_RUNTIME_DIR;
 
-	// `/tmp/...` is short on every POSIX platform; needed because
-	// socketPathFor enforces a strict path-length guard that macOS's
-	// `os.tmpdir()` would blow.
 	runtimeRoot = mkdtempSync('/tmp/eps-up-rt-');
 	process.env.EPICENTER_RUNTIME_DIR = runtimeRoot;
 	mkdirSync(runtimeRoot, { recursive: true });
@@ -181,7 +174,7 @@ function writeRuntimeMount({
 }
 
 describe('runUp: happy path', () => {
-	test('writes metadata, binds socket, replies to ping', async () => {
+	test('writes metadata and opens the mount', async () => {
 		writeRuntimeMount();
 
 		const handle = expectOk(
@@ -202,19 +195,13 @@ describe('runUp: happy path', () => {
 			expect(
 				readFileSync(join(workDir, 'epicenter.config.ts'), 'utf8'),
 			).toContain('export default demo');
-
-			const sockPath = socketPathFor(workDir);
-			expect(existsSync(sockPath)).toBe(true);
-			const ok = await pingDaemon(sockPath, 1000);
-			expect(ok).toBe(true);
 		} finally {
 			await handle.teardown();
 		}
 		expect(existsSync(metadataPathFor(workDir))).toBe(false);
-		expect(existsSync(socketPathFor(workDir))).toBe(false);
 	});
 
-	test('serves a local-only mount without collaboration', async () => {
+	test('opens a local-only mount without collaboration', async () => {
 		writeDemoMount(`
 			const sync = () => ({ imported: 2 });
 			sync.type = 'query';
@@ -243,20 +230,15 @@ describe('runUp: happy path', () => {
 			}),
 		);
 		try {
-			const client = daemonClient(socketPathFor(workDir));
-			const snapshot = expectOk(await client.list());
-			expect(snapshot.mount).toBe('mirror');
-			expect(Object.keys(snapshot.actions)).toEqual(['sync']);
-			expect(snapshot.actions.sync?.description).toBe('Sync local mirror');
-			expect(expectOk(await client.peers())).toEqual([]);
-			expect(
-				expectOk(
-					await client.run({
-						actionPath: 'sync',
-						input: null,
-					}),
-				),
-			).toEqual({ imported: 2 });
+			expect(handle.opened.status).toBe('started');
+			if (handle.opened.status !== 'started') {
+				throw new Error('expected started mount');
+			}
+			expect(handle.opened.entry.mount).toBe('mirror');
+			expect(handle.opened.entry.runtime.collaboration).toBeUndefined();
+			expect(Object.keys(handle.opened.entry.runtime.actions)).toEqual([
+				'sync',
+			]);
 		} finally {
 			await handle.teardown();
 		}
@@ -280,8 +262,6 @@ describe('runUp: failure cleanup', () => {
 				status: 'inactive',
 				entry: { mount: 'demo', reason: 'sign in to enable demo' },
 			});
-			// Inactive means no runtime exists, so there is no action server.
-			expect(await pingDaemon(socketPathFor(workDir), 1000)).toBe(false);
 			expect(existsSync(metadataPathFor(workDir))).toBe(false);
 		} finally {
 			await handle.teardown();
@@ -488,7 +468,7 @@ describe('runUp: failure cleanup', () => {
 		lease.release();
 	});
 
-	test('leaves no socket or metadata when the mount fails', async () => {
+	test('leaves no metadata when the mount fails', async () => {
 		writeDemoMount(`
 			export default {
 				name: 'demo',
@@ -512,7 +492,6 @@ describe('runUp: failure cleanup', () => {
 			mount: 'demo',
 		});
 		expect(existsSync(metadataPathFor(workDir))).toBe(false);
-		expect(existsSync(socketPathFor(workDir))).toBe(false);
 		const lease = expectOk(claimDaemonLease(workDir));
 		lease.release();
 	});
@@ -530,7 +509,6 @@ describe('runUp: failure cleanup', () => {
 		);
 
 		expect(error.name).toBe('MetadataWriteFailed');
-		expect(existsSync(socketPathFor(workDir))).toBe(false);
 		const lease = expectOk(claimDaemonLease(workDir));
 		lease.release();
 	});
@@ -561,12 +539,10 @@ describe('runUp: already running', () => {
 	});
 });
 
-describe('runUp: orphan path', () => {
-	test('proceeds cleanly when metadata pid is dead and socket is phantom', async () => {
-		const sockPath = socketPathFor(workDir);
+describe('runUp: stale metadata path', () => {
+	test('proceeds cleanly when metadata pid is dead', async () => {
 		mkdirSync(runtimeRoot, { recursive: true });
 
-		writeFileSync(sockPath, '');
 		writeMetadata(workDir, {
 			pid: 99999999,
 			dir: workDir,
@@ -585,7 +561,6 @@ describe('runUp: orphan path', () => {
 
 		try {
 			expect(handle.metadata.pid).toBe(process.pid);
-			expect(existsSync(socketPathFor(workDir))).toBe(true);
 		} finally {
 			await handle.teardown();
 		}

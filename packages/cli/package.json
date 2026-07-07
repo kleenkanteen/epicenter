@@ -36,16 +36,13 @@
 		"@epicenter/identity": "workspace:*",
 		"@epicenter/matter-core": "workspace:*",
 		"@epicenter/workspace": "workspace:*",
-		"@hono/standard-validator": "catalog:",
-		"arktype": "catalog:",
-		"hono": "catalog:",
 		"mime": "catalog:",
-		"typebox": "catalog:",
 		"wellcrafted": "catalog:",
 		"yargs": "catalog:",
 		"yjs": "catalog:"
 	},
 	"devDependencies": {
+		"typebox": "catalog:",
 		"@epicenter/api": "workspace:*",
 		"@epicenter/honeycrisp": "workspace:*",
 		"@epicenter/tab-manager": "workspace:*",

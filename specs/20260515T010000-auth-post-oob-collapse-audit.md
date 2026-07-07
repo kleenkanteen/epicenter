@@ -163,7 +163,7 @@ Only used inside `apps/api/`:
 
 ## Asymmetric-wins pass
 
-Per `cohesive-clean-breaks`, run a 10-20%-refusal-buys-80-90%-collapse check on every candidate.
+Per `greenfield-clean-breaks`, run a 10-20%-refusal-buys-80-90%-collapse check on every candidate.
 
 | Candidate | Refuse what | Collapse what | Score |
 | --- | --- | --- | --- |
@@ -193,7 +193,7 @@ The CLI's status command continues to verify the bearer by calling `/api/me`, wh
 
 ### C2: collapse landed
 
-`packages/auth/package.json` exposes `./node` *and* `./node/machine-auth`. The latter is a one-module subpath that is fully covered by the former (`node.ts` re-exports `./node/machine-auth.js` in full). The single caller (`packages/cli/src/commands/auth.ts:14`) imports `* as machineAuth` either way; switching to `@epicenter/auth/node` flattens the surface to one entry point. This matches the "one obvious place" principle of `cohesive-clean-breaks`.
+`packages/auth/package.json` exposes `./node` *and* `./node/machine-auth`. The latter is a one-module subpath that is fully covered by the former (`node.ts` re-exports `./node/machine-auth.js` in full). The single caller (`packages/cli/src/commands/auth.ts:14`) imports `* as machineAuth` either way; switching to `@epicenter/auth/node` flattens the surface to one entry point. This matches the "one obvious place" principle of `greenfield-clean-breaks`.
 
 ### C3: collapse landed
 

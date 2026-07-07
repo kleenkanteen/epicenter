@@ -1,11 +1,9 @@
 /**
  * `epicenter daemon ps`: list running `daemon up` daemons (this user, this machine).
  *
- * Enumerates `<runtimeDir>/*.meta.json`, pings each socket to confirm
- * liveness, and renders a compact table. The socket ping is the single
- * liveness authority (a dead pid cannot answer it); metadata carries the pid
- * only so `down` can signal the process. Orphaned metadata and socket files
- * are opportunistically swept through the shared daemon runtime-file cleanup.
+ * Enumerates `<runtimeDir>/*.meta.json`, checks each recorded pid for
+ * liveness, and renders a compact table. Metadata carries the pid so `down`
+ * can signal the process. Orphaned metadata is opportunistically swept.
  *
  * No `--json` flag in v1; the spec defers it until a tooling consumer
  * (Conductor panel, shell prompt) asks.
@@ -15,11 +13,10 @@
 
 import {
 	enumerateDaemons,
-	pingDaemon,
-	socketPathFor,
 	sweepDaemonRuntimeFiles,
 } from '@epicenter/workspace/node';
 import { cmd } from '../util/cmd.js';
+import { isProcessAlive } from '../util/process-alive.js';
 
 type PsRow = {
 	dir: string;
@@ -46,10 +43,7 @@ export const psCommand = cmd({
 	handler: async () => {
 		const rows: PsRow[] = [];
 		for (const meta of enumerateDaemons()) {
-			// Socket unresponsive (dead pid, crash leftovers, or a hung daemon):
-			// orphan, unlink metadata + socket and skip.
-			const responsive = await pingDaemon(socketPathFor(meta.dir));
-			if (!responsive) {
+			if (!isProcessAlive(meta.pid)) {
 				sweepDaemonRuntimeFiles(meta.dir);
 				continue;
 			}

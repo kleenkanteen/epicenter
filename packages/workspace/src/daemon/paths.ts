@@ -1,7 +1,7 @@
 /**
  * Daemon-process path helpers.
  *
- * Per-Epicenter-root runtime files (socket, metadata sidecar, SQLite lease) live
+ * Per-Epicenter-root runtime files (metadata sidecar and SQLite lease) live
  * under `runtimeDir()` (a per-user directory at `<dataDir>/run/`).
  * Persistent logs live under the env-paths log directory. Every file is
  * keyed by a hash of the daemon's Epicenter root so two daemons on the
@@ -21,8 +21,6 @@ import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import envPaths from 'env-paths';
 
-const SAFE_UNIX_SOCKET_PATH_BYTES = 95;
-
 /**
  * env-paths layout for this app. Honors `XDG_DATA_HOME` / `XDG_STATE_HOME`
  * on Linux; uses `~/Library/Application Support/epicenter` and
@@ -34,13 +32,10 @@ const DEFAULT_DATA_DIR = process.env.EPICENTER_DATA_DIR ?? PATHS.data;
 const DEFAULT_LOG_DIR = process.env.EPICENTER_LOG_DIR ?? PATHS.log;
 
 /**
- * Per-user directory for daemon sockets, metadata, and lease files.
+ * Per-user directory for daemon metadata, node ids, and lease files.
  *
  * Default: `<dataDir>/run/`, mirroring the systemd/Docker `/run/` convention
- * for transient runtime state. The path stays short enough to fit under the
- * ~104-byte Unix-socket kernel limit on macOS, where `os.tmpdir()` (~48
- * bytes for `/var/folders/...`) is too long once the per-Epicenter-root socket
- * suffix is appended.
+ * for transient runtime state.
  *
  * `EPICENTER_RUNTIME_DIR` overrides the default. The env var is a workspace
  * test seam: production users do not set it (the default is correct), but
@@ -55,9 +50,8 @@ export function runtimeDir(): string {
 /**
  * Stable hash of an absolute, fs-resolved Epicenter root path.
  *
- * Truncated to 16 hex chars (64 bits) so the resulting socket path stays
- * comfortably under the 104-char Unix-socket limit on macOS. Symlinks are
- * resolved via `realpathSync` so two equivalent paths always hash the same.
+ * Truncated to 16 hex chars (64 bits) so runtime filenames stay compact.
+ * Symlinks are resolved via `realpathSync` so two equivalent paths always hash the same.
  * The dir must exist; every production caller hashes a resolved Epicenter root
  * directory that daemon discovery or Epicenter root lookup has already accepted.
  */
@@ -66,18 +60,6 @@ export function dirHash(dir: string): string {
 		.update(realpathSync(dir))
 		.digest('hex')
 		.slice(0, 16);
-}
-
-/** Unix-socket path for the daemon serving `dir`. */
-export function socketPathFor(dir: string): string {
-	const socketPath = join(runtimeDir(), `${dirHash(dir)}.sock`);
-	if (Buffer.byteLength(socketPath) > SAFE_UNIX_SOCKET_PATH_BYTES) {
-		throw new Error(
-			`socketPathFor: resolved path is ${Buffer.byteLength(socketPath)} bytes, ` +
-				`exceeds safe Unix socket limit (${SAFE_UNIX_SOCKET_PATH_BYTES}). epicenterRoot=${dir}`,
-		);
-	}
-	return socketPath;
 }
 
 /** Metadata JSON sidecar for the daemon serving `dir`. */

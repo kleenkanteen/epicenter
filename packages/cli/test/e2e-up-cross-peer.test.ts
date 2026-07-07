@@ -10,14 +10,14 @@
  *   [ok] `daemon up` prints "online (<mount>)" on stderr,
  *        followed by the initial peers snapshot.
  *        Covered by `daemon up lifecycle: online banner + peers snapshot + clean exit`.
- *   [ok] Ctrl-C / SIGTERM exits cleanly with no orphan socket / metadata.
+ *   [ok] Ctrl-C / SIGTERM exits cleanly with no orphan metadata.
  *        Covered by the same test, which asserts files are gone post-shutdown.
  *   [ok] `epicenter daemon ps` lists the running daemon (pid / uptime).
  *        Covered by `ps lists the running daemon while up is alive`.
  *   [ok] `epicenter daemon logs -C <p>` tails the rotating log (default 50 lines).
  *        Covered by `logs prints recent lines from the daemon's log file`.
  *   [ok] `epicenter daemon down -C <p>` shuts down gracefully.
- *        Covered by `down terminates the daemon gracefully via IPC`.
+ *        Covered by `down terminates the daemon gracefully via signal`.
  *   [ok] Two `daemon up`s same project: second exits 1 with
  *        "daemon already running (pid=X)".
  *        Covered by `second up against the same dir exits 1`.
@@ -48,16 +48,14 @@ const BIN_PATH = join(import.meta.dir, '..', 'src', 'bin.ts');
 type EnvOverrides = Disposable & {
 	/** Stable home; logs and other HOME-derived paths resolve from this. */
 	home: string;
-	/** Stable runtime dir for the daemon's socket, metadata, and lease. */
+	/** Stable runtime dir for daemon metadata and lease files. */
 	runtimeDir: string;
 	/** Stable auth data dir for machine auth. */
 	dataDir: string;
 };
 
 function makeEnv(): EnvOverrides {
-	// `/tmp/...` is short on every POSIX platform; needed because socketPathFor
-	// enforces a strict path-length guard that macOS's `os.tmpdir()` would
-	// blow.
+	// Keep runtime state isolated so lifecycle tests never touch user files.
 	const home = mkdtempSync('/tmp/eps-e2e-home-');
 	const runtimeDir = mkdtempSync('/tmp/eps-e2e-rt-');
 	const dataDir = mkdtempSync('/tmp/eps-e2e-data-');
@@ -166,7 +164,7 @@ function runtimeLeftovers(runtimeRoot: string): string[] {
 	// `.lease.sqlite` and `.node-id` are durable by design: the lease file is
 	// reclaimed on next start, and the node id IS the device's stable identity
 	// (resolveDaemonNodeId persists it OUTSIDE the repo so the nodeId survives
-	// restarts). Neither is an orphaned socket/metadata file teardown should sweep.
+	// restarts). Neither is orphaned metadata that teardown should sweep.
 	return readdirSync(runtimeRoot).filter(
 		(file) => !file.endsWith('.lease.sqlite') && !file.endsWith('.node-id'),
 	);
@@ -191,7 +189,7 @@ describe('daemon up lifecycle (scaled down, no real cross-peer)', () => {
 			const code = await awaitExit(child);
 			expect(code).toBe(0);
 
-			// Runtime dir should be empty: no orphan .sock or .meta.json.
+			// Runtime dir should have no orphan .meta.json.
 			const runtimeRoot = env.runtimeDir;
 			const leftovers = runtimeLeftovers(runtimeRoot);
 			expect(leftovers).toEqual([]);
@@ -219,7 +217,7 @@ describe('daemon up lifecycle (scaled down, no real cross-peer)', () => {
 		}
 	}, 30000);
 
-	test('down terminates the daemon gracefully via IPC', async () => {
+	test('down terminates the daemon gracefully via signal', async () => {
 		const env = makeEnv();
 		try {
 			const { child } = await spawnUp(env, FIXTURE_DIR);
@@ -228,7 +226,7 @@ describe('daemon up lifecycle (scaled down, no real cross-peer)', () => {
 			const code = await awaitExit(child);
 			expect(code).toBe(0);
 
-			// Socket and metadata should both be gone.
+			// Metadata should be gone.
 			const runtimeRoot = env.runtimeDir;
 			const leftovers = existsSync(runtimeRoot)
 				? runtimeLeftovers(runtimeRoot)
