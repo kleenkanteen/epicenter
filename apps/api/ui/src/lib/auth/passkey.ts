@@ -16,12 +16,12 @@
  */
 
 import {
-	startAuthentication,
-	startRegistration,
 	type AuthenticationResponseJSON,
 	type PublicKeyCredentialCreationOptionsJSON,
 	type PublicKeyCredentialRequestOptionsJSON,
 	type RegistrationResponseJSON,
+	startAuthentication,
+	startRegistration,
 } from '@simplewebauthn/browser';
 
 export type PasskeyCeremonyResult =
