@@ -3,9 +3,8 @@
  *
  * `.mount()` is a pure coordinator over an injected node runtime, so these
  * tests inject a stub `NodeMountRuntime` and assert what the coordinator hands
- * the runtime: the resolved base URL, the *composed* action set (never the base
- * actions when `compose` selects others), and the materializer list drained on
- * teardown. No node:* or bun:* modules are touched.
+ * the runtime: the resolved base URL, the runtime action set, and the
+ * materializer list drained on teardown. No node:* or bun:* modules are touched.
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -48,7 +47,6 @@ const demoWorkspace = defineWorkspace({
 /** What the stub `attachInfrastructure` captured from the coordinator. */
 type AttachSpy = {
 	baseURL?: string;
-	actions?: Record<string, unknown>;
 	materializers?: ReadonlyArray<{ whenDisposed: Promise<void> }>;
 	/** Guids the stub `connectChildDoc` connector was asked to open. */
 	childDocGuids: string[];
@@ -90,15 +88,12 @@ function stubRuntime(spy: AttachSpy): NodeMountRuntime {
 			_ctx: SessionMountContext,
 			opts: {
 				baseURL: string;
-				actions: Record<string, unknown>;
 				materializers?: ReadonlyArray<{ whenDisposed: Promise<void> }>;
 			},
 		) => {
 			spy.baseURL = opts.baseURL;
-			spy.actions = opts.actions;
 			spy.materializers = opts.materializers;
 			return {
-				actions: opts.actions,
 				yjsLog: { whenDisposed: Promise.resolve() },
 				collaboration: { whenDisposed: Promise.resolve() },
 				async [Symbol.asyncDispose]() {
@@ -139,9 +134,8 @@ describe('definition.mount', () => {
 		const runtime = open(mount);
 
 		expect(spy.baseURL).toBe('https://hosted.example');
-		expect(Object.keys(spy.actions ?? {})).toEqual(['items_count']);
+		expect(Object.keys(runtime.actions)).toEqual(['items_count']);
 		expect(spy.materializers).toEqual([]);
-		expect(runtime.actions).toBe(spy.actions);
 		expect(typeof runtime[Symbol.asyncDispose]).toBe('function');
 	});
 
@@ -186,16 +180,14 @@ describe('definition.mount', () => {
 
 		// The explicit base URL wins over the env/hosted fallback.
 		expect(spy.baseURL).toBe('https://explicit.example');
-		// The served set is the composed one: base + both materializers.
-		expect(Object.keys(spy.actions ?? {}).sort()).toEqual([
+		// The runtime action set is the composed one: base + both materializers.
+		expect(Object.keys(runtime.actions).sort()).toEqual([
 			'items_count',
 			'markdown_rebuild',
 			'sqlite_rebuild',
 		]);
 		// Both materializers are listed for ordered teardown.
 		expect(spy.materializers).toHaveLength(2);
-		// The runtime serves exactly what infrastructure was handed.
-		expect(runtime.actions).toBe(spy.actions);
 	});
 
 	test('with workers: hosts child docs at the schema-derived guid, drains the worker', () => {

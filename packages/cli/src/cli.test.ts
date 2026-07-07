@@ -46,13 +46,16 @@ describe('createCLI', () => {
 		errorSpy.mockRestore();
 	});
 
-	test('help output registers auth, daemon, list, peers, and run', async () => {
+	test('help output registers supported top-level commands', async () => {
 		const help = await captureHelp();
 		expect(help).toMatch(/\bauth\b/);
+		expect(help).toMatch(/\bblobs\b/);
 		expect(help).toMatch(/\bdaemon\b/);
-		expect(help).toMatch(/\blist\b/);
-		expect(help).toMatch(/\bpeers\b/);
-		expect(help).toMatch(/\brun\b/);
+		expect(help).toMatch(/\binit\b/);
+		expect(help).toMatch(/\bmatter\b/);
+		expect(help).not.toMatch(/\blist\b/);
+		expect(help).not.toMatch(/\bpeers\b/);
+		expect(help).not.toMatch(/\brun\b/);
 		expect(help).not.toMatch(/\bup\b/);
 		expect(help).not.toMatch(/\bdown\b/);
 		expect(help).not.toMatch(/\bps\b/);
