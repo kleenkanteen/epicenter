@@ -19,8 +19,8 @@ import type { WikiWorkspace } from './index';
 
 /**
  * Attach the markdown export to a wiki workspace. Returns the exporter so a
- * caller can `await whenFlushed` or invoke `actions.markdown_rebuild` to refresh
- * the read-only files.
+ * caller can `await whenFlushed` or invoke `rebuild()` to refresh the
+ * read-only files.
  */
 export function attachWikiVault(
 	wiki: WikiWorkspace,

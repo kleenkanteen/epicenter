@@ -2,18 +2,16 @@
  * FTS5 full-text search for the SQLite materializer.
  *
  * Owns the FTS5 virtual table DDL, content-sync triggers, the search SQL, and
- * the `search` action exposed in the materializer's `actions` registry as `sqlite_search`.
- * Kept out of `core.ts` so the materializer body only knows about Y.Doc →
- * SQLite mirroring; the SQLite → FTS5 step lives entirely here.
+ * the `search` method exposed on the materializer. Kept out of `core.ts` so
+ * the materializer body only knows about Y.Doc → SQLite mirroring; the
+ * SQLite → FTS5 step lives entirely here.
  *
  * @module
  */
 
 import type { Database } from 'bun:sqlite';
-import Type from 'typebox';
 import { defineErrors, extractErrorMessage } from 'wellcrafted/error';
 import type { Logger } from 'wellcrafted/logger';
-import { defineQuery } from '../../../shared/actions.js';
 import type { TablesRecord } from '../shared.js';
 import type { FtsConfig } from './core.js';
 import { quoteIdentifier } from './ddl.js';
@@ -197,13 +195,13 @@ async function ftsSearch(
  * Constructed by `attachSqliteMaterializerCore` only when the caller passed an
  * `fts` option. Holds the FTS column map, exposes a `setupForBulkLoad()` pass
  * that installs FTS virtual tables and triggers after table DDL and before the
- * bulk insert, and surfaces the `search` action that lands on
- * `materializer.actions.sqlite_search`.
+ * bulk insert, and surfaces the `search` method that lands on
+ * `materializer.search`.
  *
  * Pure construction at call time: registers no listeners and runs no DDL.
  * Returning the factory unconditionally would be fine; the caller decides
- * whether to call it based on whether `fts` was provided, so the materializer's
- * action registry only includes `sqlite_search` when FTS was configured.
+ * whether to call it based on whether `fts` was provided, so the materializer
+ * only carries `search` when FTS was configured.
  *
  * @internal
  */
@@ -229,32 +227,18 @@ export function createSqliteFtsLayer<TTables extends TablesRecord>({
 		}
 	}
 
-	const search = defineQuery({
-		title: 'Full-text search',
-		description: 'FTS5 search across materialized table rows',
-		input: Type.Object({
-			table: Type.String(),
-			query: Type.String(),
-			limit: Type.Optional(Type.Number()),
-			snippetColumn: Type.Optional(Type.String()),
-		}),
-		handler: ({ table, query, limit, snippetColumn }) => {
-			const columns = ftsColumns.get(table);
-			if (columns === undefined || columns.length === 0) {
-				return Promise.resolve<SearchResult[]>([]);
-			}
-			return ftsSearch(
-				db,
-				table,
-				columns,
-				query,
-				limit !== undefined || snippetColumn !== undefined
-					? { limit, snippetColumn }
-					: undefined,
-				log,
-			);
-		},
-	});
+	/** FTS5 search across one materialized table's rows. */
+	function search(
+		table: string,
+		query: string,
+		options?: SearchOptions,
+	): Promise<SearchResult[]> {
+		const columns = ftsColumns.get(table);
+		if (columns === undefined || columns.length === 0) {
+			return Promise.resolve<SearchResult[]>([]);
+		}
+		return ftsSearch(db, table, columns, query, options, log);
+	}
 
 	return { setupForBulkLoad, search };
 }
@@ -264,9 +248,9 @@ export function createSqliteFtsLayer<TTables extends TablesRecord>({
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
- * Build the shared FTS5 search query used by both the writer-side search action
- * and the read-only SQLite mirror reader. Execution stays caller-owned so the
- * writer action can catch and log FTS failures while the reader stays sync.
+ * Build the shared FTS5 search query used by both the writer-side search
+ * method and the read-only SQLite mirror reader. Execution stays caller-owned
+ * so the writer can catch and log FTS failures while the reader stays sync.
  *
  * @internal
  */
