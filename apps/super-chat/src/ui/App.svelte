@@ -21,16 +21,10 @@
 
 	let toolsOpen = $state(false);
 
-	const connectionLabel = {
-		connecting: 'Connecting',
-		open: 'Connected',
-		closed: 'Disconnected',
-	} as const;
-
-	const connectionDot = {
-		connecting: 'bg-warning',
-		open: 'bg-success',
-		closed: 'bg-destructive',
+	const connectionIndicator = {
+		connecting: { label: 'Connecting', dot: 'bg-warning' },
+		open: { label: 'Connected', dot: 'bg-success' },
+		closed: { label: 'Disconnected', dot: 'bg-destructive' },
 	} as const;
 
 	const invocationBadge = {
@@ -82,9 +76,10 @@
 				class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
 			>
 				<span
-					class="size-1.5 rounded-full {connectionDot[session.connection]}"
+					class="size-1.5 rounded-full {connectionIndicator[session.connection]
+						.dot}"
 				></span>
-				{connectionLabel[session.connection]}
+				{connectionIndicator[session.connection].label}
 			</span>
 			<div class="ms-auto flex items-center gap-2">
 				<Popover.Root bind:open={toolsOpen}>

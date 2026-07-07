@@ -39,8 +39,6 @@ export function createSession({ token }: { token: string }) {
 	let tools = $state<SuperChatSessionResponse['tools']>([]);
 
 	let socket: WebSocket | undefined;
-	let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-	let disposed = false;
 
 	async function hydrate() {
 		try {
@@ -64,7 +62,6 @@ export function createSession({ token }: { token: string }) {
 	}
 
 	function connect() {
-		if (disposed) return;
 		connection = 'connecting';
 		// The browser WebSocket constructor cannot set headers, so the token
 		// rides the query string (the server gate accepts either).
@@ -95,9 +92,8 @@ export function createSession({ token }: { token: string }) {
 		ws.onclose = () => {
 			if (socket !== ws) return;
 			socket = undefined;
-			if (disposed) return;
 			connection = 'closed';
-			reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
+			setTimeout(connect, RECONNECT_DELAY_MS);
 		};
 	}
 
@@ -161,13 +157,5 @@ export function createSession({ token }: { token: string }) {
 				...(alwaysAllowSession && { alwaysAllowSession }),
 			});
 		},
-		/** Stop reconnecting and close the socket for good. */
-		dispose() {
-			disposed = true;
-			clearTimeout(reconnectTimer);
-			socket?.close();
-		},
 	};
 }
-
-export type Session = ReturnType<typeof createSession>;
