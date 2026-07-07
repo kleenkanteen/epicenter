@@ -17,10 +17,8 @@
 @import "./styles/epicenter-overlay.css" layer(base);
 
 @source "./**/*.{svelte,ts}";
-/* app-shell ships Svelte templates with no CSS entry of its own; apps get all
-   their Tailwind from this file. Without this line, a utility used only in an
-   app-shell component (status dots, credit tints) is never generated and
-   silently renders unstyled in every app. */
+/* App-shell components are styled through this shared CSS entrypoint, so Tailwind
+   must scan app-shell sources or app-shell-only utilities will not be generated. */
 @source "../../app-shell/src/**/*.{svelte,ts}";
 
 /*
