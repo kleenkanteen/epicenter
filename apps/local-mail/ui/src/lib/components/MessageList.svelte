@@ -99,7 +99,7 @@
 						size="sm"
 						data-message-id={message.id}
 						class={cn(
-							'items-start rounded-none text-left',
+							'w-full items-start rounded-none text-left',
 							selectedId === message.id
 								? 'bg-accent'
 								: 'hover:bg-accent/40',
