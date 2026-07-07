@@ -26,7 +26,10 @@ import { OAUTH_ROUTES } from '@epicenter/constants/oauth-routes';
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { describeRoute } from 'hono-openapi';
-import type { CloudAuthBindings } from '../auth/create-auth.js';
+import {
+	type CloudAuthBindings,
+	configuredProviders,
+} from '../auth/create-auth.js';
 import {
 	createOAuthIssuerURL,
 	OAUTH_AUTHORIZATION_SERVER_METADATA_PATH,
@@ -42,25 +45,19 @@ export type SignInContext = {
 	session: { name: string; email: string } | null;
 };
 
+/**
+ * Buttons come from the same presence value that registers providers in
+ * `createAuth`, so the page can never offer a provider the server refuses.
+ */
 function getSignInProviders(
 	authSecrets: CloudAuthBindings,
 ): SignInContext['providers'] {
+	const providers = configuredProviders(authSecrets);
 	return {
-		google: Boolean(
-			authSecrets.GOOGLE_CLIENT_ID && authSecrets.GOOGLE_CLIENT_SECRET,
-		),
-		github: Boolean(
-			authSecrets.GITHUB_CLIENT_ID && authSecrets.GITHUB_CLIENT_SECRET,
-		),
-		microsoft: Boolean(
-			authSecrets.MICROSOFT_CLIENT_ID && authSecrets.MICROSOFT_CLIENT_SECRET,
-		),
-		apple: Boolean(
-			authSecrets.APPLE_CLIENT_ID &&
-				authSecrets.APPLE_TEAM_ID &&
-				authSecrets.APPLE_KEY_ID &&
-				authSecrets.APPLE_PRIVATE_KEY,
-		),
+		google: providers.google !== null,
+		github: providers.github !== null,
+		microsoft: providers.microsoft !== null,
+		apple: providers.apple !== null,
 	};
 }
 
