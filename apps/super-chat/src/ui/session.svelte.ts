@@ -138,6 +138,10 @@ export function createSession({ token }: { token: string }) {
 		retry() {
 			sendCommand({ type: 'retry' });
 		},
+		/** Start a fresh conversation; the old transcript stays durable on the host. */
+		clear() {
+			sendCommand({ type: 'clear' });
+		},
 		approve(
 			requestId: string,
 			approved: boolean,

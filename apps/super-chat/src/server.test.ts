@@ -57,8 +57,14 @@ function testDataDir(): string {
 	return mkdtempSync(join(tmpdir(), 'super-chat-server-test-'));
 }
 
-function createTestHost(options: Omit<SuperChatHostOptions, 'dataDir'>) {
-	return createSuperChatHost({ dataDir: testDataDir(), ...options });
+function createTestHost(
+	options: Omit<SuperChatHostOptions, 'dataDir' | 'model'>,
+) {
+	return createSuperChatHost({
+		dataDir: testDataDir(),
+		model: 'test-model',
+		...options,
+	});
 }
 
 async function serveHost(host: SuperChatHost, page: string = PAGE) {

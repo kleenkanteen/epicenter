@@ -54,6 +54,13 @@
 					{/each}
 				</ul>
 			</details>
+			<button
+				type="button"
+				class="new-chat"
+				onclick={() => session.clear()}
+			>
+				New chat
+			</button>
 		</header>
 
 		<Transcript snapshot={session.snapshot} />
@@ -212,6 +219,23 @@
 	.tool-description {
 		margin: 2px 0 0;
 		color: #7a7e87;
+	}
+
+	.new-chat {
+		margin-left: auto;
+		padding: 0 8px;
+		height: 20px;
+		border: 1px solid #3a3e47;
+		border-radius: 4px;
+		background: #23262c;
+		color: #c3c6cc;
+		font: inherit;
+		font-size: 11px;
+		cursor: pointer;
+	}
+
+	.new-chat:hover {
+		border-color: #4a4f5a;
 	}
 
 	.error {

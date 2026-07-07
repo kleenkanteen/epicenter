@@ -8,20 +8,28 @@
  * The in-process apps open through the ungated durable local preset:
  * `connect(null, { persistence })`. Sign-in is still an enhancement; the Bun
  * host gets disk-backed replicas without constructing an auth client.
+ *
+ * Transcripts are durable the same way: the host's own workspace holds the
+ * canonical conversations table (ADR-0055), null-connected, so finished
+ * messages survive restarts on this machine without touching a relay. Boot
+ * resumes the most recent conversation row; `clear` starts a fresh one. Sync
+ * is a deliberate later wave that arrives with host sign-in.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { dirname, join } from 'node:path';
+import { type Conversation, generateConversationId } from '@epicenter/chat';
 import { honeycrispWorkspace } from '@epicenter/honeycrisp';
 import { todosWorkspace } from '@epicenter/todos';
-import { createNodeId, generateId } from '@epicenter/workspace';
+import { createNodeId, generateId, InstantString } from '@epicenter/workspace';
 import {
 	type AgentEngine,
 	type AgentToolCall,
 	type Approval,
 	type ConversationSnapshot,
 	composeToolCatalogs,
+	type ConversationOptions,
 	createConversation,
 	createLocalToolCatalog,
 	defaultApprovalDecision,
@@ -29,15 +37,20 @@ import {
 	type ToolCatalog,
 } from '@epicenter/workspace/agent';
 import { bunLocalPersistence } from '@epicenter/workspace/node';
-import { createInMemoryMessageStore } from './message-store.ts';
 import {
 	createStdioMcpCatalog,
 	type StdioMcpCatalogOptions,
 } from './stdio-mcp-catalog.ts';
+import { superChatWorkspace } from './workspace.ts';
 
 export type SuperChatHostOptions = {
 	/** The inference backend driving the loop (BYOK, local, or scripted). */
 	engine: AgentEngine;
+	/**
+	 * The model id the engine serves, recorded on the conversation row
+	 * (ADR-0055: a surface with one fixed model writes it and never reads it).
+	 */
+	model: string;
 	/**
 	 * Override the host-owned approval prompt. Tests use this for headless
 	 * auto-approval; the shell omits it so pending mutations surface in-session.
@@ -84,6 +97,15 @@ export type SuperChatClientCommand =
 	| { type: 'stop' }
 	| { type: 'retry' }
 	| {
+			/**
+			 * Start a fresh session: abort any live turn and switch to a new
+			 * conversation whose row is minted on its first send. The old
+			 * transcript stays durable in its row; reopening one is a later wave
+			 * (there is no conversation list yet).
+			 */
+			type: 'clear';
+	  }
+	| {
 			type: 'approve';
 			requestId: string;
 			approved: boolean;
@@ -105,6 +127,7 @@ export function parseSuperChatCommand(
 	}
 	if (command.type === 'stop') return { type: 'stop' };
 	if (command.type === 'retry') return { type: 'retry' };
+	if (command.type === 'clear') return { type: 'clear' };
 	if (
 		command.type === 'approve' &&
 		typeof command.requestId === 'string' &&
@@ -152,7 +175,13 @@ export async function createSuperChatHost(
 	const persistence = bunLocalPersistence({ dir: dataDir, nodeId });
 	const honeycrisp = honeycrispWorkspace.connect(null, { persistence });
 	const todos = todosWorkspace.connect(null, { persistence });
-	await Promise.all([honeycrisp.storage.whenLoaded, todos.storage.whenLoaded]);
+	// The host's own workspace: durable transcripts, same ungated local preset.
+	const superChat = superChatWorkspace.connect(null, { persistence });
+	await Promise.all([
+		honeycrisp.storage.whenLoaded,
+		todos.storage.whenLoaded,
+		superChat.storage.whenLoaded,
+	]);
 	const catalogs: ToolCatalog[] = [
 		namespaceToolCatalog(
 			'honeycrisp',
@@ -166,6 +195,7 @@ export async function createSuperChatHost(
 		? await createStdioMcpCatalog(options.localBooks).catch((error) => {
 				honeycrisp[Symbol.dispose]();
 				todos[Symbol.dispose]();
+				superChat[Symbol.dispose]();
 				throw error;
 			})
 		: undefined;
@@ -188,13 +218,71 @@ export async function createSuperChatHost(
 		notify();
 	};
 	const sessionApproval = createSessionApproval(recordActivity);
-	const conversation = createConversation({
-		store: createInMemoryMessageStore(),
-		engine: options.engine,
-		tools,
-		approval: options.approval ?? sessionApproval.approval,
-		generateId,
-	});
+	// One approval policy for the whole session: chat turns and direct
+	// invocations must share it so mutation policy cannot drift by caller.
+	const approval = options.approval ?? sessionApproval.approval;
+
+	// Resume the most recent session; a host with no history starts a fresh id
+	// whose row is minted lazily on the first successful send, so an idle
+	// launch leaves no empty row behind.
+	const conversations = superChat.tables.conversations;
+	let latest: Conversation | undefined;
+	for (const row of conversations.scan().rows) {
+		if (latest === undefined || row.updatedAt > latest.updatedAt)
+			latest = row;
+	}
+	let activeConversationId = latest?.id ?? generateConversationId();
+
+	const buildConversation = (store: ConversationOptions['store']) =>
+		createConversation({
+			store,
+			engine: options.engine,
+			tools,
+			approval,
+			generateId,
+		});
+
+	// The row's messages child doc is the loop's message store (ADR-0055):
+	// finished messages land there and survive restarts. Loaded before the
+	// loop starts so a first send never races the replayed history.
+	let activeStore = conversations.docs.messages.open(activeConversationId);
+	await activeStore.whenLoaded;
+	let conversation = buildConversation(activeStore);
+	// One relay subscription that survives `clear` swapping the conversation;
+	// host listeners subscribe to the host, never to a conversation instance.
+	let unbindConversation = conversation.subscribe(notify);
+	// Child-doc flushes are not covered by `storage.whenDisposed`; stores
+	// swapped out by `clear` park their flush promise here for disposal.
+	const storeFlushes: Promise<unknown>[] = [];
+
+	/**
+	 * Keep the active row honest after a started turn: mint it on the session's
+	 * first send, name it from the first user message (app-shell convention:
+	 * 'New Chat' until the first user message's first 50 chars), bump recency.
+	 */
+	const touchConversationRow = (content: string) => {
+		const now = InstantString.now();
+		const { data: existing } = conversations.get(activeConversationId);
+		if (!existing) {
+			conversations.set({
+				id: activeConversationId,
+				title: content.slice(0, 50),
+				model: options.model,
+				createdAt: now,
+				updatedAt: now,
+			});
+			return;
+		}
+		// The write Result is deliberately dropped (app-shell does the same): the
+		// only failure is a row this binary cannot read (newer schema), and there
+		// is no fallback write that would not clobber it.
+		conversations.update(activeConversationId, {
+			title:
+				existing.title === 'New Chat' ? content.slice(0, 50) : existing.title,
+			model: options.model,
+			updatedAt: now,
+		});
+	};
 
 	return {
 		tools,
@@ -207,16 +295,17 @@ export async function createSuperChatHost(
 		},
 		subscribe(listener) {
 			listeners.add(listener);
-			const unsubscribeConversation = conversation.subscribe(listener);
 			return () => {
 				listeners.delete(listener);
-				unsubscribeConversation();
 			};
 		},
 		handleCommand(command) {
 			switch (command.type) {
-				case 'send':
-					return conversation.send(command.content);
+				case 'send': {
+					const started = conversation.send(command.content);
+					if (started) touchConversationRow(command.content);
+					return started;
+				}
 				case 'stop':
 					conversation.stop();
 					sessionApproval.cancelAll();
@@ -224,6 +313,21 @@ export async function createSuperChatHost(
 				case 'retry':
 					conversation.retry();
 					return true;
+				case 'clear': {
+					// Abort any live turn first (as `stop` and disposal do), then
+					// resolve its approvals denied and swap to a fresh conversation.
+					// The old transcript stays durable in its row.
+					unbindConversation();
+					storeFlushes.push(activeStore.whenDisposed);
+					conversation[Symbol.dispose]();
+					sessionApproval.cancelAll();
+					activeConversationId = generateConversationId();
+					activeStore = conversations.docs.messages.open(activeConversationId);
+					conversation = buildConversation(activeStore);
+					unbindConversation = conversation.subscribe(notify);
+					notify();
+					return true;
+				}
 				case 'approve':
 					return sessionApproval.answer({
 						requestId: command.requestId,
@@ -243,9 +347,14 @@ export async function createSuperChatHost(
 			await localBooks?.[Symbol.asyncDispose]();
 			honeycrisp[Symbol.dispose]();
 			todos[Symbol.dispose]();
+			superChat[Symbol.dispose]();
 			await Promise.all([
 				honeycrisp.storage.whenDisposed,
 				todos.storage.whenDisposed,
+				superChat.storage.whenDisposed,
+				// Transcript flushes: the active store plus any `clear` left behind.
+				activeStore.whenDisposed,
+				...storeFlushes,
 			]);
 		},
 	};
