@@ -1,7 +1,7 @@
 <!--
-	Centered card shell shared by every auth surface (sign-in, consent,
-	CLI callback): Epicenter mark centered on top, page content composed by the
-	caller with Card.Header / Card.Content / Card.Footer.
+	Hosted auth card shell shared by sign-in, consent, and CLI callback.
+
+	Keep this surface plain and operational: see ADR-0113.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
