@@ -39,18 +39,19 @@ import {
 } from '../auth/oauth-metadata.js';
 import type { CloudEnv } from '../types.js';
 
+export type SocialProvider = 'google' | 'github' | 'microsoft' | 'apple';
+
 export type SignInContext = {
-	providers: Record<'google' | 'github' | 'microsoft' | 'apple', boolean>;
-	/**
-	 * Statically true: the passkey plugin registers unconditionally in
-	 * `authPlugins` (its Relying Party derives from `apiBaseURL`, no secrets
-	 * to be missing), so every build that serves this route has a WebAuthn
-	 * backend. Stays in the contract so the UI keeps one truth source for
-	 * "may I render passkey affordances".
-	 */
-	passkeyEnabled: true;
+	providers: SocialProvider[];
 	session: { name: string; email: string } | null;
 };
+
+const SOCIAL_PROVIDER_ORDER = [
+	'google',
+	'github',
+	'microsoft',
+	'apple',
+] as const satisfies readonly SocialProvider[];
 
 /**
  * Buttons come from the same presence value that registers providers in
@@ -60,12 +61,9 @@ function getSignInProviders(
 	authSecrets: CloudAuthBindings,
 ): SignInContext['providers'] {
 	const providers = configuredProviders(authSecrets);
-	return {
-		google: providers.google !== null,
-		github: providers.github !== null,
-		microsoft: providers.microsoft !== null,
-		apple: providers.apple !== null,
-	};
+	return SOCIAL_PROVIDER_ORDER.filter(
+		(provider) => providers[provider] !== null,
+	);
 }
 
 /**
@@ -86,7 +84,6 @@ export const authApp = new Hono<CloudEnv>()
 			});
 			return c.json({
 				providers: getSignInProviders(c.var.authSecrets),
-				passkeyEnabled: true,
 				session: session
 					? {
 							name: session.user.name,

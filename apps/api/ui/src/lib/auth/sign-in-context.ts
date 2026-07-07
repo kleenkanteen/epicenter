@@ -7,26 +7,18 @@
  * typecheck for it would cost more than the duplication. Keep the two in sync
  * by hand; the server's route tests pin the wire shape.
  *
- * `providers` carries the deployment's enablement truth (register-when-present
- * OAuth credentials). A provider absent from the backend never reaches this
- * object, so the UI cannot render a dead button. `passkeyEnabled` is the same
- * kind of truth for the WebAuthn backend; the UI additionally gates passkey
- * affordances on browser support (PublicKeyCredential).
+ * `providers` carries the deployment's enabled OAuth providers. A provider
+ * absent from this list never renders, so the UI cannot offer a dead button.
+ * Passkeys do not need a server capability flag here: this app always mounts
+ * the Better Auth passkey plugin, and the browser WebAuthn API is the real
+ * per-client gate.
  */
 export type SocialProvider = 'google' | 'github' | 'microsoft' | 'apple';
 
 export type SignInContext = {
-	providers: Record<SocialProvider, boolean>;
-	passkeyEnabled: boolean;
+	providers: SocialProvider[];
 	session: { name: string; email: string } | null;
 };
-
-export const SOCIAL_PROVIDERS = [
-	'google',
-	'github',
-	'microsoft',
-	'apple',
-] as const satisfies readonly SocialProvider[];
 
 export const PROVIDER_LABELS: Record<SocialProvider, string> = {
 	google: 'Google',

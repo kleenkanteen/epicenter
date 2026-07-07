@@ -6,11 +6,12 @@
 	/auth/sign-in/social with `oauth_query` (the signed authorize params) so an
 	OAuth re-entry continues the flow after the IdP roundtrip.
 
-	A passkey row renders behind two independent gates: the server capability
-	(`context.passkeyEnabled`) and the browser capability (PublicKeyCredential).
-	Successful authentication sets a standard session cookie, so a full reload
-	with the query string intact re-enters the server's GET /sign-in, which
-	already redirects `?sig=` sessions into the authorize flow.
+	A passkey row renders when the browser exposes WebAuthn
+	(PublicKeyCredential). The server side is always present because this app
+	mounts the Better Auth passkey plugin. Successful authentication sets a
+	standard session cookie, so a full reload with the query string intact
+	re-enters the server's GET /sign-in, which already redirects `?sig=`
+	sessions into the authorize flow.
 
 	Signed in (no `sig` / safe `callbackURL`, which the server redirects before
 	this renders): confirmation of which account this browser holds, passkey
@@ -37,7 +38,6 @@
 	} from '$lib/auth/passkey';
 	import {
 		PROVIDER_LABELS,
-		SOCIAL_PROVIDERS,
 		type SocialProvider,
 	} from '$lib/auth/sign-in-context';
 	import type { PageProps } from './$types';
@@ -45,9 +45,7 @@
 	let { data }: PageProps = $props();
 
 	const session = $derived(data.context.session);
-	const enabledProviders = $derived(
-		SOCIAL_PROVIDERS.filter((provider) => data.context.providers[provider]),
-	);
+	const enabledProviders = $derived(data.context.providers);
 	// Better Auth falls back to the email for `user.name`; showing the same
 	// string twice reads as a rendering bug, so only a real name renders.
 	const hasRealName = $derived(
@@ -56,12 +54,9 @@
 			session.name.trim().toLowerCase() !== session.email.trim().toLowerCase(),
 	);
 
-	// Two independent gates: the deployment has a WebAuthn backend, and this
-	// browser can run a WebAuthn ceremony. Both must hold or no passkey UI
-	// renders; a dead passkey button is worse than none.
-	const passkeyAvailable = $derived(
-		data.context.passkeyEnabled && supportsPasskeys(),
-	);
+	// The backend always has the passkey plugin; the browser WebAuthn API is the
+	// capability that varies by client.
+	const passkeyAvailable = $derived(supportsPasskeys());
 
 	let busy = $state(false);
 	let signingOut = $state(false);
