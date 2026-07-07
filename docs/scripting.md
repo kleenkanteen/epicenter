@@ -27,7 +27,7 @@ db.close();
 ```
 
 The Epicenter root is the folder that holds `epicenter.config.ts`. That config
-default-exports one mount. `epicenter daemon up` opens the mount, joins sync when
+default-exports one mount. `epicenter up` opens the mount, joins sync when
 signed in, and refreshes materializers. Scripts can read the materialized files
 whether or not the watcher is currently running.
 
@@ -91,5 +91,5 @@ mapping.
 ## What if the watcher is not running?
 
 SQLite and Markdown reads still work against the last materialized state. They
-may be stale. Start `epicenter daemon up` when the script needs the folder to
+may be stale. Start `epicenter up` when the script needs the folder to
 keep syncing and refreshing in the background.

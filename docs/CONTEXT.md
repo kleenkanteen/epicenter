@@ -139,18 +139,19 @@ shapes, see `docs/adr/`.
   encryption layer; it returns minimally if a secrets path is built. Distinct
   from the Matter vault (a folder of Markdown).
 
-## CLI and daemon
+## CLI and watcher
 
 - **Epicenter root**: a directory whose `epicenter.config.ts` declares one mount.
-  Discovery walks up to the nearest one. One root, one daemon.
-- **Daemon**: the long-lived foreground process started by `epicenter daemon up`.
+  Discovery walks up to the nearest one. One root, one watcher.
+- **Watcher**: the long-lived foreground process started by `epicenter up`.
   It opens the root's mount, owns the lease, joins sync when signed in, and keeps
-  materializers alive. It is not a callable action server.
+  materializers alive. It is not a callable action server. Internal code still
+  uses `daemon` names (`DaemonMetadata`, `claimDaemonLease`) for this process.
 - **Peer**: a device currently connected to the same workspace room. Presence is
   server-owned and surfaced by app UI or watcher logs, not a generic CLI query.
-- **Daemon lifecycle commands**: `daemon up`, `daemon down`, `daemon ps`, and
-  `daemon logs`. They use metadata, pid liveness, logs, and OS signals. No Unix
-  socket or daemon action client exists.
+- **Watcher lifecycle commands**: `up`, `down`, `status`, and `logs`. They use
+  metadata, pid liveness, logs, and OS signals. No Unix socket or daemon action
+  client exists.
 - **Library script**: a `bun ./script.ts` that reads materialized SQLite or
   Markdown directly. Generic off-process writes are deliberately absent; real
   write workflows should earn an app-specific command or in-process script.

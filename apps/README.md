@@ -48,4 +48,4 @@ Browser and desktop code open the same definition with runtime-specific composit
 3. Add an exported `defineWorkspace({ id, tables, kv, actions })` value. Declare row child docs with `table.docs(...)`.
 4. Add `apps/<app>/mount.ts` exporting `<app>(opts?)`, a factory that returns `defineSessionMount({ name, open })` (or `defineMount` for a mount that can run signed out).
 5. Point `package.json` `exports["./mount"]` at `./mount.ts`.
-6. Run `epicenter daemon up -C <epicenter-root>` and confirm the watcher starts, syncs, and materializes the expected files.
+6. Run `epicenter up -C <epicenter-root>` and confirm the watcher starts, syncs, and materializes the expected files.
