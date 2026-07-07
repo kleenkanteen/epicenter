@@ -3,186 +3,72 @@ name: epicenter-ui
 description: Epicenter UI component selection and composition patterns for Svelte apps using @epicenter/ui. Use when choosing or reviewing local UI components, loading or empty states, skeletons, spinners, command empty states, action pending UI, table/list no-row states, button or link tooltips, modal/dialog/sheet/drawer surfaces, package import boundaries, wrapper minimization, or replacing ad hoc UI such as Loading... text, custom loading dots, raw animate-pulse placeholders, raw tooltip wrappers, or one-off centered status markup.
 metadata:
   author: epicenter
-  version: '1.1'
+  version: '2.0'
 ---
 
 # Epicenter UI
 
-Use the local `@epicenter/ui` package before writing one-off UI. Most state surfaces already have a component with spacing, color, accessibility, and composition handled.
+Reach for a local `@epicenter/ui` component before writing one-off UI. Most state surfaces (loading, empty, pending, error, confirm, command, chat) already have a component that owns spacing, color, accessibility, and composition. This skill covers which local component to reach for and the conventions you cannot derive from upstream shadcn-svelte. Svelte decides which branch renders; this skill decides what the branch looks like.
 
-Related skills:
+- Use `svelte` for branch mechanics: `{#if}`, `{#await}`, derived state, query state, lifecycle.
+- Use `styling` for Tailwind details, whether a wrapper element is needed, scroll traps, and disabled-state styling.
 
-- Use `svelte` for branch mechanics: `{#if}`, `{#await}`, derived state, query state, and component lifecycle.
-- Use `styling` for Tailwind details, wrapper element decisions, scroll traps, and disabled-state styling.
-- Use this skill for local component choice and composition.
-
-Read `packages/ui/README.md` when changing `packages/ui` internals, public exports, style hooks, overlay CSS, or shadcn-svelte vendored code. It is the source of truth for the package import boundary, `style-vega` activation, `cn-*` style hooks, Epicenter overlay deltas, and the component update workflow.
+`packages/ui/README.md` is the source of truth for the package internals: import boundary, `style-vega` activation, `cn-*` style hooks, overlay deltas, and the vendored-component update workflow. Read it before changing anything inside `packages/ui`.
 
 ## Package Boundary
 
-App code imports through the public package API:
+App code imports the public API, such as `import { Button } from '@epicenter/ui/button'`. Never import from `packages/ui/src`, never add aliases that reach into it, and never use the stock `$lib/components/ui/*` path. Apps must set `class="style-vega"` on their root element or the scoped `cn-*` rules do not apply. `scripts/check-ui-boundary.ts` owns and enforces this boundary; run `bun run check:ui-boundary` if unsure.
 
-```svelte
-<script lang="ts">
-	import { Button } from '@epicenter/ui/button';
-	import { Loading } from '@epicenter/ui/loading';
-	import '@epicenter/ui/app.css';
-</script>
-```
-
-Files inside `packages/ui/src` import sibling UI files with relative paths, such as `../button/index.js` and `../utils.js`. Do not add app aliases or `kit.alias` entries that point at `packages/ui/src`.
-
-Apps need the preset active with `class="style-vega"` on their root element. Without that class, the scoped `cn-*` rules do not apply.
+Import compound components as namespaces (`import * as Dialog from '@epicenter/ui/dialog'`); import single components by name (`import { Button } from '@epicenter/ui/button'`).
 
 ## Reference Repositories
 
 - [shadcn-svelte](https://github.com/huntabyte/shadcn-svelte): component structure and Svelte composition patterns
 - [shadcn-svelte-extras](https://github.com/ieedan/shadcn-svelte-extras): chat components and extra UI patterns
 - [TanStack Table](https://github.com/TanStack/table): headless table state, not table empty UI
-- [Autumn](https://github.com/useautumn/autumn): billing and usage UI contexts where pending, progress, and empty states matter
+- [Autumn](https://github.com/useautumn/autumn): billing and usage UI where pending, progress, and empty states matter
 
 ## Upstream Grounding
 
-When local `@epicenter/ui` behavior depends on shadcn-svelte component structure, Bits UI composition, snippets, bindable props, or wrapper APIs, use source-backed grounding before relying on memory. If DeepWiki MCP is available, ask a narrow question against `huntabyte/shadcn-svelte`; for extras components, ask against `ieedan/shadcn-svelte-extras`; for table state behavior, ask against `TanStack/table`; for billing UI nouns or usage-state semantics, ask against `useautumn/autumn`. If DeepWiki is unavailable or the repo is not indexed, use upstream source or official docs directly. Treat DeepWiki as orientation, then verify decisive details against local wrappers, installed types, source, or official docs before changing code.
+When local `@epicenter/ui` behavior depends on shadcn-svelte component structure, Bits UI composition, snippets, bindable props, or wrapper APIs, use source-backed grounding before relying on memory. If DeepWiki MCP is available, ask a narrow question against `huntabyte/shadcn-svelte`; for extras components, ask against `ieedan/shadcn-svelte-extras`; for table state, ask against `TanStack/table`; for billing UI nouns, ask against `useautumn/autumn`. If DeepWiki is unavailable or the repo is not indexed, use upstream source or official docs directly. Treat DeepWiki as orientation, then verify decisive details against local wrappers, installed types, source, or official docs before changing code.
 
-Skip DeepWiki for local loading, empty, pending, and tooltip conventions already documented below.
+Upstream shadcn-svelte is the authority for component API and behavior, but `packages/ui` is a pinned 1.x Vega fork, so verify version-sensitive conventions against the local component source before applying them. For example, newer upstream buttons space icons with a `data-icon="inline-start"` attribute; the vendored button predates that and has no `data-icon`, so grep `packages/ui/src` before trusting a fresh upstream idiom. The fork also ships no standalone `Combobox` (compose `Command` in `Popover`; see `timezone-combobox`) or `InputOTP`, though upstream documents both.
 
-## Loading State Choice
+Skip DeepWiki for the local conventions documented below.
 
-Pick the component by what the user is waiting for:
+## Which Local Component
 
-- Generic full-surface pending with only a spinner and optional caption: use `Loading`.
-- Full-surface pending with a title, description, custom media, actions, or exact parity with nearby empty/error markup: compose `Empty.Root` with `Spinner`.
-- Known progress: use `Progress`, not a spinner.
-- Content shape is known: use `Skeleton`, not raw `animate-pulse` divs.
-- Button action pending: disable the `Button` and put a small `Spinner` inside it.
-- Chat assistant typing: use `Chat.BubbleMessage typing`. `LoadingDots` is only for chat bubbles.
-- Command search with no matches: use `Command.Empty`.
-- No rows, no files, no results, or failed surface: use `Empty.*`.
+Reach for the component whose contract matches the job. Several have no upstream equivalent and exist only here: `Loading`, `ConfirmationDialog`, `Modal`, `CommandPalette`, `Chat.*`, `Item`, `SectionHeader`, and `Sidebar.*`.
 
-Do not show plain text such as `Loading...` by itself. Pair status text with an affordance, usually `Spinner`, and choose text that says what is happening: `Checking session`, `Loading tabs`, `Downloading model`.
+Surfaces:
 
-## Composition And Wrappers
+- `Dialog` or `AlertDialog`: confirmations, yes/no prompts, display-only content.
+- `ConfirmationDialog`: reusable simple confirmation before hand-rolling alert-dialog markup.
+- `Modal`: forms, typing, dropdowns, multi-step input. Renders as a dialog on desktop and a drawer on mobile.
+- `Sheet` or `Drawer`: secondary panels and side surfaces.
+- `Command` or `CommandPalette`: command menus and filtered actions.
+- `Item`, `SectionHeader`, `ButtonGroup`, `InputGroup`, `CopyButton`, `Sidebar.*`: list rows, page sections, grouped controls, inline input actions, copy actions, app chrome.
 
-Collapse wrapper elements whenever a component can own the layout directly. `Loading` and `Empty.Root` both center content, lay out a column, set text alignment, and accept `class`, so full-surface pending, empty, and error states usually do not need an outer `div`.
+Dialog, Modal, Sheet, and Drawer need an accessible title. Use an `sr-only` title when the visual design already supplies equivalent context.
 
-## Component Anatomy Ownership
+Waiting and absence states, chosen by what the user is waiting for:
 
-Shared UI primitives own their anatomy: size, density, radius, gap, padding, typography, focus rings, hover language, transitions, and internal structure. App code owns placement in the parent layout and product-specific state.
+- Generic full-surface pending, spinner plus optional caption: `Loading` (it wraps `Empty.Root` plus `Spinner` and accepts a sizing `class` plus a `label` caption, so it usually needs no outer `div`).
+- Full-surface pending that needs a title, description, media, or actions: compose `Empty.Root` with `Spinner`.
+- Known progress: `Progress`.
+- Known content shape: `Skeleton`.
+- Button action pending: disable the `Button` and put a `Spinner` inside it; keep the label when the action needs context, though icon-only pending is fine for a compact row action the tooltip or a nearby label already names.
+- Command search with no match: `Command.Empty`.
+- No rows, files, or results, or a failed surface: `Empty.*`, with different copy for truly-empty versus filter-empty. TanStack Table is headless, so render `Empty.*` yourself when `rows.length === 0`.
+- Chat assistant typing: `Chat.BubbleMessage typing` (`LoadingDots` is chat-only).
 
-Use this split when reviewing `class` on a primitive:
-
-```txt
-Caller-owned placement
-  w-full, flex-1, shrink-0, min-h-0, overflow-y-auto, justify-start,
-  text-left when the parent context needs it
-
-Caller-owned state
-  selected, current, unread, danger, pending, disabled, and other product
-  states when the primitive does not already expose the state
-
-Primitive-owned anatomy
-  rounded, px-*, py-*, gap-*, text-sm, leading-*, shadow, border shape,
-  hover language, focus-visible rings, transition timing, icon sizing rules
-```
-
-If a class string beside `Button`, `Item`, `Input`, `Sidebar.*`, or another local primitive rebuilds the primitive's anatomy, stop and move the need to the design-system boundary. Add a size, variant, or semantic wrapper instead of repeating a Tailwind recipe in app code.
+`Loading` is the common case: pass the surrounding layout as `class` and the caption as `label`.
 
 ```svelte
-<!-- Prefer: caller states placement and state, primitive owns the visual budget -->
-<Item.Button
-	size="sm"
-	class={cn(
-		'w-full justify-start text-left',
-		selected ? 'bg-accent font-medium text-accent-foreground' : 'text-foreground/80',
-	)}
->
-	Inbox
-</Item.Button>
-
-<!-- Avoid: caller redefines what Item.Button size="sm" means -->
-<Item.Button size="sm" class="w-full gap-2 rounded px-2 py-1.5 text-left text-sm">
-	Inbox
-</Item.Button>
-```
-
-Local anatomy overrides are allowed only when the visual exception is truly local and product-specific. If two callers want the same override, it is no longer local; promote it to a primitive size, primitive variant, or a semantic component such as `NavRail.Item`.
-
-```svelte
-<!-- Prefer this -->
-<Loading class="h-dvh" label="Checking session" />
-
-<!-- Avoid this -->
-<div class="flex h-dvh items-center justify-center">
-	<Empty.Root class="border-0">
-		<Empty.Title>Checking session</Empty.Title>
-	</Empty.Root>
-</div>
-```
-
-Add a wrapper only when it owns a real layout boundary that the component should not own: scroll containment, pane sizing, table cell structure, sticky headers, or sibling spacing.
-
-Use this boundary ladder before copying, forking, or locally re-authoring component anatomy:
-
-1. Use an existing local `@epicenter/ui` component, size, and variant.
-2. Pass a supported prop or a `class` for placement and product state.
-3. Add a local size or variant to the wrapper component.
-4. Wrap the component for a real composition boundary or semantic product concept.
-5. Copy upstream component code only when Epicenter needs to own behavior, tokens, persistence, shortcuts, or app state.
-
-Import compound components as namespaces, such as `import * as Dialog from '@epicenter/ui/dialog'`. Import single components by name, such as `import { Button } from '@epicenter/ui/button'`.
-
-Dialog, Modal, Sheet, and Drawer surfaces need accessible titles. Use an `sr-only` title when the visual design already supplies equivalent context. Form controls with validation state should expose `aria-invalid` or the local component equivalent.
-
-Before pulling upstream shadcn-svelte component updates, commit local wrapper state. Then reconcile upstream changes against local deltas instead of overwriting the wrapper.
-
-## Surface Choice
-
-Use the component whose interaction contract matches the job:
-
-- `Dialog` or `AlertDialog`: confirmations, simple yes/no prompts, display-only content, and simple action confirmations.
-- `ConfirmationDialog`: reusable simple confirmations before one-off alert dialog markup.
-- `Modal`: forms, typing, dropdowns, multi-step input, or any workflow that collects user data.
-- `Sheet` or `Drawer`: secondary panels, mobile-friendly drawers, and side surfaces.
-- `Command` or `CommandPalette`: command menus, filtered actions, and search empty states.
-- `Item`, `SectionHeader`, `ButtonGroup`, `InputGroup`, `CopyButton`, and `Sidebar.*`: repeated list rows, page sections, grouped controls, inline input actions, copy actions, and app chrome.
-
-## Empty States
-
-Use the `Empty.*` compound component for an absent or failed surface:
-
-```svelte
-<script lang="ts">
-	import * as Empty from '@epicenter/ui/empty';
-	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
-</script>
-
-<Empty.Root class="py-8">
-	<Empty.Media variant="icon">
-		<FolderOpenIcon class="size-5" />
-	</Empty.Media>
-	<Empty.Title>No recordings yet</Empty.Title>
-	<Empty.Description>Record audio to see transcripts here.</Empty.Description>
-</Empty.Root>
-```
-
-Use `Empty.Content` when the state has an action button. Keep the title short and let the description explain the next step.
-
-## Pending Surfaces
-
-When pending replaces a whole pane or page and only needs a spinner plus optional caption, use `Loading`. It wraps the standard `Empty.Root` plus `Spinner` structure and accepts sizing classes for the surrounding layout:
-
-```svelte
-<script lang="ts">
-	import { Loading } from '@epicenter/ui/loading';
-</script>
-
 <Loading class="h-dvh" label="Checking session" />
 ```
 
-`Loading` renders its `label` as supporting caption text. Use `Empty.Root` plus `Spinner` directly when the loading branch needs a title, description, custom media, actions, or exact structural parity with an error or empty branch.
-
-For inline pending inside an existing surface, keep the wrapper small and only use it when no existing element can take the layout classes:
+For inline pending inside an existing surface, drop to a bare `Spinner` and add a wrapper only when no existing element can take the layout classes.
 
 ```svelte
 <div class="flex h-full items-center justify-center">
@@ -190,82 +76,43 @@ For inline pending inside an existing surface, keep the wrapper small and only u
 </div>
 ```
 
-## Button Pending
+## Never Hand-Roll A Spinner
 
-```svelte
-<script lang="ts">
-	import { Button } from '@epicenter/ui/button';
-	import { Spinner } from '@epicenter/ui/spinner';
-</script>
+Use `Spinner` for every spinning affordance. Do not put raw `animate-spin`, `LoaderCircleIcon`, or `Loader2Icon` in app code: the local `Spinner` owns the size, color token, and animation. This is the most common local UI violation. Do not print bare `Loading...` text either; pair status text with a `Spinner` and say what is happening (`Checking session`, `Downloading model`).
 
-<Button onclick={save} disabled={isSaving}>
-	{#if isSaving}
-		<Spinner class="size-3.5" />
-		<span>Saving</span>
-	{:else}
-		Save
-	{/if}
-</Button>
-```
-
-Keep the label when the action needs context. Icon-only pending is fine for compact row actions where the button tooltip or surrounding label already names the action.
+Do not drop raw `animate-pulse` content placeholders; use `Skeleton`. An intentional pulsing status dot is fine; a fake-content placeholder block is not.
 
 ## Tooltips
 
-`Button` and `Link` have built-in `tooltip` props. Use them before hand-wrapping with `Tooltip.Root`, `Tooltip.Trigger`, and `Tooltip.Content`.
+`Button` and `Link` take a `tooltip` prop. Use it instead of hand-wrapping `Tooltip.Root`, `Tooltip.Trigger`, and `Tooltip.Content`:
 
 ```svelte
-<Button
-	size="icon"
-	variant="ghost"
-	tooltip="Delete recording"
-	onclick={deleteRecording}
->
+<Button size="icon" variant="ghost" tooltip="Delete recording" onclick={deleteRecording}>
 	<TrashIcon />
 </Button>
 ```
 
-The built-in tooltip expects a parent `Tooltip.Provider` somewhere above the trigger. Hand-roll tooltip composition only when the trigger is not a `Button` or `Link`, the content needs custom markup, or the interaction is not a simple tooltip.
+The prop expects a `Tooltip.Provider` somewhere above the trigger. Hand-roll `Tooltip.*` only when the trigger is not a `Button` or `Link`, or the content is not a simple label.
 
-## Table and List Empty States
+## Composition Ladder
 
-TanStack Table is headless. It gives row state, sorting, filtering, and pagination, but it does not decide what empty UI should look like. When `table.getRowModel().rows.length === 0`, render `Empty.Root` in the table body or the surrounding list panel.
+Before copying or forking component internals, escalate in order:
 
-Use different copy for true empty data and filtered empty data:
+1. Use an existing local component and its variants.
+2. Pass a `class` or supported prop.
+3. Add a local variant to the wrapper component.
+4. Wrap the component for a real composition boundary (scroll containment, pane sizing, table cell structure, sticky header).
+5. Copy upstream component code only when Epicenter needs to own behavior, tokens, persistence, shortcuts, or app state.
 
-```svelte
-{#if rows.length === 0}
-	<Empty.Root class="min-h-64 border-0">
-		<Empty.Title>
-			{filter ? 'No results match your filters' : 'No recordings yet'}
-		</Empty.Title>
-		<Empty.Description>
-			{filter ? 'Try a different search term.' : 'Record audio to see transcripts here.'}
-		</Empty.Description>
-	</Empty.Root>
-{/if}
-```
-
-## Avoid
-
-- Plain `Loading...` text.
-- Hand-composed full-page `Empty.Root` plus `Spinner` when the standard `Loading` caption shell fits.
-- Raw `Loader2Icon`, `LoaderCircleIcon`, or custom `animate-spin` outside `packages/ui`. Use `Spinner`.
-- Raw `animate-pulse` placeholder blocks. Use `Skeleton`.
-- Loading dots outside chat messages.
-- Empty state copy inside an unstructured centered `div` when `Empty.*` would fit.
-- Tooltip wrappers around `Button` or `Link` when the `tooltip` prop is enough.
-- Extra wrapper `div`s around `Empty.Root` just to center or stack content.
-- Re-authoring a shared primitive's anatomy in app code with local `rounded`, `px-*`, `py-*`, `gap-*`, `text-*`, hover, focus, or transition recipes.
-- Duplicating component internals from shadcn-svelte or extras instead of importing the local `@epicenter/ui` wrapper.
-- App imports from `packages/ui/src` or aliases that bypass `@epicenter/ui/*`.
-
-## Boundary With Svelte
-
-Svelte decides which branch renders: `{#if}`, `{#await}`, query status, or derived state. Epicenter UI decides what the branch looks like: `Loading`, `Spinner`, `Skeleton`, `Progress`, `Empty`, `Command.Empty`, `Button` or `Link` tooltip, or chat typing state.
+For whether a wrapper element is needed at all, and for scroll-layout traps, defer to `styling`. Before pulling upstream component updates, commit local wrapper state, then reconcile upstream changes against local deltas instead of overwriting the wrapper.
 
 ## Extras And Chat
 
-- Prefer existing local extras such as copy buttons, snippets, links, and chat components before adding one-off equivalents.
-- Chat list, message bubble variants, typing state, copy actions, and auto-scroll behavior belong in local wrappers. App code should compose them, not duplicate their internals.
-- Copy small generic primitives into `packages/ui` when the primitive is stable and visual. Wrap instead when Epicenter adds domain behavior or persistent app state.
+Prefer existing local extras (copy buttons, snippets, links, chat) before one-off equivalents; chat list, bubble variants, typing, copy actions, and auto-scroll live in local wrappers, so compose them rather than duplicating their internals. Copy a small generic primitive into `packages/ui` only when it is stable and visual; wrap instead when Epicenter adds domain behavior or persistent app state.
+
+## Avoid
+
+The positive rules above cover the common mistakes. Two structural traps are easy to fall into from generic shadcn-svelte habits and are worth naming on their own:
+
+- App imports from `packages/ui/src` or the stock `$lib/components/ui/*` path. Import through `@epicenter/ui/*`.
+- Copying shadcn-svelte or extras component internals into an app instead of importing the local wrapper, or forking past step 5 of the composition ladder.
