@@ -7,8 +7,8 @@
  * under `.epicenter/`, and app materializers may create their own generated
  * output folders. Idempotent: an existing config is left untouched.
  *
- * Creating an Epicenter folder is an explicit user decision; `epicenter daemon
- * up` never scaffolds and instead points here when the config is missing.
+ * Creating an Epicenter folder is an explicit user decision; `epicenter up`
+ * never scaffolds and instead points here when the config is missing.
  */
 
 import { existsSync, writeFileSync } from 'node:fs';

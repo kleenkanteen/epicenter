@@ -1,5 +1,5 @@
 /**
- * `epicenter daemon ps`: list running `daemon up` daemons (this user, this machine).
+ * `epicenter status`: list running watchers (this user, this machine).
  *
  * Enumerates `<runtimeDir>/*.meta.json`, checks each recorded pid for
  * liveness, and renders a compact table. Metadata carries the pid so `down`
@@ -18,7 +18,7 @@ import {
 import { cmd } from '../util/cmd.js';
 import { isProcessAlive } from '../util/process-alive.js';
 
-type PsRow = {
+type StatusRow = {
 	dir: string;
 	pid: number;
 	uptime: string;
@@ -36,12 +36,11 @@ function humanUptime(startedAt: string): string {
 	return `${hr}h${restMin}m`;
 }
 
-export const psCommand = cmd({
-	command: 'ps',
-	describe:
-		'List running `epicenter daemon up` daemons (this user, this machine).',
+export const statusCommand = cmd({
+	command: 'status',
+	describe: 'List running epicenter watchers (this user, this machine).',
 	handler: async () => {
-		const rows: PsRow[] = [];
+		const rows: StatusRow[] = [];
 		for (const meta of enumerateDaemons()) {
 			if (!isProcessAlive(meta.pid)) {
 				sweepDaemonRuntimeFiles(meta.dir);
@@ -55,7 +54,7 @@ export const psCommand = cmd({
 		}
 
 		if (rows.length === 0) {
-			process.stderr.write('no daemons running\n');
+			process.stderr.write('no watchers running\n');
 			return;
 		}
 		// `console.table` is the spec-mentioned renderer; it writes to stdout.
