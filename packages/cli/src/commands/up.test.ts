@@ -236,7 +236,9 @@ describe('runUp: happy path', () => {
 			}
 			expect(handle.opened.entry.mount).toBe('mirror');
 			expect(handle.opened.entry.runtime.collaboration).toBeUndefined();
-			expect(Object.keys(handle.opened.entry.runtime.actions)).toEqual(['sync']);
+			expect(Object.keys(handle.opened.entry.runtime.actions)).toEqual([
+				'sync',
+			]);
 		} finally {
 			await handle.teardown();
 		}
