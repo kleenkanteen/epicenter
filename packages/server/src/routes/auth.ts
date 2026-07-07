@@ -6,7 +6,7 @@
  *   /sign-in          hosted auth UI shell after redirect policy
  *   /sign-in/context  JSON bootstrap for the hosted sign-in UI
  *   /consent          hosted consent UI shell after session policy
- *   /auth/cli-callback CLI OOB landing page shell
+ *   /cli-callback     CLI OOB landing page shell
  *   /auth/.well-known/openid-configuration   OIDC discovery
  *   /auth/.well-known/oauth-authorization-server   OAuth metadata
  *   /.well-known/oauth-protected-resource   resource server metadata
@@ -26,7 +26,10 @@ import { OAUTH_ROUTES } from '@epicenter/constants/oauth-routes';
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { describeRoute } from 'hono-openapi';
-import type { CloudAuthBindings } from '../auth/create-auth.js';
+import {
+	type CloudAuthBindings,
+	configuredProviders,
+} from '../auth/create-auth.js';
 import {
 	createOAuthIssuerURL,
 	OAUTH_AUTHORIZATION_SERVER_METADATA_PATH,
@@ -36,32 +39,31 @@ import {
 } from '../auth/oauth-metadata.js';
 import type { CloudEnv } from '../types.js';
 
+export type SocialProvider = 'google' | 'github' | 'microsoft' | 'apple';
+
 export type SignInContext = {
-	providers: Record<'google' | 'github' | 'microsoft' | 'apple', boolean>;
-	passkeyEnabled: false;
+	providers: SocialProvider[];
 	session: { name: string; email: string } | null;
 };
 
+const SOCIAL_PROVIDER_ORDER = [
+	'google',
+	'github',
+	'microsoft',
+	'apple',
+] as const satisfies readonly SocialProvider[];
+
+/**
+ * Buttons come from the same presence value that registers providers in
+ * `createAuth`, so the page can never offer a provider the server refuses.
+ */
 function getSignInProviders(
 	authSecrets: CloudAuthBindings,
 ): SignInContext['providers'] {
-	return {
-		google: Boolean(
-			authSecrets.GOOGLE_CLIENT_ID && authSecrets.GOOGLE_CLIENT_SECRET,
-		),
-		github: Boolean(
-			authSecrets.GITHUB_CLIENT_ID && authSecrets.GITHUB_CLIENT_SECRET,
-		),
-		microsoft: Boolean(
-			authSecrets.MICROSOFT_CLIENT_ID && authSecrets.MICROSOFT_CLIENT_SECRET,
-		),
-		apple: Boolean(
-			authSecrets.APPLE_CLIENT_ID &&
-				authSecrets.APPLE_TEAM_ID &&
-				authSecrets.APPLE_KEY_ID &&
-				authSecrets.APPLE_PRIVATE_KEY,
-		),
-	};
+	const providers = configuredProviders(authSecrets);
+	return SOCIAL_PROVIDER_ORDER.filter(
+		(provider) => providers[provider] !== null,
+	);
 }
 
 /**
@@ -82,7 +84,6 @@ export const authApp = new Hono<CloudEnv>()
 			});
 			return c.json({
 				providers: getSignInProviders(c.var.authSecrets),
-				passkeyEnabled: false,
 				session: session
 					? {
 							name: session.user.name,

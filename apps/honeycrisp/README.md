@@ -92,11 +92,10 @@ Prerequisites: [Bun](https://bun.sh).
 git clone https://github.com/EpicenterHQ/epicenter.git
 cd epicenter
 bun install
-cd apps/honeycrisp
-bun dev
+bun dev:honeycrisp
 ```
 
-This starts the app dev server on port 5175. Auth and sync expect the local API on `localhost:8787`; start it from the repo root with `bun run dev:api`.
+This starts the desktop app on port 5175 alongside the local API on `localhost:8787`, which auth and sync expect. `bun dev:honeycrisp:ui` runs the browser UI without the API or Tauri shell.
 
 ---
 

@@ -9,7 +9,7 @@ const devVars = resolve(apiRoot, '.dev.vars');
 // The cloud UI SPA is built into apps/api/ui/build/ (SvelteKit
 // adapter-static, fallback.html shell). Wrangler errors if its assets
 // directory does not exist, and the auth surfaces (/sign-in, /consent,
-// /auth/cli-callback) are served from that build, so build it once when the
+// /cli-callback) are served from that build, so build it once when the
 // shell is missing. Subsequent boots skip the build to keep the edit loop
 // fast; rerun `bun run --cwd apps/api/ui build` after UI changes you want
 // visible through wrangler dev.

@@ -15,21 +15,16 @@ The dashboard remains a pure API consumer. It has no workspace, CRDT, local sync
 
 ## Development
 
-Prerequisites: [Bun](https://bun.sh) and the hosted API Worker running locally.
+Prerequisites: [Bun](https://bun.sh), local Postgres, and Infisical access for the hosted API Worker.
 
 ```bash
 git clone https://github.com/EpicenterHQ/epicenter.git
 cd epicenter
 bun install
-
-cd apps/api
-bun run dev
-
-cd ui
-bun run dev
+bun dev:api-dashboard
 ```
 
-Runs on port 5178. The Vite dev server proxies `/api`, `/auth`, and `/sign-in/context` to the local Worker on port 8787.
+This starts the hosted API Worker on port 8787 and the dashboard UI on port 5178. The Vite dev server proxies `/api`, `/auth`, and `/sign-in/context` to the local Worker. `bun dev:api-dashboard:ui` runs the UI without the Worker when you already have the API running.
 
 ```bash
 bun run build

@@ -1,9 +1,9 @@
 # 0112. The CLI watcher is not a callable action server
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-06
 - **Supersedes:** [ADR-0009](0009-the-cli-dispatches-through-a-mandatory-daemon.md)
-- **Relates:** [ADR-0021](0021-actions-are-the-agent-write-boundary.md), [ADR-0079](0079-cross-device-sync-and-capability-rpc-share-a-topology-seam.md), [ADR-0111](0111-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md)
+- **Relates:** [ADR-0021](0021-actions-are-the-only-surface-that-crosses-a-process-boundary.md), [ADR-0079](0079-cross-device-is-two-planes-epicenter-syncs-the-crdt-the-box-is-reached-directly.md), [ADR-0111](0111-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md)
 
 ## Context
 
@@ -11,21 +11,19 @@ The CLI daemon was introduced as a mandatory local process for `epicenter run`,
 `epicenter list`, and `epicenter peers`. ADR-0009 justified that shape by
 framing the daemon as a callable peer in a device mesh: a device was either
 online and callable, or it was offline. That rationale no longer matches the
-system. The mesh peer, `run --peer`, in-room action dispatch, and relay action
-channel were deleted.
-<!-- doc-path-check: ignore-next-line -->
-`packages/workspace/src/daemon/action-handler.ts` now says cross-device runs are
-not a `/run` concern.
+system. The mesh peer, `run --peer`, in-room action dispatch, relay action channel,
+and the daemon action handler were deleted. Cross-device work is no longer a
+`/run` concern.
 
 The useful product need that remains is different: a user can run Epicenter
 headlessly for one folder so the workspace stays synchronized and materialized.
 That process owns the lease, node id, sync connection, materializers, logs, and
 metadata. It does not need to be an addressable local action server.
 
-The generic off-process action surface also has no live first-party consumer.
+The generic off-process action surface also had no live first-party consumer.
 Apps call workspace actions in-process through their own runtime or local tool
-catalogs. The documented script path, `connectDaemonActions`, is covered by its
-own tests but has no production caller in the repo.
+catalogs. The old documented script path, `connectDaemonActions`, had tests but
+no production caller in the repo.
 
 ## Decision
 
@@ -47,12 +45,10 @@ an import or capture command, instead of resurrecting a generic action bus.
 
 ## Consequences
 
-The first cleanup deletes the external IPC plane while preserving headless
-operation. `epicenter daemon up` still opens a mount, syncs, materializes, logs
-presence and sync status, and tears down. `daemon down`, `daemon ps`, and
-`daemon logs` continue to operate through metadata, pid liveness, and log files.
-A later wave promoted these lifecycle commands to top-level `epicenter up`,
-`down`, `status`, and `logs`, deleting the `daemon` namespace with no
+The cleanup deleted the external IPC plane while preserving headless operation.
+`epicenter up` opens a mount, syncs, materializes, logs presence and sync status,
+and tears down. `down`, `status`, and `logs` operate through metadata, pid
+liveness, and log files. The old `daemon` namespace was deleted with no
 compatibility aliases.
 
 The trade-off is explicit: users lose the generic shell escape hatch
@@ -82,9 +78,9 @@ keep a socket protocol alive.
 
 ## Considered alternatives
 
-Keep the current IPC plane and fix the docs: rejected. It preserves a socket,
-HTTP app, typed client, action manifest, JSON input parser, and three commands
-for a callable-peer story that no longer exists in code.
+Keep the then-current IPC plane and fix the docs: rejected. It would have
+preserved a socket, HTTP app, typed client, action manifest, JSON input parser,
+and three commands for a callable-peer story that no longer exists in code.
 
 Delete the resident process entirely: rejected. The resident process still owns
 real headless value: the single-writer lease, sync connection, materializer

@@ -12,6 +12,8 @@ License boundary: apps and `packages/server` are AGPL; the embeddable toolkit pa
 
 Always use bun: Prefer `bun` over npm, yarn, pnpm, and node. Use `bun run`, `bun test`, `bun install`, and `bun x` (instead of npx).
 
+Local dev: start apps from the repo root with `bun dev:<app>`; it runs every process the app needs, including the hosted API on `localhost:8787` for apps that talk to it. `bun dev:<app>:ui` is the frontend alone when that split exists; `bun dev:api` is the backend alone. Do not cd into an app to start it. Details in the `monorepo` skill.
+
 Agent instruction files: Treat `AGENTS.md` as the canonical shared instructions file. `CLAUDE.md` files are compatibility shims for Claude Code and should only import a sibling `AGENTS.md` with `@AGENTS.md`, plus rare Claude-specific notes if needed. When adding a nested `AGENTS.md`, add a sibling `CLAUDE.md` shim. Do not create orphan `CLAUDE.md` files.
 
 Destructive actions need approval: Force pushes, hard resets (`--hard`), branch deletions.

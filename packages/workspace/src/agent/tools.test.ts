@@ -15,6 +15,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	type AgentToolCall,
 	type Approval,
+	defaultApprovalDecision,
 	resolveApprovedToolCall,
 	type ToolCatalog,
 } from './tools.js';
@@ -47,6 +48,17 @@ function approval(decision: ReturnType<Approval['decide']>, approved = true) {
 		request: async () => approved,
 	} satisfies Approval;
 }
+
+describe('defaultApprovalDecision', () => {
+	test('lets queries run and asks for mutations', () => {
+		expect(
+			defaultApprovalDecision(CALL, { name: CALL.toolName, kind: 'query' }),
+		).toBe('auto');
+		expect(
+			defaultApprovalDecision(CALL, { name: CALL.toolName, kind: 'mutation' }),
+		).toBe('ask');
+	});
+});
 
 describe('resolveApprovedToolCall', () => {
 	test('denies by policy without resolving the tool', async () => {

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+@import "@fontsource-variable/geist/wght.css";
+@import "@fontsource-variable/geist-mono/wght.css";
+
 @import "tw-animate-css";
 
 @import "./prose.css";
@@ -17,6 +20,9 @@
 @import "./styles/epicenter-overlay.css" layer(base);
 
 @source "./**/*.{svelte,ts}";
+/* App-shell components are styled through this shared CSS entrypoint, so Tailwind
+   must scan app-shell sources or app-shell-only utilities will not be generated. */
+@source "../../app-shell/src/**/*.{svelte,ts}";
 
 /*
   The default border color has changed to `currentcolor` in Tailwind CSS v4,
@@ -39,12 +45,15 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-	/* One stack for both modes; dark must not redeclare a shorter one. A stack
-	   that bottoms out at bare sans-serif renders Helvetica on macOS, whose
-	   vertical metrics sit text ink ~2px high in a line box, so every icon
-	   beside a label reads as drooping. system-ui (SF Pro, Segoe UI) centers. */
+	/* One stack for both modes; dark must not redeclare a shorter one. Geist gives
+	   the UI the even, product-tool grotesk feel we wanted from Anthropic Sans
+	   without depending on a proprietary brand font. */
 	--font-sans:
-		system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+		"Geist Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+		Roboto, sans-serif;
+	--font-mono:
+		"Geist Mono Variable", "SF Mono", ui-monospace, SFMono-Regular, Menlo,
+		Consolas, monospace;
 	--radius: 0.625rem;
 	/* Dark mode already separates --background from --card (0.129 vs 0.208); light mode
 	   collapsing both to pure white is the asymmetry. This barely-there warm-neutral tint
@@ -126,6 +135,7 @@
 
 @theme inline {
 	--font-sans: var(--font-sans);
+	--font-mono: var(--font-mono);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);

@@ -66,6 +66,48 @@ Do not show plain text such as `Loading...` by itself. Pair status text with an 
 
 Collapse wrapper elements whenever a component can own the layout directly. `Loading` and `Empty.Root` both center content, lay out a column, set text alignment, and accept `class`, so full-surface pending, empty, and error states usually do not need an outer `div`.
 
+## Component Anatomy Ownership
+
+Shared UI primitives own their anatomy: size, density, radius, gap, padding, typography, focus rings, hover language, transitions, and internal structure. App code owns placement in the parent layout and product-specific state.
+
+Use this split when reviewing `class` on a primitive:
+
+```txt
+Caller-owned placement
+  w-full, flex-1, shrink-0, min-h-0, overflow-y-auto, justify-start,
+  text-left when the parent context needs it
+
+Caller-owned state
+  selected, current, unread, danger, pending, disabled, and other product
+  states when the primitive does not already expose the state
+
+Primitive-owned anatomy
+  rounded, px-*, py-*, gap-*, text-sm, leading-*, shadow, border shape,
+  hover language, focus-visible rings, transition timing, icon sizing rules
+```
+
+If a class string beside `Button`, `Item`, `Input`, `Sidebar.*`, or another local primitive rebuilds the primitive's anatomy, stop and move the need to the design-system boundary. Add a size, variant, or semantic wrapper instead of repeating a Tailwind recipe in app code.
+
+```svelte
+<!-- Prefer: caller states placement and state, primitive owns the visual budget -->
+<Item.Button
+	size="sm"
+	class={cn(
+		'w-full justify-start text-left',
+		selected ? 'bg-accent font-medium text-accent-foreground' : 'text-foreground/80',
+	)}
+>
+	Inbox
+</Item.Button>
+
+<!-- Avoid: caller redefines what Item.Button size="sm" means -->
+<Item.Button size="sm" class="w-full gap-2 rounded px-2 py-1.5 text-left text-sm">
+	Inbox
+</Item.Button>
+```
+
+Local anatomy overrides are allowed only when the visual exception is truly local and product-specific. If two callers want the same override, it is no longer local; promote it to a primitive size, primitive variant, or a semantic component such as `NavRail.Item`.
+
 ```svelte
 <!-- Prefer this -->
 <Loading class="h-dvh" label="Checking session" />
@@ -80,12 +122,12 @@ Collapse wrapper elements whenever a component can own the layout directly. `Loa
 
 Add a wrapper only when it owns a real layout boundary that the component should not own: scroll containment, pane sizing, table cell structure, sticky headers, or sibling spacing.
 
-Use this boundary ladder before copying or forking component internals:
+Use this boundary ladder before copying, forking, or locally re-authoring component anatomy:
 
-1. Use an existing local `@epicenter/ui` component and variant.
-2. Pass a `class` or supported prop.
-3. Add a local variant to the wrapper component.
-4. Wrap the component for a real composition boundary.
+1. Use an existing local `@epicenter/ui` component, size, and variant.
+2. Pass a supported prop or a `class` for placement and product state.
+3. Add a local size or variant to the wrapper component.
+4. Wrap the component for a real composition boundary or semantic product concept.
 5. Copy upstream component code only when Epicenter needs to own behavior, tokens, persistence, shortcuts, or app state.
 
 Import compound components as namespaces, such as `import * as Dialog from '@epicenter/ui/dialog'`. Import single components by name, such as `import { Button } from '@epicenter/ui/button'`.
@@ -214,6 +256,7 @@ Use different copy for true empty data and filtered empty data:
 - Empty state copy inside an unstructured centered `div` when `Empty.*` would fit.
 - Tooltip wrappers around `Button` or `Link` when the `tooltip` prop is enough.
 - Extra wrapper `div`s around `Empty.Root` just to center or stack content.
+- Re-authoring a shared primitive's anatomy in app code with local `rounded`, `px-*`, `py-*`, `gap-*`, `text-*`, hover, focus, or transition recipes.
 - Duplicating component internals from shadcn-svelte or extras instead of importing the local `@epicenter/ui` wrapper.
 - App imports from `packages/ui/src` or aliases that bypass `@epicenter/ui/*`.
 
