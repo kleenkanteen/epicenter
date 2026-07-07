@@ -14,6 +14,7 @@ import type {
 	PendingApproval,
 	SuperChatActivity,
 	SuperChatClientCommand,
+	SuperChatInvocation,
 } from '../host.ts';
 import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from '../routes.ts';
 import type {
@@ -35,6 +36,7 @@ export function createSession({ token }: { token: string }) {
 	});
 	let pendingApprovals = $state<PendingApproval[]>([]);
 	let activity = $state<SuperChatActivity[]>([]);
+	let invocations = $state<SuperChatInvocation[]>([]);
 	let connection = $state<ConnectionStatus>('connecting');
 	let tools = $state<SuperChatSessionResponse['tools']>([]);
 
@@ -56,6 +58,7 @@ export function createSession({ token }: { token: string }) {
 			snapshot = body.snapshot.conversation;
 			pendingApprovals = body.snapshot.pendingApprovals;
 			activity = body.snapshot.activity;
+			invocations = body.snapshot.invocations;
 			return true;
 		} catch {
 			connection = 'closed';
@@ -90,6 +93,7 @@ export function createSession({ token }: { token: string }) {
 				snapshot = parsed.snapshot.conversation;
 				pendingApprovals = parsed.snapshot.pendingApprovals;
 				activity = parsed.snapshot.activity;
+				invocations = parsed.snapshot.invocations;
 			}
 		};
 		ws.onclose = () => {
@@ -128,6 +132,9 @@ export function createSession({ token }: { token: string }) {
 		get activity() {
 			return activity;
 		},
+		get invocations() {
+			return invocations;
+		},
 		/** Returns whether the message went out, so the composer keeps the draft on failure. */
 		send(content: string) {
 			return sendCommand({ type: 'send', content });
@@ -141,6 +148,13 @@ export function createSession({ token }: { token: string }) {
 		/** Start a fresh conversation; the old transcript stays durable on the host. */
 		clear() {
 			sendCommand({ type: 'clear' });
+		},
+		/** Run one tool directly; the result lands in `invocations`. */
+		invoke(
+			toolName: string,
+			input: Extract<SuperChatClientCommand, { type: 'invoke' }>['input'] = {},
+		) {
+			return sendCommand({ type: 'invoke', toolName, input });
 		},
 		approve(
 			requestId: string,

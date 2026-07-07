@@ -34,6 +34,7 @@ import {
 	createLocalToolCatalog,
 	defaultApprovalDecision,
 	namespaceToolCatalog,
+	resolveApprovedToolCall,
 	type ToolCatalog,
 } from '@epicenter/workspace/agent';
 import { bunLocalPersistence } from '@epicenter/workspace/node';
@@ -79,6 +80,24 @@ export type SuperChatSessionSnapshot = {
 	conversation: ConversationSnapshot;
 	pendingApprovals: PendingApproval[];
 	activity: SuperChatActivity[];
+	invocations: SuperChatInvocation[];
+};
+
+/**
+ * One direct tool invocation, from command to settled outcome. This is a
+ * record with a lifecycle, not an event, so it lives beside `activity` rather
+ * than inside it: the host mutates `status` in place and pushes a fresh
+ * snapshot. Direct invocations never touch the conversation transcript; the
+ * model must not see operator-plane runs as chat history.
+ */
+export type SuperChatInvocation = {
+	id: string;
+	toolName: string;
+	status: 'running' | 'succeeded' | 'failed';
+	/** The outcome's model-facing text once settled; the error text on failure. */
+	content?: string;
+	requestedAt: number;
+	settledAt?: number;
 };
 
 export type SuperChatActivity = {
@@ -110,6 +129,17 @@ export type SuperChatClientCommand =
 			requestId: string;
 			approved: boolean;
 			alwaysAllowSession?: boolean;
+	  }
+	| {
+			/**
+			 * Run one catalog tool directly, outside a chat turn. The call rides the
+			 * same approval gate as chat (`resolveApprovedToolCall`), so a direct
+			 * mutation raises the same pending approval prompt; it can never bypass
+			 * mutation policy (ADR-0113).
+			 */
+			type: 'invoke';
+			toolName: string;
+			input: AgentToolCall['input'];
 	  };
 
 /**
@@ -142,6 +172,23 @@ export function parseSuperChatCommand(
 			}),
 		};
 	}
+	if (
+		command.type === 'invoke' &&
+		typeof command.toolName === 'string' &&
+		command.toolName !== '' &&
+		typeof command.input === 'object' &&
+		command.input !== null &&
+		!Array.isArray(command.input)
+	) {
+		return {
+			type: 'invoke',
+			toolName: command.toolName,
+			// Every tool input schema in the catalog is a JSON object, so the
+			// vocabulary accepts only plain objects. Frames arrive from JSON.parse,
+			// which makes a plain object here JSON by construction.
+			input: command.input as AgentToolCall['input'],
+		};
+	}
 	return undefined;
 }
 
@@ -158,6 +205,7 @@ export type SuperChatHost = {
 };
 
 const ACTIVITY_LIMIT = 50;
+const INVOCATION_LIMIT = 20;
 
 /**
  * Open the built-in apps, compose their catalogs, and start the one chat
@@ -284,6 +332,52 @@ export async function createSuperChatHost(
 		});
 	};
 
+	// Direct invocations outlive no one: this controller aborts any still-running
+	// invoke when the host disposes, before the catalogs go away. Settlement
+	// after the abort rides the catalog honoring the signal, the same contract
+	// chat turns rely on; disposal never awaits invocations.
+	const invokeAbort = new AbortController();
+	const invocations: SuperChatInvocation[] = [];
+	const runInvocation = (toolName: string, input: AgentToolCall['input']) => {
+		const invocation: SuperChatInvocation = {
+			id: generateId(),
+			toolName,
+			status: 'running',
+			requestedAt: Date.now(),
+		};
+		invocations.push(invocation);
+		// The cap bounds settled history only, and trims on push alone: a running
+		// record must stay visible until it settles, and a settling record must
+		// be observable at least once, so nothing evicts on settle. A concurrent
+		// burst may briefly exceed the cap; later pushes converge it.
+		while (invocations.length > INVOCATION_LIMIT) {
+			const evictable = invocations.findIndex(
+				(candidate) => candidate.status !== 'running',
+			);
+			if (evictable === -1) break;
+			invocations.splice(evictable, 1);
+		}
+		notify();
+		void resolveApprovedToolCall({
+			tools,
+			approval,
+			call: { toolCallId: invocation.id, toolName, input },
+			signal: invokeAbort.signal,
+		})
+			// Catalogs report failures as outcomes, but an abort mid-resolve (host
+			// disposal) can reject; the record must still settle.
+			.catch((error) => ({
+				content: error instanceof Error ? error.message : String(error),
+				isError: true,
+			}))
+			.then((outcome) => {
+				invocation.status = outcome.isError ? 'failed' : 'succeeded';
+				invocation.content = outcome.content;
+				invocation.settledAt = Date.now();
+				notify();
+			});
+	};
+
 	return {
 		tools,
 		snapshot() {
@@ -291,6 +385,7 @@ export async function createSuperChatHost(
 				conversation: conversation.snapshot(),
 				pendingApprovals: sessionApproval.pending(),
 				activity: [...activity],
+				invocations: invocations.map((invocation) => ({ ...invocation })),
 			};
 		},
 		subscribe(listener) {
@@ -334,6 +429,9 @@ export async function createSuperChatHost(
 						approved: command.approved,
 						alwaysAllowSession: command.alwaysAllowSession === true,
 					});
+				case 'invoke':
+					runInvocation(command.toolName, command.input);
+					return true;
 				default:
 					command satisfies never;
 					return false;
@@ -343,6 +441,7 @@ export async function createSuperChatHost(
 			// The conversation first (aborts any in-flight turn and disposes the
 			// store), then the subprocess, then the in-process docs.
 			conversation[Symbol.dispose]();
+			invokeAbort.abort();
 			sessionApproval.cancelAll();
 			await localBooks?.[Symbol.asyncDispose]();
 			honeycrisp[Symbol.dispose]();

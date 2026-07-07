@@ -16,8 +16,33 @@
 		closed: 'Disconnected',
 	} as const;
 
+	const invocationLabel = {
+		running: 'Running',
+		succeeded: 'Done',
+		failed: 'Failed',
+	} as const;
+
 	function formatApprovalInput(input: unknown): string {
 		return JSON.stringify(input, null, 2);
+	}
+
+	/**
+	 * A tool gets a Run button only when submitting `{}` is the whole visible
+	 * payload (the consent boundary of the direct-forms spec): no input schema
+	 * at all, or an object schema with no required properties. Everything else
+	 * waits for the direct command forms.
+	 */
+	function canRunWithoutInput(tool: { inputSchema?: unknown }): boolean {
+		const schema = tool.inputSchema;
+		if (schema === undefined) return true;
+		if (typeof schema !== 'object' || schema === null || Array.isArray(schema))
+			return false;
+		const { type, required } = schema as { type?: unknown; required?: unknown };
+		if (type !== 'object') return false;
+		return (
+			required === undefined ||
+			(Array.isArray(required) && required.length === 0)
+		);
 	}
 </script>
 
@@ -47,6 +72,15 @@
 						<li>
 							<code>{tool.name}</code>
 							{#if tool.title}<span class="tool-title">{tool.title}</span>{/if}
+							{#if canRunWithoutInput(tool)}
+								<button
+									type="button"
+									class="run"
+									onclick={() => session.invoke(tool.name)}
+								>
+									Run
+								</button>
+							{/if}
 							{#if tool.description}
 								<p class="tool-description">{tool.description}</p>
 							{/if}
@@ -74,6 +108,22 @@
 				</strong>
 				{session.snapshot.error.message}
 			</div>
+		{/if}
+
+		{#if session.invocations.length > 0}
+			<section class="invocations" aria-label="Direct runs">
+				{#each [...session.invocations].reverse() as invocation (invocation.id)}
+					<div class="invocation">
+						<span class="invocation-status {invocation.status}">
+							{invocationLabel[invocation.status]}
+						</span>
+						<code>{invocation.toolName}</code>
+						{#if invocation.content !== undefined}
+							<pre>{invocation.content}</pre>
+						{/if}
+					</div>
+				{/each}
+			</section>
 		{/if}
 
 		{#if session.pendingApprovals.length > 0}
@@ -221,6 +271,23 @@
 		color: #7a7e87;
 	}
 
+	.tools .run {
+		margin-left: 6px;
+		padding: 0 8px;
+		height: 20px;
+		border: 1px solid #3a3e47;
+		border-radius: 4px;
+		background: #23262c;
+		color: #c3c6cc;
+		font: inherit;
+		font-size: 11px;
+		cursor: pointer;
+	}
+
+	.tools .run:hover {
+		border-color: #4a4f5a;
+	}
+
 	.new-chat {
 		margin-left: auto;
 		padding: 0 8px;
@@ -236,6 +303,58 @@
 
 	.new-chat:hover {
 		border-color: #4a4f5a;
+	}
+
+	.invocations {
+		flex: none;
+		display: grid;
+		gap: 6px;
+		margin: 0 12px 8px;
+		max-height: 30vh;
+		overflow-y: auto;
+	}
+
+	.invocation {
+		padding: 8px 10px;
+		border: 1px solid #2c2f36;
+		border-radius: 6px;
+		background: #1a1c21;
+		color: #c3c6cc;
+	}
+
+	.invocation code {
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 11.5px;
+	}
+
+	.invocation pre {
+		margin: 6px 0 0;
+		max-height: 100px;
+		overflow: auto;
+		white-space: pre-wrap;
+		word-break: break-word;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 11.5px;
+		color: #a3a7af;
+	}
+
+	.invocation-status {
+		display: inline-block;
+		margin-right: 8px;
+		font-size: 11px;
+		color: #8b8f98;
+	}
+
+	.invocation-status.running {
+		color: #d8b44a;
+	}
+
+	.invocation-status.succeeded {
+		color: #4cc38a;
+	}
+
+	.invocation-status.failed {
+		color: #e5484d;
 	}
 
 	.error {

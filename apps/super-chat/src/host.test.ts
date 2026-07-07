@@ -9,6 +9,8 @@
  * - Built-in app actions are namespaced and callable through the catalog.
  * - Local Books MCP failures stay on the external-tool path.
  * - Host-local app replicas survive process restart through Bun persistence.
+ * - Direct invocations ride the same approval gate as chat turns and settle
+ *   as session records without ever entering the transcript.
  */
 import { describe, expect, test } from 'bun:test';
 import { mkdtempSync } from 'node:fs';
@@ -21,7 +23,11 @@ import type {
 	EngineChunk,
 } from '@epicenter/workspace/agent';
 import { bunLocalPersistence } from '@epicenter/workspace/node';
-import { createSuperChatHost, type SuperChatHostOptions } from './host.ts';
+import {
+	createSuperChatHost,
+	parseSuperChatCommand,
+	type SuperChatHostOptions,
+} from './host.ts';
 import { superChatWorkspace } from './workspace.ts';
 
 const FIXTURE = new URL('../test-fixtures/mini-mcp-server.ts', import.meta.url)
@@ -456,6 +462,218 @@ describe('createSuperChatHost', () => {
 		expect(messages.flatMap((m) => toolResults(m.parts))).toHaveLength(0);
 	});
 
+	test('invoking a query settles succeeded without an approval or a transcript entry', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		expect(
+			host.handleCommand({
+				type: 'invoke',
+				toolName: 'todos__todos_list',
+				input: {},
+			}),
+		).toBe(true);
+		await waitFor(
+			() => host.snapshot().invocations[0]?.status === 'succeeded',
+			'the invocation to settle',
+		);
+
+		const [invocation] = host.snapshot().invocations;
+		expect(invocation).toEqual(
+			expect.objectContaining({
+				toolName: 'todos__todos_list',
+				status: 'succeeded',
+			}),
+		);
+		expect(typeof invocation!.content).toBe('string');
+		expect(invocation!.settledAt).toBeDefined();
+		// A query runs unattended, and a direct run never becomes chat history.
+		expect(host.snapshot().pendingApprovals).toEqual([]);
+		expect(host.snapshot().conversation.messages).toEqual([]);
+	});
+
+	test('invoking an unknown tool settles failed through the shared gate', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		host.handleCommand({
+			type: 'invoke',
+			toolName: 'nope__missing',
+			input: {},
+		});
+		await waitFor(
+			() => host.snapshot().invocations[0]?.status === 'failed',
+			'the invocation to settle failed',
+		);
+		expect(host.snapshot().invocations[0]!.content).toMatch(
+			/No tool named nope__missing/,
+		);
+	});
+
+	test('invoking a mutation raises the same pending approval prompt as chat', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		host.handleCommand({
+			type: 'invoke',
+			toolName: 'todos__todos_create',
+			input: { title: 'Direct with consent' },
+		});
+		await waitFor(
+			() => host.snapshot().pendingApprovals.length === 1,
+			'a pending approval',
+		);
+
+		const [invocation] = host.snapshot().invocations;
+		expect(invocation!.status).toBe('running');
+		// The prompt correlates back to the invocation: the host mints one id
+		// covering the record and the gated call.
+		expect(host.snapshot().pendingApprovals[0]).toEqual(
+			expect.objectContaining({
+				toolCallId: invocation!.id,
+				toolName: 'todos__todos_create',
+				input: { title: 'Direct with consent' },
+			}),
+		);
+	});
+
+	test('denying a direct mutation settles the invocation failed', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		host.handleCommand({
+			type: 'invoke',
+			toolName: 'todos__todos_create',
+			input: { title: 'Denied' },
+		});
+		await waitFor(
+			() => host.snapshot().pendingApprovals.length === 1,
+			'a pending approval',
+		);
+		host.handleCommand({
+			type: 'approve',
+			requestId: host.snapshot().pendingApprovals[0]!.id,
+			approved: false,
+		});
+		await waitFor(
+			() => host.snapshot().invocations[0]?.status === 'failed',
+			'the denied invocation to settle',
+		);
+		expect(host.snapshot().invocations[0]!.content).toMatch(/Denied/);
+		expect(host.snapshot().pendingApprovals).toEqual([]);
+	});
+
+	test('approving a direct mutation runs the tool and settles succeeded', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		host.handleCommand({
+			type: 'invoke',
+			toolName: 'todos__todos_create',
+			input: { title: 'Approved directly' },
+		});
+		await waitFor(
+			() => host.snapshot().pendingApprovals.length === 1,
+			'a pending approval',
+		);
+		host.handleCommand({
+			type: 'approve',
+			requestId: host.snapshot().pendingApprovals[0]!.id,
+			approved: true,
+		});
+		await waitFor(
+			() => host.snapshot().invocations[0]?.status === 'succeeded',
+			'the approved invocation to settle',
+		);
+
+		expect(typeof host.snapshot().invocations[0]!.content).toBe('string');
+		// The created todo reads back through the catalog: the approved mutation
+		// really ran, not just settled.
+		const list = await host.tools.resolve(
+			{ toolCallId: 'verify-list', toolName: 'todos__todos_list', input: {} },
+			new AbortController().signal,
+		);
+		expect(list.details).toContainEqual(
+			expect.objectContaining({ title: 'Approved directly' }),
+		);
+		// The result stays a session record; the transcript is untouched.
+		expect(host.snapshot().conversation.messages).toEqual([]);
+	});
+
+	test('dispose settles an in-flight gated invocation failed instead of leaving it running', async () => {
+		const host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		host.handleCommand({
+			type: 'invoke',
+			toolName: 'todos__todos_create',
+			input: { title: 'Never answered' },
+		});
+		await waitFor(
+			() => host.snapshot().pendingApprovals.length === 1,
+			'a pending approval',
+		);
+		await host[Symbol.asyncDispose]();
+
+		// Disposal aborts the invoke signal before cancelAll denies the prompt,
+		// so the record settles failed rather than running the tool late.
+		await waitFor(
+			() => host.snapshot().invocations[0]?.status === 'failed',
+			'the invocation to settle after dispose',
+		);
+		expect(host.snapshot().invocations[0]!.settledAt).toBeDefined();
+	});
+
+	test('the invocation cap evicts settled records only; a running record survives', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		// One gated mutation stays running (its approval is never answered)...
+		host.handleCommand({
+			type: 'invoke',
+			toolName: 'todos__todos_create',
+			input: { title: 'Still pending' },
+		});
+		await waitFor(
+			() => host.snapshot().pendingApprovals.length === 1,
+			'the gated invocation to go pending',
+		);
+		const running = host.snapshot().invocations[0]!;
+
+		// ...while more than INVOCATION_LIMIT queries settle around it. The cap
+		// trims on push only, so a burst may briefly exceed it; the final push
+		// converges the ring back to the limit.
+		for (let i = 0; i < 25; i++) {
+			host.handleCommand({
+				type: 'invoke',
+				toolName: 'todos__todos_list',
+				input: {},
+			});
+		}
+		await waitFor(
+			() =>
+				host
+					.snapshot()
+					.invocations.filter((record) => record.status === 'running')
+					.length === 1,
+			'the query burst to settle',
+		);
+		host.handleCommand({
+			type: 'invoke',
+			toolName: 'todos__todos_list',
+			input: {},
+		});
+		await waitFor(
+			() => host.snapshot().invocations.length === 20,
+			'the ring to converge to the cap',
+		);
+
+		const survivors = host.snapshot().invocations;
+		expect(survivors.find((record) => record.id === running.id)).toEqual(
+			expect.objectContaining({ status: 'running' }),
+		);
+	});
+
 	test('a second host over the same data dir reads the first host todos through the catalog', async () => {
 		const dataDir = testDataDir();
 		{
@@ -493,5 +711,45 @@ describe('createSuperChatHost', () => {
 		expect(result.details).toContainEqual(
 			expect.objectContaining({ title: 'Survives restart' }),
 		);
+	});
+});
+
+describe('parseSuperChatCommand', () => {
+	test('accepts an invoke frame with a tool name and an object input', () => {
+		expect(
+			parseSuperChatCommand({
+				type: 'invoke',
+				toolName: 'todos__todos_create',
+				input: { title: 'Buy milk' },
+			}),
+		).toEqual({
+			type: 'invoke',
+			toolName: 'todos__todos_create',
+			input: { title: 'Buy milk' },
+		});
+	});
+
+	test('rejects invoke frames with a missing, empty, or non-string tool name', () => {
+		expect(parseSuperChatCommand({ type: 'invoke', input: {} })).toBeUndefined();
+		expect(
+			parseSuperChatCommand({ type: 'invoke', toolName: '', input: {} }),
+		).toBeUndefined();
+		expect(
+			parseSuperChatCommand({ type: 'invoke', toolName: 42, input: {} }),
+		).toBeUndefined();
+	});
+
+	test('rejects invoke frames whose input is not a plain object', () => {
+		const toolName = 'todos__todos_list';
+		expect(parseSuperChatCommand({ type: 'invoke', toolName })).toBeUndefined();
+		expect(
+			parseSuperChatCommand({ type: 'invoke', toolName, input: null }),
+		).toBeUndefined();
+		expect(
+			parseSuperChatCommand({ type: 'invoke', toolName, input: 'title' }),
+		).toBeUndefined();
+		expect(
+			parseSuperChatCommand({ type: 'invoke', toolName, input: [1, 2] }),
+		).toBeUndefined();
 	});
 });

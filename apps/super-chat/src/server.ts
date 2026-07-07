@@ -117,7 +117,8 @@ export function createSuperChatServer({
 					const command = parseSuperChatCommand(parseFrame(event.data));
 					// Malformed frames drop silently for now: our own clients send
 					// typed commands, and an error outcome has nothing to name until
-					// the direct-invocation vocabulary adds command ids (Wave 2).
+					// commands carry client-minted ids. Accepted invokes settle as
+					// visible invocation records instead, so nothing real is lost.
 					if (!command) return;
 					host.handleCommand(command);
 					push(ws);

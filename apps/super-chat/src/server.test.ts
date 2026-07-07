@@ -358,6 +358,46 @@ describe('createSuperChatServer', () => {
 		}
 	});
 
+	test('an invoke frame settles as an invocation record on the same session channel', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		const server = await serveHost(host);
+		try {
+			const ws = new WebSocket(streamUrl(server));
+			const settled = nextSnapshot(
+				ws,
+				(event) =>
+					event.snapshot.invocations.some(
+						(invocation) => invocation.status === 'succeeded',
+					),
+				'the settled invocation',
+			);
+			ws.addEventListener('open', () => {
+				ws.send(
+					JSON.stringify({
+						type: 'invoke',
+						toolName: 'todos__todos_list',
+						input: {},
+					}),
+				);
+			});
+
+			const final = await settled;
+			expect(final.snapshot.invocations[0]).toEqual(
+				expect.objectContaining({
+					toolName: 'todos__todos_list',
+					status: 'succeeded',
+				}),
+			);
+			// A direct run rides the session channel but never the transcript.
+			expect(conversationOf(final).messages).toEqual([]);
+			ws.close();
+		} finally {
+			await server.stop(true);
+		}
+	});
+
 	test('malformed frames drop silently without killing the session socket', async () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[{ type: 'text-delta', delta: 'Still alive.' }]]),
@@ -371,7 +411,7 @@ describe('createSuperChatServer', () => {
 				'the turn after garbage frames',
 			);
 			ws.addEventListener('open', () => {
-				// Deliberate until commands carry ids (Wave 2): an error outcome
+				// Deliberate until commands carry client-minted ids: an error outcome
 				// would have nothing to name, so bad frames drop instead of erroring.
 				ws.send('not json');
 				ws.send(JSON.stringify({ type: 'launch-missiles' }));
