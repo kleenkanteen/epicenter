@@ -1,6 +1,9 @@
 /**
  * The loop's view of its tools, kept tool-agnostic: the loop knows how to offer
- * tools to the model and how to run one, never where a tool lives. A
+ * tools to the model and how to run one, never where a tool lives. Action
+ * definitions keep exact input and result types at the authoring site; catalogs
+ * intentionally erase that precision to JSON-shaped tool calls because the
+ * model, approval gate, and adapters all meet at this boundary. A
  * {@link ToolCatalog} can be local actions, stdio MCP, or another host-specific
  * adapter; the loop does not change.
  */
