@@ -48,8 +48,8 @@ export function authPlugins(apiBaseURL: string) {
 			// on a 60s skew and on any 401). Refresh-token lifetime is unchanged.
 			accessTokenExpiresIn: 600,
 			// Refresh-token semantics, verified against the installed
-			// @better-auth/oauth-provider 1.6.18 dist (2026-07-01 spike; re-verify
-			// on upgrade):
+			// @better-auth/oauth-provider 1.6.23 dist (2026-07-05 re-check on the
+			// 1.6.18 -> 1.6.23 bump; re-verify on upgrade):
 			//
 			// - Rotation is unconditional (every refresh mints a new token) and
 			//   reuse detection is built in: replaying a rotated-out token
