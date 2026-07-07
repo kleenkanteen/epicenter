@@ -16,6 +16,7 @@
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import AuthCard from '$lib/auth/AuthCard.svelte';
+	import AuthHeader from '$lib/auth/AuthHeader.svelte';
 	import { getOAuthQuery } from '$lib/auth/oauth-query';
 
 	const clientId = $derived(page.url.searchParams.get('client_id'));
@@ -74,17 +75,14 @@
 <svelte:head><title>Authorize: Epicenter</title></svelte:head>
 
 <AuthCard>
-	<Card.Header class="justify-items-center text-center">
-		<Card.Title>
-			<h1 class="text-xl font-semibold tracking-tight">Authorize application</h1>
-		</Card.Title>
-		<Card.Description>
+	<AuthHeader title="Authorize application">
+		{#snippet description()}
 			<span class="font-medium text-foreground">
 				{clientId ?? 'An application'}
 			</span>
 			is requesting access to your Epicenter account.
-		</Card.Description>
-	</Card.Header>
+		{/snippet}
+	</AuthHeader>
 	<Card.Content class="flex flex-col gap-3">
 		{#if scopes.length > 0}
 			<p class="text-sm font-medium">Requested permissions</p>

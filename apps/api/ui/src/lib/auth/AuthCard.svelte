@@ -12,7 +12,7 @@
 </script>
 
 <div class="flex min-h-dvh items-center justify-center p-6">
-	<Card.Root class="w-full max-w-sm">
+	<Card.Root class="w-full max-w-sm gap-5">
 		<div class="flex justify-center">
 			<EpicenterMark class="size-12 rounded-xl" />
 		</div>
