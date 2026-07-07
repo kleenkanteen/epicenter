@@ -17,6 +17,11 @@
 @import "./styles/epicenter-overlay.css" layer(base);
 
 @source "./**/*.{svelte,ts}";
+/* app-shell ships Svelte templates with no CSS entry of its own; apps get all
+   their Tailwind from this file. Without this line, a utility used only in an
+   app-shell component (status dots, credit tints) is never generated and
+   silently renders unstyled in every app. */
+@source "../../app-shell/src/**/*.{svelte,ts}";
 
 /*
   The default border color has changed to `currentcolor` in Tailwind CSS v4,
