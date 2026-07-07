@@ -177,7 +177,6 @@ export {
 	type LocalPersistenceAttachment,
 	type LocalWorkspace,
 	type MountComposeContext,
-	type MountComposition,
 	type MountOptions,
 	type MountWorkerContext,
 	type MountWorkerFactory,

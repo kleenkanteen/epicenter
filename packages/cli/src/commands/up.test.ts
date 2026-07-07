@@ -126,7 +126,7 @@ function writeDemoConfig(): void {
 const TRIVIAL_MOUNT_CONFIG = [
 	'export default {',
 	"\tname: 'demo',",
-	'\topen: () => ({ actions: {}, async [Symbol.asyncDispose]() {} }),',
+	'\topen: () => ({ async [Symbol.asyncDispose]() {} }),',
 	'};',
 	'',
 ].join('\n');
@@ -142,9 +142,7 @@ function writeRuntimeMount({
 		import { writeFileSync } from 'node:fs';
 		${onImportMarker ? `writeFileSync(${JSON.stringify(onImportMarker)}, 'imported');` : ''}
 
-		const actions = {};
 		const collaboration = {
-			actions,
 			whenConnected: new Promise(() => {}),
 			status: { phase: 'connected' },
 			onStatusChange: () => () => {},
@@ -161,7 +159,6 @@ function writeRuntimeMount({
 					return { inactive: true, reason: 'sign in to enable demo' };
 				}
 				return {
-					actions,
 					collaboration,
 					async [Symbol.asyncDispose]() {
 						${onDisposeMarker ? `writeFileSync(${JSON.stringify(onDisposeMarker)}, 'disposed');` : ''}
@@ -203,18 +200,10 @@ describe('runUp: happy path', () => {
 
 	test('opens a local-only mount without collaboration', async () => {
 		writeDemoMount(`
-			const sync = () => ({ imported: 2 });
-			sync.type = 'query';
-			sync.description = 'Sync local mirror';
-			const actions = {
-				sync,
-			};
-
 			export default {
 				name: 'mirror',
 				async open() {
 					return {
-						actions,
 						async [Symbol.asyncDispose]() {},
 					};
 				},
@@ -236,9 +225,6 @@ describe('runUp: happy path', () => {
 			}
 			expect(handle.opened.entry.mount).toBe('mirror');
 			expect(handle.opened.entry.runtime.collaboration).toBeUndefined();
-			expect(Object.keys(handle.opened.entry.runtime.actions)).toEqual([
-				'sync',
-			]);
 		} finally {
 			await handle.teardown();
 		}
