@@ -30,7 +30,7 @@
 <AuthCard>
 	{#if oauthError}
 		<Card.Header class="justify-items-center text-center">
-			<Card.Title><h1 class="text-xl">Sign-in failed</h1></Card.Title>
+			<Card.Title><h1 class="text-xl font-semibold tracking-tight">Sign-in failed</h1></Card.Title>
 			<Card.Description>
 				The authorization server rejected the request.
 			</Card.Description>
@@ -50,7 +50,7 @@
 		</Card.Content>
 	{:else if !code}
 		<Card.Header class="justify-items-center text-center">
-			<Card.Title><h1 class="text-xl">Sign-in failed</h1></Card.Title>
+			<Card.Title><h1 class="text-xl font-semibold tracking-tight">Sign-in failed</h1></Card.Title>
 			<Card.Description>
 				This page expects an authorization code from the sign-in flow.
 			</Card.Description>
@@ -64,7 +64,7 @@
 		</Card.Content>
 	{:else}
 		<Card.Header class="justify-items-center text-center">
-			<Card.Title><h1 class="text-xl">Signed in to Epicenter CLI</h1></Card.Title>
+			<Card.Title><h1 class="text-xl font-semibold tracking-tight">Signed in to Epicenter CLI</h1></Card.Title>
 			<Card.Description>
 				Copy this code and paste it into the terminal where you ran
 				<code class="font-mono text-xs">epicenter auth login</code>.

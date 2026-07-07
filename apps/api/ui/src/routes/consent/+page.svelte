@@ -75,7 +75,9 @@
 
 <AuthCard>
 	<Card.Header class="justify-items-center text-center">
-		<Card.Title><h1 class="text-xl">Authorize application</h1></Card.Title>
+		<Card.Title>
+			<h1 class="text-xl font-semibold tracking-tight">Authorize application</h1>
+		</Card.Title>
 		<Card.Description>
 			<span class="font-medium text-foreground">
 				{clientId ?? 'An application'}
