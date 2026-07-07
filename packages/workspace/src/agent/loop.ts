@@ -263,7 +263,10 @@ export function createConversation(
 		return failure ? Err(failure) : Ok(calls);
 	}
 
-	/** Run a step's tool calls, gated by approval, appending each result. */
+	/**
+	 * Run a step's tool calls in model order. Approval can pause for a human, so
+	 * keep execution sequential unless a real workload earns concurrent prompts.
+	 */
 	async function runTools(
 		assistant: AgentMessage,
 		calls: AgentToolCall[],

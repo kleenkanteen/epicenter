@@ -109,7 +109,7 @@ Do not use hype words: `AI-native`, `agentic`, `next-gen`, `revolutionary`, `red
 
 - An **open-source, local-first workspace**: purpose-built apps plus Markdown folders you own
 - A **TypeScript library** (`@epicenter/workspace`) for building CRDT-backed apps with typed schemas, materializers, and actions
-- A **CLI** (`epicenter`) for listing and invoking validated app actions, locally or on a currently online peer
+- A **CLI** (`epicenter`) for running a headless watcher that syncs and materializes one workspace root
 - A **sync server** (AGPL, self-hostable) that relays CRDT updates between your devices
 
 ## What Epicenter Is Not

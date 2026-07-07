@@ -318,6 +318,62 @@ describe('createConversation', () => {
 		expect(agentMessageText(messages[2]!)).toBe('It is noon.');
 	});
 
+	test('runs multiple tool calls sequentially in model order', async () => {
+		const store = makeStore();
+		let stepCount = 0;
+		const engine: AgentEngine = () => {
+			stepCount += 1;
+			if (stepCount === 1) {
+				return streamOf([
+					{
+						type: 'tool-call',
+						toolCallId: 't1',
+						toolName: 'first',
+						input: {},
+					},
+					{
+						type: 'tool-call',
+						toolCallId: 't2',
+						toolName: 'second',
+						input: {},
+					},
+				]);
+			}
+			return streamOf([{ type: 'text-delta', delta: 'Done.' }]);
+		};
+		const order: string[] = [];
+		const tools: ToolCatalog = {
+			definitions: () => [
+				{ name: 'first', kind: 'query' },
+				{ name: 'second', kind: 'query' },
+			],
+			resolve: async (call) => {
+				order.push(`start:${call.toolName}`);
+				if (call.toolName === 'first') {
+					await new Promise((resolve) => setTimeout(resolve, 0));
+				}
+				order.push(`end:${call.toolName}`);
+				return { content: call.toolName, isError: false };
+			},
+		};
+
+		const handle = createConversation({
+			store,
+			engine,
+			tools,
+			generateId: idMinter(),
+		});
+		handle.send('run both');
+		await settle(handle);
+
+		expect(order).toEqual([
+			'start:first',
+			'end:first',
+			'start:second',
+			'end:second',
+		]);
+	});
+
 	test('a runaway tool loop is bounded by the max-step guard', async () => {
 		const store = makeStore();
 		let calls = 0;
