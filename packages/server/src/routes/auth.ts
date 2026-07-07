@@ -26,6 +26,7 @@ import { OAUTH_ROUTES } from '@epicenter/constants/oauth-routes';
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { describeRoute } from 'hono-openapi';
+import type { CloudAuthBindings } from '../auth/create-auth.js';
 import {
 	createOAuthIssuerURL,
 	OAUTH_AUTHORIZATION_SERVER_METADATA_PATH,
@@ -33,7 +34,6 @@ import {
 	OAUTH_OPENID_CONFIGURATION_PATH,
 	OAUTH_PROTECTED_RESOURCE_METADATA_PATH,
 } from '../auth/oauth-metadata.js';
-import type { CloudAuthBindings } from '../auth/create-auth.js';
 import type { CloudEnv } from '../types.js';
 
 export type SignInContext = {
@@ -53,8 +53,7 @@ function getSignInProviders(
 			authSecrets.GITHUB_CLIENT_ID && authSecrets.GITHUB_CLIENT_SECRET,
 		),
 		microsoft: Boolean(
-			authSecrets.MICROSOFT_CLIENT_ID &&
-				authSecrets.MICROSOFT_CLIENT_SECRET,
+			authSecrets.MICROSOFT_CLIENT_ID && authSecrets.MICROSOFT_CLIENT_SECRET,
 		),
 		apple: Boolean(
 			authSecrets.APPLE_CLIENT_ID &&
@@ -120,7 +119,9 @@ export const authApp = new Hono<CloudEnv>()
 		});
 		if (!session) {
 			const consentUrl = `/consent${new URL(c.req.url).search}`;
-			return c.redirect(`/sign-in?callbackURL=${encodeURIComponent(consentUrl)}`);
+			return c.redirect(
+				`/sign-in?callbackURL=${encodeURIComponent(consentUrl)}`,
+			);
 		}
 		return c.var.authUiShell(c);
 	})

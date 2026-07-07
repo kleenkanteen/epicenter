@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { Hono } from 'hono';
 import type { CloudAuthBindings } from '../auth/create-auth.js';
-import { authApp } from './auth.js';
 import type { CloudEnv } from '../types.js';
+import { authApp } from './auth.js';
 
 type TestSession = {
 	user: {
@@ -31,16 +31,13 @@ function createAuthRouteApp({
 	app.use('*', async (c, next) => {
 		c.set('authSecrets', authSecrets);
 		c.set('authUiShell', shell);
-		c.set(
-			'auth',
-			{
-				api: {
-					getSession: async () => session,
-				},
-				handler: async () =>
-					new Response('better auth catch-all', { status: 418 }),
-			} as never,
-		);
+		c.set('auth', {
+			api: {
+				getSession: async () => session,
+			},
+			handler: async () =>
+				new Response('better auth catch-all', { status: 418 }),
+		} as never);
 		await next();
 	});
 	app.route('/', authApp);
