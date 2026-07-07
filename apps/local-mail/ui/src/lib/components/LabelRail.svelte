@@ -44,7 +44,7 @@
 	<Item.Button
 		size="sm"
 		class={cn(
-			'w-full justify-start gap-2 rounded px-2 py-1.5 text-sm',
+			'w-full justify-start text-left',
 			selectedLabel === id
 				? 'bg-accent font-medium text-accent-foreground'
 				: 'text-foreground/80 hover:bg-accent/50',
