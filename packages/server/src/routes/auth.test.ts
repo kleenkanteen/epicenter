@@ -131,10 +131,10 @@ test('GET /consent with a session serves the auth UI shell', async () => {
 	expect(await response.text()).toContain('Svelte auth shell');
 });
 
-test('GET /auth/cli-callback serves a no-store auth UI shell before /auth/*', async () => {
+test('GET /cli-callback serves a no-store auth UI shell', async () => {
 	const app = createAuthRouteApp();
 
-	const response = await app.request('/auth/cli-callback?code=abc');
+	const response = await app.request('/cli-callback?code=abc');
 
 	expect(response.status).toBe(200);
 	expect(response.headers.get('Cache-Control')).toBe('no-store, no-transform');

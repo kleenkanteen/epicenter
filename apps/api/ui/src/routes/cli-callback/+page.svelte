@@ -2,7 +2,7 @@
 	OAuth callback surface for the CLI's OOB authorization code flow.
 
 	The CLI launcher prints an /auth/oauth2/authorize URL; after the user signs
-	in, Better Auth redirects to /auth/cli-callback?code=...&state=.... This
+	in, Better Auth redirects to /cli-callback?code=...&state=.... This
 	page renders the code in a monospace block with a copy button so the user
 	can paste it into the terminal where `epicenter auth login` waits on stdin.
 

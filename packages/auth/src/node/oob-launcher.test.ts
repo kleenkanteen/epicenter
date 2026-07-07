@@ -121,7 +121,7 @@ test('happy path returns a 3-field OAuthTokenGrant', async () => {
 	expect(body.get('code_verifier')).toBeTruthy();
 	expect(body.get('client_id')).toBe('epicenter-cli');
 	expect(body.get('redirect_uri')).toBe(
-		'http://localhost:8787/auth/cli-callback',
+		'http://localhost:8787/cli-callback',
 	);
 	expect(body.get('resource')).toBe('http://localhost:8787');
 	expect(printed[0]).toContain('/auth/oauth2/authorize');
