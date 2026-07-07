@@ -224,7 +224,7 @@
 	{:else}
 		<Card.Header class="justify-items-center text-center">
 			<Card.Title>
-				<h1 class="text-2xl font-semibold tracking-tight">epicenter</h1>
+				<h1 class="text-xl font-semibold tracking-tight">epicenter</h1>
 			</Card.Title>
 			<Card.Description>Sign in to your account</Card.Description>
 		</Card.Header>
@@ -247,16 +247,12 @@
 				{#if passkeyAvailable}
 					<Button
 						variant="outline"
-						class="relative h-11 w-full"
+						size="lg"
+						class="w-full gap-2"
 						disabled={busy}
 						onclick={startPasskey}
 					>
-						<span
-							class="absolute left-4 flex size-4 items-center justify-center"
-							aria-hidden="true"
-						>
-							<FingerprintIcon class="size-4" />
-						</span>
+						<FingerprintIcon class="size-4" />
 						Continue with passkey
 					</Button>
 				{/if}
