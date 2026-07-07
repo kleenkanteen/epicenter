@@ -112,15 +112,16 @@
 		errorMessage = null;
 		busy = true;
 		const result = await authenticateWithPasskey();
-		if (result.ok) {
+		if (!result.error) {
 			// Reload with the query string intact; the server's GET /sign-in sees
 			// the new session cookie and continues the `?sig=` authorize re-entry
 			// (or the safe callbackURL redirect) with no extra client logic.
 			window.location.reload();
 			return;
 		}
-		// `error: null` is a dismissed browser prompt; reset quietly.
-		errorMessage = result.error;
+		// A dismissed browser prompt is expected; reset quietly.
+		errorMessage =
+			result.error.name === 'PromptCancelled' ? null : result.error.message;
 		busy = false;
 	}
 
@@ -129,10 +130,11 @@
 		passkeyAdded = false;
 		addingPasskey = true;
 		const result = await registerPasskey();
-		if (result.ok) {
+		if (!result.error) {
 			passkeyAdded = true;
 		} else {
-			errorMessage = result.error;
+			errorMessage =
+				result.error.name === 'PromptCancelled' ? null : result.error.message;
 		}
 		addingPasskey = false;
 	}

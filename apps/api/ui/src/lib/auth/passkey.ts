@@ -5,9 +5,10 @@
  * `@simplewebauthn/browser` runs the browser ceremony and plain fetch carries
  * it, matching how the rest of this SPA talks to Better Auth.
  *
- * Both ceremonies resolve instead of throwing. A failed result with
- * `error: null` means the user dismissed the browser prompt; callers reset
- * quietly instead of showing an error.
+ * Both ceremonies resolve instead of throwing. The `PromptCancelled` error
+ * means the user dismissed the browser prompt; callers reset quietly instead
+ * of showing an error. Every other error carries its user-facing copy in
+ * `message`.
  *
  * Registration needs a FRESH session (Better Auth `freshSessionMiddleware`,
  * `freshAge` default 24h) while sessions live 7 days, so a user can be
@@ -16,17 +17,32 @@
  */
 
 import {
-	type AuthenticationResponseJSON,
 	type PublicKeyCredentialCreationOptionsJSON,
 	type PublicKeyCredentialRequestOptionsJSON,
-	type RegistrationResponseJSON,
 	startAuthentication,
 	startRegistration,
 } from '@simplewebauthn/browser';
+import { defineErrors, type InferErrors } from 'wellcrafted/error';
+import { Err, Ok, type Result, tryAsync } from 'wellcrafted/result';
 
-export type PasskeyCeremonyResult =
-	| { ok: true }
-	| { ok: false; error: string | null };
+export const PasskeyCeremonyError = defineErrors({
+	/** The user dismissed or timed out the browser prompt; reset quietly. */
+	PromptCancelled: () => ({
+		message: 'Passkey prompt was cancelled.',
+	}),
+	/** Registration was refused for a missing or stale session. */
+	SessionNotFresh: () => ({
+		message: 'Sign in again to add a passkey.',
+	}),
+	/** Any other failed ceremony step; `message` is the step's user copy. */
+	StepFailed: ({ message, cause }: { message: string; cause?: unknown }) => ({
+		message,
+		cause,
+	}),
+});
+export type PasskeyCeremonyError = InferErrors<typeof PasskeyCeremonyError>;
+
+type PasskeyCeremonyResult = Result<void, PasskeyCeremonyError>;
 
 export function supportsPasskeys(): boolean {
 	return typeof PublicKeyCredential !== 'undefined';
@@ -37,87 +53,122 @@ function isCancelled(cause: unknown): boolean {
 	return cause instanceof Error && cause.name === 'NotAllowedError';
 }
 
+async function fetchOptions<TOptions>({
+	endpoint,
+	failureMessage,
+	requireFreshSession = false,
+}: {
+	endpoint: string;
+	failureMessage: string;
+	requireFreshSession?: boolean;
+}): Promise<Result<TOptions, PasskeyCeremonyError>> {
+	const { data: response, error: fetchError } = await tryAsync({
+		try: () =>
+			fetch(endpoint, {
+				credentials: 'include',
+				headers: { Accept: 'application/json' },
+			}),
+		catch: (cause) =>
+			PasskeyCeremonyError.StepFailed({ message: failureMessage, cause }),
+	});
+	if (fetchError) return Err(fetchError);
+
+	if (
+		requireFreshSession &&
+		(response.status === 401 || response.status === 403)
+	) {
+		return PasskeyCeremonyError.SessionNotFresh();
+	}
+	if (!response.ok) {
+		return PasskeyCeremonyError.StepFailed({ message: failureMessage });
+	}
+
+	return tryAsync({
+		try: () => response.json() as Promise<TOptions>,
+		catch: (cause) =>
+			PasskeyCeremonyError.StepFailed({ message: failureMessage, cause }),
+	});
+}
+
+async function runPrompt<TCredential>(
+	failureMessage: string,
+	run: () => Promise<TCredential>,
+): Promise<Result<TCredential, PasskeyCeremonyError>> {
+	return tryAsync({
+		try: run,
+		catch: (cause) =>
+			isCancelled(cause)
+				? PasskeyCeremonyError.PromptCancelled()
+				: PasskeyCeremonyError.StepFailed({ message: failureMessage, cause }),
+	});
+}
+
+async function verifyCredential({
+	endpoint,
+	credential,
+	failureMessage,
+}: {
+	endpoint: string;
+	credential: unknown;
+	failureMessage: string;
+}): Promise<PasskeyCeremonyResult> {
+	const { data: response, error: fetchError } = await tryAsync({
+		try: () =>
+			fetch(endpoint, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({ response: credential }),
+			}),
+		catch: (cause) =>
+			PasskeyCeremonyError.StepFailed({ message: failureMessage, cause }),
+	});
+	if (fetchError) return Err(fetchError);
+	if (!response.ok) {
+		return PasskeyCeremonyError.StepFailed({ message: failureMessage });
+	}
+	return Ok(undefined);
+}
+
 export async function authenticateWithPasskey(): Promise<PasskeyCeremonyResult> {
-	let options: PublicKeyCredentialRequestOptionsJSON;
-	try {
-		const response = await fetch(
-			'/auth/passkey/generate-authenticate-options',
-			{ credentials: 'include', headers: { Accept: 'application/json' } },
-		);
-		if (!response.ok) {
-			return { ok: false, error: 'Could not start passkey sign-in.' };
-		}
-		options = await response.json();
-	} catch {
-		return { ok: false, error: 'Network error starting passkey sign-in.' };
-	}
-
-	let credential: AuthenticationResponseJSON;
-	try {
-		credential = await startAuthentication({ optionsJSON: options });
-	} catch (cause) {
-		return {
-			ok: false,
-			error: isCancelled(cause) ? null : 'Passkey sign-in failed.',
-		};
-	}
-
-	try {
-		const response = await fetch('/auth/passkey/verify-authentication', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			credentials: 'include',
-			body: JSON.stringify({ response: credential }),
+	const { data: options, error: optionsError } =
+		await fetchOptions<PublicKeyCredentialRequestOptionsJSON>({
+			endpoint: '/auth/passkey/generate-authenticate-options',
+			failureMessage: 'Could not start passkey sign-in.',
 		});
-		if (!response.ok) {
-			return { ok: false, error: 'Passkey could not be verified.' };
-		}
-	} catch {
-		return { ok: false, error: 'Network error verifying passkey.' };
-	}
-	return { ok: true };
+	if (optionsError) return Err(optionsError);
+
+	const { data: credential, error: promptError } = await runPrompt(
+		'Passkey sign-in failed.',
+		() => startAuthentication({ optionsJSON: options }),
+	);
+	if (promptError) return Err(promptError);
+
+	return verifyCredential({
+		endpoint: '/auth/passkey/verify-authentication',
+		credential,
+		failureMessage: 'Passkey could not be verified.',
+	});
 }
 
 export async function registerPasskey(): Promise<PasskeyCeremonyResult> {
-	let options: PublicKeyCredentialCreationOptionsJSON;
-	try {
-		const response = await fetch('/auth/passkey/generate-register-options', {
-			credentials: 'include',
-			headers: { Accept: 'application/json' },
+	const { data: options, error: optionsError } =
+		await fetchOptions<PublicKeyCredentialCreationOptionsJSON>({
+			endpoint: '/auth/passkey/generate-register-options',
+			failureMessage: 'Could not start passkey setup.',
+			requireFreshSession: true,
 		});
-		if (response.status === 401 || response.status === 403) {
-			return { ok: false, error: 'Sign in again to add a passkey.' };
-		}
-		if (!response.ok) {
-			return { ok: false, error: 'Could not start passkey setup.' };
-		}
-		options = await response.json();
-	} catch {
-		return { ok: false, error: 'Network error starting passkey setup.' };
-	}
+	if (optionsError) return Err(optionsError);
 
-	let credential: RegistrationResponseJSON;
-	try {
-		credential = await startRegistration({ optionsJSON: options });
-	} catch (cause) {
-		return {
-			ok: false,
-			error: isCancelled(cause) ? null : 'Passkey setup failed.',
-		};
-	}
+	const { data: credential, error: promptError } = await runPrompt(
+		'Passkey setup failed.',
+		() => startRegistration({ optionsJSON: options }),
+	);
+	if (promptError) return Err(promptError);
 
-	try {
-		const response = await fetch('/auth/passkey/verify-registration', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			credentials: 'include',
-			body: JSON.stringify({ response: credential }),
-		});
-		if (!response.ok) {
-			return { ok: false, error: 'Passkey could not be saved.' };
-		}
-	} catch {
-		return { ok: false, error: 'Network error saving passkey.' };
-	}
-	return { ok: true };
+	return verifyCredential({
+		endpoint: '/auth/passkey/verify-registration',
+		credential,
+		failureMessage: 'Passkey could not be saved.',
+	});
 }
