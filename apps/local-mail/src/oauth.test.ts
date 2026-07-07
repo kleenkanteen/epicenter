@@ -27,16 +27,21 @@ import type { TokenSet } from './tokens.ts';
 process.env.GMAIL_CLIENT_ID = 'client-id-123';
 process.env.GMAIL_CLIENT_SECRET = 'client-secret-456';
 
+let configId = 0;
+
 function config(overrides: Partial<AppConfig>): AppConfig {
+	const dataDir =
+		overrides.dataDir ?? `/tmp/local-mail-oauth-test-${process.pid}-${configId}`;
+	configId += 1;
 	return {
-		dataDir: '/tmp/local-mail-oauth-test',
+		dataDir,
 		apiBase: 'http://127.0.0.1:0',
 		authorizeUrl: 'http://127.0.0.1:0/auth',
 		tokenUrl: 'http://127.0.0.1:0/token',
 		historySafeWindowDays: 5,
 		fullBackstopDays: 30,
 		pageSize: 100,
-		credentialsPath: '/tmp/local-mail-oauth-test/credentials.json',
+		credentialsPath: `${dataDir}/credentials.json`,
 		account: null,
 		readOnly: false,
 		...overrides,

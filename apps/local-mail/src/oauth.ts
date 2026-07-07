@@ -7,7 +7,11 @@ import {
 import { Ok, type Result } from 'wellcrafted/result';
 import type { AppConfig } from './config.ts';
 import { createGmailClient } from './gmail-client.ts';
-import { resolveGmailCredentials } from './gmail-credentials.ts';
+import {
+	gmailCredentialSource,
+	persistGmailProviderCredentials,
+	resolveGmailCredentials,
+} from './gmail-credentials.ts';
 import {
 	type TokenGrantError,
 	type TokenSet,
@@ -115,12 +119,12 @@ function httpOptions(config: AppConfig) {
  * Resolve the BYO Gmail OAuth client lazily at the connect/refresh site rather
  * than eagerly in `loadConfig`, so credential-free verbs never read secrets.
  */
-function loadGmailCredentials(): Result<
+function loadGmailCredentials(config: AppConfig): Result<
 	{ clientId: string; clientSecret: string },
 	OAuthError
 > {
 	try {
-		return Ok(resolveGmailCredentials());
+		return Ok(resolveGmailCredentials(gmailCredentialSource(config.dataDir)));
 	} catch (cause) {
 		return OAuthError.MissingCredentials({
 			reason: extractErrorMessage(cause),
@@ -198,7 +202,8 @@ export async function runAuthorizationFlow(
 ): GrantResult {
 	// Resolve the BYO OAuth keyset lazily; this is the connect path's only
 	// credentials read. Destructured so the narrowing survives the awaits.
-	const { data: credentials, error: credentialsError } = loadGmailCredentials();
+	const { data: credentials, error: credentialsError } =
+		loadGmailCredentials(config);
 	if (credentialsError) return { data: null, error: credentialsError };
 	const { clientId, clientSecret } = credentials;
 
@@ -265,11 +270,14 @@ export async function runAuthorizationFlow(
 			grant,
 		);
 		if (error) return { data: null, error };
-		return tokenSetFromGrant(grant, {
+		const { data: token, error: tokenError } = tokenSetFromGrant(grant, {
 			accountEmail,
 			clientIdUsed: clientId,
 			now: options.now(),
 		});
+		if (tokenError) return { data: null, error: tokenError };
+		persistGmailProviderCredentials(config.dataDir, credentials);
+		return Ok(token);
 	} catch (cause) {
 		if (cause instanceof oauth.AuthorizationResponseError) {
 			return OAuthError.AuthorizationDenied({
@@ -323,7 +331,8 @@ export async function refreshAccessToken(
 	token: TokenSet,
 	now: () => number,
 ): GrantResult {
-	const { data: credentials, error: credentialsError } = loadGmailCredentials();
+	const { data: credentials, error: credentialsError } =
+		loadGmailCredentials(config);
 	if (credentialsError) return { data: null, error: credentialsError };
 	// A refresh token is bound to the client that minted it; refreshing through a
 	// different client id (the environment's key was rotated) dies as a bare
@@ -342,6 +351,7 @@ export async function refreshAccessToken(
 		refreshToken: token.refreshToken,
 	});
 	if (error) return { data: null, error };
+	persistGmailProviderCredentials(config.dataDir, credentials);
 	// Rotation: Google may omit refresh_token when the old one stays valid.
 	return tokenSetFromGrant(grant, {
 		accountEmail: token.accountEmail,
@@ -364,7 +374,8 @@ export async function redeemRefreshToken(
 	refreshToken: string,
 	now: () => number,
 ): GrantResult {
-	const { data: credentials, error: credentialsError } = loadGmailCredentials();
+	const { data: credentials, error: credentialsError } =
+		loadGmailCredentials(config);
 	if (credentialsError) return { data: null, error: credentialsError };
 	const { data: grant, error } = await requestRefreshGrant({
 		config,
@@ -378,10 +389,13 @@ export async function redeemRefreshToken(
 		grant,
 	);
 	if (profileError) return { data: null, error: profileError };
-	return tokenSetFromGrant(grant, {
+	const { data: token, error: tokenError } = tokenSetFromGrant(grant, {
 		accountEmail,
 		clientIdUsed: credentials.clientId,
 		now: now(),
 		fallbackRefreshToken: refreshToken,
 	});
+	if (tokenError) return { data: null, error: tokenError };
+	persistGmailProviderCredentials(config.dataDir, credentials);
+	return Ok(token);
 }
