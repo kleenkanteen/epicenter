@@ -406,9 +406,9 @@ describe('attachSqliteMaterializerCore', () => {
 			try {
 				await testSetup.workspace.sqlite.whenFlushed;
 
-				expect(() =>
-					testSetup.workspace.sqlite.rebuild('nonexistent'),
-				).toThrow('not in the materialized table set');
+				expect(() => testSetup.workspace.sqlite.rebuild('nonexistent')).toThrow(
+					'not in the materialized table set',
+				);
 			} finally {
 				await disposeAndYieldForClose(testSetup);
 			}
@@ -686,5 +686,4 @@ describe('attachSqliteMaterializerCore', () => {
 			});
 		}
 	});
-
 });
