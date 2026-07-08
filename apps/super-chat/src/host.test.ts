@@ -722,7 +722,9 @@ describe('parseSuperChatCommand', () => {
 	});
 
 	test('rejects invoke frames with a missing, empty, or non-string tool name', () => {
-		expect(parseSuperChatCommand({ type: 'invoke', input: {} })).toBeUndefined();
+		expect(
+			parseSuperChatCommand({ type: 'invoke', input: {} }),
+		).toBeUndefined();
 		expect(
 			parseSuperChatCommand({ type: 'invoke', toolName: '', input: {} }),
 		).toBeUndefined();

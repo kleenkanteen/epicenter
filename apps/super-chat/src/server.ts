@@ -15,9 +15,9 @@
  */
 
 import { createHash, timingSafeEqual } from 'node:crypto';
+import type { AgentToolDefinition } from '@epicenter/workspace/agent';
 import { Hono } from 'hono';
 import { createBunWebSocket } from 'hono/bun';
-import type { AgentToolDefinition } from '@epicenter/workspace/agent';
 import {
 	parseSuperChatCommand,
 	type SuperChatHost,
