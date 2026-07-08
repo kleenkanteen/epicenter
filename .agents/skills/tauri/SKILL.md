@@ -17,17 +17,6 @@ When Tauri command behavior, permissions, capabilities, CSP, asset protocols, pa
 
 Skip DeepWiki for repo-local command naming and app-specific wrapper conventions already visible in the code.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Add or change Tauri commands, permissions, capabilities, or security config.
-- Build file paths in Tauri frontend code running in the webview.
-- Choose correctly between `@tauri-apps/api/path` and Node/Bun `path` APIs.
-- Replace manual slash concatenation with `join()`, `dirname()`, and related helpers.
-- Handle cross-platform filesystem behavior for desktop apps.
-- Combine Tauri path APIs with `@tauri-apps/plugin-fs` operations.
-
 ## Commands, Permissions, And Security
 
 - Expose focused Rust APIs with `#[tauri::command]`, register them with `generate_handler!`, and return `Result<T, E>` for fallible work.

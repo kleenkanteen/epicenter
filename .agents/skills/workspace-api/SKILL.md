@@ -8,9 +8,7 @@ metadata:
 
 # Workspace API
 
-Use this skill for Epicenter workspace definitions, table and KV access,
-isomorphic action registries, row child docs, runtime connection, daemon mount
-composition, and the lower-level Y.Doc primitives behind them.
+Epicenter workspace definitions, table and KV access, isomorphic action registries, row child docs, runtime connection, daemon mount composition, and lower-level Y.Doc primitives share one model.
 
 Notebook model:
 
@@ -39,22 +37,6 @@ Skip DeepWiki for Epicenter schema, action, migration, and attachment convention
 - `svelte`: reactive wrappers such as `fromTable` and `fromKv`, plus commit-on-blur workspace inputs
 - `attach-primitive`: the full contract and invariants every `attach*` function must follow
 - `typebox`: TypeBox primitives used by `field.*`, `defineKv`, and action input schemas
-
-## When To Apply This Skill
-
-Use this skill when you are:
-
-- Defining a table or KV store with `defineTable()` or `defineKv()`.
-- Adding a version or migration to an existing table definition.
-- Reading, writing, or observing table or KV data.
-- Creating actions with `defineMutation` or `defineQuery`.
-- Declaring row child docs with `table.docs(...)`.
-- Exporting an app's shared `defineWorkspace({ id, name, tables, kv, actions })`.
-- Opening a browser/local runtime with `workspaceDefinition.connect(...)`.
-- Adding daemon materializers or actions through `workspaceDefinition.mount(...)`.
-- Using lower-level `createWorkspace`, `createDisposableCache`, `attach*`, or
-  `openCollaboration` primitives in package internals, tests, older ports, or
-  specialized runtime code.
 
 ## Core Rules
 

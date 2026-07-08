@@ -5,10 +5,9 @@ description: "Greenfield clean-break review and execution for reopening settled 
 
 # Greenfield Clean Breaks
 
-Use this skill as an operating mode, not a cleanup checklist. The current
-software is evidence, not a constraint. Previously resolved decisions can be
-reopened when they make the final system harder to explain, own, test, or
-delete.
+This is an operating mode, not a cleanup checklist. The current software is
+evidence, not a constraint. Previously resolved decisions can be reopened when
+they make the final system harder to explain, own, test, or delete.
 
 Two pillars:
 

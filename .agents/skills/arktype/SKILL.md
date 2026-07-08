@@ -10,13 +10,6 @@ metadata:
 
 Patterns for composing arktype schemas, naming runtime schema values alongside inferred types, and building discriminated unions with `.merge()` and `.or()`.
 
-## When to Apply This Skill
-
-- Defining a discriminated union schema (e.g., commands, events, actions)
-- Composing a base type with per-variant fields
-- Working with `defineTable()` schemas that use union types
-- Importing or exporting schema values that share a name with inferred types
-
 ## `base.merge(type.or(...))` Pattern (Recommended)
 
 Use when you have shared base fields and per-variant payloads discriminated on a literal key. `.merge()` distributes over unions: it merges the base into each branch of the union automatically.

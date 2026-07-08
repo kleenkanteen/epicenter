@@ -10,21 +10,9 @@ metadata:
 
 > **Related Skills**: See [standalone-commits](../standalone-commits/SKILL.md) for making each commit reviewable and auditable and for ordering multi-file changes into dependency-ordered waves. See [pull-request](../pull-request/SKILL.md) for PR titles, descriptions, changelog entries, issue references, and merge guidance.
 
-## Use This For
+## PR Boundary
 
-Use this skill to inspect diffs, split commits, stage specific files, write commit messages, and manage branches.
-
-If the task asks for a PR title, PR body, changelog entry, issue link, username verification, CODEOWNERS note, or merge strategy, use [pull-request](../pull-request/SKILL.md).
-
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Write commit messages that follow conventional commit rules.
-- Check whether a staged commit is reviewable as a standalone unit.
-- Decide commit type/scope formatting and breaking-change notation.
-- Create or switch branches.
-- Review commit text for anti-patterns like AI/tool attribution.
+PR titles, PR bodies, changelog entries, issue links, username verification, CODEOWNERS notes, and merge strategy belong to [pull-request](../pull-request/SKILL.md).
 
 ## References
 

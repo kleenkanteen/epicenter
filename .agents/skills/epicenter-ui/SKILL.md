@@ -14,7 +14,7 @@ Related skills:
 
 - Use `svelte` for branch mechanics: `{#if}`, `{#await}`, derived state, query state, and component lifecycle.
 - Use `styling` for Tailwind details, wrapper element decisions, scroll traps, and disabled-state styling.
-- Use this skill for local component choice and composition.
+- Local component choice and composition stay here.
 
 Read `packages/ui/README.md` when changing `packages/ui` internals, public exports, style hooks, overlay CSS, or shadcn-svelte vendored code. It is the source of truth for the package import boundary, `style-vega` activation, `cn-*` style hooks, Epicenter overlay deltas, and the component update workflow.
 

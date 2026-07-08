@@ -5,8 +5,6 @@ description: Turn one real idea, vault page, article, photo, screenshot, code di
 
 # Content Distribution
 
-Use this skill when the user wants to make one piece of thinking travel farther across platforms without becoming a full-time creator.
-
 Follow [writing-voice](../writing-voice/SKILL.md) for tone. Use [social-media](../social-media/SKILL.md) when drafting final LinkedIn, X, or Reddit post copy.
 
 ## Core Philosophy
