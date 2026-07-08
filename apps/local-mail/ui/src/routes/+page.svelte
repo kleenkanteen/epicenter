@@ -16,6 +16,12 @@
 	import MessageList from '$lib/components/MessageList.svelte';
 	import StatusBar from '$lib/components/StatusBar.svelte';
 	import { api } from '$lib/api';
+	import {
+		deltaForTrashed,
+		MESSAGE_WRITE_MUTATION_KEY,
+		projectMessageList,
+		type PendingMessageWrite,
+	} from '$lib/optimistic';
 
 	// Default to the inbox: this is a triage surface, and the inbox is the queue.
 	let selectedLabel = $state<string | null>('INBOX');
@@ -90,18 +96,26 @@
 		if (outcome.results.some((r) => !r.folded)) flashCatchingUp();
 	}
 
-	function invalidateAfterWrite(id: string): void {
-		queryClient.invalidateQueries({ queryKey: ['messages'] });
-		queryClient.invalidateQueries({ queryKey: ['status'] });
-		queryClient.invalidateQueries({ queryKey: ['message', id] });
+	// Reconcile confirmed state before TanStack marks the mutation settled. The
+	// awaited invalidation keeps the pending delta projected until active reads
+	// have refetched, so a row cannot flash back from the stale pre-write cache.
+	async function reconcileAfterWrite(id: string): Promise<void> {
+		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: ['messages'] }),
+			queryClient.invalidateQueries({ queryKey: ['status'] }),
+			queryClient.invalidateQueries({ queryKey: ['message', id] }),
+		]);
 	}
 
 	// The label write path. Both the toolbar (via `onDispatch`) and the keyboard
 	// call this; the read-only gate and the undo toast live here alone. `id` is
 	// explicit so Undo targets the original message even after the selection has
 	// moved on.
-	type ModifyVars = { id: string; action: TriageAction; undoable: boolean };
+	// Variables extend `PendingMessageWrite` so the projection can read `id` and
+	// `delta` off any pending message write without knowing which mutation it was.
+	type ModifyVars = PendingMessageWrite & { action: TriageAction; undoable: boolean };
 	const modify = createMutation(() => ({
+		mutationKey: MESSAGE_WRITE_MUTATION_KEY,
 		mutationFn: (v: ModifyVars) =>
 			api.modify({
 				ids: [v.id],
@@ -116,35 +130,46 @@
 					? () => runOn(v.id, invert(v.action), false)
 					: null,
 			);
-			invalidateAfterWrite(v.id);
 		},
 		onError: (error: Error) => toast.error(error.message),
+		onSettled: (_data, _error, v) => reconcileAfterWrite(v.id),
 	}));
 
 	// Trash is its own Gmail endpoint, not a label delta, so it is a separate
 	// write; `trashed` carries the direction, matching the core. Undo restores
 	// (untrash) by firing the same mutation the other way, and fires silently.
+	type TrashVars = PendingMessageWrite & { trashed: boolean };
 	const setTrashed = createMutation(() => ({
-		mutationFn: (v: { id: string; trashed: boolean }) =>
+		mutationKey: MESSAGE_WRITE_MUTATION_KEY,
+		mutationFn: (v: TrashVars) =>
 			api.setTrashed({ ids: [v.id], trashed: v.trashed }),
 		onSuccess: (outcome, v) => {
 			reportOutcome(
 				outcome,
 				v.trashed ? 'Moved to trash' : 'Restored from trash',
-				v.trashed ? () => setTrashed.mutate({ id: v.id, trashed: false }) : null,
+				v.trashed ? () => restoreFromTrash(v.id) : null,
 			);
-			invalidateAfterWrite(v.id);
 		},
 		onError: (error: Error) => toast.error(error.message),
+		onSettled: (_data, _error, v) => reconcileAfterWrite(v.id),
 	}));
+
+	function restoreFromTrash(id: string): void {
+		setTrashed.mutate({ id, trashed: false, delta: deltaForTrashed(false) });
+	}
 
 	function runOn(id: string, action: TriageAction, undoable: boolean): void {
 		if (readOnly) return;
-		modify.mutate({ id, action, undoable });
+		modify.mutate({
+			id,
+			action,
+			undoable,
+			delta: { add: action.addLabels, remove: action.removeLabels },
+		});
 	}
 	function trashSelected(): void {
 		if (readOnly || !selectedId) return;
-		setTrashed.mutate({ id: selectedId, trashed: true });
+		setTrashed.mutate({ id: selectedId, trashed: true, delta: deltaForTrashed(true) });
 	}
 	/** Dispatch a planned action against the current selection. */
 	function dispatch(action: TriageAction): void {
@@ -152,8 +177,38 @@
 		runOn(selectedId, action, true);
 	}
 
+	// The mutation key guarantees every match is a `modify`/`setTrashed` write,
+	// whose variables extend `PendingMessageWrite`, so this cast is the honest
+	// boundary: `state.variables` is `unknown` only because the cache is shared.
+	function readPendingWrites(): PendingMessageWrite[] {
+		return queryClient
+			.getMutationCache()
+			.findAll({ mutationKey: MESSAGE_WRITE_MUTATION_KEY, status: 'pending' })
+			.map((mutation) => mutation.state.variables as PendingMessageWrite);
+	}
+	// Subscribed by hand rather than via `useMutationState`: that helper mutates
+	// its result array with `Object.assign`, which never shrinks it, so a settled
+	// write would keep masking its row. `$state.raw` replaces the array wholesale.
+	let pendingWrites = $state.raw<PendingMessageWrite[]>(readPendingWrites());
+	$effect(() =>
+		queryClient.getMutationCache().subscribe(() => {
+			pendingWrites = readPendingWrites();
+		}),
+	);
+
 	const labelList = $derived(labels.data?.labels ?? []);
-	const messageList = $derived(messages.data?.messages ?? []);
+	const messageList = $derived(
+		projectMessageList(
+			messages.data?.messages ?? [],
+			pendingWrites,
+			selectedLabel ?? undefined,
+		),
+	);
+	const selectedPendingDeltas = $derived(
+		pendingWrites
+			.filter((write) => write.id === selectedId)
+			.map((write) => write.delta),
+	);
 	const readOnly = $derived(status.data?.readOnly ?? false);
 	// True when the mirror holds no messages at all (nothing synced yet), as
 	// opposed to this label/search view simply matching none. Drives which empty
@@ -305,6 +360,7 @@
 				id={selectedId}
 				{readOnly}
 				labels={labelList}
+				pendingDeltas={selectedPendingDeltas}
 				busy={modify.isPending || setTrashed.isPending}
 				{labelsOpen}
 				onDispatch={dispatch}

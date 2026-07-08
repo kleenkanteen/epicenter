@@ -17,6 +17,7 @@
 	import { planLabel, planToggle, type TriageAction } from '$lib/actions';
 	import { api } from '$lib/api';
 	import { fullDate, labelDisplayName } from '$lib/format';
+	import { applyLabelDeltas, type LabelDelta } from '$lib/optimistic';
 	import type { MailLabel } from '$lib/types';
 	import MessageBody from './MessageBody.svelte';
 
@@ -24,6 +25,7 @@
 		id,
 		readOnly,
 		labels,
+		pendingDeltas,
 		busy,
 		labelsOpen,
 		onDispatch,
@@ -33,6 +35,8 @@
 		id: string | null;
 		readOnly: boolean;
 		labels: MailLabel[];
+		/** Pending page-owned label projections for this message. */
+		pendingDeltas: LabelDelta[];
 		/** True while a modify is in flight (the page owns the mutation). */
 		busy: boolean;
 		/** Page-owned open state for the Labels menu, so the `l` key can open it. */
@@ -53,7 +57,11 @@
 		enabled: id !== null,
 	}));
 
-	const detail = $derived(message.data);
+	const detail = $derived(
+		message.data
+			? { ...message.data, labelIds: applyLabelDeltas(message.data.labelIds, pendingDeltas) }
+			: undefined,
+	);
 	const inInbox = $derived(detail?.labelIds.includes('INBOX') ?? false);
 	const unread = $derived(detail?.labelIds.includes('UNREAD') ?? false);
 	const starred = $derived(detail?.labelIds.includes('STARRED') ?? false);
