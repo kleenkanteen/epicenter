@@ -1,23 +1,19 @@
 /**
- * Vocabulary for the AttachRelay (ADR-0115): Epicenter forwards sealed bytes
- * between two authenticated endpoints of one principal, a signed-in client and
- * a desktop Super Chat host. The relay is endpoint-addressed, never
+ * Vocabulary for the AttachRelay (ADR-0115): Epicenter forwards live Super Chat
+ * bytes between two authenticated endpoints of one principal, a signed-in client
+ * and a desktop Super Chat host. The relay is endpoint-addressed, never
  * route-addressed: it routes by the quadruple `principalId`, `hostId`,
  * `deviceId`, `attachId`, and by nothing else. There is no route name, no route
  * registry, no capability field. Those are the relay-floor organs deleted in
  * PR #2277, and endpoint addressing is what keeps them from having anywhere to
  * live (ADR-0115 clause 1).
  *
- * ## What the relay may know, and what it must not
+ * ## What the relay owns
  *
- * The relay reads the envelope only: which host endpoint, which client
- * endpoint, and the byte length and timing of a frame. It never parses the
- * `payload`: the Super Chat command types, prompt text, tool results, and
- * approval answers are opaque to it (ADR-0115 clause 2). Super Chat seals the
- * payload in its own adapters, above this transport (ADR-0115 clause 4); the
- * relay's blindness does not depend on that, because it never looks inside the
- * payload whether it carries sealed ciphertext or the self-host plaintext
- * opt-out.
+ * The relay owns the endpoint envelope and socket fan-out. It does not own Super
+ * Chat command semantics, host snapshots, tool names, or local-source reach. The
+ * payload is trusted transport data: hosted Cloud may observe it, but the relay
+ * still stores no frames and exposes no route or capability surface.
  *
  * @see `attach-relay/core.ts` for the coordinator that consumes these types.
  */
@@ -65,11 +61,10 @@ export type RelayToHostFrame =
 	| (ClientEndpoint & { payload: string });
 
 /**
- * A frame the host sends the relay: opaque bytes addressed to exactly one
- * client endpoint. There is no broadcast frame: the host addresses each client
- * endpoint on its own, which is what lets Super Chat seal per endpoint so the
- * relay only ever forwards per-endpoint ciphertext (ADR-0115 clause 5). Fan-out
- * to N clients is N of these, never one frame the relay expands.
+ * A frame the host sends the relay: bytes addressed to exactly one client
+ * endpoint. There is no broadcast frame: the host addresses each client endpoint
+ * on its own. Fan-out to N clients is N of these, never one frame the relay
+ * expands.
  */
 export type HostToRelayFrame = ClientEndpoint & { payload: string };
 

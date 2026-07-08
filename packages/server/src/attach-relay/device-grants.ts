@@ -49,7 +49,7 @@
  *   recorded at mint time so the operator can see and revoke "my old phone," but
  *   the relay's `deviceId`/`attachId` stay opaque addressing labels, never trusted
  *   identity. Binding a grant to one `deviceId` at connect is a refinement
- *   deferred until a directory or sealing needs a trusted device identity.
+ *   deferred until a directory needs trusted device identity.
  * - Grants are not scoped by role: any live grant can register as a host or attach
  *   as a client. On a single-principal instance every grant is the operator's own
  *   paired device, so role scoping would guard only within-owner behavior; it is

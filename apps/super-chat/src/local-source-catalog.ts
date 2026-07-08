@@ -7,11 +7,12 @@
  *
  * ## The source stays host-owned
  *
- * The source is never reachable over the relay (ADR-0080 decision 2): a remote
- * client sends only a host-owned session command, the host reads the local
- * source, and the tool result rides back inside the sealed session (ADR-0115).
- * There is no per-app endpoint, no route, and no MCP surface over the wire; the
- * source is one local verb behind the same seam as the in-process apps.
+ * The source is never reachable as a relay route or capability (ADR-0080
+ * decision 2): a remote client sends only a host-owned session command, the host
+ * reads the local source, and the tool result rides back inside the host-owned
+ * session (ADR-0115). There is no per-app endpoint, no route, and no MCP surface
+ * over the wire; the source is one local verb behind the same seam as the
+ * in-process apps.
  *
  * ## Read-only means a query that writes nothing
  *
