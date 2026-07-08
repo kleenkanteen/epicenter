@@ -27,27 +27,6 @@ export const authClient = createAuthClient({
 	plugins: [passkeyClient()],
 });
 
-/** A linked social account row (`authClient.listAccounts`). Better Auth stores
- *  no provider email on the account row, so a link is identified by provider
- *  and date; distinguishing two accounts of the SAME provider is out of scope
- *  for v1 (different-email linking is a cross-provider promise). */
-export type LinkedAccount = {
-	id: string;
-	providerId: string;
-	accountId: string;
-	createdAt: string;
-	scopes: string[];
-};
-
-/** A registered passkey (`authClient.passkey.listUserPasskeys`). */
-export type Passkey = {
-	id: string;
-	name: string | null;
-	createdAt: string;
-	deviceType: string;
-	backedUp: boolean;
-};
-
 /** The browser exposes WebAuthn. The Better Auth server always has the plugin;
  *  this capability is the per-client gate the sign-in and account pages check. */
 export function supportsPasskeys(): boolean {

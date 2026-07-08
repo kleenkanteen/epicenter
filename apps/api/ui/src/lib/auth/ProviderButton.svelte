@@ -6,10 +6,7 @@
 -->
 <script lang="ts">
 	import { Button } from '@epicenter/ui/button';
-	import {
-		PROVIDER_LABELS,
-		type SocialProvider,
-	} from './sign-in-context';
+	import { PROVIDER_LABELS, type SocialProvider } from './providers';
 
 	let {
 		provider,

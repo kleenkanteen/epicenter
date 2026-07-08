@@ -34,27 +34,31 @@
 		type AuthError,
 		authClient,
 		isPasskeyCancellation,
-		type LinkedAccount,
-		type Passkey,
 		requiresReauth,
 		supportsPasskeys,
 	} from '$lib/auth/client';
-	import ProviderButton from '$lib/auth/ProviderButton.svelte';
 	import {
 		PROVIDER_LABELS,
+		SOCIAL_PROVIDERS,
 		type SocialProvider,
-	} from '$lib/auth/sign-in-context';
+	} from '$lib/auth/providers';
+	import ProviderButton from '$lib/auth/ProviderButton.svelte';
+	import { session } from '$lib/auth/session';
 	import { auth } from '$lib/platform/auth';
 	import { queryClient } from '$lib/query/client';
 
-	const contextQuery = createQuery(() => account.context);
-	const linkedQuery = createQuery(() => account.linked);
-	const passkeysQuery = createQuery(() => account.passkeys);
+	const sessionQuery = createQuery(() => session.options);
+	const linkedQuery = createQuery(() => account.linked.options);
+	const passkeysQuery = createQuery(() => account.passkeys.options);
 
-	const profile = $derived(contextQuery.data?.session ?? null);
-	const providers = $derived(contextQuery.data?.providers ?? []);
+	const profile = $derived(sessionQuery.data?.user ?? null);
 	const linkedAccounts = $derived(linkedQuery.data ?? []);
 	const passkeys = $derived(passkeysQuery.data ?? []);
+
+	// The rows are Better Auth's own, exposed unmapped: a handler's param is just
+	// the element type of the list it acts on. There is no view model to name.
+	type LinkedAccount = (typeof linkedAccounts)[number];
+	type Passkey = (typeof passkeys)[number];
 	// A provider already linked is not offered again: v1 stores no provider email
 	// on the account row, so a second same-provider account would be
 	// indistinguishable in the list (and the DB unique on (provider, account)
@@ -63,7 +67,7 @@
 		new Set(linkedAccounts.map((linkedAccount) => linkedAccount.providerId)),
 	);
 	const availableProviders = $derived(
-		providers.filter((provider) => !linkedProviderIds.has(provider)),
+		SOCIAL_PROVIDERS.filter((provider) => !linkedProviderIds.has(provider)),
 	);
 	// The server refuses to unlink the last account (it would leave no way in),
 	// so the button is only offered when another account remains.
@@ -78,8 +82,8 @@
 		return PROVIDER_LABELS[providerId as SocialProvider] ?? providerId;
 	}
 
-	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString(undefined, {
+	function formatDate(value: Date | string): string {
+		return new Date(value).toLocaleDateString(undefined, {
 			year: 'numeric',
 			month: 'short',
 			day: 'numeric',
@@ -275,7 +279,7 @@
 			<Card.Title>Profile</Card.Title>
 		</Card.Header>
 		<Card.Content>
-			{#if contextQuery.isLoading}
+			{#if sessionQuery.isLoading}
 				<Spinner class="size-4" />
 			{:else if profile}
 				<div class="flex items-center gap-3">
