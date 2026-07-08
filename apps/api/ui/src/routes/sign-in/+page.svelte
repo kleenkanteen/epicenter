@@ -45,18 +45,11 @@
 		type SocialProvider,
 	} from '$lib/auth/providers';
 	import { session, sessionKeys } from '$lib/auth/session';
+	import UserIdentity from '$lib/auth/UserIdentity.svelte';
 	import { queryClient } from '$lib/query/client';
 
 	const sessionQuery = createQuery(() => session.options);
 	const currentUser = $derived(sessionQuery.data?.user ?? null);
-	// Better Auth falls back to the email for `user.name`; showing the same
-	// string twice reads as a rendering bug, so only a real name renders.
-	const hasRealName = $derived(
-		currentUser !== null &&
-			currentUser.name.trim().length > 0 &&
-			currentUser.name.trim().toLowerCase() !==
-				currentUser.email.trim().toLowerCase(),
-	);
 
 	// The backend always has the passkey plugin; the browser WebAuthn API is the
 	// capability that varies by client.
@@ -182,11 +175,8 @@
 		<AuthHeader title="You're signed in">
 			{#snippet description()}This browser is ready for Epicenter.{/snippet}
 		</AuthHeader>
-		<Card.Content class="flex flex-col gap-1 text-center">
-			{#if hasRealName}
-				<p class="text-sm font-medium">{currentUser.name}</p>
-			{/if}
-			<p class="text-sm text-muted-foreground">{currentUser.email}</p>
+		<Card.Content class="flex justify-center">
+			<UserIdentity user={currentUser} orientation="stack" />
 		</Card.Content>
 		<Card.Footer class="flex-col gap-3">
 			{#if errorMessage}

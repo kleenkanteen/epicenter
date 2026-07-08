@@ -10,7 +10,6 @@
 -->
 <script lang="ts">
 	import * as Alert from '@epicenter/ui/alert';
-	import * as Avatar from '@epicenter/ui/avatar';
 	import { Badge } from '@epicenter/ui/badge';
 	import { Button } from '@epicenter/ui/button';
 	import * as Card from '@epicenter/ui/card';
@@ -26,7 +25,6 @@
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import UserIcon from '@lucide/svelte/icons/user';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { onMount } from 'svelte';
 	import { account, accountKeys } from '$lib/account/queries';
@@ -44,6 +42,7 @@
 	} from '$lib/auth/providers';
 	import ProviderButton from '$lib/auth/ProviderButton.svelte';
 	import { session } from '$lib/auth/session';
+	import UserIdentity from '$lib/auth/UserIdentity.svelte';
 	import { auth } from '$lib/platform/auth';
 	import { queryClient } from '$lib/query/client';
 
@@ -282,17 +281,7 @@
 			{#if sessionQuery.isLoading}
 				<Spinner class="size-4" />
 			{:else if profile}
-				<div class="flex items-center gap-3">
-					<Avatar.Root class="size-10">
-						<Avatar.Fallback><UserIcon class="size-5" /></Avatar.Fallback>
-					</Avatar.Root>
-					<div class="flex flex-col">
-						{#if profile.name && profile.name !== profile.email}
-							<span class="text-sm font-medium">{profile.name}</span>
-						{/if}
-						<span class="text-sm text-muted-foreground">{profile.email}</span>
-					</div>
-				</div>
+				<UserIdentity user={profile} />
 			{/if}
 		</Card.Content>
 	</Card.Root>
