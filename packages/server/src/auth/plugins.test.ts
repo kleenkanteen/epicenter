@@ -202,15 +202,13 @@ test('buildTrustedOAuthClients gives Honeycrisp its Tauri deep-link callback', (
 	);
 });
 
-// The hosted sign-in SPA (apps/api/ui/src/lib/auth/passkey.ts) drives the
-// passkey plugin's REST endpoints directly (@simplewebauthn/browser runs the
-// ceremonies, plain fetch carries them) instead of pulling the Better Auth
-// client into the bundle. These tests pin the slice of that contract a plugin
-// upgrade could silently move: the endpoint paths, the sessionless
-// authenticate ceremony, the session-gated register ceremony, the base64url
-// challenge encoding, and the RP id derived from the API base URL. If one of
-// these fails after a bump, re-verify the SPA ceremony module against the
-// new dist.
+// The hosted SPA (apps/api/ui) drives the passkey plugin through the Better
+// Auth client (`authClient.signIn.passkey` / `authClient.passkey.*`), which
+// runs the WebAuthn ceremonies internally. These tests pin the server slice of
+// that contract a plugin upgrade could silently move: the endpoint paths, the
+// sessionless authenticate ceremony, the session-gated register ceremony, the
+// base64url challenge encoding, and the RP id derived from the API base URL.
+// If one of these fails after a bump, re-verify the SPA against the new client.
 
 test('passkey authenticate options are mintable without a session', async () => {
 	const setup = createTrustedClientTestAuth();

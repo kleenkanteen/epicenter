@@ -7,6 +7,7 @@ import {
 	pgTable,
 	text,
 	timestamp,
+	unique,
 } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
@@ -62,7 +63,21 @@ export const account = pgTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index('account_userId_idx').on(table.userId)],
+	(table) => [
+		index('account_userId_idx').on(table.userId),
+		// One external provider account maps to exactly one Epicenter user.
+		// Better Auth's link-social flow only checks `findAccountByProviderId`
+		// before inserting, so two concurrent fresh-session link ceremonies for
+		// the same provider account can both pass the read and attach it to two
+		// different users. This composite unique is the durable, race-proof floor
+		// that turns the second insert into a constraint violation. It is also
+		// the DB expression of the v1 promise that we do not support two
+		// same-provider accounts on one user (a re-link is an upsert, not a dup).
+		unique('account_providerId_accountId_unique').on(
+			table.providerId,
+			table.accountId,
+		),
+	],
 );
 
 export const verification = pgTable(

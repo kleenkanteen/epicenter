@@ -1,10 +1,11 @@
 <!--
 	Hosted sign-in surface.
 
-	Signed out: social provider buttons (register-when-present truth from the
-	context endpoint). Starting a provider POSTs Better Auth's
-	/auth/sign-in/social with `oauth_query` (the signed authorize params) so an
-	OAuth re-entry continues the flow after the IdP roundtrip.
+	Signed out: social provider buttons (the static SOCIAL_PROVIDERS list; the
+	server registers only the providers it has secrets for and rejects the rest
+	at the call). Starting a provider POSTs Better Auth's /auth/sign-in/social
+	with `oauth_query` (the signed authorize params) so an OAuth re-entry
+	continues the flow after the IdP roundtrip.
 
 	A passkey row renders when the browser exposes WebAuthn
 	(PublicKeyCredential). The server side is always present because this app
@@ -21,39 +22,34 @@
 	`Content-Type: application/json` and `{}`.
 -->
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
 	import * as Alert from '@epicenter/ui/alert';
 	import { Button } from '@epicenter/ui/button';
 	import * as Card from '@epicenter/ui/card';
 	import { Spinner } from '@epicenter/ui/spinner';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
+	import { createQuery } from '@tanstack/svelte-query';
 	import AuthCard from '$lib/auth/AuthCard.svelte';
 	import AuthHeader from '$lib/auth/AuthHeader.svelte';
 	import ProviderButton from '$lib/auth/ProviderButton.svelte';
+	import {
+		authClient,
+		isPasskeyCancellation,
+		requiresReauth,
+		supportsPasskeys,
+	} from '$lib/auth/client';
 	import { getOAuthQuery } from '$lib/auth/oauth-query';
 	import {
-		authenticateWithPasskey,
-		registerPasskey,
-		supportsPasskeys,
-	} from '$lib/auth/passkey';
-	import {
 		PROVIDER_LABELS,
+		SOCIAL_PROVIDERS,
 		type SocialProvider,
-	} from '$lib/auth/sign-in-context';
-	import type { PageProps } from './$types';
+	} from '$lib/auth/providers';
+	import { session, sessionKeys } from '$lib/auth/session';
+	import UserIdentity from '$lib/auth/UserIdentity.svelte';
+	import { queryClient } from '$lib/query/client';
 
-	let { data }: PageProps = $props();
-
-	const session = $derived(data.context.session);
-	const enabledProviders = $derived(data.context.providers);
-	// Better Auth falls back to the email for `user.name`; showing the same
-	// string twice reads as a rendering bug, so only a real name renders.
-	const hasRealName = $derived(
-		session !== null &&
-			session.name.trim().length > 0 &&
-			session.name.trim().toLowerCase() !== session.email.trim().toLowerCase(),
-	);
+	const sessionQuery = createQuery(() => session.options);
+	const currentUser = $derived(sessionQuery.data?.user ?? null);
 
 	// The backend always has the passkey plugin; the browser WebAuthn API is the
 	// capability that varies by client.
@@ -107,8 +103,8 @@
 	async function startPasskey() {
 		errorMessage = null;
 		busy = true;
-		const result = await authenticateWithPasskey();
-		if (!result.error) {
+		const { error } = await authClient.signIn.passkey();
+		if (!error) {
 			// Reload with the query string intact; the server's GET /sign-in sees
 			// the new session cookie and continues the `?sig=` authorize re-entry
 			// (or the safe callbackURL redirect) with no extra client logic.
@@ -116,8 +112,9 @@
 			return;
 		}
 		// A dismissed browser prompt is expected; reset quietly.
-		errorMessage =
-			result.error.name === 'PromptCancelled' ? null : result.error.message;
+		errorMessage = isPasskeyCancellation(error)
+			? null
+			: (error.message ?? 'Passkey sign-in failed.');
 		busy = false;
 	}
 
@@ -125,12 +122,15 @@
 		errorMessage = null;
 		passkeyAdded = false;
 		addingPasskey = true;
-		const result = await registerPasskey();
-		if (!result.error) {
+		const { error } = await authClient.passkey.addPasskey();
+		if (!error) {
 			passkeyAdded = true;
+		} else if (isPasskeyCancellation(error)) {
+			// Dismissed prompt; reset quietly.
+		} else if (requiresReauth(error)) {
+			errorMessage = 'Sign in again to add a passkey.';
 		} else {
-			errorMessage =
-				result.error.name === 'PromptCancelled' ? null : result.error.message;
+			errorMessage = error.message ?? 'Could not add a passkey.';
 		}
 		addingPasskey = false;
 	}
@@ -151,8 +151,8 @@
 					.catch(() => ({}));
 				throw new Error(result.message ?? `Sign-out failed (${response.status}).`);
 			}
-			// Re-run the context load; the page re-renders as the sign-in form.
-			await invalidateAll();
+			// Refetch the session; the page re-renders as the sign-in form.
+			await queryClient.invalidateQueries({ queryKey: sessionKeys.session });
 		} catch (cause) {
 			errorMessage =
 				cause instanceof Error && cause.message
@@ -167,15 +167,16 @@
 <svelte:head><title>Sign in: Epicenter</title></svelte:head>
 
 <AuthCard>
-	{#if session}
+	{#if sessionQuery.isLoading}
+		<Card.Content class="flex justify-center py-6">
+			<Spinner class="size-5" />
+		</Card.Content>
+	{:else if currentUser}
 		<AuthHeader title="You're signed in">
 			{#snippet description()}This browser is ready for Epicenter.{/snippet}
 		</AuthHeader>
-		<Card.Content class="flex flex-col gap-1 text-center">
-			{#if hasRealName}
-				<p class="text-sm font-medium">{session.name}</p>
-			{/if}
-			<p class="text-sm text-muted-foreground">{session.email}</p>
+		<Card.Content class="flex justify-center">
+			<UserIdentity user={currentUser} orientation="stack" />
 		</Card.Content>
 		<Card.Footer class="flex-col gap-3">
 			{#if errorMessage}
@@ -224,33 +225,24 @@
 			{#snippet description()}Sign in to your account{/snippet}
 		</AuthHeader>
 		<Card.Content class="flex flex-col gap-3">
-			{#if enabledProviders.length === 0 && !passkeyAvailable}
-				<Alert.Root variant="destructive">
-					<CircleAlertIcon class="size-4" />
-					<Alert.Description>
-						No sign-in providers are configured for this deployment.
-					</Alert.Description>
-				</Alert.Root>
-			{:else}
-				{#each enabledProviders as provider (provider)}
-					<ProviderButton
-						{provider}
-						disabled={busy}
-						onclick={() => startSocial(provider)}
-					/>
-				{/each}
-				{#if passkeyAvailable}
-					<Button
-						variant="outline"
-						size="lg"
-						class="w-full"
-						disabled={busy}
-						onclick={startPasskey}
-					>
-						<FingerprintIcon class="size-4" />
-						Continue with passkey
-					</Button>
-				{/if}
+			{#each SOCIAL_PROVIDERS as provider (provider)}
+				<ProviderButton
+					{provider}
+					disabled={busy}
+					onclick={() => startSocial(provider)}
+				/>
+			{/each}
+			{#if passkeyAvailable}
+				<Button
+					variant="outline"
+					size="lg"
+					class="w-full"
+					disabled={busy}
+					onclick={startPasskey}
+				>
+					<FingerprintIcon class="size-4" />
+					Continue with passkey
+				</Button>
 			{/if}
 			{#if errorMessage}
 				<Alert.Root variant="destructive">

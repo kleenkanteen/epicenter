@@ -22,15 +22,15 @@ type Db = NodePgDatabase<typeof schema>;
  * secrets it does not read (ADR-0076). The cloud threads it onto
  * `c.var.authSecrets` (mount-cloud-auth.ts) from its own deploy-gated env, the
  * same honest-edge move every Cloudflare-only binding already makes (ADR-0066),
- * so both readers (this builder and the `authApp` sign-in page) take it from one
- * resolved value rather than reaching into the raw `c.env` bag.
+ * so this builder can resolve provider credentials once rather than scattering
+ * raw `c.env` checks through auth setup.
  *
  * `BETTER_AUTH_SECRET` is required: every deployment that reaches this composes
  * Better Auth and must sign sessions with a real secret (the runtime gate below
- * is defense-in-depth against an empty value). Each OAuth provider is optional
- * and register-when-present (ADR-0071): a deployment configures the ones it has
- * an app for, or none; an absent provider is simply not offered, never a button
- * that 500s.
+ * is defense-in-depth against an empty value). At the shared library boundary,
+ * each OAuth provider stays optional and register-when-present (ADR-0071). The
+ * hosted `apps/api` deployable may impose a stricter product promise, such as
+ * requiring every provider its static sign-in UI shows.
  */
 export const CloudAuthBindings = type({
 	BETTER_AUTH_SECRET: 'string',
@@ -52,14 +52,11 @@ export const CloudAuthBindings = type({
 export type CloudAuthBindings = typeof CloudAuthBindings.infer;
 
 /**
- * The single owner of "which OAuth providers is this deployment offering":
- * each provider resolves to its credentials when fully configured and `null`
- * otherwise. Both readers that must agree consume this one value, so the
- * presence predicates cannot drift: {@link createAuth} registers exactly the
- * non-null providers, and the sign-in page (routes/auth.ts) shows a button for
- * exactly the same set. Apple is present only when all four parts of its
- * signing material are (the client-secret JWT is minted per request from
- * them; see {@link generateAppleClientSecret}).
+ * The single owner of "which OAuth providers can Better Auth register": each
+ * provider resolves to its credentials when fully configured and `null`
+ * otherwise. Apple is present only when all four parts of its signing material
+ * are (the client-secret JWT is minted per request from them; see
+ * {@link generateAppleClientSecret}).
  */
 export function configuredProviders(env: CloudAuthBindings) {
 	return {
@@ -168,13 +165,13 @@ export function createAuth({
 		// initiating browser (the DB record alone does not), so keeping the check
 		// on restores that login-CSRF / session-fixation defense.
 		//
-		// Each provider is registered only when its credentials are configured,
-		// so the hosted star is Google-by-default and a custom self-hosted
-		// deployment that configures an OAuth app adds whichever providers it set,
-		// instead of a button that 500s. The single-partition instance offers none:
-		// it composes no Better Auth at all (this builder is cloud-only, reached
-		// only through `mountCloudAuth`), and the operator bearer is its only gate
-		// (ADR-0075). better-auth requests `read:user` +
+		// Each provider is registered only when its credentials are configured.
+		// The hosted apps/api deployable requires the four providers its static UI
+		// shows, while this shared builder keeps the lower-level register-when-present
+		// behavior. The single-partition instance offers none: it composes no Better
+		// Auth at all (this builder is cloud-only, reached only through
+		// `mountCloudAuth`), and the operator bearer is its only gate (ADR-0075).
+		// better-auth requests `read:user` +
 		// `user:email` for GitHub by default, so it reads the primary email and
 		// GitHub's verification flag. GitHub is deliberately NOT a trusted linking
 		// provider (see BASE_AUTH_CONFIG): an unverified GitHub email must not link

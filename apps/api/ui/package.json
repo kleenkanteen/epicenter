@@ -28,10 +28,11 @@
 		"vite": "catalog:"
 	},
 	"dependencies": {
+		"@better-auth/passkey": "catalog:",
 		"@epicenter/auth": "workspace:*",
 		"@epicenter/constants": "workspace:*",
 		"@epicenter/svelte": "workspace:*",
-		"@simplewebauthn/browser": "^13.2.2",
+		"better-auth": "catalog:",
 		"@tanstack/svelte-query": "catalog:",
 		"@tanstack/svelte-query-devtools": "catalog:",
 		"bits-ui": "catalog:",
