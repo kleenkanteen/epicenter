@@ -134,7 +134,9 @@ export function createGmailClient(deps: {
 	const backoffMs = (attempt: number) =>
 		Math.min(THROTTLE_WAIT_MS, 1000 * 2 ** attempt);
 
-	async function request(
+	async function requestJson<S extends TSchema>(
+		schema: S,
+		operation: string,
 		path: string,
 		{
 			params = {},
@@ -145,7 +147,7 @@ export function createGmailClient(deps: {
 			method?: 'GET' | 'POST';
 			body?: unknown;
 		} = {},
-	): Promise<Result<unknown, GmailClientError>> {
+	): Promise<Result<Static<S>, GmailClientError>> {
 		const url = new URL(`${config.apiBase}/gmail/v1/users/me/${path}`);
 		for (const [key, value] of Object.entries(params)) {
 			url.searchParams.set(key, value);
@@ -183,13 +185,12 @@ export function createGmailClient(deps: {
 			}
 
 			if (response.ok) {
+				// Validate at the transport boundary: `schema` is required, so no
+				// caller ever receives an unvalidated Gmail response. A non-object or
+				// malformed body fails `Value.Check` here and surfaces as an
+				// InvalidResponse, so there is no separate "is it a JSON object" guard.
 				const json = await response.json().catch(() => null);
-				if (json === null || typeof json !== 'object') {
-					return GmailApiError.InvalidResponse({
-						detail: 'body was not a JSON object',
-					});
-				}
-				return Ok(json);
+				return checkedResult(schema, json, operation);
 			}
 
 			if (response.status === 401 && !refreshed) {
@@ -242,22 +243,21 @@ export function createGmailClient(deps: {
 		): Promise<
 			Result<{ ids: string[]; nextPageToken?: string }, GmailClientError>
 		> {
-			const { data, error } = await request('messages', {
-				params: {
-					maxResults: String(config.pageSize),
-					...(pageToken ? { pageToken } : {}),
-				},
-			});
-			if (error) return { data: null, error };
-			const parsed = checkedResult(
+			const { data, error } = await requestJson(
 				ListMessageIdsResponseSchema,
-				data,
 				'messages.list',
+				'messages',
+				{
+					params: {
+						maxResults: String(config.pageSize),
+						...(pageToken ? { pageToken } : {}),
+					},
+				},
 			);
-			if (parsed.error) return parsed;
+			if (error) return { data: null, error };
 			return Ok({
-				ids: (parsed.data.messages ?? []).map((m) => m.id),
-				nextPageToken: parsed.data.nextPageToken,
+				ids: (data.messages ?? []).map((m) => m.id),
+				nextPageToken: data.nextPageToken,
 			});
 		},
 
@@ -267,11 +267,9 @@ export function createGmailClient(deps: {
 		async getMessage(
 			id: string,
 		): Promise<Result<GmailMessage, GmailClientError>> {
-			const { data, error } = await request(`messages/${id}`, {
+			return requestJson(GmailMessageSchema, 'messages.get', `messages/${id}`, {
 				params: { format: 'full' },
 			});
-			if (error) return { data: null, error };
-			return checkedResult(GmailMessageSchema, data, 'messages.get');
 		},
 
 		/** Add and remove labels on one message (`messages.modify`). Gmail returns
@@ -281,12 +279,12 @@ export function createGmailClient(deps: {
 			id: string,
 			body: { addLabelIds: string[]; removeLabelIds: string[] },
 		): Promise<Result<GmailMessage, GmailClientError>> {
-			const { data, error } = await request(`messages/${id}/modify`, {
-				method: 'POST',
-				body,
-			});
-			if (error) return { data: null, error };
-			return checkedResult(GmailMessageSchema, data, 'messages.modify');
+			return requestJson(
+				GmailMessageSchema,
+				'messages.modify',
+				`messages/${id}/modify`,
+				{ method: 'POST', body },
+			);
 		},
 
 		/** Move a message to Trash (`messages.trash`). Adds the `TRASH` label and
@@ -296,13 +294,14 @@ export function createGmailClient(deps: {
 		async trashMessage(
 			id: string,
 		): Promise<Result<GmailMessage, GmailClientError>> {
-			// No request body: `messages.trash` takes an empty POST, so `request`
+			// No request body: `messages.trash` takes an empty POST, so `requestJson`
 			// sends no Content-Type and Gmail returns the updated message resource.
-			const { data, error } = await request(`messages/${id}/trash`, {
-				method: 'POST',
-			});
-			if (error) return { data: null, error };
-			return checkedResult(GmailMessageSchema, data, 'messages.trash');
+			return requestJson(
+				GmailMessageSchema,
+				'messages.trash',
+				`messages/${id}/trash`,
+				{ method: 'POST' },
+			);
 		},
 
 		/** Restore a message from Trash (`messages.untrash`): the inverse of
@@ -310,11 +309,12 @@ export function createGmailClient(deps: {
 		async untrashMessage(
 			id: string,
 		): Promise<Result<GmailMessage, GmailClientError>> {
-			const { data, error } = await request(`messages/${id}/untrash`, {
-				method: 'POST',
-			});
-			if (error) return { data: null, error };
-			return checkedResult(GmailMessageSchema, data, 'messages.untrash');
+			return requestJson(
+				GmailMessageSchema,
+				'messages.untrash',
+				`messages/${id}/untrash`,
+				{ method: 'POST' },
+			);
 		},
 
 		/** Page through `history.list` from `startHistoryId`: the change feed an
@@ -324,37 +324,31 @@ export function createGmailClient(deps: {
 			startHistoryId: string,
 			pageToken?: string,
 		): Promise<Result<HistoryPage, GmailClientError>> {
-			const { data, error } = await request('history', {
+			return requestJson(HistoryPageSchema, 'history.list', 'history', {
 				params: {
 					startHistoryId,
 					...(pageToken ? { pageToken } : {}),
 				},
 			});
-			if (error) return { data: null, error };
-			return checkedResult(HistoryPageSchema, data, 'history.list');
 		},
 
 		/** List every label in the mailbox (`labels.list`), used to resolve label
 		 * names to ids and to mirror the label set. */
 		async listLabels(): Promise<Result<GmailLabel[], GmailClientError>> {
-			const { data, error } = await request('labels');
-			if (error) return { data: null, error };
-			const parsed = checkedResult(
+			const { data, error } = await requestJson(
 				ListLabelsResponseSchema,
-				data,
 				'labels.list',
+				'labels',
 			);
-			if (parsed.error) return parsed;
-			return Ok(parsed.data.labels ?? []);
+			if (error) return { data: null, error };
+			return Ok(data.labels ?? []);
 		},
 
 		/** Current mailbox `historyId`, used as the baseline right before a full pull. */
 		async getProfile(): Promise<
 			Result<{ historyId: string; emailAddress?: string }, GmailClientError>
 		> {
-			const { data, error } = await request('profile');
-			if (error) return { data: null, error };
-			return checkedResult(ProfileResponseSchema, data, 'getProfile');
+			return requestJson(ProfileResponseSchema, 'getProfile', 'profile');
 		},
 	};
 }
