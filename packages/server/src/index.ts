@@ -14,6 +14,17 @@
  * applicable). See `apps/api/worker/index.ts` for the cloud composition.
  */
 
+// The AttachRelay wire contract (ADR-0115): the endpoint-addressed connect route
+// and the frame the relay delivers to a host, the shared addressing vocabulary
+// any transport or client speaks. The content-blind coordinator and its Bun
+// transport are package-internal (the Bun transport lives in the `/bun` barrel);
+// a Durable Object backend is a later wave. The relay forwards opaque bytes for
+// one consumer, Super Chat attach (clause 4); it is never a routing product.
+export {
+	RELAY_CLOSE,
+	type RelayToHostFrame,
+} from './attach-relay/contracts.js';
+export { ATTACH_RELAY_ROUTE } from './attach-relay/route.js';
 // The single-partition instance's bearer resolver (self-host; ADR-0075). The
 // deployment injects `createEnvTokenResolver(secret)` as its `ResolveBearerPrincipal`.
 // The pure generator + boot entropy gate (`generateInstanceToken`
@@ -24,24 +35,6 @@ export { createEnvTokenResolver } from './auth/instance-token.js';
 // resolver (e.g. `apps/api`'s dev auth) returns the same variants the request
 // path expects, without reaching into the auth module directly.
 export { OAuthError } from './auth/oauth-errors.js';
-// The AttachRelay (ADR-0115): the endpoint-addressed, content-blind
-// byte-forwarding coordinator that pairs a signed-in client endpoint to a
-// desktop Super Chat host endpoint. Transport-agnostic core; a Bun transport
-// lives in the `/bun` barrel, a Durable Object backend is a later wave. Its one
-// consumer is Super Chat attach (clause 4); it is never a routing product.
-export type {
-	ClientEndpoint,
-	HostToRelayFrame,
-	RelaySocket,
-	RelayToHostFrame,
-} from './attach-relay/contracts.js';
-export { RELAY_CLOSE } from './attach-relay/contracts.js';
-export {
-	type ClientConnection,
-	createAttachRelay,
-	type HostConnection,
-} from './attach-relay/core.js';
-export { ATTACH_RELAY_ROUTE } from './attach-relay/route.js';
 export { connectHyperdriveDb } from './db/backends/cloudflare.js';
 // Database concern (cloud-only). `createDb(client)` wraps a connected pg
 // client/pool in drizzle with the auth schema; a cloud entry hands the result to

@@ -24,22 +24,18 @@ export {
 	type AttachRelayBunServer,
 	createAttachRelayBunServer,
 } from './attach-relay/bun-server.js';
-// The AttachRelay (ADR-0115): the transport-agnostic coordinator plus the Bun
-// WebSocket transport a desktop or self-hosted instance serves. Wave 1 is
-// plaintext and loopback and is not mounted on the authenticated server app;
-// wave 2 mounts it on a self-hosted instance, wave 4 seals Cloud attach.
-export type {
-	ClientEndpoint,
-	HostToRelayFrame,
-	RelaySocket,
-	RelayToHostFrame,
-} from './attach-relay/contracts.js';
-export { RELAY_CLOSE } from './attach-relay/contracts.js';
+// The AttachRelay (ADR-0115): the Bun WebSocket transport a desktop or
+// self-hosted instance serves, plus the wire type its adapters speak. A
+// self-hosted instance mounts it behind per-device grants (`mountAttachRelayApp`);
+// Super Chat seals its frames above this unchanged relay (`apps/super-chat`), so
+// the relay forwards opaque bytes and never learns a seal exists. The coordinator
+// itself (`createAttachRelay`) stays package-internal, the way the room
+// coordinator does; only its transport and mounts are public. Cloud attach stays
+// unmounted until its wave.
 export {
-	type ClientConnection,
-	createAttachRelay,
-	type HostConnection,
-} from './attach-relay/core.js';
+	RELAY_CLOSE,
+	type RelayToHostFrame,
+} from './attach-relay/contracts.js';
 // The per-device attach grants (ADR-0115 wave 3): the revocable allowlist that
 // replaces the shared operator token on the attach surface. The store's
 // `resolveBearerPrincipal` is the seam the attach mount closes over; the operator
