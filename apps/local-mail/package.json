@@ -15,9 +15,9 @@
 		"./http/api": "./src/http/api.ts"
 	},
 	"scripts": {
-		"connect": "infisical run --path=/apps/local-mail -- bun run src/bin.ts connect",
-		"sync": "infisical run --path=/apps/local-mail -- bun run src/bin.ts sync",
-		"status": "infisical run --path=/apps/local-mail -- bun run src/bin.ts status",
+		"connect": "bun run src/bin.ts connect",
+		"sync": "bun run src/bin.ts sync",
+		"status": "bun run src/bin.ts status",
 		"check:gmail-drift": "bun run test-support/check-gmail-discovery.ts",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit && tsc --noEmit -p test-support/tsconfig.json"

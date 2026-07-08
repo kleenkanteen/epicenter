@@ -68,7 +68,11 @@ shapes, see `docs/adr/`.
   at Epicenter's hosted/operator project, and personal local apps use ignored
   app-local configs that point at the operator's personal project. The ignored
   configs are per-person bring-your-own provider setup; the committed configs
-  are shared Epicenter infrastructure.
+  are shared Epicenter infrastructure. A single-provider local app may instead
+  cache its BYO client credentials to a machine-tier 0600 file after first
+  connect (Local Mail's <data-dir>/provider.json), so it reads no per-worktree
+  Infisical config on the run path; Infisical then only ever populates the
+  environment for that first connect.
 - **Infisical environment**: a value-stakes tier inside a project, not an
   owner. In the Epicenter project, `dev` holds substitute values that can hurt
   nothing (the local `wrangler dev` bindings) and `prod` holds hosted

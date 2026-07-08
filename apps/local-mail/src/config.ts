@@ -2,9 +2,10 @@ import { credentialsFilePath, resolveDataDir } from './paths.ts';
 
 /**
  * Fully-resolved runtime configuration. Precedence is env > built-in defaults;
- * there is no `config.json` yet (local-books' file-config layer is not ported
- * until Phase 2's connect flow needs per-mode `clientId` selection). Base-URL
- * fields are overridable so tests can point the client at a mock Gmail server.
+ * BYO client credentials are resolved at the machine tier by
+ * `gmailCredentialSource` (env, then `<data-dir>/provider.json`), so no
+ * `config.json` is needed here. Base-URL fields are overridable so tests can
+ * point the client at a mock Gmail server.
  *
  * Unlike `apps/local-books`' `AppConfig.entities` (a configurable QuickBooks
  * entity list), Gmail's mirrored set is fixed: messages and labels. There is
@@ -61,7 +62,7 @@ export function loadConfig(): AppConfig {
 	return {
 		dataDir,
 		// The Google OAuth client keys are NOT read here: they are resolved lazily
-		// at the connect/refresh site from GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET.
+		// at the connect/refresh site by gmailCredentialSource.
 		// The env override exists for the MCP subprocess test, which cannot
 		// inject an AppConfig in-process. The OAuth endpoints have no such
 		// consumer: in-process tests override the AppConfig fields directly.

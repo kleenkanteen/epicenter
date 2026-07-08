@@ -6,7 +6,7 @@
  *   /sign-in          hosted auth UI shell after redirect policy
  *   /sign-in/context  JSON bootstrap for the hosted sign-in UI
  *   /consent          hosted consent UI shell after session policy
- *   /auth/cli-callback CLI OOB landing page shell
+ *   /cli-callback     CLI OOB landing page shell
  *   /auth/.well-known/openid-configuration   OIDC discovery
  *   /auth/.well-known/oauth-authorization-server   OAuth metadata
  *   /.well-known/oauth-protected-resource   resource server metadata

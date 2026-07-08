@@ -186,7 +186,7 @@ test('buildTrustedOAuthClients gives the CLI a callback at each deployment baseU
 		'https://api.acme.example',
 	]) {
 		const cliClient = findCliClient(baseURL);
-		expect(cliClient.redirectUris).toEqual([`${baseURL}/auth/cli-callback`]);
+		expect(cliClient.redirectUris).toEqual([`${baseURL}/cli-callback`]);
 	}
 });
 

@@ -21,6 +21,7 @@
 	import { Input } from '@epicenter/ui/input';
 	import { Label } from '@epicenter/ui/label';
 	import * as Popover from '@epicenter/ui/popover';
+	import { Spinner } from '@epicenter/ui/spinner';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
@@ -28,7 +29,6 @@
 	import Eye from '@lucide/svelte/icons/eye';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
-	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Plus from '@lucide/svelte/icons/plus';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -318,7 +318,7 @@
 								onSelect={() => refreshConnection(connection.baseUrl)}
 							>
 								{#if refreshingBaseUrls.has(connection.baseUrl)}
-									<LoaderCircle class="size-4 animate-spin" />
+									<Spinner class="size-4" />
 								{:else}
 									<RefreshCw class="size-4" />
 								{/if}
@@ -425,7 +425,7 @@
 						<Label class="text-xs">Model</Label>
 						{#if discovering}
 							<p class="flex items-center gap-2 text-xs text-muted-foreground">
-								<LoaderCircle class="size-3.5 animate-spin" /> Loading models...
+								<Spinner class="size-3.5" /> Loading models...
 							</p>
 						{:else if discovered && discovered.length > 0}
 							<p class="text-xs text-muted-foreground">
