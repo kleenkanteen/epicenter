@@ -83,7 +83,8 @@ describe('bodyText', () => {
 
 describe('bodyHtml', () => {
 	test('decodes the text/html part unchanged (unsanitized)', () => {
-		const raw = '<p>Hi <a href="https://x.test">link</a></p><script>x()</script>';
+		const raw =
+			'<p>Hi <a href="https://x.test">link</a></p><script>x()</script>';
 		const msg = message({
 			mimeType: 'multipart/alternative',
 			parts: [
