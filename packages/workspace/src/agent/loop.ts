@@ -30,6 +30,7 @@ import {
 	type Approval,
 	defaultApprovalDecision,
 	NO_TOOLS,
+	resolveApprovedToolCall,
 	type ToolCatalog,
 } from './tools.js';
 
@@ -262,38 +263,31 @@ export function createConversation(
 		return failure ? Err(failure) : Ok(calls);
 	}
 
-	/** Run a step's tool calls, gated by approval, appending each result. */
+	/**
+	 * Run a step's tool calls in model order. Approval can pause for a human, so
+	 * keep execution sequential unless a real workload earns concurrent prompts.
+	 */
 	async function runTools(
 		assistant: AgentMessage,
 		calls: AgentToolCall[],
 		signal: AbortSignal,
 	): Promise<void> {
-		const definitions = new Map(
-			tools.definitions().map((definition) => [definition.name, definition]),
-		);
 		for (const call of calls) {
 			if (signal.aborted) return;
-			const definition = definitions.get(call.toolName);
-			const decision = definition ? approval.decide(call, definition) : 'auto';
-
-			if (decision === 'deny') {
-				appendToolResult(assistant, call, 'Denied by policy.', true);
-				notify();
-				continue;
-			}
-			if (decision === 'ask' && definition) {
-				const approved = await approval.request(call, definition);
-				if (signal.aborted) return;
-				if (!approved) {
-					appendToolResult(assistant, call, 'Denied by the user.', true);
-					notify();
-					continue;
-				}
-			}
-
-			const outcome = await tools.resolve(call, signal);
+			const outcome = await resolveApprovedToolCall({
+				tools,
+				approval,
+				call,
+				signal,
+			});
 			if (signal.aborted) return;
-			appendToolResult(assistant, call, outcome.output, outcome.isError);
+			appendToolResult(
+				assistant,
+				call,
+				outcome.content,
+				outcome.details,
+				outcome.isError,
+			);
 			notify();
 		}
 	}
@@ -411,14 +405,16 @@ function appendText(message: AgentMessage, delta: string): void {
 function appendToolResult(
 	message: AgentMessage,
 	call: AgentToolCall,
-	output: JsonValue,
+	content: string,
+	details: JsonValue | undefined,
 	isError: boolean,
 ): void {
 	message.parts.push({
 		type: 'tool-result',
 		toolCallId: call.toolCallId,
 		toolName: call.toolName,
-		output,
+		content,
+		...(details !== undefined && { details }),
 		isError,
 	});
 }

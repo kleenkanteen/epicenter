@@ -1,21 +1,20 @@
 import { field } from '@epicenter/field';
 import {
-	createWorkspace,
 	defineKv,
 	defineTable,
+	defineWorkspace,
 	type IanaTimeZone,
-	type InferKvValue,
 	type InferTableRow,
 	nullable,
-	satisfiesWorkspace,
 } from '@epicenter/workspace';
-import { type Static, type TProperties, Type } from 'typebox';
+import { Type } from 'typebox';
 import type { KeyBinding } from '$lib/tauri/commands';
 
 // ── Constant imports ─────────────────────────────────────────────────────────
 
 import { RECORDING_TRIGGERS } from '$lib/constants/audio/recording-triggers';
 import { INFERENCE_PROVIDER_IDS } from '$lib/constants/inference';
+import { SUPPORTED_LANGUAGES } from '$lib/constants/languages';
 import {
 	PROVIDERS,
 	TRANSCRIPTION_SERVICE_IDS,
@@ -26,41 +25,17 @@ import {
  * Tables store normalized domain entities. Each row is replaced atomically via
  * `table.set()`, there's no field-level merging. Schemas validate rows on read.
  */
-/**
- * A terminal job outcome: `completed` or `failed`. Both variants carry the
- * finish instant; `failed` adds the error message; `completed` carries whatever
- * job-specific payload the caller declares through `completedExtra`.
- *
- * Only terminal states are ever stored. A job still in flight has no outcome
- * (the storing column is null); liveness comes from the in-flight mutation,
- * never from durable state. A stored 'running'/'transcribing' status would
- * wedge on crash: the process that died can no longer write the terminal
- * state. See
- * docs/articles/20260612T190745-liveness-belongs-to-the-process-not-the-row.md.
- */
-function terminalOutcome<CompletedExtra extends TProperties>(
-	completedExtra: CompletedExtra,
-) {
-	return Type.Union([
-		Type.Object({
-			status: Type.Literal('completed'),
-			completedAt: field.instant(),
-			...completedExtra,
-		}),
-		Type.Object({
-			status: Type.Literal('failed'),
-			completedAt: field.instant(),
-			error: Type.String(),
-		}),
-	]);
-}
-
-/**
- * Terminal outcome of transcribing a recording. The transcript text lives in
- * its own `transcript` column, so the `completed` variant only records when it
- * finished.
- */
-const TranscriptionOutcome = terminalOutcome({});
+const TranscriptionOutcome = Type.Union([
+	Type.Object({
+		status: Type.Literal('completed'),
+		completedAt: field.instant(),
+	}),
+	Type.Object({
+		status: Type.Literal('failed'),
+		completedAt: field.instant(),
+		error: Type.String(),
+	}),
+]);
 
 /**
  * Audio recordings captured by the user. One row per recording session.
@@ -75,6 +50,7 @@ const recordings = defineTable({
 	recordedAt: field.instant(),
 	recordedAtZone: field.string<IanaTimeZone>(),
 	transcript: field.string(),
+	polishedTranscript: nullable(field.string()),
 	duration: nullable(field.number()),
 	transcription: nullable(field.json(TranscriptionOutcome)),
 });
@@ -83,87 +59,25 @@ const recordings = defineTable({
 export type Recording = InferTableRow<typeof recordings>;
 
 /**
- * A single deterministic find/replace pair. A list of these runs offline (no API
- * key) before the prompt (`preReplacements`) and after it (`postReplacements`):
- * a small dictionary ("new paragraph" to a newline, filler stripping, proper-noun
- * fixes) covers far more real-world cleanup than a single replacement each.
- */
-const Replacement = Type.Object({
-	find: Type.String(),
-	replace: Type.String(),
-	useRegex: Type.Boolean(),
-});
-
-/** One find/replace pair within a transformation's pre/post phase. */
-export type Replacement = Static<typeof Replacement>;
-
-/**
- * The one optional AI phase of a transformation: a single prompt template run
- * against a single model on a single backend (inference provider). The backend
- * and model live here, on the prompt, not on a separate step row.
- */
-const TransformationPrompt = Type.Object({
-	inferenceProvider: field.select(INFERENCE_PROVIDER_IDS),
-	model: Type.String(),
-	systemPromptTemplate: Type.String(),
-	userPromptTemplate: Type.String(),
-});
-
-/** The single prompt phase of a transformation. */
-export type TransformationPrompt = Static<typeof TransformationPrompt>;
-
-/**
- * User-defined transformations. A transformation is a fixed three-phase shape:
- * deterministic `preReplacements`, one optional AI `prompt`, then deterministic
- * `postReplacements`. At least one phase is present (enforced at write time, not
- * by the schema). This replaces the old arbitrary N-step pipeline: there is no
- * ordered `transformationSteps` table, no per-step model memory, no step editor.
- */
-const transformations = defineTable({
-	id: field.string(),
-	title: field.string(),
-	description: field.string(),
-	preReplacements: field.json(Type.Array(Replacement)),
-	prompt: nullable(field.json(TransformationPrompt)),
-	postReplacements: field.json(Type.Array(Replacement)),
-});
-
-/** Transformation row type inferred from the workspace table schema. */
-export type Transformation = InferTableRow<typeof transformations>;
-
-/**
- * Terminal outcome of a finished transformation run, carrying the produced
- * `output` on success. Built from the shared `terminalOutcome` helper.
+ * A reusable text action: a name and a single instruction, run on demand over
+ * whatever text the host hands it (text in, text out). Recipes are the portable,
+ * plural, on-demand reshape library; they know nothing about voice and carry no
+ * correction plumbing (that is Polish's job, run once before any Recipe). See
+ * ADR-0099.
  *
- * Only terminal outcomes are stored. A run that is currently executing has no
- * `result` (the column is null); liveness is derived from `startedAt` recency,
- * never written. A stored `running` status would wedge on crash: the process
- * that died can no longer write the terminal state, so the row would claim
- * `running` forever. See
- * docs/articles/20260612T190745-liveness-belongs-to-the-process-not-the-row.md.
- *
- * Storage is one nullable JSON-encoded TEXT column (`result`); nothing in the
- * read path filters or sorts on these fields.
+ * Deliberately tiny: no pre/post replacements, no system/user prompt split, no
+ * `{{input}}` placeholder, no per-Recipe model or provider (model comes from the
+ * global `completion.*` default). `icon` is optional; null until one is assigned.
  */
-const TransformationRunResult = terminalOutcome({ output: Type.String() });
-
-/**
- * Execution records for transformations. One run per invocation.
- * State queries filter by top-level `recordingId` / `transformationId` and
- * sort by `startedAt`; the terminal outcome lives inside `result`, which is
- * null while the run is executing or if it was interrupted.
- */
-const transformationRuns = defineTable({
+const recipes = defineTable({
 	id: field.string(),
-	transformationId: field.string(),
-	recordingId: nullable(field.string()),
-	input: field.string(),
-	startedAt: field.instant(),
-	result: nullable(field.json(TransformationRunResult)),
+	name: field.string(),
+	instructions: field.string(),
+	icon: nullable(field.string()),
 });
 
-/** Transformation run row type inferred from the workspace table schema. */
-export type TransformationRun = InferTableRow<typeof transformationRuns>;
+/** Recipe row type inferred from the workspace table schema. */
+export type Recipe = InferTableRow<typeof recipes>;
 
 /**
  * Synced settings stored as individual KV entries with last-write-wins resolution.
@@ -188,16 +102,16 @@ const sound = {
 	'sound.vadCapture': defineKv(field.boolean(), () => true),
 	'sound.vadStop': defineKv(field.boolean(), () => true),
 	'sound.transcriptionComplete': defineKv(field.boolean(), () => true),
-	'sound.transformationComplete': defineKv(field.boolean(), () => true),
+	'sound.recipeComplete': defineKv(field.boolean(), () => true),
 } as const;
 
 /**
- * Output behavior after transcription/transformation completes.
+ * Output behavior after transcription/recipe completes.
  * Controls clipboard, cursor paste, and simulated Enter key per pipeline stage.
  *
  * Uses `output.*` prefix to separate post-processing behavior from service
- * configuration: avoids polluting `transcription.*` and `transformation.*`
- * namespaces with unrelated concerns.
+ * configuration: avoids polluting `transcription.*` and `recipe.*` namespaces
+ * with unrelated concerns.
  *
  * Clipboard is the permission-free default; cursor paste is opt-in. Pasting at
  * the cursor synthesizes a Cmd/Ctrl+V keystroke (`write_text` -> enigo), and on
@@ -205,16 +119,16 @@ const sound = {
  * cursor defaults are `false`: out of the box the transcript lands on the
  * clipboard (no permission, works on first launch) and the user pastes it.
  * Turning cursor paste on is the deliberate step that asks for Accessibility.
- * Transformation cursor also stays off so it cannot double-type over a
- * transcription that already pasted itself once a user turns both on.
+ * Recipe cursor also stays off so it cannot double-type over a transcription
+ * that already pasted itself once a user turns both on.
  */
 const output = {
 	'output.transcription.clipboard': defineKv(field.boolean(), () => true),
 	'output.transcription.cursor': defineKv(field.boolean(), () => false),
 	'output.transcription.enter': defineKv(field.boolean(), () => false),
-	'output.transformation.clipboard': defineKv(field.boolean(), () => true),
-	'output.transformation.cursor': defineKv(field.boolean(), () => false),
-	'output.transformation.enter': defineKv(field.boolean(), () => false),
+	'output.recipe.clipboard': defineKv(field.boolean(), () => true),
+	'output.recipe.cursor': defineKv(field.boolean(), () => false),
+	'output.recipe.enter': defineKv(field.boolean(), () => false),
 } as const;
 
 /**
@@ -291,20 +205,58 @@ function defineTranscriptionSettings(
 			field.string(),
 			() => PROVIDERS.Mistral.defaultModel as string,
 		),
-		'transcription.language': defineKv(field.string(), () => 'auto'),
+		'transcription.language': defineKv(
+			field.select(SUPPORTED_LANGUAGES),
+			() => 'auto' as const,
+		),
 		'transcription.prompt': defineKv(field.string(), () => ''),
 	} as const;
 }
 
 /**
- * Currently active transformation, used as the dictation default.
- *
- * `selectedId`: FK to `transformations` table. `null` = no transformation selected.
+ * The single global AI default used for completions: which inference provider
+ * and model the Polish pass and every Recipe run against. There is no per-Recipe
+ * model or provider; this is the one place it lives. API keys and endpoints stay
+ * in deviceConfig (local, never synced); only the provider/model choice roams.
  */
-const transformation = {
-	'transformation.selectedId': defineKv(
-		nullable(field.string()),
-		(): string | null => null,
+const completion = {
+	'completion.provider': defineKv(
+		field.select(INFERENCE_PROVIDER_IDS),
+		() => 'Google' as const,
+	),
+	'completion.model': defineKv(field.string(), () => 'gemini-2.5-flash'),
+} as const;
+
+/**
+ * Dictionary: a flat list of words Whispering should know, proper nouns and
+ * domain terms ("Kubernetes", "Braden"). Injection-only: the runtime composes
+ * these terms into every AI prompt (via `buildSystemPrompt`) and, where the
+ * transcription model accepts one, into its `initial_prompt`. It is not
+ * find/replace and not an algorithm; the AI is the matcher. See ADR-0099.
+ */
+const dictionary = {
+	dictionary: defineKv(Type.Array(Type.String()), (): string[] => []),
+} as const;
+
+/** Default Polish instruction. Kept faithful: fix mechanics, preserve wording. */
+const DEFAULT_POLISH_INSTRUCTIONS =
+	'Fix grammar and punctuation. Keep my wording.';
+
+/**
+ * Polish: the always-on, meaning-preserving AI base, run once after every
+ * transcription. One optional pass that fixes grammar and punctuation while
+ * keeping the user's wording. On by default, but it only fires when the selected
+ * provider can actually serve a completion (a runtime gate, not a flag), so a
+ * fresh unconfigured install never pays a surprise cost. Turn `enabled` off for
+ * speed mode: the raw transcript ships instantly with no AI call. `instructions`
+ * is editable under Advanced. Polish is not a Recipe; it is the base layer every
+ * Recipe stands on. See ADR-0099.
+ */
+const polish = {
+	'polish.enabled': defineKv(field.boolean(), () => true),
+	'polish.instructions': defineKv(
+		field.string(),
+		() => DEFAULT_POLISH_INSTRUCTIONS,
 	),
 } as const;
 
@@ -370,11 +322,11 @@ const shortcuts = {
 		nullable(field.json(KeyBindingSchema)),
 		(): KeyBinding | null => ({ modifiers: [], keys: ['keyV'] }),
 	),
-	'shortcut.openTransformationPicker': defineKv(
+	'shortcut.openRecipePicker': defineKv(
 		nullable(field.json(KeyBindingSchema)),
 		(): KeyBinding | null => ({ modifiers: [], keys: ['keyT'] }),
 	),
-	'shortcut.runTransformationOnClipboard': defineKv(
+	'shortcut.runRecipeOnClipboard': defineKv(
 		nullable(field.json(KeyBindingSchema)),
 		(): KeyBinding | null => ({ modifiers: [], keys: ['keyR'] }),
 	),
@@ -389,80 +341,37 @@ const shortcuts = {
 	),
 } as const;
 
-type CreateWhisperingOptions = {
-	defaultTranscriptionService: TranscriptionServiceId;
-};
-
-/** Build the Whispering workspace bundle: `{ ydoc, tables, kv, actions, settings }`. */
-export function createWhispering({
-	defaultTranscriptionService,
-}: CreateWhisperingOptions) {
-	/**
-	 * Whispering KV schemas: ~40 entries for synced preferences. Defined locally
-	 * so the raw schema map is not a module-level export. Callers reach the
-	 * defaults and key list through the `settings` namespace on the returned
-	 * workspace bundle.
-	 */
-	const kvDefinitions = {
-		...sound,
-		...output,
-		...dataRetention,
-		...recording,
-		...defineTranscriptionSettings(defaultTranscriptionService),
-		...transformation,
-		...analytics,
-		...shortcuts,
-	};
-	type SettingKey = keyof typeof kvDefinitions & string;
-
-	const workspace = createWorkspace({
+/**
+ * Define the Whispering workspace model for one platform's default service.
+ *
+ * The KV schema map (~40 entries for synced preferences) stays local so it is
+ * never a module-level export; callers reach the key list, per-key defaults,
+ * and the bulk reset through the workspace's own `kv.keys` / `kv.getDefault` /
+ * `kv.reset` (ADR-0093).
+ */
+export function defineWhispering(
+	defaultTranscriptionService: TranscriptionServiceId,
+) {
+	return defineWorkspace({
 		// Workspace/Y.Doc identity, not an OAuth client id or Tauri bundle id.
 		// This keys local storage and cloud rooms; change only with a data migration.
 		id: 'epicenter-whispering',
+		name: 'Whispering',
 		tables: {
 			recordings,
-			transformations,
-			transformationRuns,
+			recipes,
 		},
-		kv: kvDefinitions,
-	});
-
-	const settingKeys = Object.keys(kvDefinitions) as SettingKey[];
-
-	return satisfiesWorkspace({
-		...workspace,
-		/**
-		 * Synced setting metadata for the Whispering workspace.
-		 *
-		 * Owns the KV schema map: callers never see the raw `defineKv` definitions.
-		 * Use `kv.get`/`kv.set`/`kv.observeAll` for live values; reach for `settings`
-		 * for the key list, per-key defaults, and the bulk reset.
-		 */
-		settings: {
-			/** Every synced setting key, in declaration order. */
-			keys: settingKeys,
-			/** Return the default value for a setting key (factory-evaluated). */
-			getDefault<K extends SettingKey>(
-				key: K,
-			): InferKvValue<(typeof kvDefinitions)[K]> {
-				return kvDefinitions[key].defaultValue() as InferKvValue<
-					(typeof kvDefinitions)[K]
-				>;
-			},
-			/**
-			 * Reset every synced workspace setting to its default in a single Yjs
-			 * transaction (one `observeAll` firing, not one per key).
-			 */
-			reset(): void {
-				workspace.ydoc.transact(() => {
-					for (const key of settingKeys) {
-						(workspace.kv.set as (key: string, value: unknown) => void)(
-							key,
-							kvDefinitions[key].defaultValue(),
-						);
-					}
-				});
-			},
+		kv: {
+			...sound,
+			...output,
+			...dataRetention,
+			...recording,
+			...defineTranscriptionSettings(defaultTranscriptionService),
+			...completion,
+			...dictionary,
+			...polish,
+			...analytics,
+			...shortcuts,
 		},
 	});
 }

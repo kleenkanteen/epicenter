@@ -1,30 +1,26 @@
 /**
- * Honeycrisp browser composition.
+ * Honeycrisp browser composition: the one boot call (ADR-0088/ADR-0094).
  *
- * Single source of truth for "how Honeycrisp mounts in a browser." The shared
- * workspace definition owns root wiring and child-doc opening:
- *
- *  1. workspace root doc (tables + KV)
- *  2. local storage + cloud sync for root
- *  3. runtime storage + sync around per-note body child docs
- *
- * The bundle's `wipe()` drops every owner-scoped IDB database;
- * `Symbol.dispose` tears down the root and cached child Y.Docs without touching
- * local storage.
+ * `toConnection` reads `auth.state` once: signed out projects to `null` (bare
+ * guid-named IndexedDB, cross-tab channel, no relay), signed in projects to
+ * the principal's connection (principal-scoped storage plus relay). Both arms return
+ * the same bundle shape, per-row note-body openers and `wipe()` included, so
+ * nothing downstream branches on auth again.
  */
 
-import type { SignedIn } from '@epicenter/svelte/auth';
+import type { SyncAuthClient } from '@epicenter/auth';
+import { toConnection } from '@epicenter/svelte/auth';
 import type { NodeId } from '@epicenter/workspace';
 import { honeycrispWorkspace } from './index.js';
 
 export function openHoneycrispBrowser({
-	signedIn,
+	auth,
 	nodeId,
 }: {
-	signedIn: SignedIn;
+	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	return honeycrispWorkspace.connect({ ...signedIn, nodeId });
+	return honeycrispWorkspace.connect(toConnection(auth, nodeId));
 }
 
 export type HoneycrispBrowser = ReturnType<typeof openHoneycrispBrowser>;

@@ -6,13 +6,13 @@
 
 import { describe, expect, test } from 'bun:test';
 import type { Field } from '@epicenter/field';
+import { expectOk } from 'wellcrafted/testing';
 import { validateContract } from './contract';
 import { describeExpected } from './expected';
 
 /** Recognize one at-rest field schema into a loaded {@link Field}. */
 function fieldFrom(schema: unknown): Field {
-	const { data, error } = validateContract({ fields: { f: schema } });
-	if (error) throw new Error(`contract invalid: ${error.message}`);
+	const data = expectOk(validateContract({ fields: { f: schema } }));
 	const [field] = data.fields;
 	if (!field) throw new Error('schema was not recognized as a field');
 	return field;

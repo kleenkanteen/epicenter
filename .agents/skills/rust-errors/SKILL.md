@@ -17,16 +17,6 @@ When Rust error serialization, Tauri command error transport, IPC payload shape,
 
 Skip DeepWiki for local error naming conventions already documented below.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Send Rust errors through Tauri commands to TypeScript clients.
-- Define Rust enums that serialize into discriminated union error shapes.
-- Validate unknown error payloads in TypeScript before switching on variants.
-- Keep cross-language error payloads consistent with `name` and `message` fields.
-- Avoid serde tagging patterns that produce nested, awkward TypeScript shapes.
-
 ## Discriminated Union Pattern for Errors
 
 When passing errors from Rust to TypeScript through Tauri commands, use internally-tagged enums to create discriminated unions that TypeScript can handle naturally.

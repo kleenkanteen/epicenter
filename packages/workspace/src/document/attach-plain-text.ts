@@ -1,10 +1,11 @@
 /**
  * attachPlainText(): Bind a `Y.Text` slot on a Y.Doc to a typed handle.
  *
- * Reserves `ydoc.getText(key)` and hands back `{ binding, read, write }`.
+ * Reserves `ydoc.getText(key)` and hands back `{ binding, read, write, appendText }`.
  * The `binding` is what you feed into a CodeMirror/Monaco Yjs extension; `read`
- * returns the current string; `write` replaces the entire `Y.Text` in a single
- * transaction (programmatic seed/reset: editors mutate `binding` directly).
+ * returns the current string; `write` replaces the entire `Y.Text` and
+ * `appendText` adds to its end, both in a single transaction (programmatic
+ * seed/reset/append: editors mutate `binding` directly).
  *
  * Handle-style attachment: synchronous, no async teardown. Destroying the
  * `Y.Doc` releases the text slot along with the rest of the doc.
@@ -39,6 +40,12 @@ export function attachPlainText(ydoc: Y.Doc, key = 'content') {
 			ydoc.transact(() => {
 				ytext.delete(0, ytext.length);
 				ytext.insert(0, text);
+			});
+		},
+		/** Append `text` to the end of the Y.Text in a single transaction. */
+		appendText(text: string) {
+			ydoc.transact(() => {
+				ytext.insert(ytext.length, text);
 			});
 		},
 	};

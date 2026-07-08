@@ -34,7 +34,7 @@ container is convention, not a rule, and nothing reserves the name. Your own
 folders (`journal/`, `ideas/`, `publish/`) sit beside them as plain files you
 keep forever.
 
-You speak a thought into Whispering and it lands in your Whispering app folder as Markdown. You save tabs, draft entries, capture whatever, each through a purpose-built app, and every capture becomes a file you can grep. An agent reads the same files, queries the SQLite mirrors with plain SQL, and when it needs to change app state it goes through the same gate you do: `epicenter run <action>`, validated against the app's schema. Nothing mutates by editing generated files; the projection is one-way on purpose.
+You speak a thought into Whispering and it lands in your Whispering app folder as Markdown. You save tabs, draft entries, capture whatever, each through a purpose-built app, and every capture becomes a file you can grep. An agent reads the same files, queries the SQLite mirrors with plain SQL, and when it needs to change app state it goes through the same gate you do: a workspace action, validated against the app's schema and exposed to the agent as a tool. Nothing mutates by editing generated files; the projection is one-way on purpose.
 
 The loop is capture, curate, keep. App output is a disposable inbox, regenerable from the CRDT at any time. What matters graduates into folders you own: ordinary Markdown, tracked in git, still yours after every app in this repo is gone.
 
@@ -109,7 +109,7 @@ Do not use hype words: `AI-native`, `agentic`, `next-gen`, `revolutionary`, `red
 
 - An **open-source, local-first workspace**: purpose-built apps plus Markdown folders you own
 - A **TypeScript library** (`@epicenter/workspace`) for building CRDT-backed apps with typed schemas, materializers, and actions
-- A **CLI** (`epicenter`) for listing and invoking validated app actions, locally or on a currently online peer
+- A **CLI** (`epicenter`) for running a headless watcher that syncs and materializes one workspace root
 - A **sync server** (AGPL, self-hostable) that relays CRDT updates between your devices
 
 ## What Epicenter Is Not

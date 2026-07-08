@@ -12,15 +12,6 @@ This skill helps you apply factory function patterns for clean dependency inject
 
 > **Related Skills**: See `method-shorthand-jsdoc` for when to move helpers into the return object. See `refactoring` for caller counting and inlining single-use extractions.
 
-## When to Apply This Skill
-
-Use this pattern when you see:
-
-- A function that takes a client/resource as its first argument
-- Options from different layers (client, service, method) mixed together
-- Client creation happening inside functions that shouldn't own it
-- Functions that are hard to test because they create their own dependencies
-
 ## The Universal Signature
 
 **Every factory function follows this signature:**

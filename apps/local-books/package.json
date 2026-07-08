@@ -15,17 +15,27 @@
 	"bin": {
 		"local-books": "./src/bin.ts"
 	},
+	"exports": {
+		"./http/api": "./src/http/api.ts"
+	},
 	"scripts": {
 		"local-books": "bun run src/bin.ts",
-		"auth:remote": "infisical run --env=prod --path=/apps/local-books -- bun run src/bin.ts auth --qb-env production",
-		"sync:remote": "infisical run --env=prod --path=/apps/local-books -- bun run src/bin.ts sync --qb-env production",
-		"status:remote": "infisical run --env=prod --path=/apps/local-books -- bun run src/bin.ts status --qb-env production",
+		"auth:sandbox": "infisical run --path=/apps/local-books -- bun run src/bin.ts auth --qb-env sandbox",
+		"auth:production": "infisical run --path=/apps/local-books -- bun run src/bin.ts auth --qb-env production",
+		"sync:sandbox": "infisical run --path=/apps/local-books -- bun run src/bin.ts sync --qb-env sandbox",
+		"sync:production": "infisical run --path=/apps/local-books -- bun run src/bin.ts sync --qb-env production",
+		"status:sandbox": "infisical run --path=/apps/local-books -- bun run src/bin.ts status --qb-env sandbox",
+		"status:production": "infisical run --path=/apps/local-books -- bun run src/bin.ts status --qb-env production",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit",
 		"build:binary": "bun build --compile --outfile dist/local-books src/bin.ts"
 	},
 	"dependencies": {
+		"@epicenter/constants": "workspace:*",
+		"@hono/standard-validator": "catalog:",
 		"@modelcontextprotocol/sdk": "catalog:",
+		"arktype": "catalog:",
+		"hono": "catalog:",
 		"ms": "catalog:",
 		"oauth4webapi": "catalog:",
 		"typebox": "catalog:",

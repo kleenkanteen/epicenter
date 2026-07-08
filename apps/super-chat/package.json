@@ -1,0 +1,42 @@
+{
+	"name": "@epicenter/super-chat",
+	"description": "One local desktop chat session composing built-in apps' verbs into one catalog, hosted by a Bun loopback server.",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"exports": {
+		".": "./src/host.ts"
+	},
+	"scripts": {
+		"start": "bun run src/main.ts",
+		"build": "vite build",
+		"test": "bun test",
+		"typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json"
+	},
+	"dependencies": {
+		"@epicenter/chat": "workspace:*",
+		"@epicenter/client": "workspace:*",
+		"@epicenter/honeycrisp": "workspace:*",
+		"@epicenter/server": "workspace:*",
+		"@epicenter/todos": "workspace:*",
+		"@epicenter/ui": "workspace:*",
+		"@epicenter/workspace": "workspace:*",
+		"@modelcontextprotocol/sdk": "catalog:",
+		"@noble/ciphers": "^2.1.1",
+		"@noble/hashes": "^2.0.1",
+		"hono": "catalog:",
+		"yjs": "catalog:"
+	},
+	"devDependencies": {
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@tailwindcss/vite": "catalog:",
+		"@types/bun": "catalog:",
+		"svelte": "catalog:",
+		"svelte-check": "catalog:",
+		"tailwindcss": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:",
+		"vite-plugin-singlefile": "catalog:"
+	},
+	"license": "AGPL-3.0-or-later"
+}

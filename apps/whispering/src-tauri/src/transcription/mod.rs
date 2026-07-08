@@ -1,42 +1,24 @@
+mod catalog;
 mod config;
 mod error;
-mod events;
 mod model_cache;
-mod model_folder;
-mod model_import;
 
-use crate::recorder::read_artifact_samples;
+pub use catalog::{delete_model, download_model, list_models, CatalogError, ModelInfo};
 pub use config::{TranscriptionSpec, UnloadPolicy};
 pub use error::TranscriptionError;
-pub use events::{LocalModelState, ModelStateEvent};
 pub use model_cache::ModelCache;
-pub use model_folder::{
-    delete_model_entry, download_model, list_model_entries, resolve_model_files,
-    reveal_models_folder, ModelFolderError,
-};
-pub use model_import::{link_local_model, ModelImportError};
+
+use crate::recorder::read_artifact_samples;
 use tauri::{AppHandle, State};
 
 /// Reconcile the current local-model unload policy into the native idle
 /// watcher. The frontend owns the value and pushes it on every change; Rust
-/// owns the clock. Unlike the old ambient config, it carries no model
-/// identity, so it applies whether or not a model is selected.
+/// owns the clock. It carries no model identity, so it applies whether or not a
+/// model is selected.
 #[tauri::command]
 #[specta::specta]
 pub fn set_unload_policy(policy: UnloadPolicy, model_cache: State<'_, ModelCache>) {
     model_cache.set_unload_policy(policy);
-}
-
-/// Snapshot the current model state. Used by late-mounted observers (a
-/// second window, the settings panel re-opening, etc.) to catch up to
-/// the current lifecycle state without waiting for the next event on
-/// `transcription://model-state`.
-///
-/// Reads the status plus resident model identity, if any.
-#[tauri::command]
-#[specta::specta]
-pub fn get_transcription_state(model_cache: State<'_, ModelCache>) -> LocalModelState {
-    model_cache.snapshot()
 }
 
 /// Canonical transcribe-by-id path. Resolves the audio file under
@@ -71,10 +53,10 @@ pub async fn transcribe_recording(
 ///
 /// Idempotent and cheap: a no-op when the exact model is already resident.
 /// Shares the one load path with `transcribe_recording` (`ModelCache::prewarm`
-/// and `transcribe` both resolve through `ensure_engine_loaded`), so the model
-/// warmed here is exactly the one transcribe will use, and a mid-recording
-/// model change simply reloads at transcribe time. A failure here is
-/// non-fatal: transcribe will load normally and surface any real error then.
+/// and `transcribe` both resolve through `ensure_loaded`), so the model warmed
+/// here is exactly the one transcribe will use, and a mid-recording model change
+/// simply reloads at transcribe time. A failure here is non-fatal: transcribe
+/// will load normally and surface any real error then.
 #[tauri::command]
 #[specta::specta]
 pub async fn prewarm_model(

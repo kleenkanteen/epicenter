@@ -14,7 +14,7 @@ import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { APP_URLS } from '@epicenter/constants/vite';
 import type { StorageItemKey } from '@wxt-dev/storage';
 import { APP_MODELS } from '$lib/chat/models';
-import { tabManagerSession } from '$lib/session.svelte';
+import { tabManagerBoot } from '$lib/session.svelte';
 import { createStorageState } from './storage-state.svelte';
 
 export const inferenceConnections = createInferenceConnections({
@@ -24,8 +24,8 @@ export const inferenceConnections = createInferenceConnections({
 		// The extension's auth client is deferred-init (it throws before storage
 		// readiness), so read it at turn time inside this closure, never at module
 		// load. The hosted transport is only resolved when a hosted turn generates.
-		fetch: (input, init) => tabManagerSession.auth.fetch(input, init),
-		baseURL: API_ROUTES.ai.completions.baseUrl(APP_URLS.API),
+		fetch: (input, init) => tabManagerBoot.auth.fetch(input, init),
+		baseURL: API_ROUTES.ai.baseUrl(APP_URLS.API),
 	},
 	persist: (key, schema, fallback) =>
 		createStorageState(`local:${key}` as StorageItemKey, { schema, fallback }),

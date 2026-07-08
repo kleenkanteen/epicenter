@@ -1,46 +1,55 @@
 ---
 name: workspace-app-composition
-description: 'How a workspace-backed app under `apps/*` is composed: the isomorphic doc factory (`create<App>`), the environment factories (`open<App>Browser` / `open<App>Extension` / tauri), the `#platform/*` build-time platform DI for multi-platform (Tauri) apps, the `session` singleton, daemon/script placement under per-project `workspaces/<app>/`, and the file layout itself. Use when creating a new app, naming or placing the iso/browser/extension factory, wiring `#platform/*` subpath imports for a Tauri seam, choosing between auth-gated (Shape A) vs module-singleton (Shape B), placing the session singleton, registering daemon/script bindings, or gating first paint on IndexedDB hydration (load gate vs WorkspaceGate).'
+description: 'How a workspace-backed app under `apps/*` is composed: the isomorphic doc factory (`create<App>`), the environment factories (`open<App>Browser` / `open<App>Extension` / tauri) with the one boot call (`connect(toConnection(auth, nodeId))`, ADR-0088/ADR-0094), the `#platform/*` build-time platform DI for multi-platform (Tauri) apps, the workspace singleton, the sign-in migration wiring, daemon/script placement under per-project `workspaces/<app>/`, and the file layout itself. Use when creating a new app, naming or placing the iso/browser/extension factory, wiring `#platform/*` subpath imports for a Tauri seam, placing the workspace singleton, wiring the first-sign-in migration, registering daemon/script bindings, or gating first paint on local storage hydration (load gate vs WorkspaceGate).'
 metadata:
   author: epicenter
-  version: '5.0'
+  version: '6.0'
 ---
 
 # Workspace App Layout
 
 A workspace app is composed in layers: a pure isomorphic doc factory, one or
 more environment factories that bind it to a runtime (browser, Chrome
-extension, Tauri), a single side-effectful session singleton, and (for
+extension, Tauri), a single side-effectful workspace singleton, and (for
 multi-platform apps) a build-time platform DI seam. Daemon and script bindings
 do not live in the app package at all; they live per-project under
 `workspaces/<app>/` and are registered through `epicenter.config.ts`.
 
-Two shipped shapes; pick by whether the app gates UI on signed-in identity.
+There is ONE composition shape (ADR-0088: sign-in is an enhancement, never a
+door). Every app boots into a working local workspace with one call;
+`toConnection` reads the persisted `auth.state` once and projects it to the
+connection (signed in) or `null` (signed out, bare local wiring, ADR-0094).
+Storage is an environment concern: browser apps use the default IndexedDB
+local persistence, while Bun hosts inject `bunLocalPersistence({ dir, nodeId })`
+through `connect(null, { persistence })` (ADR-0095).
 
-**Shape A**: auth-gated SvelteKit web apps (honeycrisp, vocab). The app
-is not a running thing until identity exists, so a `session` singleton owns the
-workspace lifecycle and UI lives under `(signed-in)` routes.
+```ts
+model.connect(toConnection(auth, nodeId), compose);
+```
 
-**Shape B**: module-level singleton apps (opensidian, tab-manager, whispering).
-A module singleton blocks on auth/session readiness and exports a constructed
-handle.
+The workspace is never `null`, no route gates on identity, and an owner change
+reloads the page (`reloadOnOwnerChange`) so the next boot re-projects.
+When a schema needs a per-platform argument, the model is a factory
+`define<App>(args)`: the id and tables stay fixed, and only defaults or other
+read-side schema inputs vary.
 
 ## File Layout
 
 Two layouts ship today. Older single-platform apps keep the composition files
-flat at the package root; apps preparing for multi-platform builds nest the same
-files under `src/lib/workspace/` and add a `src/lib/platform/` seam.
+flat at the package root; apps preparing for multi-platform builds nest the
+same files under `src/lib/workspace/` and add a `src/lib/platform/` seam.
 
 **Flat root** (opensidian, vocab):
 
 ```txt
 apps/<app>/
-|- <app>.ts                  iso schema + create<App>() factory   (package "." export)
-|- <app>.browser.ts          browser env factory open<App>Browser()
+|- <app>.ts                  iso schema + workspace model            (package "." export)
+|- <app>.browser.ts          browser env factory open<App>Browser()  (the preset branch)
 |- <app>.test.ts             tests
-|- mount.ts                  optional mount factory <app>()       (package "./mount" export)
+|- mount.ts                  optional mount factory <app>()          (package "./mount" export)
 `- src/lib/
-   |- session.ts             the session singleton (NOT session.svelte.ts)
+   |- <app>.ts               the workspace singleton
+   |- migration/sign-in-migration.ts   first-sign-in migration wiring
    `- platform/auth/         auth client construction
 ```
 
@@ -51,20 +60,20 @@ apps/<app>/
 |- package.json              "imports" map declares the #platform/* seams
 `- src/lib/
    |- workspace/
-   |  |- index.ts            iso schema + create<App>() factory   (package "." export)
-   |  |- browser.ts          browser env factory open<App>Browser()
+   |  |- index.ts            iso schema + workspace model            (package "." export)
+   |  |- browser.ts          browser env factory open<App>Browser()  (the preset branch)
    |  |- index.test.ts       tests
-   |  `- mount.ts            optional mount factory <app>()       (package "./mount" export)
-   |- session.ts             the session singleton
+   |  `- mount.ts            optional mount factory <app>()          (package "./mount" export)
+   |- <app>.ts               the workspace singleton
+   |- migration/sign-in-migration.ts   first-sign-in migration wiring
    `- platform/              #platform/* impls (X.browser.ts / X.tauri.ts) + types.ts contract
 ```
 
-Honeycrisp is the Shape A nested app: it has `src/lib/session.ts`, a package
-`.` export to `src/lib/workspace/index.ts`, and currently only a default
-browser `#platform/auth` implementation. It has no `mount.ts` and no `./mount`
-export. Whispering is Shape B: it has no `session.ts`, no `mount.ts`, no `.`
-export, and many more `#platform/*` seams because audio and desktop services
-earn them.
+The extension app (tab-manager) keeps its deferred boot module at
+`src/lib/session.svelte.ts`: `chrome.storage` is async, so the auth client and
+workspace bundle are built after a readiness promise resolves, and the module
+exports a `tabManagerBoot` handle whose getters throw only before storage
+readiness (never a signed-out branch).
 
 Package exports follow the file's actual owner. Flat-root apps export the iso
 factory as `.`; only apps with a live daemon consumer export a mount factory as
@@ -91,109 +100,143 @@ add a `./browser` export to the rest for symmetry's sake.
 
 ## Layers
 
-| Layer | File | Shape | Job | Returns |
-| --- | --- | --- | --- | --- |
-| Iso factory | `<app>.ts` / `workspace/index.ts` | A + B | `create<App>()`: pure doc construction | workspace (`ydoc`, tables, kv, actions) |
-| Browser factory | `<app>.browser.ts` / `workspace/browser.ts` | A + B | `open<App>Browser({ signedIn, nodeId })`: bind to browser persistence + sync | iso bundle plus IndexedDB/local storage, collaboration |
-| Extension / tauri factory | `<app>.extension.ts` etc. | B | bind to chrome.storage / Tauri APIs | iso bundle plus runtime resources |
-| Mount factory | `mount.ts` / `workspace/mount.ts` | A + B | Optional. `<app>(opts?)` calls `<app>Workspace.mount({ runtime: nodeMountRuntime(), ... })` and returns the `Mount` a project's `epicenter.config.ts` default-exports | `Mount` (node persistence, materializers) |
-| Session singleton | `src/lib/session.ts` | A | `createSession({ ... })`: owns workspace lifecycle, side effects | `session`, `session.require` |
-| Auth | `src/lib/platform/auth/` (or `#platform/auth`) | A | auth client construction | `auth` |
+| Layer | File | Job | Returns |
+| --- | --- | --- | --- |
+| Iso factory | `<app>.ts` / `workspace/index.ts` | `defineWorkspace({...})`: pure doc model | workspace model (`create`, `connect`, `mount`) |
+| Browser factory | `<app>.browser.ts` / `workspace/browser.ts` | `open<App>Browser({ auth, nodeId })`: the one boot call | `LocalWorkspace \| ConnectedWorkspace` bundle (storage, collaboration, wipe, child-doc openers) |
+| Extension / tauri factory | `<app>.extension.ts` etc. | same branch after async storage resolves | iso bundle plus runtime resources |
+| Mount factory | `mount.ts` / `workspace/mount.ts` | Optional. `<app>(opts?)` calls `<app>Workspace.mount({ runtime: nodeMountRuntime(), ... })` and returns the `Mount` a project's `epicenter.config.ts` default-exports | `Mount` (node persistence, materializers) |
+| Workspace singleton | `src/lib/<app>.ts` | compose the bundle with app state, alias `whenReady` | `<app>` handle, never `null` |
+| Migration | `src/lib/migration/sign-in-migration.ts` | wire `createSignInMigration` (local source + words) | `signInMigration` state for the shared dialog |
+| Auth | `src/lib/platform/auth/` (or `#platform/auth`) | auth client construction | `auth` |
 
-The iso factory, browser/extension factory, and mount factory are pure
-construction surfaces. Side effects (auth subscriptions, HMR disposal,
-persisted state, network) live only in the session singleton (`src/lib/session.ts`).
+The iso factory and browser/extension factory are pure construction surfaces.
+Side effects (HMR disposal, persisted state, network) live only in the
+workspace singleton module.
 
 ## Iso Factory
 
-`create<App>()` builds the document and returns the workspace. It is the package
-`.` export and the wire contract for sync: browser, daemon, local-host, and test
-consumers import it when they need the shared schema. Forking a table column
-shape breaks sync compatibility with peers running the canonical schema.
-
-```ts
-export function createHoneycrisp() {
-	const workspace = createWorkspace({
-		id: HONEYCRISP_ID,
-		tables: { /* ... */ },
-		kv: {},
-	});
-	return defineWorkspace({
-		...workspace,
-		actions: defineActions({
-			// Pure workspace actions that depend only on tables.
-		}),
-	});
-}
-```
+The iso model builds the document schema and returns the workspace model. It is
+the package `.` export and the wire contract for sync: browser, daemon,
+local-host, and test consumers import it when they need the shared schema.
+Forking a table column shape breaks sync compatibility with peers running the
+canonical schema.
 
 Rules:
 
 - Keep the iso factory free of `node:*`, `bun:*`, `chrome.*`, Tauri APIs,
   `y-indexeddb`, `BroadcastChannel`, and runtime singletons. It must type-check
   and run isomorphically.
-- Put pure actions inline as `actions: defineActions({ ... })` in the returned
-  workspace when they depend only on tables.
+- Put pure actions inline as `actions: defineActions({ ... })` in the model
+  when they depend only on tables.
 - Keep env-bound actions in the env factory when they need filesystem, SQLite,
   shell, or browser persistence. Extract only when the runtime action set is
   shared or owns a boundary that would be harder to read inline.
 
 ## Browser Factory
 
-`open<App>Browser({ signedIn, nodeId })` calls the iso factory, then attaches
-local persistence and collaboration.
+`open<App>Browser({ auth, nodeId })` is the one boot call. Both connection
+arms return the same bundle shape (per-row child-doc openers and `wipe()`
+included), so nothing downstream branches on auth again:
 
 ```ts
+import { toConnection } from '@epicenter/svelte/auth';
+
 export function openHoneycrispBrowser({
-	signedIn,
+	auth,
 	nodeId,
 }: {
-	signedIn: SignedIn;
+	auth: SyncAuthClient;
 	nodeId: NodeId;
 }) {
-	return honeycrispWorkspace.connect({ ...signedIn, nodeId });
+	return honeycrispWorkspace.connect(toConnection(auth, nodeId));
 }
 ```
 
-## Session Singleton (Shape A)
+When the app layers a runtime composition, pass `compose` as the second
+argument. An inline arrow infers its parameter; a named `compose` function
+annotates it with `ComposeContext<typeof myAppWorkspace>` from
+`@epicenter/workspace`, never a hand-written `Pick` or `Parameters<...>`
+extraction.
 
-The singleton lives in `src/lib/session.ts` (a plain `.ts` module, not
-`session.svelte.ts`). `createSession` owns the workspace lifecycle; the app
-re-exports `session.require` under an app-specific name.
+## Workspace Singleton
+
+The singleton lives in `src/lib/<app>.ts` (a plain `.ts` module). It builds
+the bundle once at module load and composes app state on top; it is never
+`null` and has no `require*()` accessor:
 
 ```ts
-import { createSession } from '@epicenter/svelte/auth';
+import { createNodeId } from '@epicenter/workspace';
 import { auth } from '#platform/auth'; // nested apps; flat-root apps import from $lib/platform/auth
+import { openHoneycrispBrowser } from './workspace/browser';
 
-export const session = createSession({ /* auth + build */ });
-export const requireHoneycrisp = session.require;
+const browser = openHoneycrispBrowser({
+	auth,
+	nodeId: createNodeId({ storage: localStorage }),
+});
+
+export const honeycrisp = {
+	...browser,
+	state: createHoneycrispState(browser),
+	/** Resolves when local persistence has hydrated the root doc. */
+	whenReady: browser.storage.whenLoaded,
+};
 ```
 
-This is the only home for the singleton. Do not add a `client.ts` or a second
-singleton site.
+The root layout mounts `reloadOnOwnerChange(auth)` once (`onMount`), the
+`WorkspaceGate`, the migration `check()`, and the shared dialogs. `AccountPopover`
+is the only auth surface; there is no signed-out screen and no `(signed-in)`
+route group.
+
+`createSession` (`@epicenter/svelte/auth`) never owns a workspace lifecycle
+(ADR-0088). It survives only for auxiliary signed-in-only resources whose whole
+existence is tied to an identity (e.g. the vault keyring session).
+
+## Sign-In Migration
+
+The first signed-in boot that finds bare local rows offers the flag-free
+Add / Delete / Keep dialog. The mechanics (probe, crash-safe child-doc phases,
+copy-then-clear) live in `@epicenter/app-shell/sign-in-migration`; the app
+supplies only `openLocalSource` (the iso model's `.create()` plus a bare
+`attachIndexedDb`) and the words (`describe`, `note`, `errorNoun`):
+
+```ts
+export const signInMigration = createSignInMigration({
+	auth,
+	openLocalSource,
+	target: honeycrisp,
+	describe: describeLocalContents,
+	errorNoun: 'notes',
+});
+```
+
+Child-doc guids are derived from the tables returned by `openLocalSource`
+(ADR-0092). Deliberately excluding a table from `openLocalSource` (e.g.
+tab-manager's always-populated `devices`) excludes it from the probe, row copy,
+and child-doc migration together.
 
 ## Gating Readiness on Hydration
 
 A workspace-backed route reads empty tables until the workspace's readiness
-promise resolves (`idb.whenLoaded`, exposed as `whenReady`; matter's is the
+promise resolves (`storage.whenLoaded`, aliased as `whenReady`; matter's is the
 `once()`-memoized store read `ensureHydrated()`), so it flashes an empty state
 ("No recordings yet", "All clear"). No useful partial UI exists here, so gate
 the first paint rather than skeleton it.
 
 One rule: **gate where the readiness promise is first reachable**, decided by
-where the workspace is built (NOT the Shape A/B handle label).
+where the workspace is built.
 
 | Workspace built | Reachable in | Gate |
 | --- | --- | --- |
-| Eager module singleton, no auth gate: todos, whispering, skills, matter | a route `load` | `load`: `await x.whenReady` (matter: `ensureHydrated()`) |
-| Post-auth inside a `session` (only `session.current`): honeycrisp, vocab, opensidian | the signed-in component | `<WorkspaceGate pending={session.current.idb.whenLoaded}>` |
-| Extension entrypoint, no `load`: tab-manager | the component | `{#await idb.whenLoaded}` |
+| Eager module singleton with route loads: todos, whispering, skills, matter | a route `load` | `load`: `await x.whenReady` (matter: `ensureHydrated()`) |
+| Eager module singleton, gate in the root layout: honeycrisp, vocab, opensidian | the root layout | `<WorkspaceGate pending={<app>.whenReady} onForgetDevice onSignOut>` |
+| Extension entrypoint behind async storage: tab-manager | the component | outer `{#await boot.whenReady}`, then `WorkspaceGate` |
 
 - Correctness gates (404 / redirect / param) always go in `load`; only `load`
   can `error()` / `redirect()` (matter `vault/[id]`).
 - The promise must be resolve-only or the gate blocks paint forever
-  (`whenLoaded = idb.whenSynced`, kept resolve-only by the y-indexeddb
-  corrupt-load patch). Fix the promise, never add a timeout.
+  (`storage.whenLoaded` is kept resolve-only by the y-indexeddb corrupt-load
+  patch). Fix the promise, never add a timeout.
 
 The blank-shell (load) vs `<Loading>` (`WorkspaceGate`) difference follows from
 the boundary, not a separate choice. For the `load`-blocks-render rule ground
@@ -302,13 +345,26 @@ lifecycle command is `epicenter daemon up`, not `epicenter serve`.
 
 ## Anti-Patterns
 
+- Gating any route or the app shell on identity: no `(signed-in)` route
+  groups, no signed-out screen, no redirect-to-sign-in. Sign-in is an
+  enhancement (ADR-0088); signed-in-only features get small inline
+  affordances.
+- Owning a workspace lifecycle with `createSession`, or adding a `require*()`
+  accessor / nullable workspace handle. The singleton is never `null`.
+- Hand-rolling child-doc wiring, wipe, or migration phases in an app. The
+  presets and the sign-in migration kit own them; the app supplies words and
+  guid readers.
+- Branching on `auth.state` anywhere except the one preset branch in the
+  environment factory (and small inline feature affordances).
 - Putting auth, `createPersistedState`, `auth.onStateChange`, or HMR disposal in
-  the browser/extension/tauri factory. Those belong in `src/lib/session.ts`.
-- Naming the singleton `session.svelte.ts`. It is a plain `src/lib/session.ts`.
-- Adding a second singleton home (`client.ts`) to a Shape A app. The singleton
-  already lives in `src/lib/session.ts`.
+  the browser/extension/tauri factory. Those belong in the singleton module.
+- Adding a second singleton home (`client.ts`). The singleton already lives in
+  `src/lib/<app>.ts`.
 - Putting auth subscriptions or workspace construction in a Svelte component.
-  They belong in the session singleton.
+  They belong in the singleton module.
+- Forgetting `disabledReason` on `AccountPopover` when the app has an
+  unsafe-to-interrupt moment (an in-flight `MediaRecorder` cannot survive the
+  owner-change reload).
 - Branching on platform at a `#platform/*` call site. Import the bare specifier
   and let the build select the impl.
 - Using `satisfies` on a `#platform/*` impl instead of a `: Contract` annotation.
@@ -324,7 +380,7 @@ lifecycle command is `epicenter daemon up`, not `epicenter serve`.
 - Placing `daemon.ts` or `script.ts` inside the app package. They live under a
   project's `workspaces/<app>/` and are registered via `epicenter.config.ts`.
 - Restoring `serve` as the public lifecycle command (it is `epicenter daemon up`).
-- Load-gating a post-auth workspace (its `idb.whenLoaded` does not exist at
-  `load` time), or showing a `<Loading>` skeleton for a fast eager-workspace gate
-  (the spinner just flashes). Gate where the readiness promise is first
-  reachable; see Gating Readiness on Hydration.
+- Load-gating where the readiness promise is not reachable, or showing a
+  `<Loading>` skeleton for a fast eager-workspace gate (the spinner just
+  flashes). Gate where the readiness promise is first reachable; see Gating
+  Readiness on Hydration.

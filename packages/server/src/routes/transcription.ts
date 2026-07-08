@@ -13,8 +13,8 @@
  * (and segments, language); the shared client reads only `text`, and a
  * deployment that meters by audio length reads `duration` from the same body.
  *
- * Library-side and billing-agnostic, exactly like the chat gateway. Auth,
- * ownership, and any metering policy are supplied by the deployment through
+ * Library-side and billing-agnostic, exactly like the chat gateway. Auth and
+ * any metering policy are supplied by the deployment through
  * {@link mountTranscriptionApp}: apps/api passes its per-audio-minute Autumn
  * policy, a self-hosted instance deployment passes none. The gateway is
  * house-key-only (ADR-0054): it never reads a provider key from the request, so
@@ -37,8 +37,6 @@ import { Hono, type MiddlewareHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { describeRoute } from 'hono-openapi';
 import { extractErrorMessage } from 'wellcrafted/error';
-import { createRequireOwnership } from '../middleware/require-ownership.js';
-import type { OwnershipRule } from '../ownership.js';
 import type { Env } from '../types.js';
 
 // The gateway's single upstream routing fact, kept local (mirroring
@@ -170,27 +168,20 @@ const transcriptionApp = new Hono<Env>().post(
 
 /**
  * Mount the OpenAI-compatible speech-to-text gateway on a deployment's server
- * app. Mirrors {@link mountInferenceApp}: it bundles the deployment's auth, its
- * ownership rule, and any deployment policies (apps/api passes its
+ * app. Mirrors {@link mountInferenceApp}: it bundles the deployment's auth and
+ * any deployment policies (apps/api passes its
  * per-audio-minute Autumn policy; a self-hosted instance deployment passes
  * none). The library stays billing-agnostic; policies are opaque middleware that
- * run after auth and ownership and may short-circuit (e.g. 402) before the
- * gateway proxies.
+ * run after auth and may short-circuit (e.g. 402) before the gateway proxies.
  */
 export function mountTranscriptionApp<E extends Env = Env>(
 	app: Hono<E>,
 	opts: {
 		auth: MiddlewareHandler<E>;
-		ownership: OwnershipRule;
 		policies?: MiddlewareHandler<E>[];
 	},
 ): void {
 	const policies = opts.policies ?? [];
-	app.use(
-		API_ROUTES.ai.transcriptions.prefixPattern,
-		opts.auth,
-		createRequireOwnership<E>(opts.ownership),
-		...policies,
-	);
+	app.use(API_ROUTES.ai.transcriptions.prefixPattern, opts.auth, ...policies);
 	app.route('/', transcriptionApp);
 }

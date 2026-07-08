@@ -27,7 +27,7 @@ const OVERLAY_BOTTOM_MARGIN = 72;
  * Manages the floating recording overlay window from the main window.
  *
  * The overlay window is created lazily on first show and then kept alive and
- * toggled visible/hidden, mirroring the transform-clipboard window. It is
+ * toggled visible/hidden. It is
  * transparent, undecorated, always-on-top, non-focusable, and skips the
  * taskbar so it reads as a system HUD rather than an app window.
  *

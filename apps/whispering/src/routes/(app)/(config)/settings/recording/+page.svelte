@@ -5,7 +5,7 @@
 	import { Link } from '@epicenter/ui/link';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import { createMutation } from '@tanstack/svelte-query';
-	import { mutationOptions } from 'wellcrafted/query';
+	import { resultMutationOptions } from 'wellcrafted/query';
 	import { SettingSelect, SettingSwitch } from '$lib/components/settings';
 	import {
 		BITRATE_OPTIONS,
@@ -13,7 +13,7 @@
 		SAMPLE_RATE_OPTIONS,
 	} from '$lib/constants/audio';
 	import { report } from '$lib/report';
-	import { asDeviceIdentifier } from '$lib/services/recorder/types';
+	import { asDeviceIdentifier } from '@epicenter/recorder';
 	import { deviceConfig } from '$lib/state/device-config.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { os } from '#platform/os';
@@ -24,7 +24,7 @@
 	import VadSelectRecordingDevice from './VadSelectRecordingDevice.svelte';
 
 	const exportRecordings = createMutation(() =>
-		mutationOptions({
+		resultMutationOptions({
 			mutationKey: ['recordings', 'export'],
 			mutationFn: whispering.actions.recordings_export_markdown,
 		}),

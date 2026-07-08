@@ -1,6 +1,6 @@
 {
 	"name": "@epicenter/vocab",
-	"description": "Bilingual Chinese-English chat app for learning Mandarin",
+	"description": "Multilingual chat tutor with a deterministic client-side reading overlay",
 	"private": true,
 	"version": "0.0.2",
 	"type": "module",
@@ -9,8 +9,7 @@
 		"./browser": "./vocab.browser.ts"
 	},
 	"scripts": {
-		"dev": "bun run dev:local",
-		"dev:local": "vite dev",
+		"dev": "vite dev",
 		"build": "NODE_ENV=production vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
@@ -25,6 +24,7 @@
 		"@epicenter/client": "workspace:*",
 		"@epicenter/constants": "workspace:*",
 		"@epicenter/field": "workspace:*",
+		"@epicenter/recorder": "workspace:*",
 		"@epicenter/svelte": "workspace:*",
 		"@epicenter/ui": "workspace:*",
 		"@epicenter/workspace": "workspace:*",
@@ -33,7 +33,9 @@
 		"mode-watcher": "^1.1.0",
 		"pinyin-pro": "^3.28.0",
 		"svelte-sonner": "catalog:",
+		"transliteration": "^2.6.1",
 		"typebox": "catalog:",
+		"wanakana": "^5.3.1",
 		"wellcrafted": "catalog:",
 		"yjs": "catalog:"
 	},
@@ -48,7 +50,8 @@
 		"svelte-check": "catalog:",
 		"tailwindcss": "catalog:",
 		"typescript": "catalog:",
-		"vite": "catalog:"
+		"vite": "catalog:",
+		"vite-plugin-static-copy": "^4.1.1"
 	},
 	"license": "AGPL-3.0-or-later"
 }

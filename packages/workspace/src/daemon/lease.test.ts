@@ -20,10 +20,8 @@ import { claimDaemonLease } from './lease.js';
 
 function setup() {
 	const oldRuntimeDir = process.env.EPICENTER_RUNTIME_DIR;
-	// `/tmp/...` is short on every POSIX platform; needed because socketPathFor
-	// enforces a strict path-length guard that macOS's `os.tmpdir()` would
-	// blow. `EPICENTER_RUNTIME_DIR` is the workspace test seam read on every
-	// `runtimeDir()` call.
+	// `EPICENTER_RUNTIME_DIR` is the workspace test seam read on every
+	// `runtimeDir()` call; isolate it under /tmp so tests never touch user state.
 	const runtimeRoot = mkdtempSync('/tmp/eps-lease-rt-');
 	const workDir = mkdtempSync('/tmp/eps-lease-dir-');
 	process.env.EPICENTER_RUNTIME_DIR = runtimeRoot;

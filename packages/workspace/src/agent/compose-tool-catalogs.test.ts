@@ -16,7 +16,7 @@ function stubCatalog(
 		definitions: (): AgentToolDefinition[] =>
 			names.map((name) => ({ name, kind })),
 		resolve: async (call): Promise<AgentToolOutcome> => ({
-			output: `${label}:${call.toolName}`,
+			content: `${label}:${call.toolName}`,
 			isError: false,
 		}),
 	};
@@ -56,7 +56,7 @@ describe('composeToolCatalogs', () => {
 			stubCatalog('b', ['two']),
 		]);
 		expect(await merged.resolve(call('two'), signal)).toEqual({
-			output: 'b:two',
+			content: 'b:two',
 			isError: false,
 		});
 	});
@@ -67,7 +67,7 @@ describe('composeToolCatalogs', () => {
 			stubCatalog('remote', ['shared']),
 		]);
 		expect(await merged.resolve(call('shared'), signal)).toEqual({
-			output: 'local:shared',
+			content: 'local:shared',
 			isError: false,
 		});
 	});
@@ -76,7 +76,7 @@ describe('composeToolCatalogs', () => {
 		const merged = composeToolCatalogs([stubCatalog('a', ['one'])]);
 		const outcome = await merged.resolve(call('missing'), signal);
 		expect(outcome.isError).toBe(true);
-		expect(outcome.output).toContain('missing');
+		expect(outcome.content).toContain('missing');
 	});
 
 	test('a getter source is read live so a later-mounted catalog appears', async () => {
@@ -92,7 +92,7 @@ describe('composeToolCatalogs', () => {
 				.sort(),
 		).toEqual(['one', 'remote']);
 		expect(await merged.resolve(call('remote'), signal)).toEqual({
-			output: 'device:remote',
+			content: 'device:remote',
 			isError: false,
 		});
 	});

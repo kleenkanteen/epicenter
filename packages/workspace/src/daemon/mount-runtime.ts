@@ -24,9 +24,8 @@
  * logger from `scope.ctx`, and enroll their own teardown through
  * `scope.registerDrain` so a daemon shutdown drains them. A call site supplies
  * only what is genuinely its own (FTS columns, the table export config, git
- * autosave) and spreads the result's `.actions`. Keeping them off the injected
- * bag is what lets the coordinator stay a pure pass-through: it never touches a
- * materializer, only the `{ actions }` the body returns.
+ * autosave). Keeping them off the injected bag is what lets the coordinator
+ * stay a pure pass-through: it never touches a materializer.
  *
  * Browser bundles import `WorkspaceDefinition.mount` as a type and never reach
  * this module: the daemon runtime they would call it with is constructed here,
@@ -106,9 +105,8 @@ export type MarkdownMountOptions<TTables extends TablesRecord> = {
 /**
  * Attach the daemon-side SQLite mirror for a mount's workspace. Call it from a
  * mount's `compose` body with the `scope` and the `workspace`; it enrolls its
- * own teardown through `scope.registerDrain`, so you only spread its `.actions`
- * into the served registry. There is no materializer list to remember: forgetting
- * to drain is not expressible.
+ * own teardown through `scope.registerDrain`. There is no materializer list to
+ * remember: forgetting to drain is not expressible.
  *
  * The file path and logger are derived from `scope.ctx`, so the call site passes
  * only its own FTS config.
@@ -133,9 +131,8 @@ export function attachMountSqlite<
 /**
  * Attach the daemon-side markdown export for a mount's workspace, optionally
  * git-autosaving each exported subdirectory. Call it from a mount's `compose`
- * body with the `scope` and the `workspace`; it enrolls its own teardown through
- * `scope.registerDrain`, so you only spread its `.actions` into the served
- * registry.
+ * body with the `scope` and the `workspace`; it enrolls its own teardown
+ * through `scope.registerDrain`.
  *
  * The base directory and logger are derived from `scope.ctx`, so the call site
  * passes only the per-table export config and git policy.
@@ -190,15 +187,11 @@ function connectMountChildDoc(
 		const collaboration = openCollaboration(ydoc, {
 			url: roomWsUrl({
 				baseURL,
-				ownerId: ctx.session.ownerId,
 				guid,
 				nodeId: ctx.nodeId,
 			}),
 			openWebSocket: ctx.session.openWebSocket,
 			onReconnectSignal: ctx.session.onReconnectSignal,
-			// A body's writers are the layout and the generation worker; the body
-			// doc exposes no actions of its own.
-			actions: {},
 			log: createLogger(`${ctx.mount}-worker-sync`),
 		});
 		return {

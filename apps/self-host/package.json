@@ -9,15 +9,16 @@
 	},
 	"license": "AGPL-3.0-or-later",
 	"scripts": {
+		"dev": "bun --watch server.ts",
 		"typecheck": "tsc --noEmit",
 		"typegen": "wrangler types",
 		"deploy": "wrangler deploy",
-		"gen-token": "bun scripts/gen-token.ts",
-		"dev:bun": "bun --watch server.ts"
+		"gen-token": "bun scripts/gen-token.ts"
 	},
 	"dependencies": {
 		"@epicenter/auth": "workspace:*",
 		"@epicenter/constants": "workspace:*",
+		"@epicenter/identity": "workspace:*",
 		"@epicenter/server": "workspace:*",
 		"arktype": "catalog:",
 		"hono": "catalog:"

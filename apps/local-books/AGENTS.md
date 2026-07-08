@@ -26,16 +26,19 @@ local-books status                                 # connection + per-record-typ
 local-books query "<sql>"                          # read-only SQL over the local copy
 local-books report <Name> [--start --end --method] # live QuickBooks statement (P&L, balance sheet, ...)
 local-books recategorize <Purchase|Bill> <id> --to <accountId>   # the one QuickBooks write
+local-books app [--no-open] [--port <n>]           # loopback SPA + same-origin /api over 127.0.0.1 (local-mail's shell)
 local-books demo                                   # build + grill a sample company offline
 local-books mcp                                    # stdio MCP server: expose the verbs to a coding agent
 ```
+
+`app` is the loopback browser surface: `src/app.ts` owns lifecycle (realm resolve, per-realm `lock.db`, sync loop, Host check, static serving, `Bun.serve`, browser launch); `src/http/api.ts` owns the Hono `/api` app and exports `ApiApp` (the read verbs go through the same `src/books/*` cores, `recategorize` stays the one write, `readOnly` refuses it at the core). The SPA in `ui/` is a SvelteKit static SPA typed end-to-end by `hc<ApiApp>`. Elysia/Eden is refused for repo coherence; this is `local-mail app`'s shape reused.
 
 Sync mode is chosen from stored state: `--full` / no cursor / cursor older than the CDC window / full-pull staleness backstop forces FULL; otherwise INCREMENTAL.
 
 ## Config (env or `<data-dir>/config.json`)
 
-- `QB_CLIENT_ID` / `QB_CLIENT_SECRET` — your Intuit app keys (required for `auth`). This is what Infisical injects at `/apps/local-books`, so the usual invocation is `infisical run --path=/apps/local-books -- bun run src/bin.ts auth`.
-- `LOCAL_BOOKS_QB_ENV` — `sandbox` (default) or `production`.
+- `QB_SANDBOX_CLIENT_ID` / `QB_SANDBOX_CLIENT_SECRET`, `QB_PRODUCTION_CLIENT_ID` / `QB_PRODUCTION_CLIENT_SECRET` — your Intuit app keys, one keyset per environment (ADR-0108; QuickBooks issues a distinct OAuth client per environment). `--qb-env` picks the keyset by name, resolved lazily at the OAuth/refresh site (`src/qb-credentials.ts` owns `QB_SPEC`; `@epicenter/constants/provider-credentials` owns the mechanism). The name carries the QuickBooks target. Personal local app credentials live in the personal Infisical project at `prod /apps/local-books`, reached through the ignored app-local `.infisical.json` (`infisical run --path=/apps/local-books -- bun run src/bin.ts auth --qb-env sandbox`). A missing keyset fails loudly naming the exact `QB_<ENV>_*` variables. Canonical names live in `.env.example` (pinned by `test/env-example.test.ts`); the old unqualified `QB_CLIENT_ID` / `QB_CLIENT_SECRET` are retired.
+- `LOCAL_BOOKS_QB_ENV` — `sandbox` (default) or `production`; the connect-time chooser, equivalent to `--qb-env`. The minted token records its environment and every later command asserts it (`token-manager.ts`), refusing a sandbox token used against production and vice versa.
 - `LOCAL_BOOKS_DIR` / `--data-dir` — data directory override.
 - `LOCAL_BOOKS_TOKEN_FILE` — override the token file path (default `<data-dir>/credentials.json`). Used by the test harness and any custom location. The `0600` file store works the same on a desktop, a headless server, an SSH session, and CI, which is what a headless-first tool needs. See ADR-0062.
 - `LOCAL_BOOKS_READ_ONLY` — reads only: `query` and `report` stay available, `recategorize` is refused. Whether you run the verbs yourself or hand the `books.db` to an agent.

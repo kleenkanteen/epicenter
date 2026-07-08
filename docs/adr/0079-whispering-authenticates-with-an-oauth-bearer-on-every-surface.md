@@ -1,6 +1,6 @@
 # 0079. Whispering authenticates with an OAuth bearer on every surface; the web build keeps its own origin
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-27
 - **Relates:** [ADR-0053](0053-the-epicenter-bearer-is-an-audience-scoped-credential.md) (the bearer is audience-scoped, attached only to the origin it signed into), [ADR-0067](0067-auth-owns-the-session-endpoint-the-data-client-is-owner-scoped.md) (auth owns `/api/session`, the data client is owner-scoped), [ADR-0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) (self-host is one partition behind one operator-supplied static bearer; supersedes ADR-0070) and [ADR-0071](0071-oauth-is-hosted-only-a-custom-instance-requires-a-token.md) (OAuth is hosted-only; a self-hosted instance authenticates with a static token), [ADR-0074](0074-the-secret-vault-is-an-owner-scoped-synced-store-encrypted-under-a-server-derived-keyring.md) (the secret vault consumes a server-derived keyring delivered over the authenticated session). Also relates to the portable-SPA stance (serve web apps same-origin under the api origin to use cookie auth, and not from branded subdomains).
 
@@ -32,16 +32,16 @@ One transport, an OAuth bearer, on every Whispering surface. The web build stays
 
 The web bearer's XSS exposure is handled as hardening inside the OAuth choice, not by switching transport:
 
-- Persist the web grant in `sessionStorage` or in memory, never `localStorage`. Desktop keeps its grant in the OS keychain.
+- Persist the web grant in `localStorage` (the shared factory default). An earlier draft of this ADR required `sessionStorage`, but its only real delta is a narrower left-behind window after tab close: live XSS reads either store while the app runs, and both are files on disk while the browser does. Its cost was the highest user-visible friction in the product, a sign-out on every tab close. The controls that actually bound a stolen grant are the ones below (short TTL, rotation, revocation, CSP). Desktop keeps its grant in the OS keychain.
 - Keep access tokens short-lived with strict refresh rotation.
 - Ship a tight CSP and Trusted Types where practical; treat the vault surface as high-risk.
 - Never add cross-subdomain `.epicenter.so` cookies as a halfway cookie option.
 
-Self-host authenticates with one operator-supplied static bearer (`createInstanceTokenAuth`), pinned to the single `owners/instance` partition per ADR-0075, per ADR-0071; nothing here adds a new mode.
+Self-host authenticates with one operator-supplied static bearer (`createInstanceTokenAuth`), resolved to the single `principals/instance` partition per ADR-0075 and ADR-0092; nothing here adds a new mode.
 
 ## Consequences
 
-- Whispering adopts `createAppAuthClient` unchanged. The `#platform/auth` build seam selects only the launcher and the persisted-grant storage per build: Tauri uses a deep-link callback launcher and the OS keychain; web uses a redirect launcher and `sessionStorage`/memory. No new auth client type is introduced.
+- Whispering adopts `createAppAuthClient` unchanged. The `#platform/auth` build seam selects only the launcher and the persisted-grant storage per build: Tauri uses a deep-link callback launcher and the OS keychain; web uses a redirect launcher and the factory's persistent `localStorage` grant. No new auth client type is introduced.
 - The "no branded subdomains" rule is about **cookie** apps: cross-subdomain cookies widen CSRF surface and blur audience boundaries. An OAuth app at its own subdomain is an ordinary cross-origin client, so the rule points toward this decision, not against it. `whispering.epicenter.so` stays.
 - Auth stays optional and non-gating. Signed-out Whispering is unchanged (device-local), so this adds a credential, never a gate. Whispering remains a Shape B module-singleton app; the auth session is an additive overlay that owns only the vault doc and keyring, never the eager device-local recordings workspace.
 - **Forecloses:** re-hosting the web build under the api origin for cookie auth, and a cookie-authenticated WebSocket sync path for Whispering. Re-introducing either re-litigates this ADR.

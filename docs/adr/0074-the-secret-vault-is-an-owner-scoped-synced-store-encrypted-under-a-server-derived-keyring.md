@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-06-27
+- **Amended by:** [ADR-0092](0092-identity-is-the-partition.md) for identity vocabulary and durable namespace bytes.
 - **Amends:** [ADR-0054](0054-an-inference-backend-is-the-metered-gateway-or-a-custom-server.md)'s "a provider key is device-local, never synced." The rule was right against the evidence ADR-0054 had: a synced key on the plaintext relay is a secret in the clear, and a synced `localhost` URL is meaningless elsewhere. The evidence it never weighed is *cross-app*: two first-party apps (Whispering and Vocab today) each need the same provider key, and device-local storage cannot cross an app or origin boundary. Re-entering your Groq key in every app is the exact friction the "own your data, apps are lenses" mission exists to kill. So a `bring`-class key syncs through the vault; a device-scoped endpoint (`localhost`, LAN) still stays device-local, which keeps ADR-0054's real concern intact.
 - **Supersedes:** PR #2056's three vault ADRs as they exist on `feat/secret-vault-encrypted-kv` (numbered 0053 / 0054 / 0055 on that branch: one-home-at-a-time, owner-scoped persistence, and passphrase-as-the-only-key-source). Those numbers are already taken on `main` by unrelated decisions; the vault ADRs were renumbered three times (0004/0005, then 0041/0042/0043, then 0053/0054/0055) chasing collisions, and that thrash ends here. The one-home and owner-scoping decisions survive as invariants 4 and 2 below; the passphrase-key-source decision is the one this reverses.
 <!-- doc-path-check: ignore-next-line (the settled-design spec is deleted by this decision; git keeps the body recoverable) -->
@@ -28,6 +29,8 @@ The vault is one owner-scoped, user-global synced document holding only what a u
 5. **One read contract for every consumer: `available | missing`.** `missing` means no key, remedy is add it; `available` means decrypted and usable. With a server-derived keyring there is no `locked` state: an authenticated session has the keyring, so a present key is always decryptable. Consumers never call a provider SDK with a blank key; they branch on this contract.
 
 The passphrase-derived keyring (true zero-knowledge while hosted) is the deferred premium seam, the exact one ADR-0068's considered-alternatives names: added only if a "trust you with my data but not my API key, and will not self-host" segment becomes real, as an opt-in upgrade on top, never the default. PR #2056's encrypted-KV primitive (`createEncryptedLwwKeyValue`, `@epicenter/encryption`) is key-source agnostic and survives unchanged; only its passphrase keyring (Argon2id, wrapped master key, passphrase strength, `generatePassphrase`) is shelved until that trigger fires.
+
+ADR-0092 later renames the live partition vocabulary from owner to principal and changes the HKDF info label from `owner:${label}` to `principal:${label}` under the zero-durable-data clean break. This ADR's product decision still stands: synced secrets key to the authenticated partition and use a server-derived keyring, not a passphrase.
 
 ## Consequences
 

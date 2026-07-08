@@ -1,0 +1,40 @@
+{
+	"name": "@epicenter/local-mail",
+	"description": "Headless Gmail mirror: syncs a Gmail account into local SQLite via full pull and incremental history.list polling, with CLI and MCP access.",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"keywords": [
+		"local-first",
+		"gmail",
+		"sqlite",
+		"cdc",
+		"email"
+	],
+	"exports": {
+		"./http/api": "./src/http/api.ts"
+	},
+	"scripts": {
+		"connect": "bun run src/bin.ts connect",
+		"sync": "bun run src/bin.ts sync",
+		"status": "bun run src/bin.ts status",
+		"check:gmail-drift": "bun run test-support/check-gmail-discovery.ts",
+		"test": "bun test",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p test-support/tsconfig.json"
+	},
+	"dependencies": {
+		"@epicenter/constants": "workspace:*",
+		"@hono/standard-validator": "catalog:",
+		"@modelcontextprotocol/sdk": "catalog:",
+		"arktype": "catalog:",
+		"hono": "catalog:",
+		"oauth4webapi": "catalog:",
+		"typebox": "catalog:",
+		"wellcrafted": "catalog:"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"typescript": "catalog:"
+	},
+	"license": "AGPL-3.0-or-later"
+}

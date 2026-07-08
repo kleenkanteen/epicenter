@@ -24,15 +24,10 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-# Cancelable model downloads (src/download.rs). reqwest with `stream` gives the
-# chunked `bytes_stream()`; futures-util drives it. Replaces the streaming the
-# (now removed) tauri-plugin-upload used to do, but under our own task so it can
-# be aborted.
-reqwest = { version = "0.12", features = ["stream"] }
-futures-util = "0.3"
 dotenvy_macro = "0.15"
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
+transcribe-cpp = { version = "0.1.0", default-features = false }
 # Typed Rust to TypeScript IPC bindings. Pinned to the v2 RC line that this
 # spec targeted (20260526T220000-tauri-specta-on-artifact-id-base.md).
 specta = "=2.0.0-rc.25"
@@ -54,6 +49,11 @@ enigo = "0.5.0"
 cpal = "0.18.1"
 tracing = "0.1.41"
 thiserror = "2.0.12"
+# OS credential store for the persisted OAuth grant (src/keyring_storage.rs):
+# Keychain Services on macOS, Credential Manager on Windows, Secret Service
+# (via zbus, pure Rust) on Linux. The default `v1` feature already selects the
+# right native backend per platform, so no per-OS feature flags are needed.
+keyring = "4"
 hound = "3.5"
 lazy_static = "1.4"
 tempfile = "3.8"
@@ -76,9 +76,9 @@ tauri-plugin-macos-permissions = "2.3.0"
 rayon = "1.10"
 log = "0.4"
 tauri-plugin-log = "2"
+hf-hub = { version = "0.5", features = ["tokio"] }
 
 [target.'cfg(windows)'.dependencies]
-transcribe-rs = { version = "=0.3.8", features = ["whisper-vulkan", "ort-directml"] }
 # System media pause/resume via GSMTC (`Windows.Media.Control`). `Foundation`
 # pulls in the async types (and `windows-future`, whose `IAsyncOperation::join()`
 # is how we block on WinRT ops); `Foundation_Collections` lets us iterate
@@ -91,8 +91,17 @@ windows = { version = "0.62", features = ["Media_Control", "Foundation", "Founda
 # proactive check in `command.rs` is a registry read. See `get_microphone_permission`.
 winreg = "0.55"
 
+[target.'cfg(all(windows, target_arch = "x86_64"))'.dependencies]
+transcribe-cpp = { version = "0.1.0", default-features = false, features = [
+  "dynamic-backends",
+  "vulkan",
+] }
+
+[target.'cfg(all(windows, target_arch = "aarch64"))'.dependencies]
+transcribe-cpp = { version = "0.1.0", default-features = false }
+
 [target.'cfg(target_os = "macos")'.dependencies]
-transcribe-rs = { version = "=0.3.8", features = ["whisper-cpp", "whisper-metal", "onnx", "ort-coreml"] }
+transcribe-cpp = { version = "0.1.0", default-features = false, features = ["metal"] }
 accessibility-sys =  "0.1.3"
 core-foundation-sys =  "0.8.7"
 # Safe wrappers for the owned CGEventTap (`src/keyboard/mac_tap.rs`, the Tier-1
@@ -119,7 +128,10 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSData", "NSArray"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-transcribe-rs = { version = "=0.3.8", features = ["whisper-cpp", "whisper-vulkan", "onnx"] }
+transcribe-cpp = { version = "0.1.0", default-features = false, features = [
+  "dynamic-backends",
+  "vulkan",
+] }
 # System media pause/resume via MPRIS over the session D-Bus. zbus is pure Rust
 # (no libdbus / pkg-config C build dep, unlike the `mpris` crate). tokio feature
 # so D-Bus I/O runs on the app's existing runtime instead of a second executor.

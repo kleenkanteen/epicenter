@@ -26,15 +26,23 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 
+// The specs pathspec keeps the output under the buffer cap: unfiltered
+// `--all` across this repo's thousands of agent branches emits gigabytes.
+// `--full-history` is required beside it; plain pathspec log simplifies
+// history and silently drops adds on TREESAME side branches.
 const raw = execFileSync(
 	'git',
 	[
 		'log',
 		'--all',
+		'--full-history',
 		'--diff-filter=A',
 		'--name-status',
 		'--date=short',
 		'--pretty=format:@@@%ad',
+		'--',
+		'specs',
+		':(glob)**/specs/**',
 	],
 	{ encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 },
 );

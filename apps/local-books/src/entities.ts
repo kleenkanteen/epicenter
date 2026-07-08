@@ -27,22 +27,61 @@
 export type ColumnType = 'TEXT' | 'INTEGER' | 'REAL';
 
 /**
+ * A validated SQLite identifier: a mirror table name or a generated-column name.
+ * Lowercase snake-case, so it is safe to interpolate straight into DDL/DML. The
+ * brand records that the string passed `sqlIdent` when the registry was built, so
+ * `db.ts` consumes registry identifiers without re-checking them at every edge.
+ */
+export type SqlIdent = string & { readonly __brand: 'SqlIdent' };
+
+/**
+ * A validated segment of a `json_extract` path, i.e. one QuickBooks field name
+ * (PascalCase). Checked by `jsonPathSegment` so the whole path can be inlined
+ * into the generated column's `json_extract(raw, '$.A.B')` string literal.
+ */
+export type JsonPathSegment = string & { readonly __brand: 'JsonPathSegment' };
+
+/** SQLite identifiers we mint: lowercase snake-case, no quotes, dots, or `$`. */
+const SQL_IDENT = /^[a-z_][a-z0-9_]*$/;
+
+/**
+ * Validate and brand a SQLite identifier, throwing on anything unsafe. The
+ * registry is a closed set of literals, so this only ever fires on a bad
+ * hand-written entry; it is also reused in `db.ts` for the one identifier source
+ * that is not a registry value (table names read back from `sqlite_master`).
+ */
+export function sqlIdent(name: string): SqlIdent {
+	if (!SQL_IDENT.test(name)) throw new Error(`Unsafe SQL identifier: ${name}`);
+	return name as SqlIdent;
+}
+
+// QB field segments are PascalCase, so this admits mixed case, unlike `SqlIdent`.
+const JSON_PATH_SEGMENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+function jsonPathSegment(segment: string): JsonPathSegment {
+	if (!JSON_PATH_SEGMENT.test(segment)) {
+		throw new Error(`Unsafe JSON path segment: ${segment}`);
+	}
+	return segment as JsonPathSegment;
+}
+
+/**
  * A scalar column projected from `raw`. `path` is the segment list into the QB
  * object, e.g. `['CustomerRef', 'value']` becomes `json_extract(raw,
  * '$.CustomerRef.value')`. `type` is the SQLite affinity: REAL for amounts,
- * INTEGER for JSON booleans (`json_extract` yields 0/1), TEXT otherwise.
+ * INTEGER for JSON booleans (`json_extract` yields 0/1), TEXT otherwise. `name`
+ * and `path` are validated at construction (see `col`), so both are branded.
  */
 export type GeneratedColumn = {
-	name: string;
+	name: SqlIdent;
 	type: ColumnType;
-	path: string[];
+	path: JsonPathSegment[];
 };
 
 export type EntityDef = {
 	/** QuickBooks entity name, e.g. `Invoice` (also the CDC `entities` value). */
 	name: string;
-	/** SQLite table name, e.g. `invoices`. */
-	table: string;
+	/** SQLite table name, e.g. `invoices`. Validated and branded by `entityDef`. */
+	table: SqlIdent;
 	columns: GeneratedColumn[];
 };
 
@@ -58,11 +97,15 @@ function col(
 	type: ColumnType,
 	...path: string[]
 ): GeneratedColumn {
-	return { name, type, path };
+	return { name: sqlIdent(name), type, path: path.map(jsonPathSegment) };
 }
 
-/** The registry, keyed by QB entity name; the key is the canonical name. */
-type EntitySource = Omit<EntityDef, 'name'>;
+/**
+ * The registry source, keyed by QB entity name (the canonical name). The `table`
+ * is authored as a plain string here and branded when `entityDef` reads it out;
+ * `columns` are already branded by `col`.
+ */
+type EntitySource = Omit<EntityDef, 'name' | 'table'> & { table: string };
 
 /**
  * The default mirror set: every posting entity plus the name lists they
@@ -258,7 +301,7 @@ export function entityDef(name: string): EntityDef {
 			`Unknown QuickBooks entity "${name}". Known entities: ${DEFAULT_ENTITIES.join(', ')}.`,
 		);
 	}
-	return { name, ...source };
+	return { name, table: sqlIdent(source.table), columns: source.columns };
 }
 
 /** A deleted CDC record carries `status: "Deleted"`; everything else is live. */

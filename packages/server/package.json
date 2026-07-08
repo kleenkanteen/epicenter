@@ -6,7 +6,6 @@
 	"description": "Shared Hono server for Epicenter cloud and the self-hosted single-partition instance.",
 	"exports": {
 		".": "./src/index.ts",
-		"./schema": "./src/db/schema/index.ts",
 		"./bun": "./src/bun.ts"
 	},
 	"scripts": {
@@ -16,6 +15,7 @@
 	"dependencies": {
 		"@better-auth/drizzle-adapter": "catalog:",
 		"@better-auth/oauth-provider": "catalog:",
+		"@better-auth/passkey": "catalog:",
 		"@epicenter/auth": "workspace:*",
 		"@epicenter/constants": "workspace:*",
 		"@epicenter/identity": "workspace:*",
@@ -28,6 +28,7 @@
 		"drizzle-orm": "catalog:",
 		"hono": "catalog:",
 		"hono-openapi": "catalog:",
+		"jose": "catalog:",
 		"lib0": "catalog:",
 		"nanoid": "catalog:",
 		"pg": "^8.20.0",

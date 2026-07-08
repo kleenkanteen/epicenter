@@ -49,9 +49,11 @@ export type CreateAppAuthClientOptions = {
  *   base URL, so OAuth never targets a self-hosted origin.
  *
  * Both branches return a {@link SyncAuthClient}, so the result is a drop-in for
- * `createSession` / cloud sync regardless of which credential model was chosen.
+ * principal-scoped cloud sync regardless of which credential model was chosen.
  * There is no persisted mode tag: the credential model is recomputed from the
- * instance at construction, not stored as a discriminator.
+ * instance at construction, not stored as a discriminator. The chosen branch is
+ * recorded once on the client as `deployment.kind`, which is what UI branches
+ * on; nothing downstream re-derives the mode from the persisted instance.
  */
 export function createAppAuthClient(
 	instance: Instance,

@@ -14,8 +14,7 @@
  *    that builds the {@link RoomUpdateLog} over `ctx.storage`, creates
  *    the `RoomCore`, and re-registers any sockets that survived
  *    hibernation via `ctx.getWebSockets()`.
- * 2. **`fetch`**: only handles WebSocket upgrades; HTTP sync goes via
- *    RPC (`stub.sync()`, `stub.getDoc()`).
+ * 2. **`fetch`**: handles WebSocket upgrades, the room's only surface.
  * 3. **Hibernation callbacks**: forward to `core` directly.
  * 4. **`alarm`**: one multiplexed timer. While clients are connected it sweeps
  *    and closes over-age sockets ({@link CONNECTION_SWEEP_INTERVAL_MS}); once
@@ -31,7 +30,7 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
-import { asUserId } from '@epicenter/auth';
+import { asPrincipalId } from '@epicenter/identity';
 import { MAIN_SUBPROTOCOL, parseSubprotocols } from '@epicenter/sync';
 import type { Connection } from '../../../types.js';
 import { createRoomCore, type RoomCore } from '../../core.js';
@@ -55,7 +54,7 @@ const COMPACTION_DELAY_MS = 30_000;
 const CONNECTION_SWEEP_INTERVAL_MS = 5 * 60_000;
 
 /**
- * Yjs sync and relay-channel room backed by a Cloudflare Durable Object.
+ * Yjs sync room backed by a Cloudflare Durable Object.
  *
  * Owns the Hibernation API integration (`acceptWebSocket`,
  * `serializeAttachment`, `setAlarm`) and forwards every meaningful event
@@ -63,21 +62,17 @@ const CONNECTION_SWEEP_INTERVAL_MS = 5 * 60_000;
  *
  * ## Worker to DO interface
  *
- * - **RPC** (`stub.sync()`, `stub.getDoc()`): for HTTP sync and snapshot
- *   bootstrap. Direct method calls avoid Request/Response serialization
- *   overhead for binary payloads.
- * - **fetch** (`stub.fetch(request)`): for WebSocket upgrades only;
+ * - **fetch** (`stub.fetch(request)`): WebSocket upgrades, the only entry;
  *   the 101 Switching Protocols handshake requires HTTP semantics.
  *
  * ## Auth & data isolation
  *
  * Handled upstream by Hono routes in `@epicenter/server`. The Worker
  * validates the caller, checks any route-owned policy, and builds the
- * internal DO name before calling RPC methods or forwarding `fetch`. The
+ * internal DO name before forwarding `fetch`. The
  * DO itself does not re-validate. DO names are host-owned opaque strings
- * built by `doName(ownerId, roomId)`, producing `owners/<ownerId>/rooms/<roomId>`
- * for either deployment (in personal mode `ownerId === user.id`, on an instance
- * `ownerId` is the pinned `INSTANCE_OWNER_ID`).
+ * built by `doName(principalId, roomId)`, producing
+ * `principals/<principalId>/rooms/<roomId>`.
  */
 export class Room extends DurableObject {
 	/**
@@ -130,17 +125,14 @@ export class Room extends DurableObject {
 	}
 
 	/**
-	 * Only handles WebSocket upgrades. HTTP sync operations are exposed
-	 * as RPC methods called directly on the stub (see {@link Room.sync}
-	 * / {@link Room.getDoc}), avoiding the overhead of constructing and
-	 * parsing Request/Response objects for binary payloads.
+	 * Handles WebSocket upgrades, the room's only surface.
 	 *
-	 * Trusts the rooms route to have validated and stamped both `userId`
+	 * Trusts the rooms route to have validated and stamped both `principalId`
 	 * (from auth) and `nodeId` (from the client query, presence-checked
 	 * at the route boundary) onto the URL before forwarding. Together they
 	 * form the {@link Connection} stamped on the socket attachment for the
-	 * lifetime of the connection. `userId` is what presence carries to
-	 * peers; `nodeId` is the address the relay channel routes frames to.
+	 * lifetime of the connection. `nodeId` is the participant identity presence
+	 * carries to peers.
 	 *
 	 * Cancels any pending compaction alarm: a new client just connected,
 	 * so compacting now would be wasteful.
@@ -155,16 +147,16 @@ export class Room extends DurableObject {
 		}
 
 		const url = new URL(request.url);
-		const rawUserId = url.searchParams.get('userId');
+		const rawPrincipalId = url.searchParams.get('principalId');
 		const nodeId = url.searchParams.get('nodeId');
-		if (!rawUserId || !nodeId) {
+		if (!rawPrincipalId || !nodeId) {
 			// Contract violation: the auth-gated rooms route is responsible
 			// for validating and stamping both params before forwarding.
 			// 500 (not 400) signals this is a server bug, not a client error.
 			return new Response(null, { status: 500 });
 		}
-		// The URL stamp is the binding; brand userId once at the boundary.
-		const userId = asUserId(rawUserId);
+		// The URL stamp is the binding; brand principalId once at the boundary.
+		const principalId = asPrincipalId(rawPrincipalId);
 
 		// Ensure the lifetime sweep is running. This also supersedes any pending
 		// compaction alarm: if one fires while a client is connected, `alarm()`
@@ -177,13 +169,12 @@ export class Room extends DurableObject {
 		this.ctx.acceptWebSocket(server);
 
 		// Stash the connection attachment so presence survives hibernation. The
-		// node's published action manifest arrives later via `presence_publish`
-		// and the core re-serializes the attachment when it does.
+		// node's catalog-agent identity arrives later via `presence_publish`, and
+		// the core re-serializes the attachment when it does.
 		const attachment: Connection = {
-			userId,
+			principalId,
 			nodeId,
 			connectedAt: Date.now(),
-			actions: {},
 		};
 		server.serializeAttachment(attachment);
 
@@ -296,23 +287,5 @@ export class Room extends DurableObject {
 			return;
 		}
 		this.core.compact();
-	}
-
-	// --- RPC methods (called via stub.sync() / stub.getDoc()) ---
-
-	/**
-	 * HTTP sync via RPC. Forwards to {@link RoomCore.sync}, which
-	 * returns a `Result` so the route can answer 400 on a malformed
-	 * body without throwing.
-	 */
-	async sync(body: Uint8Array) {
-		return this.core.sync(body);
-	}
-
-	/**
-	 * Snapshot bootstrap via RPC. Forwards to {@link RoomCore.getDoc}.
-	 */
-	async getDoc() {
-		return this.core.getDoc();
 	}
 }

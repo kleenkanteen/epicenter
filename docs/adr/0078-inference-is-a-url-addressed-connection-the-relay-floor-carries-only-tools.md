@@ -1,6 +1,6 @@
 # 0078. Inference is a URL-addressed connection; the relay floor carries only tools
 
-- **Status:** Accepted
+- **Status:** Accepted (historical relay-floor tool carrier superseded by ADR-0079/ADR-0086; inference remains URL-addressed)
 - **Date:** 2026-06-29
 - **Relates:** [ADR-0073](0073-tools-speak-mcp-natively-epicenter-owns-only-the-transport-mcp-lacks.md) (the relay floor is the one cross-device transport, carrying MCP tool routes), [ADR-0060](0060-an-inference-connection-is-a-base-url-and-an-optional-bearer-key.md) (a connection is a base URL and an optional bearer key), [ADR-0054](0054-an-inference-backend-is-the-metered-gateway-or-a-custom-server.md) (an inference backend is the metered gateway or a custom OpenAI-compatible server), [ADR-0050](0050-the-inference-contract-is-openai-compatible.md) (the model boundary is OpenAI-compatible), [ADR-0068](0068-privacy-is-a-deployment-not-a-product-feature.md) (privacy is which relay you run), [ADR-0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) (the operator bearer)
 
@@ -25,6 +25,8 @@ Because compute is movable and always uses the gateway, the peer service channel
 - A built, tested, unreleased feature is deleted on purpose: the `createServiceForward` consumer primitive, the `ServiceRoute` variant and its `openServiceTarget`, the `--relay-service` / `--relay-forward` CLI flags, and the second discovery list (`exposedServices`) across presence, the account-room opener, collaboration, and the server connection attachment.
 - Adding a hosted OSS model is additive configuration (a provider base URL behind the gateway), never a new relay route or a new transport. Inference and tools stay two honest shapes (a URL-addressed connection and a tunnelled MCP route) reached two honest ways, instead of one fake-symmetric "everything is a relay route."
 - The floor's keep is narrowed and therefore honest: it exists for what cannot be reached by URL. The day a genuinely immovable, non-tool service appears (one that cannot be a URL connection and is not MCP), reintroducing a second `Route.kind` is the named extension point; until a live producer exists, the floor refuses it.
+
+Update 2026-07-02: ADR-0079/ADR-0086 deleted the relay-floor capability layer after no live consumer remained. The inference decision still stands: inference is URL-addressed and reached through a direct endpoint or gateway. The historical claim that the floor carries MCP tool routes no longer describes live code.
 
 ## Considered alternatives
 

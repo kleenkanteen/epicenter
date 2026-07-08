@@ -33,9 +33,9 @@ jobs:
         run: bun run lint:check
       - name: Type check
         run: bun run typecheck
-      # Rejects backtick-wrapped apps/** and packages/** file paths in living
-      # docs that no longer resolve. Excludes specs, articles, skills, agent
-      # prompts, and Historical-marked docs. See scripts/check-doc-paths.ts.
+      # Rejects backtick-wrapped repo-rooted file paths in living docs that are
+      # not tracked. Excludes specs, articles, skills, agent prompts, and
+      # ignore-file-marked docs. See scripts/check-doc-paths.ts.
       - name: Check doc file references
         run: bun run check:doc-paths
       # Rejects specs that declare a terminal status (a finished spec should be
@@ -64,17 +64,19 @@ jobs:
         #   - The constants files themselves (they ARE the source of truth).
         #   - Vendored mirrors that intentionally re-declare these paths to
         #     avoid a runtime dependency on @epicenter/constants
-        #     (packages/sync/src/room-route.ts, packages/auth/src/routes.ts).
+        #     (packages/sync/src/room-route.ts, packages/auth/src/routes.ts,
+        #     apps/super-chat/src/routes.ts, whose /api/session is the shell's
+        #     own loopback contract, not the cloud session endpoint).
         #   - *.test.ts / *.test.tsx (mock URL matchers are allowed to
         #     reference paths verbatim).
         #   - JSDoc/comment lines (descriptive prose, not constructions).
         run: |
           if grep -rEn --include='*.ts' --include='*.tsx' \
               --exclude='*.test.ts' --exclude='*.test.tsx' \
-              --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.wrangler --exclude-dir=.next \
-              "['\"\`]/api/(session|owners|ai)([^a-z]|$)|['\"\`]/auth/(oauth2/[a-z]+|cli-callback)" \
+              --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.wrangler --exclude-dir=.next --exclude-dir=.svelte-kit \
+              "['\"\`]/api/(session|rooms|blobs|ai)([^a-z]|$)|['\"\`]/auth/(oauth2/[a-z]+|cli-callback)" \
               packages apps \
-              | grep -vE "packages/constants/src/(api|oauth)-routes\.ts|packages/sync/src/room-route\.ts|packages/auth/src/routes\.ts|packages/server/src/auth-pages/scripts/" \
+              | grep -vE "packages/constants/src/(api|oauth)-routes\.ts|packages/sync/src/room-route\.ts|packages/auth/src/routes\.ts|apps/super-chat/src/routes\.ts|packages/server/src/auth-pages/scripts/" \
               | grep -vE "^[^:]+:[0-9]+:[[:space:]]*(\*|//|/\*)" ; then
             echo "::error::Hardcoded API path literal found. Use API_ROUTES.* from @epicenter/constants/api-routes or OAUTH_ROUTES.* from @epicenter/constants/oauth-routes instead."
             exit 1

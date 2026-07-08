@@ -14,7 +14,7 @@
  *     `EPICENTER_TOKEN` (or `EPICENTER_TOKEN_FILE`) and consumed by
  *     {@link createInstanceTokenAuth}. It is never written to disk.
  *
- * This is the single choke point both consumers (`epicenter daemon up`,
+ * This is the single choke point both consumers (`epicenter up`,
  * `epicenter blobs`) call so neither re-implements the fork. The rule: a
  * configured static token wins and selects the instance-token client; otherwise
  * fall back to the persisted OAuth cell.
@@ -62,12 +62,13 @@ export type ResolveMachineAuthClientConfig = {
 /**
  * Pick and construct the machine auth client for this node.
  *
- * A configured static token yields a {@link createInstanceTokenAuth} client; its
- * first `/api/session` confirmation is awaited so the returned client reports a
- * settled `state` (signed-in, or signed-out when the token is unverifiable),
- * matching the OAuth client whose cached cell makes it synchronously signed-in.
- * The daemon and `blobs` read `auth.state` synchronously right after this call,
- * so an unsettled instance client would otherwise always look signed-out.
+ * A configured static token yields a {@link createInstanceTokenAuth} client, which
+ * boots optimistically signed-in as the instance principal (local-first, like the
+ * OAuth client's cached cell). Its first `/api/session` confirmation is awaited so
+ * the returned client reports a settled result: the await only rewrites `state`
+ * when the token is rejected (drops to signed-out); an offline star leaves it
+ * signed-in and cloud sync retries in the background. The daemon and `blobs` read
+ * `auth.state` synchronously right after this call.
  *
  * With no configured token, this is exactly {@link createMachineAuthClient}: the
  * persisted OAuth cell, including its `NoSavedSession` arm (which callers map to
@@ -91,14 +92,13 @@ export async function resolveMachineAuthClient({
 			fetch,
 			log,
 		});
-		// Settle state before the daemon reads it. A failure here (offline, or a
-		// revoked token) leaves the client signed-out, which is a valid daemon
-		// state: local mounts still serve and the operator can see why cloud sync
-		// is idle. We do not turn it into an error.
+		// Await the first confirmation so the daemon reads a settled `state` (settle
+		// semantics are in the JSDoc above). A failure here is not fatal: local
+		// mounts still serve, so log it and hand back the client rather than erroring.
 		const { error } = await client.startSignIn();
 		if (error) {
 			log.debug(
-				'Instance token could not be verified against /api/session; the daemon stays signed-out and serves local mounts only.',
+				'Instance token could not be verified against /api/session; the daemon keeps serving local mounts.',
 				{ baseURL, cause: error },
 			);
 		}

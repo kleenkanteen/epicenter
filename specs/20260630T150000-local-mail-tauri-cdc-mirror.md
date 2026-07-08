@@ -1,12 +1,12 @@
-# Local Mail: Tauri Gmail CDC Mirror
+# Local Mail CDC mirror: parent research, write-through scope, and UI appendix
 
 **Date**: 2026-06-30
-**Status**: Draft (design settled via ADR-0081/ADR-0082; not yet executed)
+**Status**: In Progress (Phase 1 shipped at commit `c924831744` on branch `email`; this file now holds the still-live research, the Phase 3 write-through scope, and the UI appendix; execution lives in `specs/20260701T140000-local-mail-phase-2-engine.md` and `specs/20260701T141500-local-mail-up-bun-served-shell.md`)
 **Relation to `apps/email`**: None; `apps/email` is refused (ADR-0083). Local Mail is the only Gmail client Epicenter builds.
 
 ## One sentence
 
-`apps/local-mail`, a Tauri desktop app, authorizes Gmail directly per device (no server proxy) and materializes a local SQLite mirror using the same CDC-cursor and write-through discipline `local-books` already proved against QuickBooks, syncing by plain interval polling with no push path, working identically whether the user signs into Epicenter (hosted OAuth Client ID) or self-hosts (their own registered Client ID).
+`apps/local-mail` authorizes Gmail directly per device (no server proxy) and materializes a local SQLite mirror using the same CDC-cursor and write-through discipline `local-books` already proved against QuickBooks, syncing by plain interval polling with no push path, working identically whether the user signs into Epicenter (hosted OAuth Client ID) or self-hosts (their own registered Client ID); the app is a Bun engine first (CLI, stdio MCP, `local-mail up` served UI), with Tauri deferred to optional glass over the same server (see the two 20260701 specs). Human-actionable state round-trips through Gmail per ADR-0098.
 
 ## Durable decisions (do not re-derive, read the ADRs)
 
@@ -38,7 +38,9 @@ GmailApp = { clientId?: string }
   present   → operator's own registered Client ID (self-host mode)
 
 connectGmail(app: GmailApp)   — the one choke point, both modes
-  → opens Google's PKCE consent screen (Desktop app client type, no secret)
+  → opens Google's PKCE consent screen (Desktop app client type; Google does
+    issue these a client_secret, included in the exchange; see resolved
+    question 5)
   → returns a refresh token, same shape either way
   → everything downstream (mail.db, poll loop, write-through) is identical
 ```
@@ -58,6 +60,8 @@ credentials  (kept OUT of mail.db, same reasoning as local-books' token-store.ts
   connected_mail_accounts: { account_id, email, refresh_token_enc (AES-GCM), client_id_used }
 ```
 
+The shipped schema diverged from this sketch in one place: the `threads` table is being deleted and thread facts are derived from `messages` (`GROUP BY thread_id`), because the table stored only derivable data and grew a staleness bug. See `specs/20260701T140000-local-mail-phase-2-engine.md` (Wave 2a) for the current shape.
+
 ## Open questions (owner decides, do not guess)
 
 1. **Cross-device token sharing.** Does the existing secret vault (ADR-0074) extend to self-host instances? If yes, a second device picks up the encrypted refresh token via normal sync and skips re-consenting Gmail (mirrors how a hosted user gets it for free). If the vault is hosted-only, self-host multi-device needs its own answer, not yet designed. Verify against the vault's actual shipped scope before assuming either way.
@@ -74,7 +78,9 @@ Could Local Mail just be a web app (wasm SQLite / OPFS, or Turso) instead of nat
 - **Turso** (remote libSQL + embedded-replica sync) puts a server back in the data path if pointed at a hosted instance, or makes the self-hoster operate a server, both of which this design explicitly refuses (ADR-0082).
 - Browser tabs cannot run a reliable background poll daemon; backgrounded/closed tabs get throttled or killed, unlike a native process.
 
-Rejected as a Tauri replacement. A tab-scoped, no-MCP, install-free mode is a legitimate fourth app if no-install reach ever becomes a committed requirement, not a merger of this spec.
+Rejected as a native replacement. A tab-scoped, no-MCP, install-free mode is a legitimate fourth app if no-install reach ever becomes a committed requirement, not a merger of this spec.
+
+The settled shape does not reopen this: `local-mail up` keeps storage and the poll loop in a native Bun process, and the browser tab is only glass over `127.0.0.1`. What this section refuses is browser-owned storage and sync, not a browser-rendered UI. See `specs/20260701T141500-local-mail-up-bun-served-shell.md`.
 
 ## First slice (de-risk before schema work)
 
@@ -86,23 +92,18 @@ Ran a throwaway script against a real Gmail account (`braden@epicenter.so`) 2026
 
 This answers open question 4 (backfill chunking: not needed, confirmed no artificial subrequest cap hit) and half of open question 3 (record shapes); the expiry-window half of open question 3 needs the multi-day follow-up above.
 
-## Phased plan (sketch, refine once the throwaway script lands)
+## Phase status (execution re-homed)
 
-```
-Phase 0: Throwaway Gmail History API script (de-risk, see above)
-Phase 1: mail.db schema + backfill + incremental poll loop, no UI, no writes
-Phase 2: connect flow (both modes) + Tauri OAuth PKCE wiring
-Phase 3: write-through actions (archive/label) + reconciliation
-Phase 4: UI (can likely reuse @epicenter/ui patterns preserved in the
-         Appendix below, from the deleted apps/email spec — that part of the
-         old spec was still valid, it was the transport/storage model that
-         was refused (ADR-0083), not the UI)
-```
+- **Phase 0** (throwaway probe) and **Phase 1** (mail.db schema, backfill, incremental poll loop; no UI, no writes) shipped at commit `c924831744` on branch `email`.
+- **Phase 2** (mirror correctness fixes, connect flow, stdio MCP) lives in `specs/20260701T140000-local-mail-phase-2-engine.md`.
+- **Phase 3** (write-through) was re-homed as `specs/20260702T211500-local-mail-phase-3-write-through.md`: archive/label actions hit Gmail first (`messages.modify`, including the `UNREAD` label for read state), the mirror folds the accepted response back in, and the next poll pass reconciles. Human-actionable state must round-trip through Gmail (ADR-0098), which is why the UI is gated on this phase.
+- **Phase 4** (UI) was re-homed as `specs/20260701T141500-local-mail-up-bun-served-shell.md` and no longer assumes a Tauri shell: `local-mail up` serves the SPA from a Bun process, the browser tab is the v1 app, and Tauri comes later as optional glass over the same URL. The Appendix below stays its layout reference.
 
 ## References
 
 - `apps/local-books/src/{sync,qb-client,db,token-store}.ts` and `apps/local-books/src/books/recategorize.ts` — the mirror shape being ported (`recategorize.ts` is not flat under `src/`; do not confuse it with the CLI adapter at `src/commands/recategorize.ts`)
 - `docs/adr/0081-*.md`, `docs/adr/0082-*.md`, `docs/adr/0083-*.md` — the settled decisions this spec builds on
+- `docs/adr/0098-*.md`: human-actionable state round-trips through Gmail (why snooze and send-later are refused, and why the UI gates on write-through)
 - Gmail History API: https://developers.google.com/gmail/api/guides/sync
 - Gmail quota: https://developers.google.com/gmail/api/reference/quota
 
@@ -152,7 +153,7 @@ EmailAppShell.svelte                       template: apps/fuji FujiAppShell.svel
       Resizable.Handle withHandle
       Resizable.Pane (list)   -> ScrollArea or virtua VList
         each message -> Item.Root (Item.Media avatar, Item.Content title+desc,
-                        Badge label, Item.Actions hover archive/snooze)
+                        Badge label, Item.Actions hover archive)
         loading -> Skeleton x 12 ; empty -> Empty.* ; error -> Empty.* + retry + toastOnError
       Resizable.Handle withHandle
       Resizable.Pane (thread) -> ThreadViewer
@@ -165,7 +166,9 @@ EmailAppShell.svelte                       template: apps/fuji FujiAppShell.svel
   Composer -> Sheet side="right" placeholder, opens on c
 ```
 
-Keyboard and data wiring: one `<svelte:window onkeydown>` in the shell with fuji's input-focus guard (`j/k` move selection, `e` archive, `h` snooze, `r` reply, `c` compose, `Cmd+K` palette, `Escape` clear); loading/empty/error triad copies `apps/api/ui`'s `ActivityFeed.svelte` pattern (`isPending` -> Skeleton, `isError` -> Empty + retry, empty -> Empty, else content); use `Item.*` for the list, not `Table.*`.
+Keyboard and data wiring: one `<svelte:window onkeydown>` in the shell with fuji's input-focus guard (`j/k` move selection, `e` archive, `r` reply, `c` compose, `Cmd+K` palette, `Escape` clear); loading/empty/error triad copies `apps/api/ui`'s `ActivityFeed.svelte` pattern (`isPending` -> Skeleton, `isError` -> Empty + retry, empty -> Empty, else content); use `Item.*` for the list, not `Table.*`.
+
+Snooze, present in the inherited `apps/email` layout, is removed: ADR-0098 refuses it (no Gmail API surface, and a device-bound timer breaks the phone story).
 
 ### Gmail scope / CASA research
 

@@ -8,7 +8,7 @@
 
 	// Quick access to the per-session capture behaviors that otherwise live in
 	// Settings. The trailing bookend of the capture pipeline row, matching the
-	// device/model/transformation popover grammar. Booleans only: pickers stay as
+	// device/model/polish popover grammar. Booleans only: pickers stay as
 	// pills, set-and-forget config stays in Settings. This is the one surface that
 	// curates a capture behavior (pause playback) next to the transcription output
 	// delivery, and both reuse the same components the Settings page renders, so

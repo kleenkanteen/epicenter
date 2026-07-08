@@ -1,10 +1,8 @@
 import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { Type } from 'typebox';
 import { defineErrors, extractErrorMessage } from 'wellcrafted/error';
 import { createLogger, type Logger } from 'wellcrafted/logger';
 import { assembleMarkdown } from '../../../markdown/assemble-markdown.js';
-import { defineActions, defineMutation } from '../../../shared/actions.js';
 import type { MaybePromise } from '../../../shared/types.js';
 import type { BaseRow, Table } from '../../table.js';
 import {
@@ -73,8 +71,8 @@ const IGNORED_GENERATED_DIRECTORY_ENTRIES = new Set(['.DS_Store', 'Thumbs.db']);
 /**
  * Attach a read-only markdown export to a workspace. Continuously materializes
  * the selected tables to disk with caller-controlled serialization, and exposes
- * a single `markdown_rebuild` mutation for a destructive full re-export (orphan
- * cleanup after a filename/layout change). There is no import path.
+ * a single `rebuild()` method for a destructive full re-export (orphan cleanup
+ * after a filename/layout change). There is no import path.
  */
 export function attachMarkdownExport<TTableHandles extends TablesRecord>(
 	workspace: MaterializerInput<TTableHandles>,
@@ -258,22 +256,12 @@ export function attachMarkdownExport<TTableHandles extends TablesRecord>(
 		 * so a shutdown cannot drop markdown writes mid-flight.
 		 */
 		whenDisposed,
-		actions: defineActions({
-			markdown_rebuild: defineMutation({
-				title: 'Rebuild Markdown Export',
-				description:
-					'Destructive: delete existing .md files in registered table directories and re-serialize all valid rows. Optionally limit to one table.',
-				input: Type.Object({
-					tableName: Type.Optional(
-						Type.String({
-							description:
-								'Limit rebuild to one registered table; omit for all tables.',
-						}),
-					),
-				}),
-				handler: ({ tableName }) => rebuildMarkdownFiles(tableName),
-			}),
-		}),
+		/**
+		 * Destructive: delete existing `.md` files in registered table
+		 * directories and re-serialize all valid rows. Pass a table name to
+		 * limit the rebuild to one registered table.
+		 */
+		rebuild: rebuildMarkdownFiles,
 	};
 }
 
@@ -352,7 +340,7 @@ const MaterializerWriteError = defineErrors({
  *
  * This is the confinement boundary the export relies on now that the namespace
  * root, not a hardcoded `apps/` segment, is the ownership claim. Every write and
- * every delete (initial flush, rename cleanup, and the `markdown_rebuild` sweep)
+ * every delete (initial flush, rename cleanup, and the `rebuild()` sweep)
  * goes through here, so a `render` that returns `../../notes/x.md`, an absolute
  * path, or a table `dir` of `..` is rejected before it can touch disk outside
  * the table projection.

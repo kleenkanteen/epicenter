@@ -28,7 +28,7 @@ import { Err, Ok, type Result, trySync } from 'wellcrafted/result';
 import { openBooksDb } from '../db.ts';
 import { entityDef } from '../entities.ts';
 import type { QbClientError } from '../qb-client.ts';
-import type { OpenQbClient } from './qb-access.ts';
+import type { OpenQbClient, QbAccessError } from './qb-access.ts';
 
 /** The line shape that carries an account-based expense category. */
 const LINE_DETAIL = 'AccountBasedExpenseLineDetail';
@@ -37,6 +37,23 @@ const LINE_DETAIL = 'AccountBasedExpenseLineDetail';
 export const RECATEGORIZE_ENTITIES = ['Purchase', 'Bill'] as const;
 export type RecategorizeEntity = (typeof RECATEGORIZE_ENTITIES)[number];
 
+/**
+ * The mandatory top-level fields QuickBooks demands on an expense update even in
+ * sparse mode. A Line-only sparse body is a 400 ValidationFault (code 2020,
+ * "Required parameter <field> is missing"), so the update must carry these
+ * through unchanged from the mirror's raw object alongside the modified Line.
+ *   Purchase: PaymentType (cash/card/check) + AccountRef (the bank/CC account paid from).
+ *   Bill:     VendorRef (the vendor owed).
+ * Whitelisting by field name (not spreading the whole raw object) keeps read-only
+ * and computed fields QuickBooks rejects out of the body. Keying by entity makes
+ * it a compile error to add a recategorize entity without declaring its required
+ * fields, so a new entity cannot silently ship the broken Line-only body.
+ */
+const REQUIRED_UPDATE_FIELDS: Record<RecategorizeEntity, readonly string[]> = {
+	Purchase: ['PaymentType', 'AccountRef'],
+	Bill: ['VendorRef'],
+};
+
 export const RecategorizeError = defineErrors({
 	ReadOnly: () => ({
 		message:
@@ -44,10 +61,6 @@ export const RecategorizeError = defineErrors({
 	}),
 	UnknownEntity: ({ name }: { name: string }) => ({
 		message: `recategorize targets a Purchase (card/cash/check expense) or a Bill (vendor bill), not "${name}".`,
-	}),
-	NotAuthenticated: ({ detail }: { detail: string }) => ({
-		message: `Recategorize could not reach QuickBooks: ${detail}`,
-		detail,
 	}),
 	NotInMirror: ({ entity, id }: { entity: string; id: string }) => ({
 		message: `No ${entity} ${id} in the local mirror. Run "local-books sync" first.`,
@@ -152,7 +165,9 @@ export async function recategorizeExpense({
 	 * read-only invariant.
 	 */
 	readOnly: boolean;
-}): Promise<Result<RecategorizeResult, RecategorizeError | QbClientError>> {
+}): Promise<
+	Result<RecategorizeResult, RecategorizeError | QbAccessError | QbClientError>
+> {
 	if (readOnly) return RecategorizeError.ReadOnly();
 	const def = entityDef(input.entity);
 	const db = openBooksDb(dbPath);
@@ -207,13 +222,18 @@ export async function recategorizeExpense({
 		}
 
 		const { data: qb, error: openError } = await openQb();
-		if (openError !== null) {
-			return RecategorizeError.NotAuthenticated({ detail: openError });
-		}
+		if (openError !== null) return Err(openError);
 
-		// Sparse update: send the full (modified) Line array with Id + the SyncToken
-		// read from the mirror; QuickBooks merges the named fields.
+		// Sparse update: send the modified Line array with Id + the SyncToken read
+		// from the mirror, plus this entity's mandatory top-level fields carried
+		// through by value. QuickBooks does NOT infer them on a sparse update; a
+		// Line-only body is a 400 ValidationFault (code 2020). It preserves the
+		// unnamed writable fields; the named ones must be present, changed or not.
+		const required = Object.fromEntries(
+			REQUIRED_UPDATE_FIELDS[input.entity].map((field) => [field, obj[field]]),
+		);
 		const { data: updated, error } = await qb.update(input.entity, {
+			...required,
 			Id: obj.Id,
 			SyncToken: obj.SyncToken,
 			sparse: true,

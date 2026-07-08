@@ -181,6 +181,41 @@ const permissions = {
 	},
 };
 
+// keyring -------------------------------------------------------------
+const KeyringError = defineErrors({
+	ReadFailed: ({ cause }: { cause: unknown }) => ({
+		message: `Failed to read from the OS keyring: ${extractErrorMessage(cause)}`,
+		cause,
+	}),
+	WriteFailed: ({ cause }: { cause: unknown }) => ({
+		message: `Failed to write to the OS keyring: ${extractErrorMessage(cause)}`,
+		cause,
+	}),
+});
+
+const keyring = {
+	/**
+	 * Read the persisted OAuth grant, or `null` when absent. Rust owns the OS
+	 * credential-store service and account names.
+	 */
+	async read() {
+		const { data, error } = await commands.keyringRead();
+		if (error !== null) return KeyringError.ReadFailed({ cause: error });
+		return Ok(data);
+	},
+
+	/**
+	 * Write `value` as the persisted OAuth grant, or delete the entry when
+	 * `value` is `null`. Rust owns the OS credential-store service and account
+	 * names.
+	 */
+	async write(value: string | null) {
+		const { error } = await commands.keyringWrite(value);
+		if (error !== null) return KeyringError.WriteFailed({ cause: error });
+		return Ok(undefined);
+	},
+};
+
 // tray --------------------------------------------------------------
 const TrayError = defineErrors({
 	SetIcon: ({ cause }: { cause: unknown }) => ({
@@ -467,17 +502,32 @@ const opener = {
 		}),
 };
 
+/**
+ * The app's main window. `focus()` raises and focuses it, used when a global
+ * shortcut needs to surface in-app UI (the recipe picker) over whatever the user
+ * is currently in. A stopgap until the picker becomes its own floating window.
+ */
+const mainWindow = {
+	async focus(): Promise<void> {
+		const window = getCurrentWindow();
+		await window.show();
+		await window.setFocus();
+	},
+};
+
 // barrel ------------------------------------------------------------
 // `tauriOnly` is the non-null namespace for `.tauri.ts` files. The
 // `tauri` export widens it to `Tauri | null` so shared consumers narrow.
 export const tauriOnly = {
 	fs,
 	permissions,
+	keyring,
 	tray,
 	keyboard,
 	autostart,
 	media,
 	opener,
+	mainWindow,
 };
 
 /** Shape of the Tauri capability namespace (non-null). */

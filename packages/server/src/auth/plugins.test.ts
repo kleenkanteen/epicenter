@@ -10,12 +10,15 @@
  * - Trusted clients skip consent during authorization
  * - Registered non-trusted clients still require consent
  * - A clean JWKS table mints an ES256/P-256 signing key
+ * - Passkey options endpoints keep the REST contract the hosted sign-in SPA
+ *   (apps/api/ui) drives directly
  */
 
 import { expect, test } from 'bun:test';
 import {
 	EPICENTER_CLI_OAUTH_CLIENT_ID,
 	EPICENTER_HONEYCRISP_OAUTH_CLIENT_ID,
+	EPICENTER_HONEYCRISP_TAURI_OAUTH_REDIRECT_URI,
 	EPICENTER_OAUTH_SCOPES,
 } from '@epicenter/constants/oauth-clients';
 import {
@@ -35,6 +38,7 @@ const trustedClientFixture = {
 	redirectUris: [
 		'http://localhost:5175/auth/callback',
 		'https://honeycrisp.epicenter.so/auth/callback',
+		EPICENTER_HONEYCRISP_TAURI_OAUTH_REDIRECT_URI,
 	],
 } as const satisfies TrustedOAuthClient;
 const redirectUri = trustedClientFixture.redirectUris[0];
@@ -182,8 +186,77 @@ test('buildTrustedOAuthClients gives the CLI a callback at each deployment baseU
 		'https://api.acme.example',
 	]) {
 		const cliClient = findCliClient(baseURL);
-		expect(cliClient.redirectUris).toEqual([`${baseURL}/auth/cli-callback`]);
+		expect(cliClient.redirectUris).toEqual([`${baseURL}/cli-callback`]);
 	}
+});
+
+test('buildTrustedOAuthClients gives Honeycrisp its Tauri deep-link callback', () => {
+	const honeycrispClient = buildTrustedOAuthClients(
+		'http://localhost:47878',
+	).find((client) => client.clientId === EPICENTER_HONEYCRISP_OAUTH_CLIENT_ID);
+	if (!honeycrispClient) {
+		throw new Error('Expected trusted Honeycrisp OAuth client');
+	}
+	expect(honeycrispClient.redirectUris).toContain(
+		EPICENTER_HONEYCRISP_TAURI_OAUTH_REDIRECT_URI,
+	);
+});
+
+// The hosted SPA (apps/api/ui) drives the passkey plugin through the Better
+// Auth client (`authClient.signIn.passkey` / `authClient.passkey.*`), which
+// runs the WebAuthn ceremonies internally. These tests pin the server slice of
+// that contract a plugin upgrade could silently move: the endpoint paths, the
+// sessionless authenticate ceremony, the session-gated register ceremony, the
+// base64url challenge encoding, and the RP id derived from the API base URL.
+// If one of these fails after a bump, re-verify the SPA against the new client.
+
+test('passkey authenticate options are mintable without a session', async () => {
+	const setup = createTrustedClientTestAuth();
+
+	const response = await setup.auth.handler(
+		new Request(`${setup.baseURL}/auth/passkey/generate-authenticate-options`),
+	);
+	const body = (await response.json()) as {
+		challenge?: unknown;
+		rpId?: unknown;
+	};
+
+	expect(response.status).toBe(200);
+	expect(body.rpId).toBe('localhost');
+	expect(typeof body.challenge).toBe('string');
+	expect(body.challenge as string).toMatch(/^[A-Za-z0-9_-]+$/);
+});
+
+test('passkey register options require a session', async () => {
+	const setup = createTrustedClientTestAuth();
+
+	const response = await setup.auth.handler(
+		new Request(`${setup.baseURL}/auth/passkey/generate-register-options`),
+	);
+
+	expect(response.status).toBe(401);
+});
+
+test('fresh session mints passkey register options bound to the user', async () => {
+	const setup = createTrustedClientTestAuth();
+
+	const cookie = await signUpTestUser(setup.auth, setup.baseURL);
+	const response = await setup.auth.handler(
+		new Request(`${setup.baseURL}/auth/passkey/generate-register-options`, {
+			headers: { cookie },
+		}),
+	);
+	const body = (await response.json()) as {
+		challenge?: unknown;
+		rp?: { id?: unknown };
+		user?: { id?: unknown };
+	};
+
+	expect(response.status).toBe(200);
+	expect(body.rp?.id).toBe('localhost');
+	expect(typeof body.challenge).toBe('string');
+	expect(body.challenge as string).toMatch(/^[A-Za-z0-9_-]+$/);
+	expect(typeof body.user?.id).toBe('string');
 });
 
 test('registered non-trusted OAuth client requires consent', async () => {
@@ -230,6 +303,7 @@ function createTrustedClientTestAuth({
 		oauthConsent: [],
 		oauthRefreshToken: [],
 		jwks: [],
+		passkey: [],
 	};
 
 	const auth = betterAuth({

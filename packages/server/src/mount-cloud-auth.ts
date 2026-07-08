@@ -8,7 +8,7 @@
  * bearer and has no sessions, so it never calls this and never constructs Better
  * Auth. That is the seam that lets an instance drop Postgres entirely.
  *
- * Call it once, right after `createServerApp` and before the owner-scoped mounts:
+ * Call it once, right after `createServerApp` and before the principal-scoped mounts:
  * it installs the auth-context middleware (so `c.var.auth` is set before any
  * cookie-or-bearer wrapper or `authApp` route reads it) and mounts `authApp` at
  * the root.
@@ -34,11 +34,11 @@ export function mountCloudAuth(
 		 */
 		resolveAuthSecrets: (c: Context<CloudEnv>) => CloudAuthBindings;
 		/**
-		 * Registrable domain for cross-subdomain session cookies (Epicenter cloud
-		 * passes `.epicenter.so`). Omit for a single-origin deployment, which then
-		 * uses host-only cookies scoped to its own host.
+		 * Serve the SvelteKit fallback shell for hosted auth browser surfaces after
+		 * auth route policy has run. The app deployment owns the concrete asset
+		 * source; the shared server package only calls it.
 		 */
-		cookieDomain?: string;
+		serveAuthUiShell: (c: Context<CloudEnv>) => Response | Promise<Response>;
 	},
 ): void {
 	// Better Auth context. Built per request (Workers expose no module-scope env
@@ -48,11 +48,12 @@ export function mountCloudAuth(
 	// `c.var.auth` and `c.var.authSecrets`. First-party OAuth client rows are
 	// seeded at deploy time (apps/api `oauth:seed:*`), so this path only reads.
 	app.use('*', async (c, next) => {
-		// Resolve the cloud-only secrets once and stamp them on the context, so both
-		// readers (this Better Auth construction and the `authApp` sign-in page) take
-		// them from one resolved value rather than the raw `c.env` bag (ADR-0076).
+		// Resolve the cloud-only secrets once and stamp them on the context, so
+		// Better Auth construction reads one validated value rather than the raw
+		// `c.env` bag (ADR-0076).
 		const authSecrets = opts.resolveAuthSecrets(c);
 		c.set('authSecrets', authSecrets);
+		c.set('authUiShell', opts.serveAuthUiShell);
 		c.set(
 			'auth',
 			createAuth({
@@ -60,7 +61,6 @@ export function mountCloudAuth(
 				env: authSecrets,
 				baseURL: c.var.authBaseURL,
 				trustedOrigins: c.var.trustedOrigins,
-				cookieCrossSubDomain: opts.cookieDomain,
 			}),
 		);
 		await next();

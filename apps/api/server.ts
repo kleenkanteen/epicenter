@@ -25,11 +25,11 @@
  * deleted. The library ships the parts; each Bun entry composes its own product.
  *
  * The wiring lives in {@link startBunApiServer} so `server.dev.ts` can boot the
- * SAME server with a dev `resolveUser` injected (the parity smoke's credential)
+ * SAME server with a dev `resolveBearerPrincipal` injected (the parity smoke's credential)
  * without duplicating it. The bottom of this file runs production only when this
  * file IS the entrypoint (`import.meta.main`), so `server.dev.ts` importing the
  * builder does not also start a second listener. Production passes no
- * `resolveUser` and keeps the real OAuth resolver; this file never imports the
+ * `resolveBearerPrincipal` and keeps the real OAuth resolver; this file never imports the
  * dev bypass.
  *
  * Runtime skew is fenced by design: a DO-only behavior (hibernation restore,
@@ -55,11 +55,10 @@ import {
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
-	personal,
-	type ResolveUser,
-	requireBearerUser,
-	requireCookieOrBearerUser,
-	resolveRequestOAuthUser,
+	type ResolveBearerPrincipal,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
+	resolveRequestOAuthPrincipal,
 	ServerBindings,
 } from '@epicenter/server/bun';
 import { type } from 'arktype';
@@ -72,14 +71,14 @@ import { buildEpicenterTrustedOrigins } from './worker/trusted-origins.js';
  * and this host's process config (`DATABASE_URL`, port, origin, data dir).
  *
  * `CloudAuthBindings` already requires `BETTER_AUTH_SECRET` and leaves each OAuth
- * provider optional (register-when-present, ADR-0071); this hub additionally
- * mandates Google (its one sign-in method) by re-declaring it required. So a
- * misconfiguration fails closed at boot instead of as a downstream surprise.
- * Unlike the Cloudflare edge (whose bindings are deploy-gated and
- * `wrangler types`-typed), `process.env` is unchecked, so boot is the place to
- * validate it. The validated env is also what feeds `mountCloudAuth`'s
- * `resolveAuthSecrets` below, so the Cloud-only secrets reach Better Auth without
- * ever entering the portable `ServerBindings`.
+ * provider optional (register-when-present, ADR-0071). This hosted hub is
+ * stricter: its sign-in UI always offers Google, GitHub, and Apple, so the Bun
+ * host requires all three provider credential sets at boot instead of
+ * letting a shown provider fail later. Unlike the Cloudflare edge (whose bindings
+ * are deploy-gated and `wrangler types`-typed), `process.env` is unchecked, so
+ * boot is the place to validate it. The validated env is also what feeds
+ * `mountCloudAuth`'s `resolveAuthSecrets` below, so the Cloud-only secrets reach
+ * Better Auth without ever entering the portable `ServerBindings`.
  */
 const ApiBunBindings = ServerBindings.merge(CloudAuthBindings).merge({
 	DATABASE_URL: 'string',
@@ -88,19 +87,25 @@ const ApiBunBindings = ServerBindings.merge(CloudAuthBindings).merge({
 	'DATA_DIR?': 'string',
 	GOOGLE_CLIENT_ID: 'string',
 	GOOGLE_CLIENT_SECRET: 'string',
+	GITHUB_CLIENT_ID: 'string',
+	GITHUB_CLIENT_SECRET: 'string',
+	APPLE_CLIENT_ID: 'string',
+	APPLE_TEAM_ID: 'string',
+	APPLE_KEY_ID: 'string',
+	APPLE_PRIVATE_KEY: 'string',
 });
 
 /**
- * Boot the apps/api Bun server, optionally with an injected user resolver.
+ * Boot the apps/api Bun server, optionally with an injected principal resolver.
  *
  * Production (`server.ts` as the entrypoint) passes nothing, so
  * `createServerApp` keeps the real OAuth resolver. `server.dev.ts` passes a
- * dev `Bearer dev:<userId>` resolver so the parity smoke needs no interactive
+ * dev `Bearer dev:<principalId>` resolver so the parity smoke needs no interactive
  * login. Everything else (env validation, pool, rooms, mounts, `Bun.serve`) is
  * identical across the two, so they cannot drift.
  */
 export function startBunApiServer(
-	opts: { resolveUser?: ResolveUser<CloudEnv> } = {},
+	opts: { resolveBearerPrincipal?: ResolveBearerPrincipal<CloudEnv> } = {},
 ): void {
 	// Validate this Bun host's environment once, at boot. The validated result IS
 	// the typed env handed to the Hono app: no `as`-cast over `process.env`, no
@@ -129,7 +134,6 @@ export function startBunApiServer(
 	const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
 	const db = createDb(pool);
 
-	const ownership = personal();
 	const app = createServerApp<CloudEnv>({
 		resolveRooms: () => bunRooms.rooms,
 		identity: {
@@ -139,10 +143,19 @@ export function startBunApiServer(
 	});
 
 	// The dev entry passes a dev bearer resolver for the parity smoke; production
-	// keeps the real OAuth bearer resolver. Each owner-scoped wrapper closes over it.
-	const resolveUser = opts.resolveUser ?? resolveRequestOAuthUser;
-	const cookieOrBearer = requireCookieOrBearerUser(resolveUser);
-	const bearer = requireBearerUser(resolveUser);
+	// keeps the real OAuth bearer resolver. Each protected wrapper closes over it.
+	const resolveBearerPrincipal =
+		opts.resolveBearerPrincipal ?? resolveRequestOAuthPrincipal;
+	const cookieOrBearer = requireCookieOrBearerPrincipal(resolveBearerPrincipal);
+	const bearer = requireBearerPrincipal(resolveBearerPrincipal);
+	const serveAuthUiShell = () =>
+		new Response(
+			'Hosted auth UI is served by the SvelteKit app in Bun dev. Use `bun run --cwd apps/api/ui dev` for browser auth surfaces, or `bun run --cwd apps/api dev` for the Worker asset shell.',
+			{
+				status: 503,
+				headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+			},
+		);
 
 	app.get('/', (c) =>
 		c.json({ product: 'hub', version: '0.1.0', runtime: 'bun' }),
@@ -157,16 +170,19 @@ export function startBunApiServer(
 		afterResponse: () => {},
 	});
 	// The cloud's relational-auth layer (Better Auth on `c.var.auth` + the auth
-	// surface), mounted after the db lifecycle. Host-only cookies on the Bun dev host
-	// (no cross-subdomain domain like the Worker's `.epicenter.so`). The Cloud-only
-	// auth secrets come from the validated `env` closure (ADR-0076), never the
-	// portable `ServerBindings`.
-	mountCloudAuth(app, { resolveAuthSecrets: () => env });
-	mountSessionApp(app, { ownership, auth: cookieOrBearer });
+	// surface), mounted after the db lifecycle. Cookies are host-only everywhere
+	// (this host and the Worker alike); the dev host differs only in non-Secure
+	// attributes for localhost. The Cloud-only auth secrets come from the
+	// validated `env` closure (ADR-0076), never the portable `ServerBindings`.
+	mountCloudAuth(app, {
+		resolveAuthSecrets: () => env,
+		serveAuthUiShell,
+	});
+	mountSessionApp(app, { auth: cookieOrBearer });
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
-	mountRoomsApp(app, { ownership, resolveUser });
-	mountInferenceApp(app, { auth: bearer, ownership });
-	mountBlobsApp(app, { ownership, auth: cookieOrBearer });
+	mountRoomsApp(app, { resolveBearerPrincipal });
+	mountInferenceApp(app, { auth: bearer });
+	mountBlobsApp(app, { auth: cookieOrBearer });
 
 	const server = Bun.serve({
 		port,

@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	import type { InferenceProviderId } from '$lib/constants/inference';
-	import type { CloudProviderId } from '$lib/services/transcription/providers';
+	import type { KeyProviderId } from '$lib/services/transcription/providers';
 	import type { DeviceConfigKey } from '$lib/state/device-config.svelte';
 
 	/** Inline description content: plain text or an external link. */
@@ -17,11 +17,11 @@
 
 	/**
 	 * Every provider whose config (API key, endpoint) lives in deviceConfig:
-	 * inference providers plus cloud transcription providers. Deriving the
+	 * inference providers plus `key` transcription providers. Deriving the
 	 * union keeps PROVIDER_FIELDS exhaustive: adding a provider to either
 	 * registry is a compile error here until its fields exist.
 	 */
-	export type ProviderConfigId = InferenceProviderId | CloudProviderId;
+	export type ProviderConfigId = InferenceProviderId | KeyProviderId;
 
 	const PROVIDER_FIELDS: Record<ProviderConfigId, ProviderField[]> = {
 		OpenAI: [
@@ -193,7 +193,7 @@
 				placeholder: 'e.g. http://localhost:11434/v1',
 				configKey: 'providers.custom.endpoint',
 				description: [
-					'URL for OpenAI-compatible endpoints (Ollama, LM Studio, llama.cpp, etc.). Every transformation that uses the Custom provider calls this endpoint.',
+					'URL for OpenAI-compatible endpoints. For local Polish, run Ollama or LM Studio yourself and paste its URL here. Every Polish and Recipe run that uses the Custom provider calls this endpoint.',
 				],
 			},
 			{
@@ -221,9 +221,25 @@
 	} from '$lib/state/device-config.svelte';
 	import { secrets } from '$lib/state/secrets.svelte';
 
-	let { provider }: { provider: ProviderConfigId } = $props();
+	let {
+		provider,
+		secretsOnly = false,
+	}: {
+		provider: ProviderConfigId;
+		/**
+		 * When true, render only the secret (API key) fields, hiding optional
+		 * endpoint or base-URL overrides. The home onboarding uses this to ask for
+		 * just the one required credential; the full field set (and the
+		 * provider/model choice) lives on Privacy & Processing.
+		 */
+		secretsOnly?: boolean;
+	} = $props();
 
-	const fields = $derived(PROVIDER_FIELDS[provider]);
+	const fields = $derived(
+		secretsOnly
+			? PROVIDER_FIELDS[provider].filter((field) => isSecretKey(field.configKey))
+			: PROVIDER_FIELDS[provider],
+	);
 
 	/**
 	 * This component is the one settings surface that reads and writes provider API

@@ -39,7 +39,7 @@ const globalBinding = type({
 //
 // Cancel is the platform cancel chord (Cmd + . on macOS, the system cancel
 // gesture since classic Mac OS; Ctrl + Shift + . elsewhere); it carries a
-// modifier so it is safe to register globally. Transformation gestures ship
+// modifier so it is safe to register globally. Recipe gestures ship
 // unbound: opt-in only. Exported so the reset path in platform/system-shortcuts.tauri.ts
 // shares this one source of truth.
 const TOGGLE_MODIFIERS: KeyBinding['modifiers'] = os.isApple
@@ -55,8 +55,8 @@ export const DEFAULT_GLOBAL_BINDINGS = {
 	toggleManualRecording: { modifiers: TOGGLE_MODIFIERS, keys: ['space'] },
 	cancelRecording: { modifiers: CANCEL_MODIFIERS, keys: ['dot'] },
 	toggleVadRecording: null,
-	openTransformationPicker: null,
-	runTransformationOnClipboard: null,
+	openRecipePicker: null,
+	runRecipeOnClipboard: null,
 	// Focused-reach command (ADR-0052): its reach ceiling clamps any key to the
 	// in-app store, so the router never writes this global slot. It stays here only
 	// so the system backend's all-commands sync keeps one entry per command;
@@ -130,17 +130,14 @@ const DEVICE_DEFINITIONS = {
 		'16000',
 	),
 
-	// ── Local model paths ─────────────────────────────────────────────
+	// ── Local model selection ─────────────────────────────────────────
 	/**
-	 * The engine's selected model as an entry name inside its models folder
-	 * (e.g. "ggml-tiny.bin", "parakeet-tdt-0.6b-v3-int8"), never a path. The
-	 * folder under appdata is the single source of truth for where models
-	 * live; `$lib/services/transcription/local-model-folder.ts` resolves
-	 * names back to paths.
+	 * The selected local model's catalog id (`"{repoId}@{revision}/{filename}"`),
+	 * never a path. Rust owns the GGUF catalog and resolves the id to a
+	 * shared-HF-cache path at load time (`transcription::catalog`). Device-local
+	 * because the download lives on this machine's Hugging Face cache.
 	 */
-	'transcription.whispercpp.model': defineEntry(type('string'), ''),
-	'transcription.parakeet.model': defineEntry(type('string'), ''),
-	'transcription.moonshine.model': defineEntry(type('string'), ''),
+	'transcription.local.selectedModel': defineEntry(type('string'), ''),
 
 	// ── Local model lifecycle (per device: memory pressure is physical) ─
 	/**
@@ -176,13 +173,13 @@ const DEVICE_DEFINITIONS = {
 		globalBinding,
 		DEFAULT_GLOBAL_BINDINGS.toggleVadRecording,
 	),
-	'shortcuts.global.openTransformationPicker': defineEntry(
+	'shortcuts.global.openRecipePicker': defineEntry(
 		globalBinding,
-		DEFAULT_GLOBAL_BINDINGS.openTransformationPicker,
+		DEFAULT_GLOBAL_BINDINGS.openRecipePicker,
 	),
-	'shortcuts.global.runTransformationOnClipboard': defineEntry(
+	'shortcuts.global.runRecipeOnClipboard': defineEntry(
 		globalBinding,
-		DEFAULT_GLOBAL_BINDINGS.runTransformationOnClipboard,
+		DEFAULT_GLOBAL_BINDINGS.runRecipeOnClipboard,
 	),
 	// Always null: `openSettings` is focused-reach, so the router never routes a
 	// write here. Present only to keep one global slot per command for the system
@@ -229,8 +226,9 @@ export const deviceConfig = createPersistedMap({
 
 // Nothing here is migrated from a legacy format; both prior formats take a clean
 // break. Local model selections once lived under `transcription.*.modelPath` as
-// filesystem paths: that key is simply orphaned now and the `transcription.*.model`
-// entry reads its default. Global shortcuts once stored accelerator strings under
+// filesystem paths: those keys are simply orphaned now and the
+// `transcription.local.selectedModel` entry reads its default (empty). Global
+// shortcuts once stored accelerator strings under
 // the same key: a legacy value fails the `globalBinding` schema on read and falls
 // back to the default (see `createPersistedMap`). Either way upgrading users get
 // the new defaults, and we carry no parser for a format nothing writes anymore.

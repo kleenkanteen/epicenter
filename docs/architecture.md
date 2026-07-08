@@ -21,7 +21,7 @@ The dependency shape runs bottom to top. Apps depend on middleware; middleware d
 | @epicenter/svelte      (packages/svelte-utils)                             |
 | @epicenter/filesystem                                                      |
 | @epicenter/skills                                                          |
-| @epicenter/workspace/ai                                                    |
+| @epicenter/workspace/agent                                                 |
 +----------------------------------------------------------------------------+
                                       |
                                       v
@@ -35,7 +35,7 @@ The dependency shape runs bottom to top. Apps depend on middleware; middleware d
 `@epicenter/sync` is the wire format, not the app model. It exports protocol primitives like `encodeSyncStep1`, `encodeSyncUpdate`, `decodeSyncMessage` so server and client can speak the same binary language without duplicating protocol logic.
 `@epicenter/constants` is the routing glue. It gives apps one source of truth for URLs, ports, and versioning so sync endpoints, auth URLs, and cross-app links do not drift.
 `@epicenter/ui` is the shared presentation layer. It knows Svelte components, not Yjs semantics.
-The middleware layer is where workspace data starts feeling like an application. `@epicenter/svelte` turns workspace helpers into reactive Svelte state, `@epicenter/filesystem` turns workspace rows and documents into a POSIX-style filesystem, `@epicenter/skills` proves that whole workspaces can be packaged and embedded as data products, and `@epicenter/workspace/ai` bridges workspace actions into LLM-callable tools.
+The middleware layer is where workspace data starts feeling like an application. `@epicenter/svelte` turns workspace helpers into reactive Svelte state, `@epicenter/filesystem` turns workspace rows and documents into a POSIX-style filesystem, `@epicenter/skills` proves that whole workspaces can be packaged and embedded as data products, and `@epicenter/workspace/agent` projects workspace actions into local agent tool catalogs.
 The apps are thin by comparison. Each app owns a shared `create<App>()` model, then runtime openers attach browser, daemon, or Tauri concerns on top.
 
 ## The lifecycle: define, create, open, attach
@@ -94,9 +94,9 @@ createWorkspace()
 Use `defineWorkspace()` when returning the composed object so TypeScript keeps the exact inferred bundle shape after spreads.
 
 ### 4. Runtime openers attach resources
-There is no plugin chain. Persistence, indexing, and materializers all mount through `attach*` functions; the workspace's network surface (sync + presence + dispatch) mounts through the `openCollaboration` primitive. Runtime openers compose them inline against `workspace.ydoc` after `create<App>()`.
+There is no plugin chain. Persistence, indexing, and materializers all mount through `attach*` functions; the workspace's network surface (sync + presence) mounts through the `openCollaboration` primitive. Runtime openers compose them inline against `workspace.ydoc` after `create<App>()`.
 
-The example below syncs a cloud document. A cloud doc is owned by the authenticated `ownerId` and addressed by its own `ydoc.guid`, so the client builds the URL with `roomWsUrl({ baseURL, ownerId, guid: ydoc.guid, nodeId })`; the server resolves it from the authenticated owner and room id. There is no workspace lookup.
+The example below syncs a cloud document. A cloud doc is scoped to the authenticated `principalId` and addressed by its own `ydoc.guid`, so the client builds the URL with `roomWsUrl({ baseURL, guid: ydoc.guid, nodeId })`; the server resolves it from the authenticated principal and room id. There is no workspace lookup.
 
 ```ts
 import {
@@ -114,24 +114,22 @@ const workspace = createWorkspace({
 const idb = attachIndexedDb(workspace.ydoc);
 const collaboration = openCollaboration(workspace.ydoc, {
 	url: roomWsUrl({
-		baseURL: auth.baseURL,
-		ownerId,
+		baseURL: auth.deployment.baseURL,
 		guid: workspace.ydoc.guid,
 		nodeId,
 	}),
 	openWebSocket: auth.openWebSocket,
 	onReconnectSignal: auth.onStateChange,
 	waitFor: idb.whenLoaded,
-	actions: {},
 });
 ```
 
 Ordering is lexical. `openCollaboration` reads `idb.whenLoaded` as `waitFor` because `idb` is already in scope. Later attachments see earlier ones directly. There is no context object to route through.
 
-For extensions that need their own Y.Doc per row (file content, note bodies), use sub-doc primitives like `attachRichText(childYdoc)` or `attachTimeline(childYdoc)` against a raw `Y.Doc`, then mount `openCollaboration` on it with an empty `actions` registry. Inbound dispatch frames reply `ActionNotFound`; the byte transport and presence channel are identical.
+For extensions that need their own Y.Doc per row (file content, note bodies), use sub-doc primitives like `attachRichText(childYdoc)` or `attachTimeline(childYdoc)` against a raw `Y.Doc`, then mount `openCollaboration` on it for sync and presence.
 
 ### 5. Collaboration is just another runtime opener, but it changes the topology
-`openCollaboration` does not own the document. It attaches to a Y.Doc that already exists and starts moving CRDT updates between peers. The relay publishes presence over its own channel; cross-device dispatch rides a plain HTTP POST. The `waitFor: idb.whenLoaded` option ensures local state is replayed first, so the initial handshake is a delta, not a full document transfer.
+`openCollaboration` does not own the document. It attaches to a Y.Doc that already exists and starts moving CRDT updates between peers. The relay publishes presence over its own channel. Action invocation lives on workspace and daemon runtime surfaces, outside collaboration. The `waitFor: idb.whenLoaded` option ensures local state is replayed first, so the initial handshake is a delta, not a full document transfer.
 
 Local state exists first, then optional durability, then optional network coordination.
 
@@ -228,33 +226,31 @@ export function openOpensidianBrowser() {
 	});
 	const collaboration = openCollaboration(workspace.ydoc, {
 		url: roomWsUrl({
-			baseURL: auth.baseURL,
-			ownerId,
+			baseURL: auth.deployment.baseURL,
 			guid: workspace.ydoc.guid,
 			nodeId,
 		}),
 		openWebSocket: auth.openWebSocket,
 		onReconnectSignal: auth.onStateChange,
 		waitFor: idb.whenLoaded,
-		actions,
 	});
 	return defineWorkspace({ ...workspace, idb, collaboration, fs, sqliteIndex, actions });
 }
 ```
 
-That bundle then feeds other middleware packages. `attachYjsFileSystem(workspace.ydoc, workspace.tables.files, fileContent)` turns the files table plus content docs into a real virtual filesystem, and its `fs.index` is the single owner of path validity that the sqlite mirror converges to; `actionsToAiTools(workspace)` from `@epicenter/workspace/ai` turns workspace actions into chat tools; per-row content docs use sub-doc primitives like `attachRichText`; `createCookieAuth()` or `createBearerAuth()` from `@epicenter/svelte/auth` coordinates identity, fetch, and WebSocket auth while `@epicenter/auth` provides the signed-in identity that supplies `ownerId` and the WebSocket transport.
+That bundle then feeds other middleware packages. `attachYjsFileSystem(workspace.ydoc, workspace.tables.files, fileContent)` turns the files table plus content docs into a real virtual filesystem, and its `fs.index` is the single owner of path validity that the sqlite mirror converges to; `createLocalToolCatalog(workspace.actions)` from `@epicenter/workspace/agent` exposes the same action handlers to the chat loop; per-row content docs use sub-doc primitives like `attachRichText`; `createAppAuthClient()` and `createSameOriginCookieAuth()` from `@epicenter/svelte/auth` coordinate identity, fetch, and WebSocket auth, while `toConnection(auth, nodeId)` supplies the boot-time connection (the signed-in principal and WebSocket transport, or `null` signed out) to the workspace boot call.
 
 ```text
 createOpensidian()
     |
     +-- workspace.ydoc, workspace.tables, workspace.kv
     +-- attachIndexedDb(workspace.ydoc)
-    +-- openCollaboration(workspace.ydoc, { url, openWebSocket, onReconnectSignal, waitFor: idb.whenLoaded, actions })
+    +-- openCollaboration(workspace.ydoc, { url, openWebSocket, onReconnectSignal, waitFor: idb.whenLoaded })
     |
     +-- attachYjsFileSystem(...)              -> editor + terminal + file tree
     +-- createSqliteIndex({ index: fs.index })-> SQL mirror, paths owned by fs.index
-    +-- actionsToAiTools(...).tools           -> local AI tool execution
-    +-- actionsToAiTools(...).definitions     -> wire payload for chat requests
+    +-- createLocalToolCatalog(actions)       -> local agent tool definitions + resolution
+    +-- agent loop approval policy            -> queries auto, mutations gated
     +-- attachRichText(childYdoc) per file    -> per-row content docs
     +-- fromTable / fromKv / auth             -> reactive Svelte app state
 ```
@@ -266,7 +262,7 @@ The server is a relay, not the authority. Clients own schema meaning, table help
 
 `@epicenter/sync` reflects that philosophy in its API. It exports protocol encode/decode functions, while `openCollaboration` plugs those primitives into a live workspace that already knows how to read and write its own data.
 
-That means the server does not need to understand your tables. It forwards Yjs sync messages. Presence is server state: the relay owns the `connections` map and pushes a `presence` text frame, the full list of connected installs, on every change. Cross-device dispatch is a plain HTTP POST the relay routes to the recipient's socket. Neither rides the CRDT, and neither needs the server to decode your data.
+That means the server does not need to understand your tables. It forwards Yjs sync messages. Presence is server state: the relay owns the `connections` map and pushes a `presence` text frame, the full list of connected installs, on every change. Neither sync nor presence needs the server to decode your data.
 
 This is what "smart client" means here. The client can boot locally, read persisted state, expose actions, open document timelines, and keep working offline before the network helps at all.
 

@@ -5,10 +5,9 @@
 	import * as Tabs from '@epicenter/ui/tabs';
 	import XIcon from '@lucide/svelte/icons/x';
 	import GithubIcon from '$lib/components/icons/GithubIcon.svelte';
-	import { requireOpensidian } from '$lib/session';
-	import { auth } from '$platform/auth';
-
-	const opensidian = requireOpensidian();
+	import { instanceSetting } from '$lib/instance';
+	import { opensidian } from '$lib/opensidian';
+	import { auth } from '$lib/platform/auth';
 </script>
 
 <div class="flex items-center border-b">
@@ -60,6 +59,7 @@
 			collaboration={opensidian.collaboration}
 			syncNoun="notes"
 			onForgetDevice={() => opensidian.wipe()}
+			instanceConnect={{ appName: 'Opensidian', setting: instanceSetting }}
 		/>
 	</div>
 </div>

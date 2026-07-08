@@ -20,16 +20,6 @@ When styling behavior depends on shadcn-svelte component structure, class mergin
 
 Skip DeepWiki for ordinary Tailwind utilities and repo-local layout rules already documented below.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Write Tailwind/CSS for UI components in this repo.
-- Decide whether a wrapper element is necessary or can be removed.
-- Style interactive disabled states using HTML `disabled` and Tailwind variants.
-- Replace JS click guards with semantic disabled behavior.
-- Build scrollable content areas inside flex columns, resizable panes, or split layouts.
-
 ## Minimize Wrapper Elements
 
 Avoid creating unnecessary wrapper divs. If classes can be applied directly to an existing semantic element with the same outcome, prefer that approach.
@@ -57,10 +47,28 @@ This principle applies to all elements where the styling doesn't conflict with t
 ## Tailwind Best Practices
 
 - Use the `cn()` utility from `$lib/utils` for combining classes conditionally
-- Prefer utility classes over custom CSS
+- Prefer utility classes over custom CSS for local layout and state
 - Use `tailwind-variants` for component variant systems
 - Follow the `background`/`foreground` convention for colors
 - Leverage CSS variables for theme consistency
+
+## Shared Primitive Overrides
+
+When styling a local `@epicenter/ui` primitive, use `epicenter-ui`'s component anatomy ownership rule. Tailwind classes on shared primitives should usually express parent layout or product state, not redefine the primitive's visual budget.
+
+Good primitive overrides:
+
+```svelte
+<Item.Button size="sm" class="w-full justify-start text-left" />
+```
+
+Suspicious primitive overrides:
+
+```svelte
+<Item.Button size="sm" class="gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent/50" />
+```
+
+If an override repeats size, density, radius, gap, padding, typography, hover, focus, or transition classes, ask whether the primitive needs a size, variant, or semantic wrapper instead.
 
 ## Disabled States: Use HTML `disabled` + Tailwind Variants
 

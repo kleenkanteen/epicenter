@@ -26,8 +26,8 @@
  * ## Eviction
  *
  * When a room's last socket closes, a grace timer compacts the log and closes
- * the sqlite handle, evicting the room from the `Map` (any access, sync or
- * connect, cancels it first via `getOrCreate`). A truncate-checkpoint runs
+ * the sqlite handle, evicting the room from the `Map` (any access, i.e. a
+ * connecting socket, cancels it first via `getOrCreate`). A truncate-checkpoint runs
  * before close so the WAL sidecars do not persist (the macOS persistent-WAL
  * caveat); keep `dir` on a local disk, never a networked filesystem.
  *
@@ -43,8 +43,9 @@
 import { Database } from 'bun:sqlite';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import type { UserId } from '@epicenter/auth';
+import type { PrincipalId } from '@epicenter/identity';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
+import { sanitizeUpgradeSubprotocols } from '../../../sanitize-upgrade-subprotocols.js';
 import type { Connection } from '../../../types.js';
 import type { ResolvedRoom, Rooms, RoomUpgrade } from '../../contracts.js';
 import { createRoomCore, type RoomCore } from '../../core.js';
@@ -85,11 +86,15 @@ function serverNotBound(): Promise<Response> {
  * resolves a `RoomCore` from, plus the resolved identity its {@link Connection}
  * attachment is built from; a `reject` socket carries only the app close
  * code/reason its `open` handler fires immediately (the auth layer rejecting a
- * WebSocket upgrade through {@link Rooms.rejectUpgrade}).
+ * WebSocket upgrade through {@link Rooms.rejectUpgrade}). The `surface` tag lets
+ * {@link mergeBunWebSocketHandlers} route this socket to the rooms backend when
+ * it shares one `Bun.serve` with the attach relay; it is a server-side dispatch
+ * discriminant, never a wire field.
  */
-export type BunRoomSocketData =
-	| { kind: 'room'; roomName: string; userId: UserId; nodeId: string }
-	| { kind: 'reject'; code: number; reason: string };
+export type BunRoomSocketData = { surface: 'rooms' } & (
+	| { kind: 'room'; roomName: string; principalId: PrincipalId; nodeId: string }
+	| { kind: 'reject'; code: number; reason: string }
+);
 
 /** A live room: its core, its open sqlite handle, and any pending eviction. */
 type RoomEntry = {
@@ -121,8 +126,8 @@ export function createBunRooms({ dir }: { dir: string }): {
 
 	/**
 	 * Resolve a room's entry, lazily opening its sqlite file and core. Any
-	 * access (sync, getDoc, or a connecting socket) cancels a pending eviction,
-	 * so a room stays live as long as something is using it.
+	 * access (a connecting socket) cancels a pending eviction, so a room stays
+	 * live as long as something is using it.
 	 */
 	function getOrCreate(name: string): RoomEntry {
 		const existing = entries.get(name);
@@ -176,27 +181,21 @@ export function createBunRooms({ dir }: { dir: string }): {
 	const rooms: Rooms = {
 		get(name: string): ResolvedRoom {
 			return {
-				sync: (body) => Promise.resolve(getOrCreate(name).core.sync(body)),
-				getDoc: () => Promise.resolve(getOrCreate(name).core.getDoc()),
-				handleUpgrade: ({ request, userId, nodeId }: RoomUpgrade) => {
+				handleUpgrade: ({ request, principalId, nodeId }: RoomUpgrade) => {
 					if (!server) return serverNotBound();
 					// Resolve the room now (creating it if needed); `getOrCreate`
 					// cancels any pending eviction, so the entry survives the gap
 					// until the `open` handler attaches the socket.
 					getOrCreate(name);
 
-					// Bun negotiates the subprotocol itself, echoing the client's
-					// first offer (the client sends `<MAIN_SUBPROTOCOL>, bearer.<token>`,
-					// so it selects the main subprotocol). Setting the
-					// `Sec-WebSocket-Protocol` header here instead breaks the
-					// handshake (double-negotiation), so identity is the only thing
-					// passed, as `ws.data`.
 					const data: BunRoomSocketData = {
+						surface: 'rooms',
 						kind: 'room',
 						roomName: name,
-						userId,
+						principalId,
 						nodeId,
 					};
+					sanitizeUpgradeSubprotocols(request);
 					const upgraded = server.upgrade(request, { data });
 					if (!upgraded) {
 						return Promise.resolve(
@@ -215,7 +214,13 @@ export function createBunRooms({ dir }: { dir: string }): {
 			// with the app code, so the browser reads a close code (a failed
 			// handshake carries none). Same `server.upgrade` path as a real
 			// connection, discriminated by `ws.data.kind`.
-			const data: BunRoomSocketData = { kind: 'reject', code, reason };
+			const data: BunRoomSocketData = {
+				surface: 'rooms',
+				kind: 'reject',
+				code,
+				reason,
+			};
+			sanitizeUpgradeSubprotocols(request);
 			const upgraded = server.upgrade(request, { data });
 			if (!upgraded) {
 				// Not an upgrade request after all; answer the plain HTTP status
@@ -235,15 +240,14 @@ export function createBunRooms({ dir }: { dir: string }): {
 				ws.close(ws.data.code, ws.data.reason);
 				return;
 			}
-			const { roomName, userId, nodeId } = ws.data;
+			const { roomName, principalId, nodeId } = ws.data;
 			// `getOrCreate` cancels any pending eviction, so a socket landing in
 			// the grace window keeps its room alive.
 			const entry = getOrCreate(roomName);
 			const connection: Connection = {
-				userId,
+				principalId,
 				nodeId,
 				connectedAt: Date.now(),
-				actions: {},
 			};
 			entry.core.addConnection(ws, connection);
 		},

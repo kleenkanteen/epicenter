@@ -236,6 +236,6 @@ And for 80% of apps? That's enough.
 
 _See also:_
 
-- [Schema Migration Patterns spec](../../specs/20260116T082500-schema-migration-patterns.md) - Full technical breakdown
+- Removed Schema Migration Patterns spec, recoverable through [Spec History](../spec-history.md) - Full technical breakdown
 - [Workspace Schema Versioning spec](../../specs/20260124T125300-workspace-schema-versioning.md) - How to build explicit versioning when you need it
 - [The Nested Y.Map Trap](./yjs-nested-maps-lww-trap.md) - Why schema structure matters in CRDTs

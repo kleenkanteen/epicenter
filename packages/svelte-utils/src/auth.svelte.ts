@@ -12,11 +12,11 @@ import {
 import { createBrowserOAuthLauncher } from '@epicenter/auth/oauth-launchers';
 import { createSubscriber } from 'svelte/reactivity';
 
-// `createSession`/`SignedIn` bind a `SyncAuthClient` (produced by the reactive
-// `createAppAuthClient` below) to a workspace lifecycle, so the whole reactive
-// auth + session story is one subpath. Re-exported here rather than from the
-// package root, which stays pure workspace-data reactivity (`fromTable`, etc.).
-export { createSession, type SignedIn } from './session.svelte.js';
+export { reloadOnPrincipalChange } from './reload-on-principal-change.js';
+// The one composition shape (ADR-0088/ADR-0094): boot-time doc selection plus
+// reload-on-principal-change. Apps boot with one call:
+// `model.connect(toConnection(auth, nodeId), compose?)`.
+export { toConnection } from './to-connection.js';
 
 /**
  * Make an auth client's `state` Svelte-reactive: spread the closure-bound
@@ -38,21 +38,24 @@ function reactiveAuthClient<T extends AuthClient>(auth: T): T {
 			return auth.state;
 		},
 	} as T;
-	// The self-host token client also exposes a connection-verification channel
-	// (pending / unreachable / rejected) that changes without touching `state`, so
-	// give it its own subscriber. Clients without one (hosted OAuth, cookie) skip
-	// this and keep the plain spread value (undefined).
-	const source = auth.connection;
-	if (source) {
+	// A self-hosted deployment carries a live connection status (connecting /
+	// connected / unreachable / rejected) that changes without touching `state`,
+	// so give it its own subscriber. Hosted deployments are plain data and keep
+	// the spread value.
+	if (auth.deployment.kind === 'self-hosted') {
+		const source = auth.deployment.connection;
 		const subscribeConnection = createSubscriber((update) =>
 			source.onChange(update),
 		);
-		reactive.connection = {
-			get state() {
-				subscribeConnection();
-				return source.state;
+		reactive.deployment = {
+			...auth.deployment,
+			connection: {
+				get status() {
+					subscribeConnection();
+					return source.status;
+				},
+				onChange: source.onChange,
 			},
-			onChange: source.onChange,
 		};
 	}
 	return reactive;
@@ -62,7 +65,7 @@ function reactiveAuthClient<T extends AuthClient>(auth: T): T {
  * Svelte 5 wrapper around `createAppAuthClient`: the one client-side choke point
  * that turns a persisted `Instance` into a hosted-OAuth or self-host-token
  * client (the branch is internal). Returns a Svelte-reactive `SyncAuthClient`,
- * so it can be passed to `createSession` for cloud sync.
+ * so workspace boots can project it with `toConnection(auth, nodeId)`.
  */
 export function createAppAuthClient(
 	instance: Instance,
@@ -74,8 +77,7 @@ export function createAppAuthClient(
 /**
  * Svelte 5 wrapper around `createSameOriginCookieAuth` (cookie client for a
  * browser app the API serves from its own origin, e.g. the dashboard). Returns
- * a plain `AuthClient` (no `openWebSocket`); it cannot be passed to
- * `createSession`.
+ * a plain `AuthClient` (no `openWebSocket`); it cannot drive workspace sync.
  */
 export function createSameOriginCookieAuth(
 	config: CreateSameOriginCookieAuthConfig,
@@ -99,22 +101,25 @@ export type CreateHostedBrowserRedirectAuthOptions = {
 	 * Where the persisted grant lives. Defaults to `localStorage`. Pass
 	 * `sessionStorage` (or an in-memory `Storage`) for an app whose web build
 	 * decrypts high-value secrets in JS and wants a smaller XSS-persistence
-	 * window (e.g. Whispering's vault, ADR-0079) — the grant then dies with the
-	 * tab instead of surviving across sessions.
+	 * window (for example, Whispering's vault per ADR-0079). The grant then
+	 * dies with the tab instead of surviving across sessions.
 	 */
 	persistedStorage?: Storage;
 };
 
 /**
  * Package the hosted browser-redirect OAuth convention every hosted web app
- * repeats: a `<namespace>.auth.persisted` grant (localStorage by default, override
- * via `persistedStorage`), a redirect launcher
- * built from the hosted constants (`${api}/auth` issuer, the `/auth/callback`
- * redirect, `api` as the resource, `sessionStorage` for the PKCE state), and the
- * persisted `Instance` fed to {@link createAppAuthClient}. Each app passes only
- * what varies: its namespace, OAuth client id, the hosted API origin, and an
- * optional SvelteKit base path. The result is a reactive `SyncAuthClient`, ready
- * for `createSession`.
+ * repeats: a `<namespace>.auth.persisted` grant (localStorage by default,
+ * override via `persistedStorage`; persistent on purpose: `sessionStorage`
+ * would not survive live XSS anyway and signs the user out on every tab
+ * close; the real controls are the short access-token TTL, rotating refresh,
+ * revocation, and CSP, per ADR-0079), a redirect launcher built from the
+ * hosted constants (`${api}/auth` issuer, the `/auth/callback` redirect,
+ * `api` as the resource, `sessionStorage` for the PKCE state), and the
+ * persisted `Instance` fed to {@link createAppAuthClient}. Each app passes
+ * only what varies: its namespace, OAuth client id, the hosted API origin,
+ * and an optional SvelteKit base path. The result is a reactive
+ * `SyncAuthClient`, ready for signed-in workspace sync.
  *
  * Redirect-only and hosted-only by construction: it owns no Tauri deep-link or
  * extension launcher and no self-host token branch. The self-host path still works

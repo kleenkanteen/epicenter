@@ -17,17 +17,6 @@ When Tauri command behavior, permissions, capabilities, CSP, asset protocols, pa
 
 Skip DeepWiki for repo-local command naming and app-specific wrapper conventions already visible in the code.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Add or change Tauri commands, permissions, capabilities, or security config.
-- Build file paths in Tauri frontend code running in the webview.
-- Choose correctly between `@tauri-apps/api/path` and Node/Bun `path` APIs.
-- Replace manual slash concatenation with `join()`, `dirname()`, and related helpers.
-- Handle cross-platform filesystem behavior for desktop apps.
-- Combine Tauri path APIs with `@tauri-apps/plugin-fs` operations.
-
 ## Commands, Permissions, And Security
 
 - Expose focused Rust APIs with `#[tauri::command]`, register them with `generate_handler!`, and return `Result<T, E>` for fallible work.
@@ -41,8 +30,10 @@ Use this pattern when you need to:
 Never ship `app.security.csp: null` (that disables CSP entirely). The
 highest-value directive is `connect-src`: locking it to your API origin plus
 Tauri's IPC blocks an injected same-origin script from exfiltrating in-memory
-secrets (tokens, keys) to an attacker host. Set both `csp` (production) and
-`devCsp` (the dev override, which replaces `csp` during `tauri dev`):
+secrets (tokens, keys) to an attacker host. Start from a narrow policy, then
+add only the sources your app actually uses, for example asset protocols, wasm,
+workers, media, or dev server origins. Set both `csp` (production) and `devCsp`
+(the dev override, which replaces `csp` during `tauri dev`):
 
 ```jsonc
 "security": {
@@ -113,6 +104,8 @@ Before choosing a path API, determine your execution context:
 | ------------- | ----------------------- | ---------------------------- |
 | `sep()`       | Platform path separator | `\` on Windows, `/` on POSIX |
 | `delimiter()` | Platform path delimiter | `;` on Windows, `:` on POSIX |
+
+`sep()` and `delimiter()` are synchronous in Tauri v2. Most directory and path manipulation helpers are async because they call the backend.
 
 ### Base Directories
 
@@ -219,14 +212,13 @@ import {
 
 ## Note on Async
 
-All Tauri path functions are **async** because they communicate with the Rust backend via IPC. Always `await` them:
+Most Tauri path helpers are async because they communicate with the Rust backend via IPC. Always check the installed TypeScript types before assuming a helper returns a Promise. Directory helpers and path manipulation helpers such as `appLocalDataDir()`, `join()`, and `dirname()` are async; simple constants such as `sep()` and `delimiter()` are sync in Tauri v2.
 
 ```typescript
-// All path operations return Promises
 const baseDir = await appLocalDataDir();
 const filePath = await join(baseDir, 'file.txt');
 const parent = await dirname(filePath);
-const separator = await sep();
+const separator = sep();
 ```
 
 ## Filesystem Operations

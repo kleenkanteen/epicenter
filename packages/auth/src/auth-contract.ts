@@ -1,7 +1,7 @@
 import type { AuthState } from '@epicenter/identity';
 import type { Result } from 'wellcrafted/result';
 import type { AuthError } from './auth-errors.js';
-import type { AuthUser } from './auth-types.js';
+import type { Principal } from './auth-types.js';
 
 export type { AuthState };
 
@@ -18,45 +18,62 @@ export type AuthFetch = (
 ) => Promise<Response>;
 
 /**
- * Outcome of verifying a client's credential against its star. Exposed only by
- * clients that perform a remote bearer verification at boot (the self-host token
- * client, {@link createInstanceTokenAuth}). A failed verification does NOT change
- * identity {@link AuthState}, which stays `signed-out`, so this is the separate
- * channel a UI reads to explain WHY it is signed out: an unreachable star versus
- * a rejected token.
+ * The one deployment this client talks to (ADR-0069: privacy is which
+ * deployment runs the program). Fixed at construction by the factory that
+ * built the client, so it is the single runtime owner of the hosted vs
+ * self-hosted fact: UI branches on `deployment.kind` instead of re-deriving
+ * the mode from the persisted {@link InstanceSetting}.
+ *
+ * `baseURL` is the origin (optionally with a path prefix) of the API this
+ * client signs into. Client-side partitioning (local storage keys,
+ * BroadcastChannel names) scopes by `(server, principalId)` with it, so two
+ * signed-in deployments on the same machine stay distinct.
+ *
+ * Only the self-hosted arm carries a {@link InstanceConnection}: that client
+ * verifies a static bearer against a remote instance at boot, a lifecycle
+ * hosted OAuth does not have (its identity resolves through the persisted
+ * grant, and `/api/session` verification gates each request instead).
  */
-export type AuthConnectionState =
-	| { status: 'pending' }
-	| { status: 'connected' }
-	| {
-			status: 'failed';
-			/**
-			 * `rejected`: the star answered and refused the token (401/403).
-			 * `unreachable`: no usable answer (offline, wrong origin, or a box that
-			 * did not respond like an Epicenter star).
-			 */
-			reason: 'rejected' | 'unreachable';
-	  };
+export type Deployment =
+	| { kind: 'hosted'; baseURL: string }
+	| { kind: 'self-hosted'; baseURL: string; connection: InstanceConnection };
 
 /**
- * Observable {@link AuthConnectionState}. `onChange` does not replay the current
- * value, mirroring {@link AuthClient.onStateChange}; read `state` once before
- * subscribing when the boot value matters (the Svelte reactive wrapper does).
+ * Whether the configured self-hosted instance has accepted this client's
+ * token in this runtime. Boot identity is optimistic (`signed-in` the moment
+ * a token is held, ADR-0075) and most outcomes leave it untouched: an
+ * unreachable instance keeps the client signed-in for local-first work, and
+ * only a rejected token drops {@link AuthState} to `signed-out`. This status
+ * is the separate fact a UI reads to explain the connection.
+ *
+ * `rejected`: the instance answered and refused the token (401/403).
+ * `unreachable`: no usable answer (offline, wrong origin, or a box that did
+ * not respond like an Epicenter server).
  */
-export type AuthConnection = {
-	get state(): AuthConnectionState;
-	onChange(fn: (state: AuthConnectionState) => void): () => void;
+export type InstanceConnectionStatus =
+	| 'connecting'
+	| 'connected'
+	| 'unreachable'
+	| 'rejected';
+
+/**
+ * Observable {@link InstanceConnectionStatus}. `onChange` does not replay the
+ * current value, mirroring {@link AuthClient.onStateChange}; read `status`
+ * once before subscribing when the boot value matters (the Svelte reactive
+ * wrapper does).
+ */
+export type InstanceConnection = {
+	get status(): InstanceConnectionStatus;
+	onChange(fn: (status: InstanceConnectionStatus) => void): () => void;
 };
 
 export type AuthClient = {
 	state: AuthState;
 	/**
-	 * Origin of the API this client signs into. Exposed so client-side
-	 * partitioning (local storage keys, BroadcastChannel names) can scope by
-	 * `(server, ownerId)` and stay distinct across two signed-in deployments on
-	 * the same machine. Mirrors the `baseURL` passed at construction.
+	 * The deployment this client talks to: its kind, its `baseURL`, and (for a
+	 * self-hosted instance) the live connection status. Fixed at construction.
 	 */
-	baseURL: string;
+	deployment: Deployment;
 	/**
 	 * Subscribe to future state changes.
 	 *
@@ -98,19 +115,12 @@ export type AuthClient = {
 	 *
 	 * Presentational identity (the email) is fetched on demand by the surface
 	 * that displays it, never persisted or carried on `state`: `state` holds only
-	 * the capability id (`ownerId`), which is offline-useful and license-clean
-	 * (see `@epicenter/identity` `AuthState` and `PersistedAuth`). Account UI calls
-	 * this when it renders the user; everything else reads `ownerId` off `state`.
+	 * the principal id, which is offline-useful and license-clean (see
+	 * `@epicenter/identity` `AuthState` and `PersistedAuth`). Account UI calls
+	 * this when it renders the user; local workspace code reads `principalId`
+	 * off `state`.
 	 */
-	getProfile(): Promise<Result<AuthUser, AuthError>>;
-	/**
-	 * Connection-verification channel, present only on clients that verify a
-	 * remote bearer at boot (the self-host token client). Absent on hosted OAuth
-	 * (identity resolves through the persisted grant, not a boot bearer check) and
-	 * on the same-origin cookie client (no remote star), so it is an optional
-	 * capability a UI feature-detects, not a universal field.
-	 */
-	connection?: AuthConnection;
+	getProfile(): Promise<Result<Principal, AuthError>>;
 	[Symbol.dispose](): void;
 };
 
@@ -122,7 +132,7 @@ export type AuthClient = {
  * with no `openWebSocket`, because a same-origin cookie cannot carry the bearer
  * subprotocol the rooms route requires.
  *
- * Workspace binding (`createSession`, `openCollaboration`) requires a
+ * Workspace sync (`toConnection`, `openCollaboration`) requires a
  * `SyncAuthClient`, so passing a cookie client where sync is needed is a
  * compile error rather than a runtime throw.
  */
@@ -131,8 +141,16 @@ export type SyncAuthClient = AuthClient & {
 	 * Open a WebSocket using the same bearer boundary as `fetch`.
 	 *
 	 * Browsers cannot set `Authorization` on WebSocket upgrades, so the token is
-	 * carried as an Epicenter bearer subprotocol and normalized by the API before
-	 * protected route code runs.
+	 * carried as an Epicenter bearer subprotocol; the rooms route extracts it at
+	 * the upgrade and the server echoes only the main subprotocol back.
+	 *
+	 * Resolves only with a credentialed socket. When no usable bearer can be
+	 * attached it rejects with an `OpenWebSocketDenial` (`@epicenter/sync`)
+	 * instead of opening a socket doomed to a server 4401: `'permanent'`
+	 * (signed out, reauth required) means only an auth state change can help;
+	 * `'transient'` means verification was unreachable and a retry may
+	 * succeed. Waits for in-flight machine work (token refresh, `/api/session`
+	 * verification), never for a human.
 	 */
 	openWebSocket(url: string | URL, protocols?: string[]): Promise<WebSocket>;
 };

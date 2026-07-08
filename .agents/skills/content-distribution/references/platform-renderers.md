@@ -159,15 +159,15 @@ Optimize for:
 - Series.
 - Reader replies.
 
-## The Ark
+## Distribution State
 
 Best default:
 
 ```txt
-publication record
+variants/*.md placements[]
   + destination wrappers
   + attempts
   + performance notes
 ```
 
-The Ark should own distribution state, not the source idea. Fuji owns finished writing. The Ark owns where it went, what wrapper was used, and what happened next.
+A variant's `placements[]` should own distribution state, not the source idea. `pages/` owns finished writing. The variant owns the shaped artifact; its placements own where it went, what wrapper was used, and what happened next.

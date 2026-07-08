@@ -1,11 +1,11 @@
 ---
 name: skill-creator
-description: Create, revise, audit, evaluate, and validate Vercel-backed Agent Skills for this repository. Use when writing a new skill, improving or grilling an existing skill, tuning skill descriptions, deciding what belongs in SKILL.md, references, scripts, or assets, validating discovery, or reviewing whether a skill should exist.
+description: Create, revise, audit, evaluate, and validate Vercel-backed Agent Skills for this repository. Use when writing a new skill, improving or stress-testing an existing skill, tuning skill descriptions, deciding what belongs in SKILL.md, references, scripts, or assets, validating discovery, or reviewing whether a skill should exist.
 ---
 
 # Skill Creator
 
-Use this skill to create and maintain project-local skills under `.agents/skills`.
+Skill Creator owns creation and maintenance of project-local skills under `.agents/skills`.
 
 The Vercel `skills` CLI is the source of truth for format and discovery. Do not maintain a separate local validator unless the user explicitly asks for one.
 
@@ -13,7 +13,7 @@ Skills should encode repeatable project expertise: real conventions, recurring f
 
 Read [references/evaluation.md](references/evaluation.md) when tuning trigger descriptions, comparing skill versions, evaluating behavior, auditing imported skills, or checking source links.
 
-Read [references/composition-audit.md](references/composition-audit.md) when grilling how a *cluster* of skills composes rather than one skill: after extracting, merging, or renaming a skill, after adding a trigger phrase, or when routing feels ambiguous. It carries the role model (hub / move / mechanic / adapter), the mechanical detectors (routing collisions, duplicated bodies, dead links, coupling), and the continuous-grill loop.
+Read [references/composition-audit.md](references/composition-audit.md) when stress-testing how a *cluster* of skills composes rather than one skill: after extracting, merging, or renaming a skill, after adding a trigger phrase, or when routing feels ambiguous. It carries the role model (hub / move / mechanic / adapter), the mechanical detectors (routing collisions, duplicated bodies, dead links, coupling), and the continuous audit loop.
 
 ## Compose With
 
@@ -115,6 +115,8 @@ Before drafting body content:
 
 The description is always loaded and drives selection. It must carry the trigger logic because the body is loaded only after the skill is selected.
 
+Do not add body sections like `When to apply this skill`, `When to load`, `Trigger phrases`, or `Use this skill when...`. By the time the body is read, routing already happened. Put routing in the frontmatter description; use the body for workflow, guardrails, examples, and final checks.
+
 Include:
 
 1. What the skill does.
@@ -148,7 +150,21 @@ Use this split:
 - `scripts/`: repeated deterministic helpers the agent would otherwise recreate.
 - `assets/`: templates, images, boilerplate, or other files used in generated output.
 
-Every reference link needs a concrete load condition, for example: "Read `references/api-errors.md` when the API returns a non-200 status."
+Keep routing at the right layer:
+
+```txt
+description   external routing: "Use when..."
+SKILL.md      ownership and workflow after the skill is loaded
+references/   scoped detail after SKILL.md chose the reference
+```
+
+Avoid opening `SKILL.md` or references with self-routing boilerplate such as
+"Use this skill..." or "Use this reference...". Prefer ownership language in
+`SKILL.md` ("Workspace API owns...") and scope language in references ("This
+reference covers...").
+
+Every reference link needs a concrete load condition in `SKILL.md`, for example:
+"Read `references/api-errors.md` when the API returns a non-200 status."
 
 Use `scripts/` only for repeated, deterministic, fragile, or error-prone work. Scripts should be documented in `SKILL.md`, non-interactive, retry-friendly, clear about prerequisites, structured on stdout, diagnostics on stderr, and bounded in output.
 

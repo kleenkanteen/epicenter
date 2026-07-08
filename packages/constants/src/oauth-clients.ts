@@ -16,12 +16,14 @@
  * The CLI uses an out-of-band (OOB) authorization-code + PKCE flow against
  * the same `/auth/oauth2/token` endpoint the browser uses. After sign-in
  * on the hosted portal, Better Auth redirects to the API origin's
- * `/auth/cli-callback`, which renders the one-time code; the user pastes
+ * `/cli-callback`, which renders the one-time code; the user pastes
  * it into the terminal. This identifies the CLI app type, not a user,
  * machine, install, or secret. Every CLI install uses the same value.
  */
 export const EPICENTER_CLI_OAUTH_CLIENT_ID = 'epicenter-cli';
 export const EPICENTER_HONEYCRISP_OAUTH_CLIENT_ID = 'epicenter-honeycrisp';
+export const EPICENTER_HONEYCRISP_TAURI_OAUTH_REDIRECT_URI =
+	'epicenter-honeycrisp://oauth/callback';
 // Whispering ships both web and Tauri, so it has a deep-link redirect for
 // the desktop build in addition to its web `/auth/callback` origins.
 export const EPICENTER_WHISPERING_OAUTH_CLIENT_ID = 'epicenter-whispering';

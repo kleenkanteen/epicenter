@@ -9,17 +9,6 @@ When proposing non-trivial changes, make your reasoning visible before acting. T
 
 Follow [writing-voice](../writing-voice/SKILL.md) for prose sections.
 
-## When to Use This
-
-- Multiple valid approaches exist (show competing options)
-- Changes span 3+ files (show the dependency graph)
-- Architecture or ownership shifts (show before/after diagrams)
-- Lifecycle or data flow changes (show the flow)
-- The user asks "what do you think?" or "how should we do this?" about a concrete code change
-
-For trivial changes (typo fix, single-line edit, obvious bug), skip this and just do it.
-
-If the change reshapes a product surface (new command, new route, new primary API), state the post-change one-sentence meaning using [one-sentence-test](../one-sentence-test/SKILL.md) alongside the diagrams and diffs. It anchors the proposal to what the product *is*, not just what changed.
 
 ## The Three Tools
 

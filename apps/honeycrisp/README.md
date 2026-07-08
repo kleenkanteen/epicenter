@@ -24,7 +24,7 @@ openHoneycrispBrowser()
   browser runtime: local storage, sync, child-doc storage and sync
 ```
 
-The Svelte app mounts the browser runtime through `createSession`, so the workspace is only created after a signed-in identity provides `ownerId` and sync transport.
+The Svelte app builds one browser runtime at boot. Signed out, it uses bare local IndexedDB storage under the workspace guid. Signed in, it uses principal-scoped storage plus relay sync. The app shell is the same either way; sign-in only adds sync and account controls.
 
 ### Rich-text editing
 
@@ -36,7 +36,7 @@ Notes are never removed from the CRDT. They're soft-deleted with a `deletedAt` t
 
 ### Auth
 
-Google sign-in via `@epicenter/svelte/auth-form`. The session is persisted across reloads. The workspace connects once a signed-in identity is available.
+Google sign-in is optional. The app opens immediately with local data, and `AccountPopover` is the account surface for signing in, signing out, or forgetting this device. A principal change reloads the page so boot can choose the right storage branch.
 
 ---
 
@@ -92,11 +92,10 @@ Prerequisites: [Bun](https://bun.sh).
 git clone https://github.com/EpicenterHQ/epicenter.git
 cd epicenter
 bun install
-cd apps/honeycrisp
-bun dev
+bun dev:honeycrisp
 ```
 
-This starts the app dev server on port 5175. Auth and sync expect the local API on `localhost:8787`; start it from the repo root with `bun run dev:api`.
+This starts the desktop app on port 5175 alongside the local API on `localhost:8787`, which auth and sync expect. `bun dev:honeycrisp:ui` runs the browser UI without the API or Tauri shell.
 
 ---
 

@@ -10,16 +10,6 @@ metadata:
 
 > **Related Skills**: See `error-handling` for trySync/tryAsync usage and toast-on-error patterns. See `services-layer` for service architecture and namespace exports.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Define or refactor domain error variants using `defineErrors`.
-- Add error variants that include structured fields and `cause: unknown`.
-- Centralize `extractErrorMessage(cause)` inside variant factories.
-- Infer union and single-variant types via `InferErrors`/`InferError`.
-- Replace old `createTaggedError` and split Err-pair patterns.
-
 ## Import
 
 ```typescript

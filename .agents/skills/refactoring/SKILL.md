@@ -10,18 +10,14 @@ metadata:
 
 Systematic approach to auditing and improving code. Every change is evidence-based: count callers, show diffs, commit surgically.
 
-> **Related Skills**: See `post-implementation-review` for the full second-read ritual after implementation. See `cohesive-clean-breaks` when the refactor changes public shape, ownership, naming, or lifecycle boundaries. See `control-flow` for linearizing conditionals and guard clauses. See `factory-function-composition` for the four-zone factory anatomy. See `method-shorthand-jsdoc` for when to use `this.method()` vs direct calls.
+> **Related Skills**: See `post-implementation-review` for the full second-read ritual after implementation. See `greenfield-clean-breaks` when the refactor changes public shape, ownership, naming, or lifecycle boundaries. See `control-flow` for linearizing conditionals and guard clauses. See `factory-function-composition` for the four-zone factory anatomy. See `method-shorthand-jsdoc` for when to use `this.method()` vs direct calls.
 
-## When to Apply This Skill
-
-Use this methodology when you need to:
-
-- Audit a module for code smells or unnecessary abstractions
-- Inline single-use helper functions
-- Eliminate raw/untyped access that bypasses a typed boundary
-- Collapse duplicate switch/if branches that do the same thing
-- Refactor function signatures (positional params → parameter objects)
-- Derive types instead of duplicating fields
+Use [asymmetric-wins](../asymmetric-wins/SKILL.md) when a refactor is preserving
+a small promise that owns a large code family: legacy aliases, fallback parsers,
+exact old fixtures, pixel-perfect UI reproduction, duplicate call shapes, or a
+rare mode with its own tests and docs. Refactors do not need to preserve every
+old promise. They need to preserve the product sentence and the load-bearing
+contracts.
 
 ## The Audit: Count Callers First
 

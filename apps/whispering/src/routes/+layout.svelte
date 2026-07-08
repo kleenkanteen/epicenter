@@ -5,16 +5,20 @@
 	import { onMount } from 'svelte';
 	import { auth } from '#platform/auth';
 	import { onNavigate } from '$app/navigation';
+	import { FlushEditsOnHide } from '@epicenter/svelte';
+	import { reloadOnPrincipalChange } from '@epicenter/svelte/auth';
 	import { queryClient } from '$lib/rpc/client';
-	import { reloadOnOwnerChange } from '$lib/whispering/reload-on-owner-change';
 	import '@epicenter/ui/app.css';
+	// Whispering's brand overrides, layered after the shared theme so they win.
+	// Keep this import last among the stylesheets.
+	import '../app.css';
 	import * as Tooltip from '@epicenter/ui/tooltip';
 
 	let { children } = $props();
 
-	// Option A: the active doc is picked once at boot (openActiveWhispering); an
-	// owner-identity change reloads so the next boot rebuilds the right doc.
-	onMount(() => reloadOnOwnerChange(auth));
+	// Option A: the active preset is picked once at boot; a
+	// principal identity change reloads so the next boot rebuilds the right doc.
+	onMount(() => reloadOnPrincipalChange(auth));
 
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return;
@@ -55,6 +59,7 @@
 	}}
 />
 <ModeWatcher defaultMode="dark" track={false} />
+<FlushEditsOnHide />
 
 <style>
 	/* The default UA view-transition runs 0.25s, which is abrupt for the

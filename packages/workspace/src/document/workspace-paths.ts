@@ -14,7 +14,7 @@
  * These helpers return the hardcoded convention only; they do not inspect
  * `epicenter.config.ts`.
  *
- * For daemon-process paths (sockets, log, metadata sidecar), see
+ * For daemon-process paths (log, metadata sidecar, lease, node id), see
  * `daemon/paths.ts`. Different audience, different rationale.
  *
  * Pure helpers: no side effects, no directory creation. Consumers do their

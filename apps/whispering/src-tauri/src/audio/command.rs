@@ -1,7 +1,7 @@
 //! Tauri command surface for the audio module. One endpoint:
 //! `encode_recording_for_upload(recording_id)` resolves the durable audio
-//! artifact by id, decodes it to mono 16 kHz PCM (same path the local
-//! transcription engines use via `read_artifact_samples`), and re-encodes
+//! artifact by id, decodes it to mono 16 kHz PCM (same path local GGUF
+//! transcription uses via `read_artifact_samples`), and re-encodes
 //! to OGG/Opus for cloud upload.
 
 use log::warn;

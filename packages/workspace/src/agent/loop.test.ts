@@ -234,7 +234,7 @@ describe('createConversation', () => {
 		};
 		const tools: ToolCatalog = {
 			definitions: () => [{ name: 'get_time', kind: 'query' }],
-			resolve: async () => ({ output: 'noon', isError: false }),
+			resolve: async () => ({ content: 'noon', isError: false }),
 		};
 
 		const handle = createConversation({
@@ -286,7 +286,7 @@ describe('createConversation', () => {
 			definitions: () => [{ name: 'get_time', kind: 'query' }],
 			resolve: async (call) => {
 				resolved.push(call);
-				return { output: 'noon', isError: false };
+				return { content: 'noon', isError: false };
 			},
 		};
 
@@ -312,10 +312,66 @@ describe('createConversation', () => {
 			toolName: 'get_time',
 		});
 		expect(toolStep.parts.find((p) => p.type === 'tool-result')).toMatchObject({
-			output: 'noon',
+			content: 'noon',
 			isError: false,
 		});
 		expect(agentMessageText(messages[2]!)).toBe('It is noon.');
+	});
+
+	test('runs multiple tool calls sequentially in model order', async () => {
+		const store = makeStore();
+		let stepCount = 0;
+		const engine: AgentEngine = () => {
+			stepCount += 1;
+			if (stepCount === 1) {
+				return streamOf([
+					{
+						type: 'tool-call',
+						toolCallId: 't1',
+						toolName: 'first',
+						input: {},
+					},
+					{
+						type: 'tool-call',
+						toolCallId: 't2',
+						toolName: 'second',
+						input: {},
+					},
+				]);
+			}
+			return streamOf([{ type: 'text-delta', delta: 'Done.' }]);
+		};
+		const order: string[] = [];
+		const tools: ToolCatalog = {
+			definitions: () => [
+				{ name: 'first', kind: 'query' },
+				{ name: 'second', kind: 'query' },
+			],
+			resolve: async (call) => {
+				order.push(`start:${call.toolName}`);
+				if (call.toolName === 'first') {
+					await new Promise((resolve) => setTimeout(resolve, 0));
+				}
+				order.push(`end:${call.toolName}`);
+				return { content: call.toolName, isError: false };
+			},
+		};
+
+		const handle = createConversation({
+			store,
+			engine,
+			tools,
+			generateId: idMinter(),
+		});
+		handle.send('run both');
+		await settle(handle);
+
+		expect(order).toEqual([
+			'start:first',
+			'end:first',
+			'start:second',
+			'end:second',
+		]);
 	});
 
 	test('a runaway tool loop is bounded by the max-step guard', async () => {
@@ -335,7 +391,7 @@ describe('createConversation', () => {
 		};
 		const tools: ToolCatalog = {
 			definitions: () => [{ name: 'loop', kind: 'query' }],
-			resolve: async () => ({ output: 'again', isError: false }),
+			resolve: async () => ({ content: 'again', isError: false }),
 		};
 
 		const handle = createConversation({
@@ -377,7 +433,7 @@ describe('createConversation', () => {
 			definitions: () => [{ name: 'delete_all', kind: 'mutation' }],
 			resolve: async () => {
 				resolveCalled = true;
-				return { output: 'deleted', isError: false };
+				return { content: 'deleted', isError: false };
 			},
 		};
 		const approval: Approval = {

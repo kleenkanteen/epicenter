@@ -9,7 +9,7 @@ This directory holds immutable, cross-cutting values that more than one part of 
 A constant lives with the code that owns its meaning. Only put something here when it is **pure data** and **shared across modules** with no natural home. Everything else lives next to its owner:
 
 - **Logic and functions** (formatters, guards, validators, normalizers) live in `$lib/utils` or `$lib/services`, never here. Example: shortcut parsing, labeling, and matching live in `$lib/utils/key-binding.ts`.
-- **Types owned by one module** live in that module. Example: `DeviceAcquisitionOutcome` lives in `$lib/services/recorder/types.ts`.
+- **Types owned by one module** live in that module. Example: `DeviceAcquisitionOutcome` lives in the `@epicenter/recorder` package, which owns browser microphone device vocabulary.
 - **Registries with behavior** live next to their service. The transcription and inference registries stay here only because their service-ID enums are shared vocabulary the workspace schema validates against.
 - **Build-target values** (platform identity) live behind the `#platform/*` seam (see below).
 
@@ -23,11 +23,9 @@ constants/
 ├── icons/                  # Provider brand SVG assets
 ├── inference.ts            # Text-completion provider/model registry
 ├── languages.ts            # Supported transcription languages
-├── local-models.ts         # Local transcription model download catalogs (data only)
 ├── local-model-unload-policy.ts  # Memory unload-policy setting (mirrored in Rust)
 ├── sounds.ts               # Sound effect names
 ├── transcription.ts        # Transcription service registry
-├── transformations.ts      # Transformation step types
 └── urls.ts                 # App route pathnames
 ```
 

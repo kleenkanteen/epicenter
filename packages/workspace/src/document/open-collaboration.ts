@@ -2,9 +2,7 @@
  * `openCollaboration`: the one collaboration primitive on a document.
  *
  * Connects a Yjs document to the relay and derives per-peer liveness from the
- * server-owned presence channel. An additive text-frame port (`textPort`) lets
- * the relay-channel layer ride the same socket for cross-device MCP channels
- * without coupling to sync or presence.
+ * server-owned presence channel.
  *
  * Two wire surfaces ride one auth context:
  *
@@ -12,20 +10,14 @@
  *   text WS frames    -> server -> client: presence (the full peer list, sent on
  *                        every membership change);
  *                        client -> server: presence_publish (this node's
- *                        identity: agent designation and exposed route names),
- *                        sent once per connect.
+ *                        identity: agent designation), sent once per connect.
  *
  * The Y.Doc holds durable workspace state; presence lives on the relay's
- * `connections` map.
- *
- * Content docs (rich-text bodies, attachments, nested independently-syncing
- * docs) use the same primitive with `actions: {}`; presence still flows in over
- * the socket for online discovery.
+ * `connections` map. Actions live on the workspace bundle, not collaboration.
  */
 
 import type { Logger } from 'wellcrafted/logger';
 import type * as Y from 'yjs';
-import { ACTION_KEY_PATTERN, type ActionRegistry } from '../shared/actions.js';
 import {
 	createSyncSupervisor,
 	type OpenWebSocketFn,
@@ -55,7 +47,7 @@ export type { OpenWebSocketFn };
  */
 export type OnReconnectSignal = (fn: () => void) => () => void;
 
-export type OpenCollaborationConfig<TActions extends ActionRegistry> = {
+export type OpenCollaborationConfig = {
 	/**
 	 * WebSocket URL the supervisor connects to, used verbatim. Callers
 	 * build it via {@link roomWsUrl} (or any custom builder); the wire
@@ -87,26 +79,11 @@ export type OpenCollaborationConfig<TActions extends ActionRegistry> = {
 	connectDeadlineMs?: number;
 	log?: Logger;
 	/**
-	 * Injected local action registry. The caller remains the registry owner;
-	 * Collaboration validates the action keys and exposes it as
-	 * `collaboration.actions`, the local callable surface. It is no longer
-	 * published in presence (the action manifest is decommissioned). Pass `{}`
-	 * for content docs and consume-only participants.
-	 */
-	actions: TActions;
-	/**
 	 * The catalog agent this peer answers as (ADR-0025), published in presence so
 	 * peers can see which agent ids are live. Set only by a resident agent mount
 	 * (e.g. a daemon); omit for ordinary participants and content docs.
 	 */
 	agentId?: string;
-	/**
-	 * The relay-exposed (MCP) route names this node serves, published in presence so
-	 * a peer can auto-mount them as tool catalogs (floor discovery). Set only by a
-	 * daemon that opened relay-exposed routes; omit for a pure consumer (a browser
-	 * exposes nothing).
-	 */
-	exposedRoutes?: string[];
 };
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -137,37 +114,22 @@ function withConnectDeadline(
 	});
 }
 
-export function openCollaboration<TActions extends ActionRegistry>(
+export function openCollaboration(
 	ydoc: Y.Doc,
-	config: OpenCollaborationConfig<TActions>,
+	config: OpenCollaborationConfig,
 ) {
-	const userActions = config.actions;
-
-	for (const key of Object.keys(userActions)) {
-		if (!ACTION_KEY_PATTERN.test(key)) {
-			throw new Error(
-				`Invalid action key "${key}". Action keys must match ${ACTION_KEY_PATTERN.source} (snake_case ASCII, starting with a letter, max 64 chars).`,
-			);
-		}
-	}
-
 	// Server-owned presence: the relay pushes the full peer list as a
-	// `presence` text frame on every membership or manifest change. Each entry
-	// carries the peer's nodeId, connectedAt, and published action
-	// manifest. The client stores the latest list and notifies subscribers;
+	// `presence` text frame on every membership or identity change. Each entry
+	// carries the peer's nodeId, connectedAt, and optional identity fields. The
+	// client stores the latest list and notifies subscribers;
 	// there is no delta protocol and no client-side reassembly. The relay
 	// dedupes multi-tab same-node (newest-wins by connectedAt) and excludes
 	// the receiver's own node, so the client stores `peers` verbatim.
 	let remotePeers: Peer[] = [];
 	const presenceListeners = new Set<(peers: Peer[]) => void>();
 
-	// Observers of every inbound text frame, additive to presence. The
-	// relay-channel layer (a separate module) subscribes here and narrows to its
-	// own frames, so it rides this socket without coupling to sync or presence.
-	const textFrameListeners = new Set<(text: string) => void>();
-
 	// Store the latest peer list from a recognized `presence` frame; ignore
-	// any other text frame (the relay-channel layer reads those via textPort).
+	// any other text frame.
 	function handlePresenceFrame(text: string): void {
 		let parsed: unknown;
 		try {
@@ -180,18 +142,12 @@ export function openCollaboration<TActions extends ActionRegistry>(
 		for (const listener of presenceListeners) listener(remotePeers);
 	}
 
-	// This node publishes only its identity and exposed-route names in presence.
-	// The legacy action manifest is decommissioned: nothing reads `Peer.actions`
-	// once the in-room dispatch subsystem was deleted (ADR-0073). The `actions`
-	// wire field stays required and is sent empty, so an older relay or peer sees
-	// no schema change while the device stops feeding a dead field.
+	// This node publishes only its identity in presence. Actions stay local; the
+	// wire carries no action manifest (ADR-0073 deleted the in-room dispatch
+	// subsystem).
 	const presencePublishFrame = JSON.stringify({
 		type: 'presence_publish',
-		actions: {},
 		agentId: config.agentId,
-		...(config.exposedRoutes !== undefined && {
-			exposedRoutes: config.exposedRoutes,
-		}),
 	} satisfies PresencePublishFrame);
 
 	const supervisor = createSyncSupervisor(ydoc, {
@@ -199,19 +155,15 @@ export function openCollaboration<TActions extends ActionRegistry>(
 		waitFor: config.waitFor,
 		openWebSocket: config.openWebSocket,
 		log: config.log,
-		// Text frames carry the server-owned presence channel. Additive
-		// observers (the relay-channel layer) see every text frame through
-		// `textFrameListeners` and narrow to their own frames.
+		// Text frames carry the server-owned presence channel.
 		onTextFrame(text) {
-			for (const listener of textFrameListeners) listener(text);
 			handlePresenceFrame(text);
 		},
 	});
 
 	const unsubscribeStatusListener = supervisor.onStatusChange((status) => {
-		// Publish this node's presence identity (agent designation and exposed
-		// route names) on every (re)connect. The relay stores it against the new
-		// socket and rebroadcasts presence so peers see it.
+		// Publish this node's presence identity on every (re)connect. The relay
+		// stores it against the new socket and rebroadcasts presence so peers see it.
 		if (status.phase === 'connected') {
 			supervisor.send(presencePublishFrame);
 		}
@@ -252,10 +204,6 @@ export function openCollaboration<TActions extends ActionRegistry>(
 			: withConnectDeadline(supervisor.whenConnected, config.connectDeadlineMs);
 
 	return {
-		/** Local action registry published through this collaboration handle. */
-		get actions() {
-			return userActions;
-		},
 		/** Current sync lifecycle status. */
 		get status() {
 			return supervisor.status;
@@ -268,19 +216,6 @@ export function openCollaboration<TActions extends ActionRegistry>(
 		onStatusChange: supervisor.onStatusChange,
 		/** Restart the current connection cycle. */
 		reconnect: supervisor.reconnect,
-		/**
-		 * The raw text-frame port over this socket: send a text frame, and observe
-		 * every inbound one. The relay-channel layer builds a `ChannelPort` on top
-		 * (see `relay-channel/createChannelPort`); this handle stays sync-agnostic
-		 * and never parses a channel frame.
-		 */
-		textPort: {
-			send: (text: string) => supervisor.send(text),
-			subscribe: (listener: (text: string) => void): (() => void) => {
-				textFrameListeners.add(listener);
-				return () => textFrameListeners.delete(listener);
-			},
-		},
 		/**
 		 * Online peers in this workspace, derived from the server-owned
 		 * presence channel.
@@ -295,5 +230,4 @@ export function openCollaboration<TActions extends ActionRegistry>(
 	};
 }
 
-export type Collaboration<TActions extends ActionRegistry = ActionRegistry> =
-	ReturnType<typeof openCollaboration<TActions>>;
+export type Collaboration = ReturnType<typeof openCollaboration>;

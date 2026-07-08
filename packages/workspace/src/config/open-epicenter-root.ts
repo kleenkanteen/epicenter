@@ -2,7 +2,7 @@
  * Open an Epicenter root: the single daemon entry point from
  * `epicenter.config.ts` to the live mount runtime.
  *
- * `openEpicenterRoot()` is what `epicenter daemon up` calls. It owns the whole
+ * `openEpicenterRoot()` is what `epicenter up` calls. It owns the whole
  * startup path:
  *
  *   1. `loadEpicenterConfig(epicenterRoot)` imports `epicenter.config.ts` and
@@ -182,7 +182,7 @@ function buildMountSession(
 ): MountSession | null {
 	if (auth === null || auth.state.status === 'signed-out') return null;
 	return {
-		ownerId: auth.state.ownerId,
+		principalId: auth.state.principalId,
 		// `auth.openWebSocket` / `auth.fetch` / `auth.onStateChange` are
 		// closure-based on the auth client and do not read `this`, so passing the
 		// method reference directly is safe (no `.bind(auth)` needed).

@@ -13,7 +13,6 @@
 	 */
 	import {
 		CONNECTION_PRESETS,
-		type Connection,
 		type ListModelsError,
 		type PresetId,
 	} from '@epicenter/client';
@@ -22,6 +21,7 @@
 	import { Input } from '@epicenter/ui/input';
 	import { Label } from '@epicenter/ui/label';
 	import * as Popover from '@epicenter/ui/popover';
+	import { Spinner } from '@epicenter/ui/spinner';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
@@ -29,9 +29,10 @@
 	import Eye from '@lucide/svelte/icons/eye';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
-	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Plus from '@lucide/svelte/icons/plus';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { InferenceConnections } from './connections.svelte.js';
 
 	type Props = {
@@ -64,6 +65,11 @@
 	// A tailored, per-variant message when discovery fails (401 vs unreachable vs
 	// malformed), or null when discovery has not failed.
 	let discoveryError = $state<string | null>(null);
+
+	// Connections currently re-discovering their models, for per-group refresh
+	// spinners. Usually one entry, but keep the set keyed per URL so overlapping
+	// refreshes cannot clear each other's loading state.
+	const refreshingBaseUrls = new SvelteSet<string>();
 
 	// Clear all of the connect form's working state. Called on close so a user who
 	// connected one provider lands back on the preset chooser (not a stale sub-form
@@ -98,21 +104,25 @@
 		return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(baseUrl);
 	}
 
+	function localityLabel(baseUrl: string): 'local' | 'cloud' {
+		return isLocal(baseUrl) ? 'local' : 'cloud';
+	}
+
 	// Derive the group label from the stored base URL: match a preset by its full
 	// normalized base URL (so a self-hosted proxy that merely shares a host won't
 	// false-match, and Ollama's :11434 stays distinct from LM Studio's :1234), else
 	// fall back to the URL host. Derived, not stored, so it cannot drift when the
 	// user edits the URL (ADR-0060).
-	function connectionLabel(connection: Connection): string {
-		const normalized = connection.baseUrl.replace(/\/+$/, '');
+	function connectionLabel(baseUrl: string): string {
+		const normalized = baseUrl.replace(/\/+$/, '');
 		const preset = CONNECTION_PRESETS.find(
 			(p) => p.baseUrl.replace(/\/+$/, '') === normalized,
 		);
 		if (preset) return preset.label;
 		try {
-			return new URL(connection.baseUrl).host;
+			return new URL(baseUrl).host;
 		} catch {
-			return connection.baseUrl;
+			return baseUrl;
 		}
 	}
 
@@ -134,6 +144,18 @@
 	function selectModel(id: string) {
 		onSelectModel(id);
 		open = false;
+	}
+
+	// Re-discover a connected endpoint's models in place. Best effort: the group's
+	// list updates reactively when the fresh ids land, and stands on error.
+	async function refreshConnection(baseUrl: string) {
+		if (refreshingBaseUrls.has(baseUrl)) return;
+		refreshingBaseUrls.add(baseUrl);
+		try {
+			await connections.refresh(baseUrl);
+		} finally {
+			refreshingBaseUrls.delete(baseUrl);
+		}
 	}
 
 	function choosePreset(id: PresetId | 'custom') {
@@ -206,6 +228,14 @@
 	});
 </script>
 
+{#snippet localityIcon(baseUrl: string)}
+	{#if isLocal(baseUrl)}
+		<HardDrive class="size-4 shrink-0 opacity-70" />
+	{:else}
+		<Cloud class="size-4 shrink-0 opacity-70" />
+	{/if}
+{/snippet}
+
 <Popover.Root bind:open>
 	<Popover.Trigger>
 		{#snippet child({ props })}
@@ -254,16 +284,12 @@
 
 					{#each connections.custom as connection (connection.baseUrl)}
 						{@const ids = connection.models ?? []}
-						<Command.Group
-							heading="{connectionLabel(connection)} · {isLocal(
-								connection.baseUrl,
-							)
-								? 'local'
-								: 'cloud'}"
-						>
+						{@const label = connectionLabel(connection.baseUrl)}
+						{@const locality = localityLabel(connection.baseUrl)}
+						<Command.Group heading="{label} · {locality}">
 							{#each ids as id (id)}
 								<Command.Item
-									value="{id} {connectionLabel(connection)}"
+									value="{id} {label}"
 									keywords={[id]}
 									onSelect={() => selectModel(id)}
 								>
@@ -272,12 +298,12 @@
 											? 'opacity-100'
 											: 'opacity-0'}"
 									/>
-									{#if isLocal(connection.baseUrl)}
-										<HardDrive class="size-4" />
-									{:else}
-										<Cloud class="size-4" />
-									{/if}
-									<span class="flex-1 truncate">{id}</span>
+									{@render localityIcon(connection.baseUrl)}
+									<span
+										class="line-clamp-2 flex-1 break-all {model === id
+											? 'font-medium'
+											: ''}"
+										title={id}>{id}</span>
 								</Command.Item>
 							{:else}
 								<Command.Item disabled value="{connection.baseUrl} empty">
@@ -287,11 +313,23 @@
 								</Command.Item>
 							{/each}
 							<Command.Item
+								value="refresh {connection.baseUrl}"
+								disabled={refreshingBaseUrls.has(connection.baseUrl)}
+								onSelect={() => refreshConnection(connection.baseUrl)}
+							>
+								{#if refreshingBaseUrls.has(connection.baseUrl)}
+									<Spinner class="size-4" />
+								{:else}
+									<RefreshCw class="size-4" />
+								{/if}
+								<span class="text-xs">Refresh {label}</span>
+							</Command.Item>
+							<Command.Item
 								value="remove {connection.baseUrl}"
 								onSelect={() => connections.remove(connection.baseUrl)}
 							>
 								<Trash2 class="size-4" />
-								<span class="text-xs">Remove {connectionLabel(connection)}</span>
+								<span class="text-xs">Remove {label}</span>
 							</Command.Item>
 						</Command.Group>
 					{/each}
@@ -321,29 +359,30 @@
 				</div>
 
 				{#if formPreset === null}
-					<div class="space-y-1">
-						{#each CONNECTION_PRESETS as preset (preset.id)}
-							<Button
-								variant="outline"
-								size="sm"
-								class="w-full justify-between"
-								onclick={() => choosePreset(preset.id)}
+					<Command.Root class="rounded-md border">
+						<Command.List>
+							{#each CONNECTION_PRESETS as preset (preset.id)}
+								<Command.Item
+									value={preset.label}
+									onSelect={() => choosePreset(preset.id)}
+								>
+									{@render localityIcon(preset.baseUrl)}
+									<span class="flex-1">{preset.label}</span>
+									<span class="text-xs text-muted-foreground">
+										{localityLabel(preset.baseUrl)}
+									</span>
+								</Command.Item>
+							{/each}
+							<Command.Separator />
+							<Command.Item
+								value="custom url"
+								onSelect={() => choosePreset('custom')}
 							>
-								<span>{preset.label}</span>
-								<span class="text-xs text-muted-foreground">
-									{isLocal(preset.baseUrl) ? 'local' : 'cloud'}
-								</span>
-							</Button>
-						{/each}
-						<Button
-							variant="outline"
-							size="sm"
-							class="w-full justify-start"
-							onclick={() => choosePreset('custom')}
-						>
-							Custom URL
-						</Button>
-					</div>
+								<Plus class="size-4 shrink-0 opacity-70" />
+								<span class="flex-1">Custom URL</span>
+							</Command.Item>
+						</Command.List>
+					</Command.Root>
 				{:else}
 					<div class="space-y-1">
 						<Label for="conn-url" class="text-xs">Base URL</Label>
@@ -386,9 +425,12 @@
 						<Label class="text-xs">Model</Label>
 						{#if discovering}
 							<p class="flex items-center gap-2 text-xs text-muted-foreground">
-								<LoaderCircle class="size-3.5 animate-spin" /> Loading models...
+								<Spinner class="size-3.5" /> Loading models...
 							</p>
 						{:else if discovered && discovered.length > 0}
+							<p class="text-xs text-muted-foreground">
+								Pick a model to start using it.
+							</p>
 							<Command.Root class="rounded-md border">
 								<Command.Input placeholder="Search models..." />
 								<Command.List class="max-h-48">
@@ -399,7 +441,7 @@
 											keywords={[id]}
 											onSelect={() => commitConnection(id)}
 										>
-											<span class="truncate">{id}</span>
+											<span class="line-clamp-2 break-all" title={id}>{id}</span>
 										</Command.Item>
 									{/each}
 								</Command.List>

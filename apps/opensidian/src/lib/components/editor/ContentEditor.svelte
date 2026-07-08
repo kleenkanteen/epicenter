@@ -3,12 +3,10 @@
 	import { asFileId, type FileId } from '@epicenter/filesystem';
 	import { fromDisposableCache } from '@epicenter/svelte';
 	import { Loading } from '@epicenter/ui/loading';
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 	import CodeMirrorEditor from './CodeMirrorEditor.svelte';
 	import { linkDecorations } from './extensions/link-decorations';
 	import { wikilinkAutocomplete } from './extensions/wikilink-autocomplete';
-
-	const opensidian = requireOpensidian();
 
 	let {
 		fileId,
@@ -49,16 +47,16 @@
 </script>
 
 <!--
-	Gate on idb hydration: `asText()` on Timeline mutates when the doc is empty
-	(it pushes an entry). Calling it before idb hydrates races the replay
-	and can corrupt the timeline (phantom text entry alongside the real
-	stored entries).
+	Gate on idb hydration before binding the editor: `binding` is the doc's
+	`Y.Text`, valid but empty until idb replays. Binding (and letting the user
+	type) before hydration would merge keystrokes into an unhydrated doc at the
+	wrong position relative to the loaded content.
 -->
 {#await doc.current.whenLoaded}
 	<Loading class="h-full" />
 {:then}
 	<CodeMirrorEditor
-		ytext={doc.current.asText()}
+		ytext={doc.current.binding}
 		{extensions}
 		{filename}
 	/>

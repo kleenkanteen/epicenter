@@ -12,7 +12,7 @@
  * The NodeId is the relay's routing label (stamped on the room WebSocket as
  * `?nodeId=`) and the seed for the Y.Doc CRDT `clientID` via
  * `hashYDocClientId(nodeId)`. It is a plain claimed id, not a signing key: the
- * relay floor authenticates by the session's `userId`, never the nodeId.
+ * relay floor authenticates by the session's `principalId`, never the nodeId.
  *
  * Browser app nodeIds (opensidian, fuji, honeycrisp, vocab, tab-manager) are the
  * same kind of nanoid, persisted in Web Storage via `createNodeId` /

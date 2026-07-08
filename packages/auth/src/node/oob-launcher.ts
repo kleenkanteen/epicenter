@@ -3,13 +3,12 @@
  *
  * Prints an authorize URL, optionally opens it in the user's browser,
  * waits for the user to paste the one-time code from
- * `https://api.epicenter.so/auth/cli-callback`, then exchanges the code
+ * `https://api.epicenter.so/cli-callback`, then exchanges the code
  * at `/auth/oauth2/token` with PKCE. Returns a completed OAuth launch result
  * containing a 3-field `OAuthTokenGrant`.
  *
  * The launcher is concerned only with the OAuth dance. The caller pairs the
- * returned grant with `GET /api/session` to fill in the `userId` and `ownerId`
- * fields of `PersistedAuth`.
+ * returned grant with `GET /api/session` to fill in the persisted `principalId`.
  */
 
 import { spawn } from 'node:child_process';

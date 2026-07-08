@@ -21,14 +21,7 @@ Skip DeepWiki for repo-local Bun script conventions already documented below.
 
 The monorepo uses consistent script naming conventions:
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Run formatting, linting, or type-check scripts in this monorepo.
-- Choose between auto-fix commands and `:check` CI-only variants.
-- Verify final changes with the repo-standard `bun typecheck` workflow.
-- Scaffold a new package in `packages/`.
+## Commands
 
 | Command            | Purpose                                        | When to use |
 | ------------------ | ---------------------------------------------- | ----------- |
@@ -50,14 +43,31 @@ Use this pattern when you need to:
 
 ## Dev Scripts
 
-Apps use either a single `dev` script (when there is only one sensible local
-workflow) or a `dev:local` alias (kept for symmetry with `:remote` db scripts).
-The suffix convention applies primarily to database commands:
+Start apps from the repo root, not by cd-ing into the app. Root
+`bun dev:<app>` runs every process the app needs; for apps that talk to the
+hosted API (tab-manager, honeycrisp, opensidian, vocab, whispering, and the
+api dashboard), it also starts `@epicenter/api` on `localhost:8787` via
+`bun run --filter`. Root `bun dev:<app>:ui` runs the app's frontend
+alone when that split exists; for Tauri apps, it maps to the package's
+`dev:web`. `bun dev:api` runs just the backend. Local Books, Local Mail, and
+Super Chat have their own multi-process flows documented in their READMEs;
+they have no root `dev:*` target.
+
+Inside a single package, the conventions are:
+
+Non-Tauri apps use a single `dev` script that runs the underlying tool
+directly (`vite dev`, `astro dev`, `wrangler dev`, `wxt`). Tauri desktop apps
+(honeycrisp, whispering, matter) have two dev surfaces and name them
+explicitly: `dev` launches the desktop shell (aliasing `dev:desktop`), and
+`dev:web` runs Vite alone, which each app's `tauri.conf.json` invokes as its
+`beforeDevCommand`. The suffix convention applies primarily to database
+commands:
 
 | Script | Meaning |
 | --- | --- |
 | `dev` | The default local workflow. May still require Infisical login for app secrets (e.g. API keys), but only ever talks to local infrastructure at runtime. |
-| `dev:local` | Used when an app keeps the `dev` -> `dev:local` alias for explicit naming. Equivalent to `dev`. |
+| `dev:web` | Tauri apps: the Vite dev server alone, no desktop shell. Invoked by `tauri.conf.json` as `beforeDevCommand`. |
+| `dev:desktop` | Tauri apps: launches the native desktop app (`tauri dev`). `dev` aliases this. |
 | `db:*:local` | Runs against local Postgres. Works without Infisical login. |
 | `db:*:remote` | Wraps with `infisical run --env=prod`. Production data; treat as admin. |
 

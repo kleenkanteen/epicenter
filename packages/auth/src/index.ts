@@ -4,23 +4,18 @@ export {
 } from './app-auth-client.js';
 export type {
 	AuthClient,
-	AuthConnection,
-	AuthConnectionState,
 	AuthFetch,
 	AuthState,
+	Deployment,
+	InstanceConnection,
+	InstanceConnectionStatus,
 	SyncAuthClient,
 } from './auth-contract.js';
 export * from './auth-errors.js';
 export {
 	ApiSessionResponse,
-	AuthUser,
-	asUserId,
-	UserId,
+	Principal,
 } from './auth-types.js';
-export {
-	type CreateOAuthAppAuthConfig,
-	createOAuthAppAuth,
-} from './create-oauth-app-auth.js';
 export {
 	type Instance,
 	InstanceUrlError,
@@ -41,10 +36,6 @@ export {
 	generateInstanceToken,
 	MIN_INSTANCE_TOKEN_CHARS,
 } from './instance-token.js';
-export {
-	type CreateInstanceTokenAuthConfig,
-	createInstanceTokenAuth,
-} from './instance-token-auth.js';
 export {
 	createWebStoragePersistedAuthStorage,
 	loadPersistedAuthStorage,

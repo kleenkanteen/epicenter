@@ -201,7 +201,7 @@ Your audio never leaves your device. Works without internet. Free forever.
 **First, download a model (required):**
 
 1. Open Whispering
-2. Click **Settings** (⚙️) → **Transcription**
+2. Click **Settings** (⚙️) → **Privacy & Processing**
 3. Select **Whisper C++** from the dropdown
 4. Choose a model (start with `Small` for good balance of speed and accuracy)
 5. Click **Download** button next to the model
@@ -239,7 +239,7 @@ I personally use Groq for most of my transcriptions because it's incredibly fast
 #### Setup Steps
 
 1. Open Whispering
-2. Click **Settings** (⚙️) → **Transcription**
+2. Click **Settings** (⚙️) → **Privacy & Processing**
 3. Select **Groq** from the dropdown
 4. Paste your API key in the API key field
 5. Choose a model (`whisper-large-v3-turbo` is fastest and cheapest)
@@ -263,7 +263,7 @@ I personally use Groq for most of my transcriptions because it's incredibly fast
 
 - **No transcription?** → Double-check API key in Settings
 - **Shortcut not working?** → Bring Whispering to foreground (see macOS section below)
-- **Wrong provider selected?** → Check Settings → Transcription
+- **Wrong provider selected?** → Check Settings → Privacy & Processing
 
 ### Platform-Specific Issues
 
@@ -521,22 +521,33 @@ Change the recording shortcut to whatever feels natural:
 
 ## How is my data stored?
 
-Whispering stores as much data as possible locally on your device, including recordings and text transcriptions. This approach ensures maximum privacy and data security. Here's an overview of how data is handled:
+Whispering stores as much data as possible locally on your device, including recordings and text transcriptions. The privacy boundary depends on two separate choices: where audio is transcribed, and where Polish sends transcript text. Here's an overview of how data is handled:
 
 1. **Local Storage**: Voice recordings and transcriptions are stored in IndexedDB, which is used as blob storage and a place to store all of your data like text and transcriptions.
 
-2. **Transcription Service**: The only data sent elsewhere is your recording to an external transcription service. If you choose one. You have the following options:
+2. **Transcription Service**: If you choose a cloud or self-hosted transcription service, your recording is sent to that service. If you choose a local transcription engine, audio stays on your device. You have the following options:
    - External services like OpenAI, Groq, or ElevenLabs (with your own API keys)
-   - A local transcription service such as Speaches, which keeps everything on-device
+   - Self-hosted transcription through Speaches
+   - Local transcription engines like Whisper C++, Parakeet, or Moonshine, which keep audio on-device
 
-3. **Transformation Service (Optional)**: Whispering includes configurable transformation settings that allow you to pipe transcription output into custom transformation flows. These flows can leverage:
-   - External Large Language Models (LLMs) like OpenAI's GPT-4, Anthropic's Claude, Google's Gemini, or Groq's Llama models
-   - Hosted LLMs within your custom workflows for advanced text processing
-   - Simple find-and-replace operations for basic text modifications
+3. **Polish and Recipes**: Polish is the meaning-preserving cleanup pass that can run after transcription. Recipes are manual text transformations. Both use the selected completion provider when they need AI.
+   - Cloud completion providers send transcript text to services like OpenAI, Anthropic, Google, Groq, or OpenRouter.
+   - Custom completion can point at a local OpenAI-compatible server, such as Ollama or LM Studio. With a local server and no API key, Polish transcript text stays on your device.
 
-   When using AI-powered transformations, your transcribed text is sent to your chosen LLM provider using your own API key. All transformation configurations, including prompts and step sequences, are stored locally in your settings.
+   Local transcription does not automatically make Polish local. Audio can stay on-device while transcript text is still sent to a cloud completion provider. **Settings → Privacy & Processing** shows the current boundary for both stages.
 
-You can change both the transcription and transformation services in the settings to ensure maximum local functionality and privacy.
+You can change both the transcription and completion providers under **Settings → Privacy & Processing** to control which parts of the pipeline stay local.
+
+### Local Polish with Ollama or LM Studio
+
+Local Polish already works through the Custom completion provider. Run an OpenAI-compatible local server yourself, then under **Settings → Privacy & Processing** choose **Custom (OpenAI-compatible)** as the text AI provider, paste the server URL, leave the API key empty unless your server requires one, and type the model name you want to use.
+
+Common local URLs:
+
+- Ollama: `http://localhost:11434/v1`
+- LM Studio: `http://localhost:1234/v1`
+
+Whispering does not start or discover local completion servers. It only sends Polish and Recipe requests to the endpoint you configure.
 
 ## Frequently Asked Questions
 
@@ -552,7 +563,7 @@ Svelte 5 + Tauri. The app is tiny (~22MB), starts instantly, and uses minimal re
 
 ### Can I use it offline?
 
-Yes, use the Speaches provider for local transcription. No internet, no API keys, completely private.
+Yes, use a local transcription engine such as Whisper C++, Parakeet, or Moonshine. No internet, no API keys, completely private.
 
 ### How much does it actually cost?
 
@@ -627,12 +638,13 @@ The architecture achieves extensive code reuse through build-time platform detec
 
 > Want to contribute? See [CONTRIBUTING.md](../../CONTRIBUTING.md) for fork and PR instructions.
 
-To run the desktop app and website:
+To run the desktop app with the local Epicenter API:
 
 ```bash
-cd apps/whispering
-bun tauri dev
+bun dev:whispering
 ```
+
+Use `bun dev:whispering:ui` for the browser UI without the API or Tauri shell.
 
 ### Build The Executable Yourself
 
@@ -680,7 +692,7 @@ We'd love to expand Whispering's capabilities with more transcription and AI ser
 
 The provider registry owns every provider fact, including the names of the config keys that hold its credentials and model selection. The stores own the values. The dispatcher and the settings UI resolve those pointers through the registry, so most of the integration is compile-error driven: once your provider is in the registry, the type checker points at every table that still needs an entry.
 
-Local engines (whisper.cpp, Parakeet, Moonshine) are implemented in Rust behind Tauri commands, so this guide covers cloud and self-hosted services, which live in TypeScript.
+The local GGUF engine is implemented in Rust behind Tauri commands, so this guide covers upload-based services that live in TypeScript: API-key providers and endpoint providers.
 
 1. **Create the service implementation**:
    - **Cloud services**: `src/lib/services/transcription/cloud/` (OpenAI, Groq, Deepgram, ElevenLabs, Mistral)
@@ -750,25 +762,25 @@ Local engines (whisper.cpp, Parakeet, Moonshine) are implemented in Rust behind 
 
    ```typescript
    YourService: {
-	location: 'cloud',
-	label: 'Your Service',
-	description: 'What makes this service worth picking',
-	capabilities: { supportsPrompt: true, supportsLanguage: true },
-	apiKeyConfigKey: 'providers.yourservice.apiKey',
-	modelSettingKey: 'transcription.yourservice.model',
-	endpointConfigKey: null, // or a 'providers.yourservice.endpoint' override key
-	modelsDoc: {
-		label: 'Your Service docs',
-		href: 'https://yourservice.com/docs/speech-to-text',
-	},
-	defaultModel: 'model-v1',
-	models: [
-		{
-			name: 'model-v1',
-			description: 'What makes this model special',
-			cost: '$0.XX/hour',
-		},
-	],
+     access: 'key',
+     label: 'Your Service',
+     description: 'What makes this service worth picking',
+     capabilities: { supportsPrompt: true, supportsLanguage: true },
+     apiKeyConfigKey: 'providers.yourservice.apiKey',
+     modelSettingKey: 'transcription.yourservice.model',
+     endpointConfigKey: null, // or a 'providers.yourservice.endpoint' override key
+     modelsDoc: {
+       label: 'Your Service docs',
+       href: 'https://yourservice.com/docs/speech-to-text',
+     },
+     defaultModel: 'model-v1',
+     models: [
+       {
+         name: 'model-v1',
+         description: 'What makes this model special',
+         cost: '$0.XX/hour',
+       },
+     ],
    },
    ```
 
@@ -776,11 +788,11 @@ Local engines (whisper.cpp, Parakeet, Moonshine) are implemented in Rust behind 
 
 4. **Fix the compile errors the registry entry creates.** Each of these tables is exhaustive over the provider ids, so the type checker walks you to them:
 
-   - `CLOUD_TRANSCRIBERS` in `src/lib/operations/transcribe.ts`: map your id to `YourServiceTranscriptionServiceLive.transcribe`.
+   - `UPLOAD_DISPATCH` in `src/lib/operations/transcribe.ts`: map your id to `YourServiceTranscriptionServiceLive.transcribe`.
    - `PROVIDER_ICONS` in `src/lib/services/transcription/provider-ui.ts`: add your SVG icon.
    - `PROVIDER_FIELDS` in `src/lib/components/settings/ProviderConfigFields.svelte`: declare the API key (and optional endpoint) fields with their labels, placeholders, and docs links. This is where provider-specific copy lives, like where to find the API key.
 
-That's the whole integration. The transcription settings page, the quick-pick selector, the configuration warning badge, and the dispatcher need no edits; they all render and resolve through the registry entry. Only self-hosted and local providers get bespoke sections in `src/routes/(app)/(config)/settings/transcription/+page.svelte`, because their setup instructions are the product copy.
+That's the whole integration. The Privacy & Processing surface, the quick-pick selector, the configuration warning badge, and the dispatcher need no edits; they all render and resolve through the registry entry. Endpoint and on-device providers get bespoke sections in `src/lib/components/settings/TranscriptionRuntimeConfig.svelte`, because their setup instructions are the product copy.
 
 ##### Adding an AI Transformation Adapter
 

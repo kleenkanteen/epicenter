@@ -2,6 +2,9 @@
 
 - **Status:** Accepted
 - **Date:** 2026-06-24
+- **Amended by:** [ADR-0092](0092-identity-is-the-partition.md)
+
+> **2026-07-02 amendment:** ADR-0092 keeps auth as the owner of `/api/session`, but changes the session body to `{ principalId, email? }` and removes owner path segments from the data client. The data client no longer receives an `ownerId` for URL construction; auth resolves the principal and routes derive the partition server-side.
 
 ## Context
 

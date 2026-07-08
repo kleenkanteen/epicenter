@@ -34,6 +34,15 @@ accepted ADR, the ADR wins.
 title is the decision stated as a declarative sentence, so the filename alone
 reads as the conclusion.
 
+**The number is allocated at merge time, not author time.** It is owned by the
+merge, not the branch. Two branches that each grab "the next number" while
+branched will collide (this is why parallel work has produced duplicate numbers
+before). So a branch may carry a *provisional* number; the person merging
+reconciles it to the true next-free integer, accounting for other open ADR PRs,
+before it lands. Whoever merges first keeps the number; a later branch that
+picked the same one renumbers. The `ADR-NNNN` citation form stays stable once
+merged; only the pre-merge placeholder is negotiable.
+
 ## Template
 
 ```markdown
@@ -134,26 +143,54 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0064](0064-the-local-books-mirror-keeps-one-realm-cdc-cursor-table-existence-is-the-per-entity-init-latch.md) | The Local Books mirror keeps one realm CDC cursor; table existence is the per-entity init latch | Accepted |
 | [0065](0065-matter-is-a-standalone-disk-as-truth-tool-its-sqlite-is-a-read-only-query-surface.md) | Matter is a standalone disk-as-truth tool; its SQLite mirror is a first-class read-only query surface under `epicenter matter` | Accepted |
 | [0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md) | Runtime portability is per-concern injection, not a runtime object | Accepted |
-| [0067](0067-auth-owns-the-session-endpoint-the-data-client-is-owner-scoped.md) | Auth owns the `/api/session` endpoint; the data client is owner-scoped and receives `ownerId` at construction | Accepted |
+| [0067](0067-auth-owns-the-session-endpoint-the-data-client-is-owner-scoped.md) | Auth owns the `/api/session` endpoint; the data client is owner-scoped and receives `ownerId` at construction | Accepted (amended by 0092) |
 | [0068](0068-privacy-is-a-deployment-not-a-product-feature.md) | Privacy is a deployment, not a product feature; the hosted app carries zero privacy-configuration surface | Accepted |
 | [0069](0069-epicenter-is-one-runnable-star-plus-services-called-by-url-and-token.md) | Epicenter is one runnable program (the star) plus a la carte services addressed by base URL and token | Accepted |
 | [0070](0070-self-host-adds-no-new-ownership-or-auth-mode.md) | Self-host adds no new ownership or auth mode: single-user is a preset, and only the credential source varies | Superseded by [0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) |
 | [0071](0071-oauth-is-hosted-only-a-custom-instance-requires-a-token.md) | OAuth is hosted-only; a custom instance requires a token | Accepted |
 | [0072](0072-local-books-ships-as-a-standalone-cli-the-daemon-surface-is-deferred.md) | Local Books ships as a standalone CLI; the ADR-0047 daemon surface is deferred behind a verb-core seam | Accepted |
-| [0073](0073-tools-speak-mcp-natively-epicenter-owns-only-the-transport-mcp-lacks.md) | Tools speak MCP natively; Epicenter owns only the transport MCP lacks | Accepted (design; wire reshape and edge shim deferred behind the wedge trigger) |
+| [0073](0073-tools-speak-mcp-natively-epicenter-owns-only-the-transport-mcp-lacks.md) | Tools speak MCP natively; Epicenter owns only the transport MCP lacks | Accepted (historical relay-floor channel layer deleted by ADR-0079/0086) |
 | [0074](0074-the-secret-vault-is-an-owner-scoped-synced-store-encrypted-under-a-server-derived-keyring.md) | The secret vault is an owner-scoped synced store encrypted under a server-derived keyring, not a passphrase vault | Accepted |
-| [0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) | Self-host is a single-partition instance behind one operator-supplied bearer; multi-tenancy is Cloud-only | Accepted |
+| [0075](0075-self-host-is-a-single-partition-instance-behind-one-operator-supplied-bearer.md) | Self-host is a single-partition instance behind one operator-supplied bearer; multi-tenancy is Cloud-only | Accepted (amended by 0092) |
 | [0076](0076-the-relational-auth-substrate-is-a-cloud-only-layer-the-instance-composes-neither.md) | The relational-auth substrate (Better Auth + Postgres) is a Cloud-only layer; the instance composes neither | Accepted |
 | [0077](0077-parsed-row-memoization-belongs-to-the-table-the-svelte-adapter-is-a-stateless-view.md) | Parsed-row memoization belongs to the table; the Svelte adapter is a stateless view | Accepted |
-| [0078](0078-inference-is-a-url-addressed-connection-the-relay-floor-carries-only-tools.md) | Inference is a URL-addressed connection reached through the gateway; the relay floor carries only MCP tool routes | Accepted |
-| [0079](0079-cross-device-is-two-planes-epicenter-syncs-the-crdt-the-box-is-reached-directly.md) | Cross-device is two planes: Epicenter syncs the CRDT, the box is reached directly as a URL-addressed connection | Accepted (capability-layer deletion bound to the Whispering-sync milestone) |
+| [0078](0078-inference-is-a-url-addressed-connection-the-relay-floor-carries-only-tools.md) | Inference is a URL-addressed connection reached through a direct endpoint or gateway | Accepted (relay-floor tool carrier superseded by ADR-0079/0086) |
+| [0079](0079-cross-device-is-two-planes-epicenter-syncs-the-crdt-the-box-is-reached-directly.md) | Cross-device is two planes: Epicenter syncs the CRDT, the box is reached directly as a URL-addressed connection | Accepted (capability-layer deletion landed 2026-07-02) |
 | [0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) | The super app is a desktop host; cross-device is remote access to the session, not a per-app capability plane | Accepted (the desktop-host decision is settled; a hosted session broker for turnkey mobile remote is the open product question) |
 | [0081](0081-per-upstream-oauth-concurrency-decides-mirror-topology.md) | Per-upstream OAuth concurrency decides whether a materialized mirror is box-owned (Local Books) or device-local (Gmail), not a property of "cloud-upstream apps" as a category | Proposed |
 | [0082](0082-local-mail-mirror-is-push-free-polling-collapsing-hosted-vs-self-host-to-one-oauth-client-id.md) | Local Mail's mirror is push-free CDC polling; hosted vs self-host collapses to one OAuth Client ID | Proposed |
 | [0083](0083-apps-email-is-refused-local-mail-is-the-only-gmail-client.md) | `apps/email` is refused; Local Mail is the only Gmail client | Accepted |
-| [0084](0084-super-chat-tools-load-as-vendored-typescript-the-shell-is-a-bun-hosted-local-server.md) | Super Chat's tools load as vendored TypeScript via Bun's native dynamic import; its shell is a Bun-hosted local server, not a bundled SPA | Proposed |
+| [0084](0084-super-chat-shell-is-a-bun-hosted-local-server-not-a-bundled-spa.md) | Super Chat's shell is a Bun-hosted local server, not a bundled SPA | Accepted |
 | [0085](0085-a-box-is-a-role-an-addressable-endpoint-plays-not-a-node-type.md) | A box is a role an addressable endpoint plays, not a distinct node type | Accepted |
 | [0086](0086-no-live-consumer-for-network-reachable-capability-reach-opensidian-is-superseded-not-migrated.md) | There is no live consumer for network-reachable capability reach; opensidian's cross-device tools are superseded by the super app, not migrated | Accepted |
 | [0087](0087-honeycrisp-is-the-maintained-notes-product-from-one-isomorphic-workspace-surface.md) | Honeycrisp is the maintained notes product from one isomorphic workspace surface | Proposed |
+| [0088](0088-sign-in-is-an-enhancement-never-a-door.md) | Sign-in is an enhancement, never a door | Accepted |
+| [0089](0089-the-blob-store-is-a-presigned-s3-kernel-and-the-bucket-is-its-only-index.md) | The blob store is a presigned-S3 kernel and the bucket is its only index | Accepted (key prefix amended by 0092) |
+| [0090](0090-the-blob-layer-stays-plaintext-confidentiality-belongs-to-the-encrypting-consumer.md) | The blob layer stays plaintext; confidentiality belongs to the encrypting consumer | Accepted |
+| [0091](0091-blobs-trade-a-file-for-a-durable-content-addressed-url-documents-are-the-only-manifest.md) | Blobs trade a file for a durable content-addressed URL; documents are the only manifest | Accepted (URL shape amended by 0092) |
+| [0092](0092-identity-is-the-partition.md) | Identity is the partition | Accepted |
+| [0093](0093-kv-metadata-belongs-to-the-workspace-kv-namespace.md) | KV metadata belongs to the workspace kv namespace | Accepted |
+| [0094](0094-the-connection-is-the-boot-decision-one-connect-call.md) | The connection is the boot decision: one connect call | Accepted |
+| [0095](0095-websocket-room-auth-uses-route-owned-subprotocol-bearers.md) | WebSocket room auth uses route-owned subprotocol bearers | Accepted |
+| [0096](0096-local-workspace-persistence-is-environment-injected.md) | Local workspace persistence is environment-injected | Accepted |
+| [0097](0097-super-chat-tool-modules-receive-a-host-api.md) | Super Chat tool modules receive a host API | Superseded by 0111 |
+| [0098](0098-local-mail-state-round-trips-through-gmail.md) | Every Local Mail concept a human acts on round-trips through Gmail API state | Accepted |
+| [0099](0099-replace-transformations-with-a-dictionary-polish-and-a-portable-recipe-library.md) | Replace Transformations with a Dictionary, an always-on Polish, and a portable Recipe library | Accepted |
+| [0100](0100-ai-credits-are-product-units-and-the-charge-shape-follows-when-cost-is-known.md) | AI credits are product-priced units; the charge shape follows whether cost is known before the call | Accepted (STT overspend remedy refined by 0103) |
+| [0101](0101-native-typed-row-projection-views-are-earned-serially-board-is-first.md) | Native typed-row projection views are earned serially; board is first | Accepted |
+| [0102](0102-vocab-stores-verbatim-entries-under-a-human-owned-note-and-refuses-glosses-srs-and-provenance.md) | Vocab stores verbatim entries under a human-owned note and refuses glosses, SRS, and provenance | Accepted |
+| [0103](0103-stt-overspend-is-guarded-in-trigger-order-never-by-media-preflight.md) | STT overspend is bounded by cheap guards in trigger order, never by media preflight or a reservation lock | Accepted |
+| [0104](0104-hosted-models-are-a-build-time-seed-not-discovered-the-runtime-overlay-is-deferred.md) | Hosted models are a build-time seed catalog, not a discovered one; a runtime overlay is a named deferral | Accepted |
+| [0105](0105-vocab-is-a-multilingual-tutor-and-readings-are-a-client-side-derived-view.md) | Vocab is a multilingual tutor and readings are a client-side derived view | Accepted |
+| [0106](0106-a-child-doc-body-owns-one-layout-the-polymorphic-timeline-is-refused-until-a-product-earns-it.md) | A child-doc body owns one layout; the polymorphic timeline is refused until a product earns it | Accepted |
+| [0107](0107-a-child-doc-text-body-is-a-plain-y-text-the-timeline-array-is-deleted.md) | A child-doc text body is a plain `Y.Text`; the timeline array is deleted | Accepted |
+| [0108](0108-provider-credentials-are-selected-by-target-environment-encoded-in-the-secret-name.md) | Third-party provider credentials are selected by the app's target provider-environment, encoded in the secret name and resolved by one injected helper | Accepted |
+| [0109](0109-hosted-tauri-auth-keeps-app-owned-keyring-edges-until-three-real-callers-earn-sharing.md) | Hosted Tauri auth keeps app-owned keyring edges until three real callers earn sharing | Accepted |
+| [0110](0110-edit-write-timing-follows-the-value-owner-there-is-no-debounce-tier.md) | Edit write timing follows the value owner; there is no debounce tier | Accepted |
+| [0111](0111-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md) | Super Chat v1 exposes built-in Epicenter apps and defers extension surfaces | Accepted |
+| [0112](0112-the-cli-watcher-is-not-a-callable-action-server.md) | The CLI watcher is not a callable action server | Accepted |
+| [0113](0113-super-chat-session-commands-are-host-owned-transports-only-frame-them.md) | Super Chat session commands are host-owned; transports only frame them | Accepted |
+| [0114](0114-hosted-auth-surfaces-are-plain-tool-logins-not-marketing-pages.md) | Hosted auth surfaces are plain tool logins, not marketing pages | Accepted |
+| [0115](0115-super-chat-remote-attach-rides-an-endpoint-addressed-content-blind-relay.md) | Super Chat remote attach rides an endpoint-addressed, content-blind AttachRelay; one consumer, not the deleted route-addressed relay floor | Accepted (design; relay not implemented) |
 
 When you add an ADR, add its row here.

@@ -10,44 +10,53 @@
  *
  * Composition lives elsewhere:
  *  - `apps/vocab/vocab.browser.ts`
- *      → `openVocabBrowser({ signedIn, nodeId })`
+ *      → `openVocabBrowser({ auth, nodeId })`
  */
 
 import { conversationsTable } from '@epicenter/chat';
 import type { ServableModel } from '@epicenter/constants/ai-providers';
-import { defineKv, defineWorkspace } from '@epicenter/workspace';
+import { field } from '@epicenter/field';
+import {
+	defineKv,
+	defineTable,
+	defineWorkspace,
+	generateId,
+	type Id,
+	type InferTableRow,
+} from '@epicenter/workspace';
 import type { AgentMessage } from '@epicenter/workspace/agent';
 import { Type } from 'typebox';
+import type { Brand } from 'wellcrafted/brand';
 
 /**
- * Vocab runs a single Chinese-tuned model. It is an app constant, not a
- * per-conversation choice; the canonical conversations table requires a `model`,
- * so Vocab writes this constant on every row and never offers a per-conversation
- * pick. The client also reads it when it answers over the OpenAI-compatible
- * stream.
+ * Vocab runs a single model. It is an app constant, not a per-conversation
+ * choice; the canonical conversations table requires a `model`, so Vocab writes
+ * this constant on every row and never offers a per-conversation pick. The
+ * client also reads it when it answers over the OpenAI-compatible stream.
  */
 export const VOCAB_MODEL = 'gemini-3.5-flash' satisfies ServableModel;
 
 /**
- * The bilingual system prompt every Vocab answer is generated under. An app
- * constant like {@link VOCAB_MODEL}: the client passes it to the Epicenter
+ * The multilingual tutor system prompt every Vocab answer is generated under. An
+ * app constant like {@link VOCAB_MODEL}: the client passes it to the Epicenter
  * provider when it answers. It lives in this dep-free contract so the prompt is
  * single-homed, read by whichever module builds the stream.
+ *
+ * The tutor writes plain text only: readings (pinyin, romaji, ...) are a
+ * client-side render view added over clean text, never baked into the answer.
+ * Keeping the message clean protects it as conversation memory (it is fed back
+ * to the model on later turns) and keeps saved entries verbatim (ADR-0102).
  */
-export const VOCAB_SYSTEM_PROMPT = `You are a bilingual Chinese-English language assistant. Your responses mix English and Mandarin Chinese naturally.
+export const VOCAB_SYSTEM_PROMPT = `You are a multilingual language tutor. The user is learning a language; answer in that language alongside English, and adapt to whichever language they are studying: infer it from what they ask, and follow if they switch or mix languages.
 
 Guidelines:
-- Use English for explanations, transitions, and meta-commentary
-- Use Mandarin Chinese (simplified characters only, 简体字) for vocabulary, example sentences, and conversational phrases
-- Never include pinyin in your responses: the client adds it automatically above each character
-- Never use traditional characters (繁體字)
-- When teaching vocabulary, present the Chinese naturally inline: "The word 学习 means to study"
-- For example sentences, write them in Chinese then explain in English
-- Adjust difficulty based on context clues from the user's questions
-- Be conversational and encouraging
-
-Example response style:
-"The phrase 你好 is the most common greeting. For something more casual with friends, you can say 嘿 or 哈喽. In a formal setting, try 您好. The 您 shows extra respect."`;
+- Use English for explanations, transitions, and meta-commentary.
+- Use the language being studied for vocabulary, example sentences, and conversational phrases.
+- Write plain text only. Never add pronunciation guides, phonetic readings, or romanization (no pinyin, romaji, or transliteration): the client renders readings above the text automatically.
+- When teaching vocabulary, present the studied-language word naturally inline inside an English sentence, e.g. "The word for 'to study' is used like this: ...".
+- For example sentences, write them in the studied language, then explain in English.
+- Adjust difficulty based on context clues from the user's questions.
+- Be conversational and encouraging.`;
 
 /**
  * The model Vocab dictates through. Pinned to OpenAI's `whisper-1`, the one
@@ -59,14 +68,6 @@ Example response style:
  * through that instead (the connection registry resolves it first).
  */
 export const VOCAB_STT_MODEL = 'whisper-1';
-
-/**
- * The language Vocab dictates in, an ISO-639-1 hint handed to the transcriber.
- * English, because Vocab's input is the English question a learner asks; the
- * answer comes back bilingual. App-local and unsynced, like {@link VOCAB_MODEL}:
- * an app that dictates another language sets its own.
- */
-export const VOCAB_DICTATION_LANGUAGE = 'en';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Message Model
@@ -83,6 +84,34 @@ export const VOCAB_DICTATION_LANGUAGE = 'en';
  * fills with tool-call and tool-result parts.
  */
 export type VocabMessage = AgentMessage;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Entries
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Branded entry id: a nanoid minted when an entry is saved. */
+export type EntryId = Id & Brand<'EntryId'>;
+
+/** Mint a unique {@link EntryId}. */
+export const generateEntryId = (): EntryId => generateId<EntryId>();
+
+/**
+ * The entries table: the user-curated store of language units of any length
+ * (words, phrases, chengyu) captured by selection. One pool, no decks.
+ * `stage` is the one acquisition dial (new: saved because you did not know
+ * it; understood: you comprehend it; usable: you can produce it). `note` is
+ * human-owned: no code path machine-writes it.
+ */
+export const entriesTable = defineTable({
+	id: field.string<EntryId>(),
+	text: field.string(),
+	note: field.string(),
+	stage: field.select(['new', 'understood', 'usable']),
+	createdAt: field.instant(),
+});
+
+/** One entry row. */
+export type Entry = InferTableRow<typeof entriesTable>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Workspace Factory
@@ -102,8 +131,9 @@ export const vocabWorkspace = defineWorkspace({
 	name: 'vocab',
 	tables: {
 		conversations: conversationsTable,
+		entries: entriesTable,
 	},
 	kv: {
-		showPinyin: defineKv(Type.Boolean(), () => true),
+		showReadings: defineKv(Type.Boolean(), () => true),
 	},
 });

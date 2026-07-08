@@ -8,24 +8,13 @@ metadata:
 
 # Specification Writing
 
-Follow [writing-voice](../writing-voice/SKILL.md) for prose sections.
-Follow [notebook-explanation](../notebook-explanation/SKILL.md) for mental models, ownership diagrams, flow diagrams, and compressed rules.
+Follow [writing-voice](../writing-voice/SKILL.md) for prose sections. For ownership or flow explanations inside a spec, compose with [notebook-explanation](../notebook-explanation/SKILL.md), then keep only the diagrams and prose the spec needs.
 
 A specification gives an agent or maintainer the context they need to implement a feature autonomously. The goal is not to describe everything exhaustively. The goal is to show enough evidence that the direction is credible and give the implementer a concrete launch point.
 
 **A spec is in-flight scaffolding, not the durable record.** It plans work and holds research while the work is underway. It is not authoritative and does not outlive the work. Durable decisions live in `docs/adr/`, shared vocabulary in `docs/CONTEXT.md`, current state in `docs/reference/` and the code. When a load-bearing decision crystallizes while you are writing the spec, record it as a `Proposed` ADR in `docs/adr/` right then and reference it from the spec; do not leave it buried in the spec to be "harvested" later. When the work lands, the ADR flips to `Accepted` and the spec is deleted (see [spec-execution](../spec-execution/SKILL.md)). Git and `docs/spec-history.md` keep the history.
 
 > **Note**: This guide uses `[PLACEHOLDER]` markers for content you must fill in. Code blocks show templates; replace all bracketed content with your feature's details.
-
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Plan a feature with a spec that enables autonomous implementation.
-- Document research findings, trade-offs, and design rationale.
-- Define phased implementation tasks with trackable checkboxes.
-- Capture open questions and recommendations without over-prescribing.
-- Lay out architecture with tables/diagrams instead of wall-of-prose plans.
 
 ## References
 
@@ -364,7 +353,7 @@ If the spec replaces an old code path with a new one, write separate phases:
 4. Delete the old path                     (final cleanup wave)
 ```
 
-Do not schedule deletion before verification passes. [cohesive-clean-breaks](../cohesive-clean-breaks/SKILL.md) owns the full Build, Prove, Remove rationale.
+Do not schedule deletion before verification passes. [greenfield-clean-breaks](../greenfield-clean-breaks/SKILL.md) owns the full Build, Prove, Remove rationale.
 
 ### Edge Cases
 

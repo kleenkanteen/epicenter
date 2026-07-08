@@ -1,7 +1,15 @@
 # 0021. Actions are the only surface that crosses a process boundary
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [ADR-0112](0112-the-cli-watcher-is-not-a-callable-action-server.md)
 - **Date:** 2026-06-16
+
+## 2026-07-06 amendment
+
+ADR-0112 deletes the CLI daemon IPC surface. `connectDaemonActions`, `epicenter
+run`, `epicenter list`, and the local daemon action socket are no longer active
+surfaces. The surviving decision is narrower: actions remain the validated
+in-process app/tool boundary for mutating workspace state; raw tables, KV, and
+materialized projections still must not become generic off-process write APIs.
 
 ## Context
 

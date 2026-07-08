@@ -1,12 +1,11 @@
 /**
  * Epicenter: YJS-First Collaborative Workspace System
  *
- * `@epicenter/workspace` attaches typed primitives: tables, KV, plain/rich
- * text, timeline, and an action registry to a `Y.Doc`, then wires the
- * result to IndexedDB persistence and WebSocket sync via
- * `openCollaboration`. `openCollaboration` also consumes the
- * server-owned presence channel and exposes the live-peer surface
- * (`peers.list()`).
+ * `@epicenter/workspace` builds typed Yjs-backed workspaces: tables, KV,
+ * plain/rich text, and an action registry. Runtime openers wire the
+ * workspace's `Y.Doc` to IndexedDB persistence and WebSocket sync via
+ * `openCollaboration`, which consumes the server-owned presence channel and
+ * exposes the live-peer surface (`peers.list()`).
  *
  * @example
  * ```typescript
@@ -43,7 +42,7 @@
 // ACTION SYSTEM
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { Action, ActionManifest, ActionRegistry } from './shared/actions';
+export type { Action, ActionRegistry } from './shared/actions';
 export {
 	defineActions,
 	defineMutation,
@@ -99,15 +98,6 @@ export type { Drainable } from './shared/types.js';
 // DOCUMENT PRIMITIVES
 // ════════════════════════════════════════════════════════════════════════════
 
-// The per-user account room: the relay floor's home. Browser-safe; a browser
-// passes `{ ...signedIn, nodeId }` to reach the same room the daemon joins, so
-// the two route cross-device channels to each other over the floor. The daemon's
-// node-only opener (`@epicenter/workspace/node`) wraps this core.
-export {
-	type AccountRoomConnection,
-	type AccountRoomConnectionConfig,
-	openAccountRoomConnection,
-} from './account/open-account-room-connection.js';
 export {
 	createDisposableCache,
 	type DisposableCache,
@@ -121,26 +111,20 @@ export {
 	type RecordsHandle,
 } from './document/attach-records.js';
 export { attachRichText } from './document/attach-rich-text.js';
-export { attachTimeline } from './document/attach-timeline/index.js';
-export type {
-	ChildDocWorker,
-	ChildDocWorkerContext,
-	ChildDocWorkerFactory,
-	ChildDocWorkerHandle,
-	ConnectedChildDoc,
-	ObservableChildDocLayout,
-} from './document/child-doc-worker.js';
-export { attachChildDocWorker } from './document/child-doc-worker.js';
+// `attachChildDocWorker` and its type family (`ChildDocWorker`,
+// `ChildDocWorkerContext`, `ChildDocWorkerFactory`, `ChildDocWorkerHandle`,
+// `ConnectedChildDoc`, `ObservableChildDocLayout`) are intentionally NOT
+// exported: they are the daemon-side host-loop's internal wiring, consumed only
+// by `workspace.ts`'s mount composition. Apps enter this seam through the public
+// `MountWorker*` types below, never the raw loop. Re-export from
+// `@epicenter/workspace/daemon` if a mount author outside this package ever
+// needs to name one.
 export { type ConnectionConfig, connectDoc } from './document/connect-doc.js';
 export { defineKv } from './document/define-kv.js';
 export { defineTable } from './document/define-table.js';
 // `docGuid` is intentionally NOT exported: child-doc guid derivation is an
 // internal workspace detail. Callers reach it through the table path,
 // `tables.<table>.docs.<field>.guid(rowId)`, which is the public contract.
-// One-shot HTTP read of a hosted room: GET the snapshot into a throwaway doc.
-// The atomic snapshot lets a relay-only doc be read without a live
-// `openCollaboration` session.
-export { readRoomOverHttp } from './document/http-room-sync.js';
 export type { SyncStatus } from './document/internal/sync-supervisor.js';
 export type {
 	InferKvValue,
@@ -170,23 +154,29 @@ export {
 } from './document/table.js';
 // Transport URL builder.
 //
-// `roomWsUrl({ baseURL, ownerId, guid, nodeId })` builds the WebSocket
-// URL for the partitioned `/api/owners/:ownerId/rooms/:roomId` endpoint. The
-// same single URL form is used by both personal and instance deployments. Both
-// browser apps and the daemon use this one builder.
+// `roomWsUrl({ baseURL, guid, nodeId })` builds the WebSocket URL for the
+// principal-authenticated `/api/rooms/:roomId` endpoint. Browser apps and the
+// daemon use this one builder.
 export { type RoomWsUrlOptions, roomWsUrl } from './document/transport.js';
-export { wipeLocalStorage } from './document/wipe-local-storage.js';
 export {
+	wipeBareStorage,
+	wipeLocalStorage,
+} from './document/wipe-local-storage.js';
+export {
+	type ComposeContext,
 	type ConnectComposition,
 	type ConnectedTables,
 	type ConnectedWorkspace,
 	type ConnectedWorkspaceContext,
+	type ConnectOptions,
 	type CreateWorkspaceOptions,
 	createWorkspace,
 	type DefineWorkspaceOptions,
 	defineWorkspace,
+	type LocalPersistence,
+	type LocalPersistenceAttachment,
+	type LocalWorkspace,
 	type MountComposeContext,
-	type MountComposition,
 	type MountOptions,
 	type MountWorkerContext,
 	type MountWorkerFactory,

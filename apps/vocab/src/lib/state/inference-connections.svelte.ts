@@ -14,14 +14,14 @@ import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { APP_URLS } from '@epicenter/constants/vite';
 import { createPersistedState } from '@epicenter/svelte';
 import { VOCAB_MODEL } from '@epicenter/vocab';
-import { auth } from '$platform/auth';
+import { auth } from '$lib/platform/auth';
 
 export const inferenceConnections = createInferenceConnections({
 	storageKey: 'vocab',
 	hostedModels: toHostedCatalog([VOCAB_MODEL]),
 	hosted: {
 		fetch: auth.fetch,
-		baseURL: API_ROUTES.ai.completions.baseUrl(APP_URLS.API),
+		baseURL: API_ROUTES.ai.baseUrl(APP_URLS.API),
 	},
 	persist: (key, schema, defaultValue) =>
 		createPersistedState({ key, schema, defaultValue }),

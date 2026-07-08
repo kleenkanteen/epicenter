@@ -1,9 +1,8 @@
 <script lang="ts">
 	import * as Breadcrumb from '@epicenter/ui/breadcrumb';
 
-	import { requireOpensidian } from '$lib/session';
+	import { opensidian } from '$lib/opensidian';
 
-	const opensidian = requireOpensidian();
 	const pathSegments = $derived.by(() => {
 		const path = opensidian.state.files.selectedPath;
 		if (!path) return [];

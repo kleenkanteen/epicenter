@@ -32,7 +32,6 @@ export const localMount = defineMount({
 		ctx.openWebSocket;
 
 		return {
-			actions: {},
 			async [Symbol.asyncDispose]() {},
 		};
 	},
@@ -52,10 +51,9 @@ export const sessionAwareMount = defineMount({
 		ctx.session.openWebSocket;
 		ctx.session.onReconnectSignal;
 		ctx.session.fetch;
-		ctx.session.ownerId;
+		ctx.session.principalId;
 
 		return {
-			actions: {},
 			async [Symbol.asyncDispose]() {},
 		};
 	},
@@ -66,12 +64,11 @@ export const sessionMount = defineSessionMount({
 	open(ctx) {
 		// No null check: the body only runs with a present session.
 		ctx.session.openWebSocket;
-		ctx.session.ownerId;
+		ctx.session.principalId;
 		ctx.epicenterRoot;
 		ctx.mount;
 
 		return {
-			actions: {},
 			async [Symbol.asyncDispose]() {},
 		};
 	},
@@ -81,7 +78,6 @@ export const minimalMount = defineMount({
 	name: 'minimal',
 	open() {
 		return {
-			actions: {},
 			async [Symbol.asyncDispose]() {},
 		};
 	},

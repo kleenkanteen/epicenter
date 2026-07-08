@@ -18,9 +18,8 @@
  * Durable Object edge does, which is exactly right for one homelab, one family, or
  * one small team and the price of owning your own data on your own machine.
  *
- * There is ONE shape, not a mode (ADR-0075). Ownership is `instance()`: every
- * request resolves to the pinned `owners/instance` partition, independent of who
- * presents the bearer. Authentication is one operator-supplied static bearer
+ * There is ONE shape, not a mode (ADR-0075). Every request resolves to the pinned
+ * `principals/instance` partition. Authentication is one operator-supplied static bearer
  * (`INSTANCE_TOKEN`), constant-time compared. "Solo" and "shared" are not
  * configurations: they are only how many people you hand the one token to. No
  * OAuth, no sessions, no allowlist, no mode, no first-boot minting. Multi-tenant
@@ -33,8 +32,11 @@
  * keeping the instance Bun-or-Cloudflare (the operator supplies the secret either
  * way).
  *
- * Surface: session + rooms + inference + blobs behind one bearer, zero billing,
- * no dashboard SPA, no auth surface. The blob store is a portable
+ * Surface: session + rooms + inference + blobs behind the operator bearer, zero
+ * billing, no dashboard SPA, no auth surface. Remote Super Chat attach is the one
+ * exception (ADR-0115 wave 3): an attach connect carries a revocable per-device
+ * grant instead of the operator token, and the operator token administers that
+ * device allowlist through `/attach/grants`. The blob store is a portable
  * content-addressed media store over any S3 (your own MinIO/Garage/R2); it is
  * mounted by default and answers 503 until `BLOBS_S3_*` is set, exactly as the
  * inference gateway answers 503 until a provider house key is set. Owning your
@@ -47,16 +49,21 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { assertStrongToken } from '@epicenter/auth';
 import {
+	createAttachRelayBunServer,
 	createBunRooms,
+	createDeviceGrantStore,
 	createEnvTokenResolver,
 	createServerApp,
-	instance,
+	mergeBunWebSocketHandlers,
+	mountAttachGrantsApp,
+	mountAttachRelayApp,
 	mountBlobsApp,
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
+	mountTranscriptionApp,
 	rateLimit,
-	requireBearerUser,
+	requireBearerPrincipal,
 	ServerBindings,
 } from '@epicenter/server/bun';
 import { type } from 'arktype';
@@ -111,13 +118,13 @@ export function startSelfHostServer(): void {
 	}
 
 	// The bearer gate. A strong `INSTANCE_TOKEN` builds the env-token resolver
-	// (constant-time compare -> the named instance principal); a missing or weak
-	// token fails boot above. Every owner-scoped surface closes its bearer wrapper
+	// (constant-time compare -> the instance principal); a missing or weak
+	// token fails boot above. Every protected surface closes its bearer wrapper
 	// over that one resolver, the same total gate the cloud builds from its OAuth
 	// resolver (ADR-0075).
 	const token = requireStrongInstanceToken(env.INSTANCE_TOKEN);
-	const resolveUser = createEnvTokenResolver(token);
-	const auth = requireBearerUser(resolveUser);
+	const resolveBearerPrincipal = createEnvTokenResolver(token);
+	const auth = requireBearerPrincipal(resolveBearerPrincipal);
 
 	const port = Number(env.PORT ?? 8787);
 	// The auth origin must match where the process actually listens. Default to
@@ -128,8 +135,17 @@ export function startSelfHostServer(): void {
 	const dataDir = resolve(env.DATA_DIR ?? './.data/rooms');
 	mkdirSync(dataDir, { recursive: true });
 	const bunRooms = createBunRooms({ dir: dataDir });
+	// The AttachRelay coordinator for this instance (ADR-0115 wave 2): the
+	// endpoint-addressed byte forwarder. It shares this process's one `Bun.serve`
+	// with the rooms backend (see the merged websocket handler below).
+	const attachRelay = createAttachRelayBunServer();
+	// The revocable per-device attach allowlist (ADR-0115 wave 3). Attach connects
+	// resolve against this, not the operator token: a device pairs once (the
+	// operator mints it a grant, below), presents that grant on connect, and loses
+	// access the moment the operator revokes it. In-memory for the proof, so a
+	// restart re-pairs devices; persisting grants beside the rooms is a later wave.
+	const attachGrants = createDeviceGrantStore();
 
-	const ownership = instance();
 	const app = createServerApp({
 		// The instance composes no Postgres (no Better Auth), so it never calls
 		// `mountCloudDb` and `createServerApp` stays on the portable `Env`: `c.var.db`
@@ -150,9 +166,25 @@ export function startSelfHostServer(): void {
 	// No `mountCloudAuth`: the instance composes no Better Auth and no sessions. The
 	// operator bearer (`auth` above) is the only gate, so every surface is
 	// bearer-authenticated (ADR-0075).
-	mountSessionApp(app, { ownership, auth });
+	mountSessionApp(app, { auth });
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
-	mountRoomsApp(app, { ownership, resolveUser });
+	mountRoomsApp(app, { resolveBearerPrincipal });
+	// The AttachRelay upgrade (`/attach`), WS-aware and gated by a per-device grant
+	// (ADR-0115 wave 3), not the operator token: a connect resolves against the
+	// device-grant store, and the instance principal is stamped server-side so a
+	// query `principalId` can never point an attach at another partition (ADR-0075).
+	// A revoked or never-minted grant fails the handshake closed. Cloud attach stays
+	// unmounted until the wave-4 sealing layer lands.
+	mountAttachRelayApp(app, {
+		resolveBearerPrincipal: attachGrants.resolveBearerPrincipal,
+		relay: attachRelay,
+	});
+	// The operator's device-grant admin surface (`/attach/grants`), gated by the
+	// operator token, NOT a grant: the operator mints a grant per device (the
+	// desktop host's own device included), lists them, and revokes one to cut a
+	// device off. This is where "the desktop approves a device" lives on an
+	// instance (ADR-0115 clause 3); minting the secret here is the pairing step.
+	mountAttachGrantsApp(app, { auth, grants: attachGrants });
 	// Inference spends the operator's house key on every request. Cap the burn
 	// rate so a leaked or overused bearer cannot run the provider bill up
 	// unbounded between invoices. This is the in-process backstop; the real
@@ -160,27 +192,43 @@ export function startSelfHostServer(): void {
 	// Tune to your group's size, or drop the policy to leave it uncapped.
 	mountInferenceApp(app, {
 		auth,
-		ownership,
+		policies: [rateLimit({ requests: 120, windowSeconds: 60 })],
+	});
+	// The STT sibling of the inference gateway: same operator house key, same
+	// 503-until-configured opt-out, same burn-rate cap. Mounted with no Autumn
+	// policy, so a `star` transcription against this instance is unmetered (the
+	// operator's provider bill is the only cost). This is what makes "transcribe
+	// through the star you're connected to" true on self-host, not just hosted.
+	mountTranscriptionApp(app, {
+		auth,
 		policies: [rateLimit({ requests: 120, windowSeconds: 60 })],
 	});
 	// Content-addressed media store over any S3, mounted by default; it answers 503
 	// until `BLOBS_S3_*` is set (the same honest opt-out as inference's house key).
 	// Storage is the operator's own bucket, so there is no house key to burn and no
 	// rate-limit policy here.
-	mountBlobsApp(app, { ownership, auth });
+	mountBlobsApp(app, { auth });
 
 	const server = Bun.serve({
 		port,
 		fetch: (req) => app.fetch(req, env),
-		websocket: bunRooms.websocket,
+		// Rooms and the attach relay both need WebSockets on this one port, but
+		// `Bun.serve` takes ONE handler. Each backend tags its `ws.data` with a
+		// `surface`, so this merged handler forwards every socket to its owner
+		// without blending their state.
+		websocket: mergeBunWebSocketHandlers({
+			rooms: bunRooms.websocket,
+			attach: attachRelay.websocket,
+		}),
 	});
-	// `server` only exists once `Bun.serve` returns; hand it to the room registry
-	// so `handleUpgrade` can call `server.upgrade`.
+	// `server` only exists once `Bun.serve` returns; hand it to both backends so
+	// each `handleUpgrade` can call `server.upgrade` on the shared server.
 	bunRooms.bindServer(server);
+	attachRelay.bindServer(server);
 
 	console.log(
 		`apps/self-host instance (Bun) listening on ${origin} ` +
-			`(rooms in ${dataDir}, partition owners/instance). Hand INSTANCE_TOKEN to ` +
+			`(rooms in ${dataDir}, partition principals/instance). Hand INSTANCE_TOKEN to ` +
 			'whoever should have access.',
 	);
 }

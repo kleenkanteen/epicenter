@@ -17,19 +17,18 @@
  * - {@link ResolvedRoom} / {@link Rooms}: name-to-room routing
  *   consumed by route middleware in `app.ts`.
  * - {@link RoomError}: error variants surfaced across the room's
- *   untrusted-input boundaries (HTTP sync body, binary WebSocket frame).
+ *   untrusted-input boundary (the binary WebSocket frame).
  *
  * @see `room/core.ts` for the consumer (`createRoomCore`).
  * @see `room/backends/cloudflare/` for the Cloudflare backend.
  */
 
-import type { UserId } from '@epicenter/auth';
+import type { PrincipalId } from '@epicenter/identity';
 import {
 	defineErrors,
 	extractErrorMessage,
 	type InferErrors,
 } from 'wellcrafted/error';
-import type { Result } from 'wellcrafted/result';
 
 // ============================================================================
 // RoomUpdateLog
@@ -59,8 +58,6 @@ export type RoomUpdateLog = {
 	append(update: Uint8Array): void;
 	/** Replace the entire log with one compacted blob. Atomic. */
 	replaceAll(compacted: Uint8Array): void;
-	/** Total bytes used by the log; surfaced as `storageBytes` to callers. */
-	byteSize(): number;
 	/** Number of entries currently in the log; used to skip no-op compactions. */
 	entryCount(): number;
 };
@@ -114,34 +111,15 @@ export type RoomSocket = {
  */
 export type ResolvedRoom = {
 	/**
-	 * HTTP sync RPC. Apply the client's update to this room's doc and
-	 * return the diff the client is missing (`null` if already in sync),
-	 * along with the post-write storage size.
-	 *
-	 * Returns `Err(MalformedSyncBody)` when the untrusted body fails to
-	 * decode so the route can answer 400.
-	 */
-	sync(
-		body: Uint8Array,
-	): Promise<
-		Result<{ diff: Uint8Array | null; storageBytes: number }, RoomError>
-	>;
-	/**
-	 * Snapshot bootstrap. Returns the full doc state via
-	 * `Y.encodeStateAsUpdateV2`; clients apply this to hydrate before
-	 * opening a WebSocket.
-	 */
-	getDoc(): Promise<{ data: Uint8Array; storageBytes: number }>;
-	/**
 	 * Accept a WebSocket upgrade for this room. The route resolves identity
-	 * out-of-band ({@link RoomUpgrade}: `userId` from auth, `nodeId` from the
+	 * out-of-band ({@link RoomUpgrade}: `principalId` from auth, `nodeId` from the
 	 * client query) and the backend performs its runtime-specific accept,
 	 * returning the HTTP response the route returns verbatim.
 	 *
 	 * Identity reaches the backend as data, not re-derived from auth, but each
 	 * runtime then accepts the socket differently: the Cloudflare backend
 	 * forwards the request to its Durable Object (which returns a 101), stamping
-	 * the server-resolved `userId` into the forwarded URL the DO reads; the Bun
+	 * the server-resolved `principalId` into the forwarded URL the DO reads; the Bun
 	 * backend hands the ORIGINAL request to `server.upgrade(request, { data })`
 	 * (a reconstructed request cannot be upgraded) and carries the identity on
 	 * the socket's `ws.data`. Both land the same {@link Connection} on
@@ -152,22 +130,32 @@ export type ResolvedRoom = {
 
 /**
  * The identity and request a backend needs to accept one WebSocket upgrade.
- * `request` is the untouched inbound request (the Bun backend upgrades it in
- * place; the Cloudflare backend forwards a userId-stamped copy to its DO).
- * `userId` is the authenticated principal stamped server-side; `nodeId` is
- * the client's own address the relay routes by, validated present at the route
- * boundary.
+ * `request` is the untouched inbound request with its runtime identity intact:
+ * nothing upstream rewrites `c.req.raw`, because Bun's `server.upgrade` only
+ * accepts the exact object its `fetch` handler received (the Cloudflare
+ * backend forwards a principalId-stamped copy to its DO instead, which is fine
+ * there: Cloudflare matches the socket by the DO it routes to, not by
+ * request-object identity). `principalId` is the authenticated principal
+ * stamped server-side; `nodeId` is the client's own address the relay routes
+ * by, validated present at the route boundary. The route also guarantees the
+ * request offered either the main subprotocol or no subprotocols at all, so a
+ * backend echoing only the main subprotocol never breaks a handshake and never
+ * echoes a `bearer.<token>` entry.
  */
 export type RoomUpgrade = {
 	request: Request;
-	userId: UserId;
+	principalId: PrincipalId;
 	nodeId: string;
 };
 
 /**
  * What a backend needs to reject one WebSocket upgrade with an application
- * close code. `request` is the untouched inbound request; `code`/`reason` are
- * the app close (4000-4999) and its serialized payload.
+ * close code. `request` is the untouched inbound request (same identity
+ * guarantee as {@link RoomUpgrade}); `code`/`reason` are the app close
+ * (4000-4999) and its serialized payload. The auth layer only takes this path
+ * for upgrades that offered the main subprotocol, so the backend's 101 always
+ * echoes it: a compliant browser fails the handshake (and never surfaces the
+ * close code) when a 101 selects no protocol it offered.
  */
 export type RoomUpgradeRejection = {
 	request: Request;
@@ -180,10 +168,8 @@ export type RoomUpgradeRejection = {
  * `DurableObjectNamespace`; a Bun backend wraps an in-process
  * `Map<string, RoomCore>` with lazy synchronous creation.
  *
- * The host-owned room name is built upstream by `doName(ownerId, roomId)`
- * in `owner.ts`, producing `owners/<ownerId>/rooms/<roomId>` for either
- * deployment (in personal mode `ownerId === user.id`, on an instance `ownerId`
- * is the pinned `INSTANCE_OWNER_ID`).
+ * The host-owned room name is built upstream by `doName(principalId, roomId)`
+ * in `principal.ts`, producing `principals/<principalId>/rooms/<roomId>`.
  * This contract treats the name as opaque.
  */
 export type Rooms = {
@@ -210,21 +196,13 @@ export type Rooms = {
 // ============================================================================
 
 /**
- * Errors surfaced across the room's untrusted-input boundaries.
- *
- * - `MessageDecode` covers the WebSocket binary frame path.
- * - `MalformedSyncBody` covers the HTTP sync RPC body.
- *
- * Both wrap lib0 buffer underflow (truncated input) and any other
- * decode-time exception thrown on untrusted bytes.
+ * Errors surfaced across the room's untrusted-input boundary: the binary
+ * WebSocket frame path. Wraps lib0 buffer underflow (truncated input) and any
+ * other decode-time exception thrown on untrusted bytes.
  */
 export const RoomError = defineErrors({
 	MessageDecode: ({ cause }: { cause: unknown }) => ({
 		message: `Failed to decode WebSocket message: ${extractErrorMessage(cause)}`,
-		cause,
-	}),
-	MalformedSyncBody: ({ cause }: { cause: unknown }) => ({
-		message: `Failed to decode HTTP sync body: ${extractErrorMessage(cause)}`,
 		cause,
 	}),
 });

@@ -35,32 +35,20 @@
  *
  * The content-addressed blob store is unmetered in v1 (no storage policy here):
  * Autumn `check()` denies by default with no plan attached, so deferred quota
- * means not calling it. A `syncBlobStorageWithAutumn` policy slots in when blob
- * storage is billed (spec 20260623T220000, decision 10).
+ * means not calling it. When blob storage is billed (deleted spec
+ * 20260623T220000 decision 10, recoverable via git history; kernel is
+ * ADR-0089), a `syncBlobStorageWithAutumn` policy lands here together with the
+ * `policies` seam `mountBlobsApp` will need to carry it.
  *
  * The library remains billing-agnostic; everything here is cloud-only.
  */
 
-import {
-	AiChatError,
-	AiChatErrorStatus,
-} from '@epicenter/constants/ai-chat-errors';
 import type { CloudEnv } from '@epicenter/server';
-import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { AiChatError, AiChatErrorStatus } from './ai-chat-errors.js';
 import type { BillingError } from './errors.js';
-import { createBillingService } from './service.js';
-
-function billingFor(c: Context<CloudEnv>) {
-	// Billing is cloud-only: `AUTUMN_SECRET_KEY` lives on this deployment's own
-	// `Cloudflare.Env`, not the library's portable `ServerBindings` (ADR-0066),
-	// so read it through the same edge cast the runtime-port resolvers use.
-	return createBillingService(c.env as Cloudflare.Env, {
-		userId: c.var.user.id,
-		userEmail: c.var.user.email,
-	});
-}
+import { billingServiceFor } from './service.js';
 
 /**
  * Around `/v1/chat/completions` (the OpenAI-compatible gateway, the only metered
@@ -81,7 +69,7 @@ export const chargeOpenAiCreditsWithAutumn = createMiddleware<CloudEnv>(
 			model?: string;
 		};
 
-		const billing = billingFor(c);
+		const billing = billingServiceFor(c);
 		const { data: reservation, error: guardError } =
 			await billing.reserveAiChat({ model: body.model ?? '' });
 		if (guardError) {
@@ -110,14 +98,15 @@ const HOSTED_STT_PROVIDER = 'openai';
  * per-minute charge is tracked off the after-response queue from the `duration`
  * the gateway returns. No reservation lock, because the cost is unknown until the
  * call returns; the charge settles after the call, so concurrent requests can each
- * pass the gate before any usage posts, and steady-state overspend is bounded by
- * in-flight concurrency rather than a single call. A reservation lock would tighten
- * that and is deferred. House-key-only (ADR-0054): every call is metered, no BYOK
- * bypass.
+ * pass the gate before any usage posts. Overspend is bounded by both the largest
+ * single call (a long recording can over-tip a near-empty wallet on its own) and
+ * the number of in-flight calls; the deferred remedy is an input duration ceiling,
+ * not a reservation lock (see ADR-0100). House-key-only (ADR-0054): every call is
+ * metered, no BYOK bypass.
  */
 export const chargeOpenAiTranscriptionCredits = createMiddleware<CloudEnv>(
 	async (c, next) => {
-		const billing = billingFor(c);
+		const billing = billingServiceFor(c);
 
 		const { data: gate, error: gateError } = await billing.checkAiCredits();
 		if (gateError) {

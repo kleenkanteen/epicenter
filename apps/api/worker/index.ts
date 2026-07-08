@@ -1,16 +1,16 @@
 /**
  * Epicenter Cloud Worker entry.
  *
- * Composes `@epicenter/server` with the `personal` ownership rule and
- * layers cloud-only billing, admin, and dashboard surfaces on top.
+ * Composes `@epicenter/server` with the cloud principal resolver and layers
+ * cloud-only billing and dashboard surfaces on top.
  * The self-hosted single-partition instance lives in a sibling apps/* folder
- * and composes the same library with `instance()` and no Autumn policies
+ * and composes the same library with `instance` and no Autumn policies
  * (ADR-0075).
  *
  * Read top to bottom for the full URL surface of cloud. Each `mount*`
- * call bundles the auth + ownership + policies + route mount for one
+ * call bundles auth + policies + route mount for one
  * reusable surface; the deployment passes only the deployment-controlled
- * knobs (ownership rule, optional cloud policies, auth choice for AI).
+ * knobs (optional cloud policies, auth choice for AI).
  */
 
 import { PRODUCTION_API_URL } from '@epicenter/constants/apps';
@@ -26,13 +26,13 @@ import {
 	mountRoomsApp,
 	mountSessionApp,
 	mountTranscriptionApp,
-	personal,
 	Room,
-	requireBearerUser,
-	requireCookieOrBearerUser,
-	resolveRequestOAuthUser,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
+	resolveRequestOAuthPrincipal,
 	type ServerBindings,
 } from '@epicenter/server';
+import type { Context } from 'hono';
 import { describeRoute } from 'hono-openapi';
 import {
 	chargeOpenAiCreditsWithAutumn,
@@ -45,8 +45,6 @@ import { buildEpicenterTrustedOrigins } from './trusted-origins.js';
 // binding the library reads. A missing or mistyped binding fails here,
 // not deep inside library files compiled in this program.
 ({}) as Cloudflare.Env satisfies ServerBindings;
-
-const ownership = personal();
 
 const app = createServerApp<CloudEnv>({
 	// The one runtime-specific portable concern: bind this Worker's Durable Object
@@ -70,12 +68,36 @@ const app = createServerApp<CloudEnv>({
 	},
 });
 
-// The cloud resolves a request to its user by verifying an OAuth bearer against
-// JWKS (`resolveRequestOAuthUser` reads `c.var.auth` + `c.var.db`, both present
-// below). Each owner-scoped wrapper closes over that one resolver; an instance
+// The cloud resolves a request to its principal by verifying an OAuth bearer against
+// JWKS (`resolveRequestOAuthPrincipal` reads `c.var.auth` + `c.var.db`, both present
+// below). Each protected wrapper closes over that one resolver; an instance
 // closes over its env-token resolver instead (ADR-0075).
-const cookieOrBearer = requireCookieOrBearerUser(resolveRequestOAuthUser);
-const bearer = requireBearerUser(resolveRequestOAuthUser);
+const cookieOrBearer = requireCookieOrBearerPrincipal(
+	resolveRequestOAuthPrincipal,
+);
+const bearer = requireBearerPrincipal(resolveRequestOAuthPrincipal);
+
+// The cloud UI (apps/api/ui) is one root-based SvelteKit SPA whose fallback
+// shell (`fallback.html`) the server hands out for the browser surfaces it
+// owns. This helper is the Worker's implementation of "serve the shell":
+// fetch it from the ASSETS binding, forwarding the original request so
+// conditional-request headers still work. The `Cloudflare.Env` cast lives
+// here at the app edge, like ROOM and HYPERDRIVE (ADR-0066). A 503 with the
+// build command beats a blank page when the UI has not been built (local
+// `wrangler dev`).
+const serveUiShell = async (c: Context<CloudEnv>) => {
+	const shellUrl = new URL('/fallback.html', c.req.url);
+	const response = await (c.env as Cloudflare.Env).ASSETS.fetch(
+		new Request(shellUrl.toString(), c.req.raw),
+	);
+	if (!response.ok) {
+		return c.text(
+			'Cloud UI is not built. Run `bun run --cwd apps/api/ui build`.',
+			503,
+		);
+	}
+	return response;
+};
 
 // Public health endpoint at root.
 app.get('/', (c) =>
@@ -94,41 +116,38 @@ mountCloudDb(app, {
 });
 
 // Cloud-only relational-auth layer: per-request Better Auth on `c.var.auth`
-// plus the auth surface (sign-in, consent, OAuth metadata). Epicenter cloud
-// serves app.epicenter.so and api.epicenter.so, which share a session via a
-// cookie scoped to the registrable domain (host-only on localhost regardless).
-// Mounted before the owner-scoped surfaces so `c.var.auth` is set when their
+// plus the auth surface (sign-in, consent, OAuth metadata). Session cookies are
+// host-only to api.epicenter.so and consumed only by the dashboard the API
+// serves itself; every other client is a bearer client (ADR-0079).
+// Mounted before the principal-scoped surfaces so `c.var.auth` is set when their
 // cookie-or-bearer wrappers run. The single-partition instance composes none of
 // this (ADR-0075). The Cloud-only auth secrets are read at this Worker's own edge
 // from its deploy-gated bindings (`c.env as Cloudflare.Env`), never the portable
 // `ServerBindings` (ADR-0076/0066).
 mountCloudAuth(app, {
-	cookieDomain: '.epicenter.so',
 	resolveAuthSecrets: (c) => c.env as Cloudflare.Env,
+	serveAuthUiShell: serveUiShell,
 });
 
-// Owner-partitioned reusable surfaces. Each primitive owns its own
-// ownership wiring; the deployment passes its auth choice, the rule, and any
-// deployment policies.
-mountSessionApp(app, { ownership, auth: cookieOrBearer });
+// Principal-partitioned reusable surfaces.
+mountSessionApp(app, { auth: cookieOrBearer });
 // Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver, not
 // a prebuilt wrapper.
-mountRoomsApp(app, { ownership, resolveUser: resolveRequestOAuthUser });
+mountRoomsApp(app, { resolveBearerPrincipal: resolveRequestOAuthPrincipal });
 // Content-addressed blob store (supersedes the retired assets surface). v1 is
 // unmetered (no Autumn policy): Autumn's check() denies by default with no plan
-// attached, so deferred quota means not calling it. A `syncBlobStorageWithAutumn`
-// policy slots in here when storage is billed.
-mountBlobsApp(app, { ownership, auth: cookieOrBearer });
+// attached, so deferred quota means not calling it. When storage is billed, a
+// `syncBlobStorageWithAutumn` policy and the `policies` seam it needs land on
+// `mountBlobsApp` together.
+mountBlobsApp(app, { auth: cookieOrBearer });
 mountInferenceApp(app, {
 	auth: bearer,
-	ownership,
 	policies: [chargeOpenAiCreditsWithAutumn],
 });
 // OpenAI-compatible STT gateway (OpenAI whisper-1, house key). Metered by audio
 // duration, settled after the call (per-minute); see chargeOpenAiTranscriptionCredits.
 mountTranscriptionApp(app, {
 	auth: bearer,
-	ownership,
 	policies: [chargeOpenAiTranscriptionCredits],
 });
 
@@ -136,9 +155,11 @@ mountTranscriptionApp(app, {
 // dashboard endpoints can't be mounted without it.
 mountBillingApi(app, { auth: cookieOrBearer });
 
-// Dashboard SPA: Workers Static Assets binding serves the SvelteKit
-// build. Cloud-only because the `ASSETS` binding lives in this worker's
-// wrangler config; self-hosted deployments ship their own UI surface.
+// Dashboard SPA: serve the cloud UI shell for the dashboard URLs. The hosted
+// auth browser surfaces use the same shell through `mountCloudAuth` above.
+// Cloud-only because the `ASSETS` binding lives in this worker's wrangler
+// config; hashed assets (`/_app/*`, favicon) are served by the asset layer
+// before the Worker runs.
 app.on(
 	'GET',
 	['/dashboard', '/dashboard/*'],
@@ -146,12 +167,7 @@ app.on(
 		description: 'Dashboard SPA static fallback',
 		tags: ['dashboard'],
 	}),
-	async (c) => {
-		const assetsFetcher = c.env.ASSETS;
-		if (!assetsFetcher) return c.notFound();
-		const indexUrl = new URL('/dashboard/index.html', c.req.url);
-		return assetsFetcher.fetch(new Request(indexUrl.toString(), c.req.raw));
-	},
+	serveUiShell,
 );
 
 // Legacy redirect: /billing -> /dashboard.

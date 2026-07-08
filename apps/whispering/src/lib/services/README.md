@@ -102,7 +102,7 @@ See `docs/articles/20260526T012526-tauri-is-both-the-namespace-and-the-platform-
 >
 > - **Build-time platform DI** (`#platform/*` subpath imports): for services that have a real implementation on both platforms. `text`, `os`, `download`, `analytics`, `http`, `blob-store`, `recorder`. Each maps a `#platform/<service>` specifier (in `package.json`'s `imports`) to `index.tauri.ts` + `index.browser.ts`, with a shared `types.ts`. The active build condition picks one.
 > - **Tauri-only namespace** (`#platform/tauri`): for capabilities that exist only on Tauri (fs, permissions, window, tray, keyboard, autostart). One file (`$lib/tauri.tauri.ts`) holds the current namespace capabilities. Shared consumers reach them through `import { tauri } from '#platform/tauri'` and either narrow with `if (tauri)`, prop-drill the narrowed value into helpers, or import `tauriOnly` directly from `$lib/tauri.tauri` inside a `.tauri.ts` file.
-> - **Runtime DI** (switch on `settings` and `deviceConfig`): for user-pick providers like `transcription` and `completion`.
+> - **Runtime DI** (switch on `settings` and `deviceConfig`): for user-pick providers like `transcription`.
 >
 > See `docs/articles/20260526T012650-two-switches-build-time-and-runtime.md` for the platform-vs-settings walkthrough.
 
@@ -387,9 +387,9 @@ Services accept configuration as parameters. We never import or use app globals 
 
 ```typescript
 // CORRECT: service gets app config as input
-export function createCompletionService() {
+export function createTranscriptionService() {
 	return {
-		async complete({ apiKey, prompt }) {
+		async transcribe({ apiKey, audio }) {
 			const client = new OpenAI({ apiKey });
 			// ...
 		},
@@ -397,22 +397,20 @@ export function createCompletionService() {
 }
 
 // Consuming edge injects settings
-const result = await services.completion.openai.complete({
+const result = await services.transcription.openai.transcribe({
 	apiKey: deviceConfig.get('providers.openai.apiKey'),
-	prompt,
+	audio,
 });
 ```
 
 ## Available Services
 
-The services barrel (`src/lib/services/index.ts`) imports the platform-split services through `#platform/*` (`analytics`, `blob-store`, `download`, `os`, `text`), while non-platform modules (`completion`, `transcription`, `local-shortcut-manager`, `sound`) stay on relative imports. `recorder` is also a `#platform/*` seam, consumed from `$lib/state/manual-recorder.svelte.ts` rather than the barrel.
+The services barrel (`src/lib/services/index.ts`) imports the platform-split services through `#platform/*` (`analytics`, `blob-store`, `download`, `os`, `text`), while non-platform modules (`transcription`, `local-shortcut-manager`, `sound`) stay on relative imports. `recorder` is also a `#platform/*` seam, consumed from `$lib/state/manual-recorder.svelte.ts` rather than the barrel. One-shot AI completion is not a service: it lives in `$lib/operations/completion.ts`, calling `@epicenter/client`'s `complete()`.
 
 ### Cross-platform (`services/`)
 
 - `recorder/index.tauri.ts` - Desktop manual recording through the native CPAL backend
-- `recorder/index.browser.ts` - Web manual recording through MediaRecorder
-- `recorder/types.ts` - Shared `RecorderService` interface, error types, params
-- `device-stream.ts` - `getRecordingStream` and `enumerateDevices` used by the navigator recorder and VAD (CPAL records natively through Rust)
+- `recorder/index.browser.ts` - Web manual recording through the MediaRecorder API (the `RecorderService` contract, error types, and params live in `recorder/contract.ts`; stream acquisition and VAD come from `@epicenter/recorder`)
 - `local-shortcut-manager.ts` - In-window keyboard shortcuts
 - `text/` - Clipboard operations
 - `blob-store/` - Audio blob persistence (IndexedDB on web, fs on desktop)
@@ -439,8 +437,7 @@ The manual recorder lives under `services/recorder/index.*.ts` because the recor
 
 ### Multi-provider services
 
-- `transcription/` - Speech-to-text (OpenAI, Groq, ElevenLabs, Speaches, local Whisper/Parakeet/Moonshine)
-- `completion/` - LLM completions (OpenAI, Anthropic, Google, Groq)
+- `transcription/` - Speech-to-text (Epicenter, OpenAI, Groq, ElevenLabs, Speaches, local GGUF)
 
 Recording state itself is owned by `$lib/state/manual-recorder.svelte.ts` and `$lib/state/vad-recorder.svelte.ts`, not by services. Services may hold service-local runtime state, like a platform recorder's active session, but app-visible state lives one level up.
 

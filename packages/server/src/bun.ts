@@ -1,5 +1,5 @@
 /**
- * @epicenter/server/bun — the Bun host surface.
+ * @epicenter/server/bun: the Bun host surface.
  *
  * Same library, second runtime (ADR-0066). A Bun entry composes its server from
  * here (`createServerApp` + the `mount*` surface) and serves it with `Bun.serve`.
@@ -20,21 +20,64 @@
  * and `connectHyperdriveDb`. A Bun host supplies its own room and db concerns.
  */
 
-// The single-partition instance's bearer resolver (self-host; ADR-0075): the
-// `ResolveUser` a Bun instance injects (`createEnvTokenResolver(token)`, paired with
-// `instance()`). The pure generator + boot entropy gate (`generateInstanceToken` /
-// `assertStrongToken`) live in `@epicenter/auth`.
 export {
-	createEnvTokenResolver,
-	INSTANCE_PRINCIPAL,
-} from './auth/instance-token.js';
-export { createDb, type Db } from './db/create-db.js';
+	type AttachRelayBunServer,
+	createAttachRelayBunServer,
+} from './attach-relay/bun-server.js';
+// The AttachRelay (ADR-0115): the Bun WebSocket transport a desktop or
+// self-hosted instance serves, plus the wire type its adapters speak. A
+// self-hosted instance mounts it behind per-device grants (`mountAttachRelayApp`);
+// Super Chat seals its frames above this unchanged relay (`apps/super-chat`), so
+// the relay forwards opaque bytes and never learns a seal exists. The coordinator
+// itself (`createAttachRelay`) stays package-internal, the way the room
+// coordinator does; only its transport and mounts are public. Cloud attach stays
+// unmounted until its wave.
+export {
+	RELAY_CLOSE,
+	type RelayToHostFrame,
+} from './attach-relay/contracts.js';
+// The per-device attach grants (ADR-0115 wave 3): the revocable allowlist that
+// replaces the shared operator token on the attach surface. The store's
+// `resolveBearerPrincipal` is the seam the attach mount closes over; the operator
+// token administers the allowlist through `mountAttachGrantsApp`.
+export {
+	createDeviceGrantStore,
+	type DeviceGrant,
+	type DeviceGrantStore,
+} from './attach-relay/device-grants.js';
+// The authenticated self-host mount (ADR-0115 wave 2, wave 3 grants): the attach
+// relay behind the deployment's bearer gate, with the principal stamped
+// server-side. On self-host the bearer is now a per-device grant.
+export { mountAttachGrantsApp } from './attach-relay/grants-app.js';
+// The attach host directory entry (ADR-0115 wave 5-6): the closed presence
+// schema a client discovers a host by (`hostId`, `label`, `status`), and its
+// three-valued liveness. No route, capability, or tool field can land in it.
+export {
+	AttachHostDirectoryEntry,
+	AttachHostStatus,
+} from './attach-relay/host-directory.js';
+export { mountAttachRelayApp } from './attach-relay/mount.js';
+export { ATTACH_RELAY_ROUTE } from './attach-relay/route.js';
+// The single-partition instance's bearer resolver (self-host; ADR-0075): the
+// `ResolveBearerPrincipal` a Bun instance injects (`createEnvTokenResolver(token)`).
+// The pure generator + boot entropy gate (`generateInstanceToken` /
+// `assertStrongToken`) live in `@epicenter/auth`.
+export { createEnvTokenResolver } from './auth/instance-token.js';
+// The OAuth resource-boundary error union the bearer resolver emits. Exported
+// here too (it is not a Cloudflare module) so a Bun entry's dev bearer resolver
+// gets it without importing the main barrel, which would drag in the `Room`
+// Durable Object and its `cloudflare:workers` import.
+export { OAuthError } from './auth/oauth-errors.js';
+export { createDb } from './db/create-db.js';
+// Merge several Bun `WebSocketHandler`s onto one `Bun.serve`, dispatching each
+// socket to its backend by a `surface` tag (rooms + attach relay on one port).
+export { mergeBunWebSocketHandlers } from './merge-bun-websocket-handlers.js';
 // An opt-in burn-rate cap for the inference `policies` seam (ADR-0076).
 export { rateLimit } from './middleware/rate-limit.js';
 export {
-	requireBearerUser,
-	requireCookieOrBearerUser,
-	resolveRequestOAuthUser,
+	requireBearerPrincipal,
+	requireCookieOrBearerPrincipal,
+	resolveRequestOAuthPrincipal,
 } from './middleware/require-auth.js';
 // The cloud-only relational layer (Better Auth on `c.var.auth` + the auth surface,
 // and the Postgres lifecycle). A cloud-on-Bun entry calls `mountCloudAuth` +
@@ -43,8 +86,6 @@ export {
 // merged into the cloud Bun host's boot validation.
 export { CloudAuthBindings, mountCloudAuth } from './mount-cloud-auth.js';
 export { mountCloudDb } from './mount-cloud-db.js';
-export { doName } from './owner.js';
-export { instance, type OwnershipRule, personal } from './ownership.js';
 // The Bun room backend: an in-process Rooms map + bun:sqlite update log,
 // plus the Bun `websocket` handler and `bindServer` the entry wires. Its `.rooms`
 // is what a Bun entry passes as `createServerApp`'s `resolveRooms`.
@@ -54,11 +95,11 @@ export { mountInferenceApp } from './routes/inference.js';
 export { mountRoomsApp } from './routes/rooms.js';
 export { mountSessionApp } from './routes/session.js';
 export { mountTranscriptionApp } from './routes/transcription.js';
-export { createServerApp, type Identity } from './server-app.js';
+export { createServerApp } from './server-app.js';
 // The portable env contract as both arktype schema (value) and inferred type;
 // the Bun entry validates `process.env` against it at boot (merging its own
 // process config and any secrets it re-requires).
 export { ServerBindings } from './server-bindings.js';
 // Public Hono context types: the portable `Env`, the cloud's `CloudEnv`, and the
-// `ResolveUser<E>` seam the dev Bun entry closes its wrapper over for the smoke.
-export type { CloudEnv, Env, ResolveUser } from './types.js';
+// `ResolveBearerPrincipal<E>` seam the dev Bun entry closes its wrapper over for the smoke.
+export type { CloudEnv, Env, ResolveBearerPrincipal } from './types.js';

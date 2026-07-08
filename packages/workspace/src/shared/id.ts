@@ -3,9 +3,9 @@
  *
  * Every id we mint ourselves is the same kind of thing: a public,
  * collision-resistant identifier. It is never an access-control secret.
- * Room/document access is gated server-side by authentication + ownership
- * partition (see `@epicenter/server`'s require-ownership middleware), so
- * knowing an id grants nothing. Per OWASP's IDOR guidance, an
+ * Room/document access is gated server-side by authentication; the resolved
+ * principal selects the storage partition, so knowing an id grants nothing.
+ * Per OWASP's IDOR guidance, an
  * unguessable id is at most defense-in-depth, never the access boundary.
  *
  * Because the property is the same everywhere, there is one generator,

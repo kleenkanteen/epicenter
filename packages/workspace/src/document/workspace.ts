@@ -5,7 +5,7 @@
  * the one handle every runtime shares:
  *
  *   .create()            bare isomorphic doc for tests and advanced runtimes
- *   .connect(connection) browser runtime: local storage, sync, wipe, row
+ *   .connect(connection) local runtime: storage, optional sync, wipe, row
  *                        child-doc openers
  *   .mount(options)      daemon runtime: the same root plus Yjs-log persistence,
  *                        cloud sync, and materializers, with every node
@@ -60,6 +60,8 @@ import type { Guid } from '../shared/id.js';
 import { assertSafeSegment } from '../shared/safe-segment.js';
 import type { Drainable } from '../shared/types.js';
 import type { AgentId } from './agent-id.js';
+import { attachBroadcastChannel } from './attach-broadcast-channel.js';
+import { attachIndexedDb } from './attach-indexed-db.js';
 import {
 	attachChildDocWorker,
 	type ChildDocWorker,
@@ -88,7 +90,7 @@ import {
 	type TableDefinitions,
 	type Tables,
 } from './table.js';
-import { wipeLocalStorage } from './wipe-local-storage.js';
+import { wipeBareStorage, wipeLocalStorage } from './wipe-local-storage.js';
 import {
 	type ObservableKvStore,
 	YKeyValueLww,
@@ -163,8 +165,8 @@ export type DefineWorkspaceOptions<
 	TActions extends ActionRegistry,
 > = CreateWorkspaceOptions<TTables, TKv> & {
 	/**
-	 * Human-facing display label: `epicenter list`'s header, the `${name}-*`
-	 * materializer logger prefix, and the "Sign in to enable <name>." message. A
+	 * Human-facing display label: the `${name}-*` materializer logger prefix and
+	 * the "Sign in to enable <name>." message. A
 	 * display name only, not an identity seed: it never feeds the guid, the node
 	 * id, the Y.Doc `clientID`, or the action namespace, so the app's `id` owns
 	 * the namespace and the `name` is free to be a friendly label.
@@ -182,6 +184,7 @@ type ChildDocHandle<TLayout extends (ydoc: Y.Doc) => object> =
 		readonly ydoc: Y.Doc;
 		readonly guid: Guid;
 		readonly whenLoaded: Promise<unknown>;
+		readonly whenDisposed: Promise<unknown>;
 		[Symbol.dispose](): void;
 	};
 
@@ -254,6 +257,42 @@ export type ConnectedTables<TTableDefinitions extends TableDefinitions> = {
 	};
 };
 
+export type LocalPersistenceAttachment = {
+	/** Resolves when persisted state has replayed into the doc. */
+	readonly whenLoaded: Promise<unknown>;
+	/** Resolves after the doc is destroyed and the storage handle is closed. */
+	readonly whenDisposed: Promise<unknown>;
+};
+
+export type LocalPersistence = {
+	/** Attach local storage to one doc: the root or a row child doc. */
+	attach(ydoc: Y.Doc): LocalPersistenceAttachment;
+	/** Remove every locally stored doc for one workspace guid family. */
+	wipe(workspaceId: string): Promise<void>;
+};
+
+function browserLocalPersistence(): LocalPersistence {
+	return {
+		attach(ydoc) {
+			attachBroadcastChannel(ydoc);
+			return attachIndexedDb(ydoc);
+		},
+		wipe: wipeBareStorage,
+	};
+}
+
+export type ConnectOptions<
+	TTables extends TableDefinitions,
+	TKv extends KvDefinitions,
+	TActions extends ActionRegistry,
+	TRuntime extends ConnectComposition,
+> = {
+	readonly persistence?: LocalPersistence;
+	readonly compose?: (
+		workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
+	) => TRuntime;
+};
+
 /**
  * What a runtime `compose` callback sees: the connected workspace before its
  * infrastructure is soldered on. This is the one place `tables` is retyped from
@@ -264,9 +303,7 @@ export type ConnectedTables<TTableDefinitions extends TableDefinitions> = {
  * Receive-side twin of {@link MountComposeContext}, but deliberately not shaped
  * to rhyme with it: this *is* the connected workspace (it also bases
  * {@link ConnectedWorkspace}), so the composer extends it, whereas a mount
- * composer receives the workspace wrapped in a `{ workspace, scope }` bag. The
- * names rhyme only where the shapes do, on the return twins
- * {@link ConnectComposition} / {@link MountComposition}.
+ * composer receives the workspace wrapped in a `{ workspace, scope }` bag.
  */
 export type ConnectedWorkspaceContext<
 	TTables extends TableDefinitions,
@@ -277,9 +314,9 @@ export type ConnectedWorkspaceContext<
 };
 
 /**
- * The browser-connected workspace `connect()` returns: the connected context
- * plus its soldered-on infrastructure (local IndexedDB persistence, the
- * collaboration relay, and `wipe()`). Defined as `context + infra` to mirror
+ * The signed-in workspace `connect(connection)` returns: the connected context
+ * plus its soldered-on infrastructure (local persistence, the collaboration
+ * relay, and `wipe()`). Defined as `context + infra` to mirror
  * what `connect()` does at runtime: take the context, bolt on the connection
  * handles.
  */
@@ -288,16 +325,14 @@ export type ConnectedWorkspace<
 	TKv extends KvDefinitions,
 	TActions extends ActionRegistry = ActionRegistry,
 > = ConnectedWorkspaceContext<TTables, TKv, TActions> & {
-	readonly idb: ReturnType<typeof connectDoc>['idb'];
-	readonly collaboration: Collaboration<TActions>;
+	readonly storage: ReturnType<typeof connectDoc>['idb'];
+	readonly collaboration: Collaboration;
 	wipe(): Promise<void>;
 };
 
 /**
  * What a `connect(connection, compose)` runtime builder returns: the final action
- * registry plus any runtime-only handles the app wants on the bundle. The
- * browser twin of {@link MountComposition}: both are "what the compose callback
- * composes," one for the browser runtime, one for the daemon.
+ * registry plus any runtime-only handles the app wants on the bundle.
  *
  * `actions` is required, not optional: a runtime builder is exactly where
  * browser-only actions get layered onto the base registry, and that returned
@@ -317,6 +352,32 @@ type ConnectedWorkspaceWithRuntime<
 	TKv extends KvDefinitions,
 	TRuntime extends ConnectComposition,
 > = ConnectedWorkspace<TTables, TKv, TRuntime['actions']> &
+	Omit<TRuntime, 'actions' | typeof Symbol.dispose>;
+
+/**
+ * The local-first workspace `connect(null)` returns: the connected context
+ * (child-doc openers included) plus bare local infrastructure and `wipe()`,
+ * with no relay. Browser callers use guid-named IndexedDB plus the cross-tab
+ * BroadcastChannel by default; Bun callers can inject disk persistence.
+ * `collaboration` is a literal `undefined` field so a
+ * `LocalWorkspace | ConnectedWorkspace` union narrows on it and shared UI
+ * (the account popover's sync surface) can take `collaboration` optionally.
+ */
+export type LocalWorkspace<
+	TTables extends TableDefinitions,
+	TKv extends KvDefinitions,
+	TActions extends ActionRegistry = ActionRegistry,
+> = ConnectedWorkspaceContext<TTables, TKv, TActions> & {
+	readonly storage: LocalPersistenceAttachment;
+	readonly collaboration: undefined;
+	wipe(): Promise<void>;
+};
+
+type LocalWorkspaceWithRuntime<
+	TTables extends TableDefinitions,
+	TKv extends KvDefinitions,
+	TRuntime extends ConnectComposition,
+> = LocalWorkspace<TTables, TKv, TRuntime['actions']> &
 	Omit<TRuntime, 'actions' | typeof Symbol.dispose>;
 
 /**
@@ -355,8 +416,7 @@ export type MountComposeScope = {
  * Receive-side twin of {@link ConnectedWorkspaceContext}, but deliberately not
  * shaped to rhyme: that one *is* the connected workspace, while this one wraps
  * the unconnected root in a `{ workspace, scope }` bag, since a mount composer
- * attaches its own materializers rather than extending the workspace. The rhyme
- * lives on the return twins {@link MountComposition} / {@link ConnectComposition}.
+ * attaches its own materializers rather than extending the workspace.
  */
 export type MountComposeContext<
 	TTables extends TableDefinitions,
@@ -365,22 +425,6 @@ export type MountComposeContext<
 > = {
 	readonly workspace: Workspace<TTables, TKv, TActions>;
 	readonly scope: MountComposeScope;
-};
-
-/**
- * What a mount's `compose` callback returns: the action registry the daemon
- * serves. The daemon twin of {@link ConnectComposition}.
- *
- * `actions` is the explicit served set, exactly as the browser `connect`
- * composer is: this is where the daemon refuses browser-only actions and admits
- * its materializer actions. Materializer teardown is deliberately not returned
- * here: each `attachMount*` helper enrolls its own drain through
- * `scope.registerDrain`, so the served-action choice is the only decision a body
- * makes. The asymmetry is the point: draining a materializer is an obligation
- * (always wanted), while which actions to serve is a policy (the body's call).
- */
-export type MountComposition<TActions extends ActionRegistry> = {
-	readonly actions: TActions;
 };
 
 /**
@@ -424,7 +468,7 @@ export type MountWorkers<TTables extends TableDefinitions> = {
  * hosted body shares but the loop itself stays agnostic to:
  *
  *  - `session` is the mount's signed-in capability kit ({@link MountSession}: the
- *    `AuthedFetch`, the owner id, the sockets). Always present, because workers
+ *    `AuthedFetch`, the principal id, the sockets). Always present, because workers
  *    are only ever wired under a `defineSessionMount` open. A factory uses it to
  *    answer on the cloud (the engine's per-turn `data()` returns `session.fetch`
  *    plus the base URL for the metered inference backend).
@@ -461,15 +505,12 @@ export type MountWorkerFactory<TRowId extends string, THandle> = (
  * optional composer, and the optional child-doc workers.
  *
  * `runtime` is the injected node bag from `nodeMountRuntime()`; `.mount()`
- * itself imports no node module. `compose` is optional: omit it to serve the
- * workspace's base actions with no materializers (a pure sync-and-persist
- * mirror); provide it to attach materializers (each enrolling its own drain
- * through `scope.registerDrain`) and choose the served action set.
- *
- * `compose` returns `MountComposition<ActionRegistry>`: the served set is its
- * own decision and never surfaces on the returned non-generic {@link Mount}, so
- * the option carries no `TRuntimeActions` generic and the coordinator reads both
- * the compose and no-compose branches as one composition type, no cast.
+ * itself imports no node module. `compose` is optional: omit it for a pure
+ * sync-and-persist mirror; provide it to attach materializers, each enrolling
+ * its own drain through `scope.registerDrain`. It returns nothing: the watcher
+ * is not a callable action server (ADR-0112), so there is no served action set
+ * to choose. Workspace actions stay an in-process concept on the workspace
+ * bundles apps open themselves.
  */
 export type MountOptions<
 	TTables extends TableDefinitions,
@@ -484,12 +525,12 @@ export type MountOptions<
 	/** Injected node runtime, built by `nodeMountRuntime()`. */
 	readonly runtime: NodeMountRuntime;
 	/**
-	 * Attach materializers and select the served actions. Omit for a pure
-	 * sync-and-persist mirror. See {@link MountComposition}.
+	 * Attach materializers, each enrolling its own drain through
+	 * `scope.registerDrain`. Omit for a pure sync-and-persist mirror.
 	 */
 	readonly compose?: (
 		context: MountComposeContext<TTables, TKv, TActions>,
-	) => MountComposition<ActionRegistry>;
+	) => void;
 	/**
 	 * Register daemon child-doc workers: the always-on observe loops that host a
 	 * live replica of a row's child doc and watch it (ADR-0024/0025). Keyed by
@@ -519,14 +560,31 @@ export type WorkspaceDefinition<
 	readonly kv: TKv;
 	create(): Workspace<TTables, TKv, TActions>;
 	connect(
-		connection: ConnectionConfig,
-	): ConnectedWorkspace<TTables, TKv, TActions>;
+		connection: ConnectionConfig | null,
+	):
+		| LocalWorkspace<TTables, TKv, TActions>
+		| ConnectedWorkspace<TTables, TKv, TActions>;
+	connect(
+		connection: null,
+		options: ConnectOptions<
+			TTables,
+			TKv,
+			TActions,
+			{ readonly actions: TActions }
+		>,
+	): LocalWorkspace<TTables, TKv, TActions>;
 	connect<TRuntime extends ConnectComposition>(
-		connection: ConnectionConfig,
+		connection: ConnectionConfig | null,
 		compose: (
 			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
 		) => TRuntime,
-	): ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
+	):
+		| LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>
+		| ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
+	connect<TRuntime extends ConnectComposition>(
+		connection: null,
+		options: ConnectOptions<TTables, TKv, TActions, TRuntime>,
+	): LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>;
 	mount(options: MountOptions<TTables, TKv, TActions>): Mount;
 };
 
@@ -538,6 +596,25 @@ export type WorkspaceFromDefinition<TDefinition> =
 		infer TActions
 	>
 		? Workspace<TTables, TKv, TActions>
+		: never;
+
+/**
+ * The context a definition's `connect` compose callback receives. The one
+ * honest spelling for a named compose function:
+ *
+ * ```ts
+ * function compose(workspace: ComposeContext<typeof myAppWorkspace>) { ... }
+ * ```
+ *
+ * An inline compose arrow infers this contextually and never needs it.
+ */
+export type ComposeContext<TDefinition> =
+	TDefinition extends WorkspaceDefinition<
+		infer TTables,
+		infer TKv,
+		infer TActions
+	>
+		? ConnectedWorkspaceContext<TTables, TKv, TActions>
 		: never;
 
 /**
@@ -628,27 +705,37 @@ export function createWorkspace<
  *                                persistence, no sync, no child-doc openers. Daemon
  *                                and test runtimes attach their own storage and
  *                                transport around it.
- *   connect(connection)          The browser preset: the bare root plus IndexedDB
- *                                persistence, the WebSocket relay (see `connectDoc`),
- *                                per-row child-doc openers
- *                                (`tables.notes.docs.body.open(rowId)`), and `wipe()`.
- *   connect(connection, compose) The browser preset plus a runtime layer. `compose`
- *                                runs after the doc and child docs are built but
- *                                before collaboration wires, so the action registry
- *                                it returns is the one the bundle exposes as its
- *                                actions. That ordering is why `compose` is a
- *                                callback here, not a step you run after `connect()`.
+ *   connect(connection | null)   The browser preset. The connection IS the boot
+ *                                decision (ADR-0088/ADR-0094): credentials wire
+ *                                principal-scoped IndexedDB plus the WebSocket relay
+ *                                (see `connectDoc`); `null` wires guid-named
+ *                                IndexedDB plus the cross-tab channel with no
+ *                                relay (`collaboration: undefined`, the union's
+ *                                discriminant). Both wirings return the same
+ *                                bundle shape: per-row child-doc openers
+ *                                (`tables.notes.docs.body.open(rowId)`) and
+ *                                `wipe()` included, so nothing downstream
+ *                                branches on auth again.
+ *   connect(connection, compose) The preset plus a runtime layer. `compose` runs
+ *                                after the doc and child docs are built but
+ *                                before infrastructure wires, so the action
+ *                                registry it returns is the one the bundle
+ *                                exposes (and, signed in, the one the relay
+ *                                serves). That ordering is why `compose` is a
+ *                                callback here, not a step you run after
+ *                                `connect()`.
  *   mount(options)               The daemon preset: `create()` plus Yjs-log
  *                                persistence, cloud sync, and materializers, with
  *                                node dependencies injected through
  *                                `options.runtime`. Its `compose` mirrors the
- *                                browser one (select daemon actions, attach
+ *                                browser one (select watcher-local actions, attach
  *                                materializers); see `mount` below.
  *
- * `connect(connection)` is `create()` plus the browser storage/transport bundle
- * (`connectTableChildDocs` + `connectDoc`). `mount(options)` is `create()` plus
- * the daemon storage/transport bundle, coordinated over injected node functions
- * so the browser barrel that ships this definition never imports a node module.
+ * `connect()` is `create()` plus the browser storage/transport bundle
+ * (`connectTableChildDocs` + relay or bare wiring). `mount(options)` is
+ * `create()` plus the daemon storage/transport bundle, coordinated over
+ * injected node functions so the browser barrel that ships this definition
+ * never imports a node module.
  */
 export function defineWorkspace<
 	TTables extends TableDefinitions,
@@ -680,42 +767,74 @@ export function defineWorkspace<
 	}
 
 	function connect(
-		connection: ConnectionConfig,
-	): ConnectedWorkspace<TTables, TKv, TActions>;
+		connection: ConnectionConfig | null,
+	):
+		| LocalWorkspace<TTables, TKv, TActions>
+		| ConnectedWorkspace<TTables, TKv, TActions>;
+	function connect(
+		connection: null,
+		connectOptions: ConnectOptions<
+			TTables,
+			TKv,
+			TActions,
+			{ readonly actions: TActions }
+		>,
+	): LocalWorkspace<TTables, TKv, TActions>;
 	function connect<TRuntime extends ConnectComposition>(
-		connection: ConnectionConfig,
+		connection: ConnectionConfig | null,
 		compose: (
 			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
 		) => TRuntime,
-	): ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
+	):
+		| LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>
+		| ConnectedWorkspaceWithRuntime<TTables, TKv, TRuntime>;
+	function connect<TRuntime extends ConnectComposition>(
+		connection: null,
+		connectOptions: ConnectOptions<TTables, TKv, TActions, TRuntime>,
+	): LocalWorkspaceWithRuntime<TTables, TKv, TRuntime>;
 	function connect(
-		connection: ConnectionConfig,
-		compose: (
-			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
-		) => ConnectComposition = (workspace) => ({
-			actions: workspace.actions,
-		}),
+		connection: ConnectionConfig | null,
+		connectOptions:
+			| ((
+					workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
+			  ) => ConnectComposition)
+			| ConnectOptions<TTables, TKv, TActions, ConnectComposition> = {},
 	) {
 		const workspace = create();
+		const localPersistence =
+			typeof connectOptions === 'function'
+				? browserLocalPersistence()
+				: (connectOptions.persistence ?? browserLocalPersistence());
+		const childStorageDisposals: Promise<unknown>[] = [];
+		const compose: (
+			workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>,
+		) => ConnectComposition =
+			typeof connectOptions === 'function'
+				? connectOptions
+				: (connectOptions.compose ??
+					((workspace: ConnectedWorkspaceContext<TTables, TKv, TActions>) => ({
+						actions: workspace.actions,
+					})));
 
-		// Connect the per-row child-doc openers, then run the caller's composer.
-		// compose sees live tables/ydoc and the base actions (carried on
-		// `workspace.actions`); the `actions` it returns is final. Omitting it runs
-		// the default, which serves the base actions unchanged. The child-doc caches
-		// cascade off the root `ydoc.destroy()`, so there is no teardown handle to
-		// thread back here.
+		// Connect the per-row child-doc openers, then run the caller's composer,
+		// then solder infrastructure on. compose sees live tables/ydoc and the
+		// base actions (carried on `workspace.actions`); the `actions` it returns
+		// is the final local registry exposed on the workspace bundle. Omitting
+		// compose serves the base actions unchanged. The child-doc caches cascade
+		// off the root `ydoc.destroy()`; each opened body's storage disposal is
+		// still registered here so `wipe()` can wait before deleting the guid
+		// family from disk.
 		const tables = connectTableChildDocs({
 			ydoc: workspace.ydoc,
 			tables: workspace.tables,
 			definitions: options.tables,
 			connection,
+			localPersistence,
+			registerChildStorage: (storage) => {
+				childStorageDisposals.push(storage.whenDisposed);
+			},
 		});
 		const runtime = compose({ ...workspace, tables });
-		// Solder infrastructure on top of what compose returned. connectDoc serves
-		// `runtime.actions` to peers, so it must run after compose.
-		const { idb, collaboration } = connectDoc(workspace.ydoc, connection, {
-			actions: runtime.actions,
-		});
 
 		// `dispose` is reachable twice: `wipe()` calls it explicitly, then a `using`
 		// binding calls it again at scope exit. Neither callee is safe to run twice
@@ -727,19 +846,46 @@ export function defineWorkspace<
 			workspace[Symbol.dispose]();
 		});
 
+		// The connection is the boot decision (ADR-0094): `null` wires the bare
+		// local infrastructure through the local persistence environment, with no
+		// relay; credentials wire principal-scoped storage plus the relay. Both
+		// arms return the same bundle shape, discriminated by `collaboration`.
+		if (connection === null) {
+			const storage = localPersistence.attach(workspace.ydoc);
+			return satisfiesWorkspace({
+				...workspace,
+				...runtime,
+				tables,
+				actions: runtime.actions,
+				storage,
+				collaboration: undefined,
+				async wipe() {
+					dispose();
+					await Promise.all([storage.whenDisposed, ...childStorageDisposals]);
+					await localPersistence.wipe(options.id);
+				},
+				[Symbol.dispose]: dispose,
+			});
+		}
+
+		const { idb, collaboration } = connectDoc(workspace.ydoc, connection);
 		return satisfiesWorkspace({
 			...workspace,
 			...runtime,
 			tables,
 			actions: runtime.actions,
-			idb,
+			storage: idb,
 			collaboration,
 			async wipe() {
 				dispose();
-				await Promise.all([idb.whenDisposed, collaboration.whenDisposed]);
+				await Promise.all([
+					idb.whenDisposed,
+					collaboration.whenDisposed,
+					...childStorageDisposals,
+				]);
 				await wipeLocalStorage({
-					server: connection.server,
-					ownerId: connection.ownerId,
+					server: new URL(connection.baseURL).host,
+					principalId: connection.principalId,
 				});
 			},
 			[Symbol.dispose]: dispose,
@@ -754,10 +900,8 @@ export function defineWorkspace<
 	 * `defineSessionMount`, resolve the base URL, `create()` the root, run the
 	 * caller's `compose`, attach mount infrastructure, and assemble the runtime.
 	 *
-	 * `compose` is the one place daemon actions are chosen, so a mount cannot
-	 * accidentally serve browser-only actions: omit it to serve the base
-	 * `workspace.actions` with no materializers, or return an explicit
-	 * `{ actions }` after attaching materializers, which enroll their own drain.
+	 * `compose` exists to attach materializers, which enroll their own drain
+	 * through `scope.registerDrain`; omit it for a pure sync-and-persist mirror.
 	 *
 	 * The mount's display label is the definition's `name`, declared once on the
 	 * definition rather than restated at every call site.
@@ -782,14 +926,10 @@ export function defineWorkspace<
 						drains.push(drainable);
 					},
 				};
-				// Both branches are one composition type: compose returns
-				// `MountComposition<ActionRegistry>`, and the no-compose fallback's
-				// `workspace.actions` (`TActions`) widens to the same. No generic to
-				// bridge, so no cast.
-				const composition: MountComposition<ActionRegistry> =
-					mountOptions.compose
-						? mountOptions.compose({ workspace, scope })
-						: { actions: workspace.actions };
+				// compose is side-effect only: it attaches materializers, which
+				// enroll their own drain through `scope.registerDrain`. Nothing to
+				// collect from its return; the watcher serves no actions (ADR-0112).
+				mountOptions.compose?.({ workspace, scope });
 				// Schema-driven child-doc workers. The coordinator reads the layout
 				// and guid deriver from the definition (never re-passed by the app),
 				// so a worker cannot interpret a body with a layout that disagrees
@@ -811,15 +951,14 @@ export function defineWorkspace<
 						baseURL,
 					});
 				}
-				// `attachInfrastructure` serves `composition.actions` to peers and
-				// drains every registered materializer in order on shutdown, so it
-				// runs after compose has registered them.
+				// `attachInfrastructure` wires sync/presence and drains every
+				// registered materializer in order on shutdown, so it runs after
+				// compose has registered them.
 				const infrastructure = runtime.attachInfrastructure(
 					workspace.ydoc,
 					ctx,
 					{
 						baseURL,
-						actions: composition.actions,
 						// Publish the mount's agent so peers can decorate it as live in
 						// a picker (ADR-0025); the same id the child-doc workers use for
 						// designation. Absent when the mount answers as no named agent.
@@ -830,7 +969,6 @@ export function defineWorkspace<
 				return {
 					...workspace,
 					...infrastructure,
-					actions: composition.actions,
 				};
 			},
 		});
@@ -872,19 +1010,28 @@ export function defineWorkspace<
  *
  * Teardown mirrors how the root's own stores release: each cache registers on
  * `ydoc.once('destroy', ...)`, so a single root `ydoc.destroy()` flushes every
- * child-doc cache alongside the tables and KV. There is no separate teardown
- * handle to return and thread through `connect()`.
+ * child-doc cache alongside the tables and KV. The connected root also records
+ * each opened body's storage disposal so `wipe()` can wait for child docs before
+ * deleting the persisted guid family.
  */
 function connectTableChildDocs<TTableDefinitions extends TableDefinitions>({
 	ydoc,
 	tables,
 	definitions,
 	connection,
+	localPersistence,
+	registerChildStorage,
 }: {
 	ydoc: Y.Doc;
 	tables: WorkspaceTables<TTableDefinitions>;
 	definitions: TTableDefinitions;
-	connection: ConnectionConfig;
+	/**
+	 * Connection coordinates, or `null` for the bare local-first wiring:
+	 * injected local persistence and no relay.
+	 */
+	connection: ConnectionConfig | null;
+	localPersistence: LocalPersistence;
+	registerChildStorage: (storage: LocalPersistenceAttachment) => void;
 }): ConnectedTables<TTableDefinitions> {
 	const connectedTables: Record<string, unknown> = {};
 
@@ -919,10 +1066,17 @@ function connectTableChildDocs<TTableDefinitions extends TableDefinitions>({
 			const cache = createDisposableCache((rowId: string) => {
 				const guid = guidEntry.guid(rowId);
 				const bodyDoc = new Y.Doc({ guid, gc: true });
-				// A body is a doc like any other; `connectDoc` is the same wiring the
-				// root uses. No action registry: the body's only writers are the
-				// `attach*` layout and the server generation worker streaming in.
-				const { idb } = connectDoc(bodyDoc, connection);
+				// wiring the root uses (no action registry: the body's only writers
+				// are the `attach*` layout and the server generation worker streaming
+				// in); bare, it gets the same injected local persistence the bare root
+				// gets.
+				let storage: LocalPersistenceAttachment;
+				if (connection) {
+					({ idb: storage } = connectDoc(bodyDoc, connection));
+				} else {
+					storage = localPersistence.attach(bodyDoc);
+				}
+				registerChildStorage(storage);
 				// Recency: a local edit bumps a column on the row. One observer per
 				// shared body Y.Doc (built here, not per `open`), torn down on
 				// eviction. `tx.local` scopes it to local edits, so remote/hydrated
@@ -939,8 +1093,10 @@ function connectTableChildDocs<TTableDefinitions extends TableDefinitions>({
 					ydoc: bodyDoc,
 					/** The doc's guid (its room id). */
 					guid,
-					/** Resolves when local IndexedDB state has replayed into the doc. */
-					whenLoaded: idb.whenLoaded,
+					/** Resolves when local storage state has replayed into the doc. */
+					whenLoaded: storage.whenLoaded,
+					/** Resolves after the body doc has destroyed its storage handle. */
+					whenDisposed: storage.whenDisposed,
 					[Symbol.dispose]() {
 						offLocalEdit?.();
 						bodyDoc.destroy();

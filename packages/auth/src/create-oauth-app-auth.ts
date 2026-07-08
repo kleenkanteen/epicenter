@@ -1,15 +1,23 @@
 import { EPICENTER_API_URL } from '@epicenter/constants/apps';
-import { BEARER_SUBPROTOCOL_PREFIX } from '@epicenter/sync';
+import {
+	BEARER_SUBPROTOCOL_PREFIX,
+	type OpenWebSocketDenial,
+} from '@epicenter/sync';
 import { defineErrors, extractErrorMessage } from 'wellcrafted/error';
 import { createLogger, type Logger } from 'wellcrafted/logger';
 import { Err, Ok, type Result } from 'wellcrafted/result';
 import type { AuthFetch, AuthState, SyncAuthClient } from './auth-contract.js';
-import { AuthError } from './auth-errors.js';
-import {
+import { AuthError, OpenWebSocketDenied } from './auth-errors.js';
+import type {
 	ApiSessionResponse,
-	type OAuthTokenGrant,
-	type PersistedAuth,
+	OAuthTokenGrant,
+	PersistedAuth,
 } from './auth-types.js';
+import {
+	type AuthFetchInput,
+	fetchWithBearer,
+	resolveTargetUrl,
+} from './bearer-fetch.js';
 import type { OAuthLauncher } from './oauth-launchers/contract.js';
 import {
 	refreshOAuthTokenWithEndpoint,
@@ -21,8 +29,6 @@ import {
 	getProfileVia,
 	readApiSession,
 } from './read-api-session.js';
-
-type AuthFetchInput = Request | string | URL;
 
 /**
  * Construction inputs for the framework-agnostic auth runtime.
@@ -108,10 +114,10 @@ type ApiSessionReadResult = Result<ApiSessionResponse, ApiSessionReadError>;
  * Use this once per runtime around one persisted auth record. The returned
  * client exposes capabilities (`fetch`, `openWebSocket`) instead of raw tokens:
  * it refreshes grants, verifies `/api/session` before attaching a bearer, and
- * keeps the cached `ownerId` available when network auth pauses. That preserves
- * the local-first invariant: offline workspace boot can continue, but server
- * access fails closed until the current persisted auth has been verified by the
- * API.
+ * keeps the cached principal id available when network auth pauses. That
+ * preserves the local-first invariant: offline workspace boot can continue,
+ * but server access fails closed until the current persisted auth has been
+ * verified by the API.
  */
 export function createOAuthAppAuth({
 	baseURL = EPICENTER_API_URL,
@@ -184,8 +190,7 @@ export function createOAuthAppAuth({
 				if (authSession.persistedAuth !== startedFrom) return false;
 				const next = {
 					grant,
-					userId: startedFrom.userId,
-					ownerId: startedFrom.ownerId,
+					principalId: startedFrom.principalId,
 				} satisfies PersistedAuth;
 				await authSession.write(next);
 				if (authSession.persistedAuth !== startedFrom) return false;
@@ -210,9 +215,9 @@ export function createOAuthAppAuth({
 
 	/**
 	 * Verify `/api/session` against the current persisted auth. Marks it
-	 * verified and wipes storage on same-owner-guard mismatch (different
-	 * `ownerId`). Single-flight: concurrent callers for the same persisted auth
-	 * share the in-flight promise.
+	 * verified and wipes storage when the server resolves a different principal.
+	 * Single-flight: concurrent callers for the same persisted auth share the
+	 * in-flight promise.
 	 */
 	async function verifyPersistedAuthForNetwork(
 		startedFrom: PersistedAuth,
@@ -238,22 +243,11 @@ export function createOAuthAppAuth({
 			const current = authSession.persistedAuth;
 			if (current !== startedFrom) return Ok(session);
 
-			if (current.ownerId !== session.ownerId) {
+			if (current.principalId !== session.principalId) {
 				await clearPersistedAuth();
 				return Ok(session);
 			}
 
-			if (current.userId !== session.user.id) {
-				const next = {
-					grant: current.grant,
-					userId: session.user.id,
-					ownerId: session.ownerId,
-				} satisfies PersistedAuth;
-				await authSession.write(next);
-				if (authSession.persistedAuth !== startedFrom) return Ok(session);
-				authSession.installVerified(next);
-				return Ok(session);
-			}
 			authSession.installVerified(current);
 			return Ok(session);
 		})().finally(() => {
@@ -273,7 +267,7 @@ export function createOAuthAppAuth({
 	 * Refuses to attach unless `/api/session` has confirmed the current persisted
 	 * auth in this runtime. Cold boot online: refresh grant if
 	 * stale, call `/api/session`, then attach. Offline: fails closed; local
-	 * workspace boot continues via the cached owner id.
+	 * workspace boot continues via the cached principal id.
 	 */
 	async function bearerForNetwork(force: boolean): Promise<string | null> {
 		if (authSession.persistedAuth === null || authSession.networkAuthPaused) {
@@ -301,65 +295,23 @@ export function createOAuthAppAuth({
 	}
 
 	/**
-	 * Normalize any auth-fetch input to its absolute target URL. The single place
-	 * the four input shapes (Request, URL, relative string, absolute string) are
-	 * resolved: a relative `/path` resolves against `baseURL`, so it always lands
-	 * on the Epicenter origin. Returns null for an unparseable target so callers
-	 * fail closed.
-	 */
-	function resolveTargetUrl(input: AuthFetchInput): URL | null {
-		try {
-			if (input instanceof Request) return new URL(input.url);
-			if (input instanceof URL) return input;
-			return new URL(input, baseURL);
-		} catch {
-			return null;
-		}
-	}
-
-	/**
 	 * The Epicenter bearer is audience-scoped (ADR-0053): it is attached only to
 	 * the origin this client signed into. A request to any other origin is sent
 	 * with no Epicenter credential, so handing this fetch to a custom inference
 	 * backend or any third party can never leak the token.
 	 */
 	function targetsEpicenter(input: AuthFetchInput): boolean {
-		return resolveTargetUrl(input)?.origin === epicenterOrigin;
+		return resolveTargetUrl(input, baseURL)?.origin === epicenterOrigin;
 	}
 
-	async function fetchWithAuth(
-		input: AuthFetchInput,
-		init: RequestInit | undefined,
-		forceRefresh: boolean,
-	) {
-		const target = resolveTargetUrl(input);
-		const headers = headersFromRequest(input, init);
-		const accessToken =
-			target?.origin === epicenterOrigin
-				? await bearerForNetwork(forceRefresh)
-				: null;
-		if (accessToken) {
-			headers.set('Authorization', `Bearer ${accessToken}`);
-		} else {
-			headers.delete('Authorization');
-		}
-		// A Request carries its own method and body, so pass it through (cloned).
-		// Anything else goes as its resolved absolute URL, so a relative `/path`
-		// lands on baseURL; an unparseable input falls through to surface its error.
-		// The clone is cast to `Request` because a Cloudflare Workers consumer types
-		// `Request.clone()` as its CF-flavored Request, which is not `AuthFetchInput`.
-		const normalizedInput: AuthFetchInput =
-			input instanceof Request
-				? (input.clone() as Request)
-				: (target?.href ?? input);
-		return fetchImpl(normalizedInput, {
-			...init,
-			headers,
-			credentials: 'omit',
-			// A bearer-carrying request must never follow a cross-origin redirect:
-			// some runtimes (reqwest in Tauri, older Chromium) re-send the header to
-			// the new origin. Return the 3xx to the caller instead.
-			...(accessToken ? { redirect: 'manual' as const } : {}),
+	function fetchWithAuth(input: AuthFetchInput, init: RequestInit | undefined) {
+		return fetchWithBearer({
+			input,
+			init,
+			fetch: fetchImpl,
+			baseURL,
+			epicenterOrigin,
+			resolveToken: () => bearerForNetwork(false),
 		});
 	}
 
@@ -370,11 +322,11 @@ export function createOAuthAppAuth({
 	 * `getProfile` reuses it so a profile read refreshes a stale token too.
 	 */
 	async function authedFetch(input: AuthFetchInput, init?: RequestInit) {
-		const response = await fetchWithAuth(input, init, false);
+		const response = await fetchWithAuth(input, init);
 		if (response.status !== 401 || !targetsEpicenter(input)) return response;
 		const refreshed = await refreshGrant(true);
 		if (!refreshed) return response;
-		const retryResponse = await fetchWithAuth(input, init, false);
+		const retryResponse = await fetchWithAuth(input, init);
 		if (retryResponse.status === 401) {
 			authSession.pauseNetworkAuth();
 		}
@@ -396,14 +348,13 @@ export function createOAuthAppAuth({
 			return AuthError.StartSignInFailed({ cause: error });
 		}
 		if (!isCurrentSignIn(generation)) return Ok(undefined);
-		if (previous !== null && previous.ownerId !== session.ownerId) {
+		if (previous !== null && previous.principalId !== session.principalId) {
 			await clearAuthSession();
 			if (!isCurrentSignIn(generation)) return Ok(undefined);
 		}
 		const next = {
 			grant,
-			userId: session.user.id,
-			ownerId: session.ownerId,
+			principalId: session.principalId,
 		} satisfies PersistedAuth;
 		await authSession.write(next);
 		if (!isCurrentSignIn(generation)) return Ok(undefined);
@@ -415,7 +366,9 @@ export function createOAuthAppAuth({
 		get state() {
 			return authSession.state;
 		},
-		baseURL,
+		// OAuth runs only against the hosted star (ADR-0071), so this client is
+		// hosted by construction.
+		deployment: { kind: 'hosted', baseURL },
 		onStateChange(fn) {
 			return authSession.onStateChange(fn);
 		},
@@ -475,10 +428,30 @@ export function createOAuthAppAuth({
 		getProfile: () => getProfileVia(authedFetch, baseURL),
 		async openWebSocket(url, protocols = []) {
 			const accessToken = await bearerForNetwork(false);
-			const authProtocols = accessToken
-				? [...protocols, `${BEARER_SUBPROTOCOL_PREFIX}${accessToken}`]
-				: protocols;
-			return new WebSocketImpl(String(url), authProtocols);
+			if (!accessToken) {
+				// Never open credential-less: the socket would only eat a doomed
+				// round trip and a server 4401. Reject with the typed denial the
+				// sync supervisor classifies. `bearerForNetwork` already paused
+				// network auth on every definitive rejection (refresh refused,
+				// /api/session 401), so any still-signed-in null here means
+				// verification was unreachable: the grant may be fine, retry.
+				const permanent =
+					authSession.persistedAuth === null || authSession.networkAuthPaused;
+				const denial: OpenWebSocketDenial = OpenWebSocketDenied({
+					permanence: permanent ? 'permanent' : 'transient',
+					code:
+						authSession.persistedAuth === null
+							? 'signed-out'
+							: permanent
+								? 'reauth-required'
+								: 'auth-unavailable',
+				}).error;
+				throw denial;
+			}
+			return new WebSocketImpl(String(url), [
+				...protocols,
+				`${BEARER_SUBPROTOCOL_PREFIX}${accessToken}`,
+			]);
 		},
 		[Symbol.dispose]() {
 			authSession.dispose();
@@ -605,12 +578,12 @@ function publicStateFromRuntime(runtimeState: RuntimeAuthState): AuthState {
 	if (runtimeState.networkAccess === 'paused') {
 		return {
 			status: 'reauth-required',
-			ownerId: runtimeState.persistedAuth.ownerId,
+			principalId: runtimeState.persistedAuth.principalId,
 		};
 	}
 	return {
 		status: 'signed-in',
-		ownerId: runtimeState.persistedAuth.ownerId,
+		principalId: runtimeState.persistedAuth.principalId,
 	};
 }
 
@@ -618,24 +591,5 @@ function authStatesEqual(left: AuthState, right: AuthState) {
 	if (left.status !== right.status) return false;
 	if (left.status === 'signed-out') return true;
 	if (right.status === 'signed-out') return false;
-	return left.ownerId === right.ownerId;
-}
-
-/**
- * Merge Request headers with RequestInit headers using Fetch's own normalization.
- *
- * This stays as a helper because `HeadersInit` accepts several runtime shapes,
- * including iterable entries that TypeScript does not always model directly.
- */
-function headersFromRequest(input: Request | string | URL, init?: RequestInit) {
-	const headers = new Headers(
-		input instanceof Request ? input.headers : undefined,
-	);
-	const source = init?.headers;
-	if (!source) return headers;
-
-	new Headers(source).forEach((value, key) => {
-		headers.set(key, value);
-	});
-	return headers;
+	return left.principalId === right.principalId;
 }

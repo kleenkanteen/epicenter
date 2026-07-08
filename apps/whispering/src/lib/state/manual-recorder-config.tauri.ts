@@ -1,7 +1,5 @@
-import {
-	asDeviceIdentifier,
-	type CpalRecordingParams,
-} from '$lib/services/recorder/types';
+import { asDeviceIdentifier } from '@epicenter/recorder';
+import type { CpalRecordingParams } from '$lib/services/recorder/index.tauri';
 import { deviceConfig } from '$lib/state/device-config.svelte';
 
 const MANUAL_DEVICE_ID_KEY = 'recording.cpal.deviceId';

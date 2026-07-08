@@ -3,7 +3,7 @@
 	"version": "0.3.0",
 	"private": true,
 	"type": "module",
-	"description": "Shared Epicenter app chrome: account popover, workspace gate, and the instance settings surface. Branded, full-stack-aware UI mounted in each app's layout. Private (not published).",
+	"description": "Shared Epicenter app chrome: account popover, workspace gate, and agent chat. Branded, full-stack-aware UI mounted in each app's layout. Private (not published).",
 	"keywords": [
 		"svelte",
 		"epicenter",
@@ -13,11 +13,12 @@
 		"./account-popover": "./src/account-popover/index.ts",
 		"./agent-chat": "./src/agent-chat/index.ts",
 		"./inference-picker": "./src/inference-picker/index.ts",
-		"./instance-settings": "./src/instance-settings/index.ts",
+		"./sign-in-migration": "./src/sign-in-migration/index.ts",
 		"./workspace-gate": "./src/workspace-gate/index.ts"
 	},
 	"scripts": {
-		"typecheck": "svelte-check --tsconfig ./tsconfig.json"
+		"typecheck": "svelte-check --tsconfig ./tsconfig.json",
+		"test": "bun test"
 	},
 	"dependencies": {
 		"@epicenter/auth": "workspace:*",
@@ -30,10 +31,14 @@
 		"@standard-schema/spec": "catalog:",
 		"@tanstack/svelte-query": "catalog:",
 		"arktype": "catalog:",
-		"wellcrafted": "catalog:"
+		"wellcrafted": "catalog:",
+		"yjs": "catalog:"
 	},
 	"devDependencies": {
+		"@epicenter/field": "workspace:*",
+		"@epicenter/identity": "workspace:*",
 		"@types/bun": "catalog:",
+		"fake-indexeddb": "^6.2.5",
 		"svelte": "catalog:",
 		"svelte-check": "catalog:",
 		"typescript": "catalog:"
