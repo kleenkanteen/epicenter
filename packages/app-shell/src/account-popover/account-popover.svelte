@@ -16,7 +16,7 @@
 		QueryClient,
 	} from '@tanstack/svelte-query';
 	import { extractErrorMessage } from 'wellcrafted/error';
-	import { mutationOptions, queryOptions } from 'wellcrafted/query';
+	import { resultMutationOptions, resultQueryOptions } from 'wellcrafted/query';
 	import CreditBalance from '../credit-balance/credit-balance.svelte';
 	import { fetchCreditOverview } from '../credit-balance/credit-balance.js';
 	import InstanceSettingsModal from './instance-settings-modal.svelte';
@@ -144,10 +144,10 @@
 	// Identity lives on the auth client: `state` carries the principal partition,
 	// and `getProfile()` reads presentational identity (the email) on demand.
 	// TanStack Query owns the reactive cache here, keyed by account, and
-	// `queryOptions` bridges the Result into its throw-on-error contract.
+	// `resultQueryOptions` bridges the Result into its throw-on-error contract.
 	const profile = createQuery(
 		() =>
-			queryOptions({
+			resultQueryOptions({
 				queryKey: ['account-profile', accountCacheKey],
 				queryFn: () => auth.getProfile(),
 				enabled: auth.state.status !== 'signed-out' && !selfHostHost,
@@ -165,7 +165,7 @@
 	// to show. Keyed by account so switching identity refetches.
 	const credits = createQuery(
 		() =>
-			queryOptions({
+			resultQueryOptions({
 				queryKey: ['account-credits', accountCacheKey],
 				queryFn: () => fetchCreditOverview(auth.fetch, auth.deployment.baseURL),
 				enabled: auth.state.status === 'signed-in' && !selfHostHost,
@@ -181,7 +181,7 @@
 	);
 	const signOut = createMutation(
 		() =>
-			mutationOptions({
+			resultMutationOptions({
 				mutationKey: ['account', 'signOut'],
 				mutationFn: () => auth.signOut(),
 				onMutate: () => {

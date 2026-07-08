@@ -1180,7 +1180,7 @@
     "virtua": "^0.48.5",
     "vite": "^7.3.5",
     "vite-plugin-singlefile": "^2.3.3",
-    "wellcrafted": "^0.43.0",
+    "wellcrafted": "^0.44.0",
     "wrangler": "^4.71.0",
     "y-indexeddb": "^9.0.12",
     "y-protocols": "^1.0.7",
@@ -4140,7 +4140,7 @@
 
     "webpack-virtual-modules": ["webpack-virtual-modules@0.6.2", "", {}, "sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ=="],
 
-    "wellcrafted": ["wellcrafted@0.43.0", "", {}, "sha512-nJmIF0yVf+vwYI8ayLoDrGIlLSidkF9GiyPVROnjp4HTaSGtSwLWfby2UlRq5cH1mLbl1CT41czX7v8ogQ20Tg=="],
+    "wellcrafted": ["wellcrafted@0.44.0", "", {}, "sha512-tqmYveAIYitD1BsuYzYb64b1aXMmQRVqi2Vy/qyXICX99sn3TmKQcnGBrF/qNknGsWp5aZJNggroP+ICmalADQ=="],
 
     "whatwg-url": ["whatwg-url@5.0.0", "", { "dependencies": { "tr46": "~0.0.3", "webidl-conversions": "^3.0.0" } }, "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw=="],
 
