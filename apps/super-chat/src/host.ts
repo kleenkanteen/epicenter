@@ -28,9 +28,9 @@ import {
 	type AgentToolCall,
 	type AgentToolDefinition,
 	type Approval,
+	type ConversationOptions,
 	type ConversationSnapshot,
 	composeToolCatalogs,
-	type ConversationOptions,
 	createConversation,
 	createLocalToolCatalog,
 	defaultApprovalDecision,
@@ -39,6 +39,10 @@ import {
 	type ToolCatalog,
 } from '@epicenter/workspace/agent';
 import { bunLocalPersistence } from '@epicenter/workspace/node';
+import {
+	createLocalSourceCatalog,
+	type LocalSourceCatalogOptions,
+} from './local-source-catalog.ts';
 import {
 	createStdioMcpCatalog,
 	type StdioMcpCatalogOptions,
@@ -63,6 +67,13 @@ export type SuperChatHostOptions = {
 	 * the host runs with the built-in apps only.
 	 */
 	localBooks?: StdioMcpCatalogOptions;
+	/**
+	 * A read-only local source to compose as one `query` verb (ADR-0115 wave 6),
+	 * namespaced `imessage__`. Omitted means the host runs without a local source.
+	 * The reader is injected (a fixture in tests, a real Messages reader later),
+	 * so the source stays host-owned and never becomes reachable over the relay.
+	 */
+	localSource?: LocalSourceCatalogOptions;
 	/** Host-owned data directory for built-in app replicas and node identity. */
 	dataDir?: string;
 };
@@ -227,6 +238,18 @@ export async function createSuperChatHost(
 		namespaceToolCatalog('todos', createLocalToolCatalog(todos.actions)),
 	];
 
+	// A read-only local source, if one is wired: one `query` verb the host reads
+	// on this machine (ADR-0115 wave 6). Stateless, so it needs no disposal and
+	// no `whenLoaded`; it composes beside the in-process apps behind the one seam.
+	if (options.localSource) {
+		catalogs.push(
+			namespaceToolCatalog(
+				'imessage',
+				createLocalSourceCatalog(options.localSource),
+			),
+		);
+	}
+
 	// Arm B: boxed apps join as stdio MCP subprocesses behind the same seam.
 	const localBooks = options.localBooks
 		? await createStdioMcpCatalog(options.localBooks).catch((error) => {
@@ -256,8 +279,7 @@ export async function createSuperChatHost(
 	const conversations = superChat.tables.conversations;
 	let latest: Conversation | undefined;
 	for (const row of conversations.scan().rows) {
-		if (latest === undefined || row.updatedAt > latest.updatedAt)
-			latest = row;
+		if (latest === undefined || row.updatedAt > latest.updatedAt) latest = row;
 	}
 	let activeConversationId = latest?.id ?? generateConversationId();
 

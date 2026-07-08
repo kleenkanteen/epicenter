@@ -27,27 +27,34 @@
  * proves only the entry shape; no runtime mount consumes it yet, so this is a
  * schema plus its guard tests, not a live product directory.
  *
- * ## Deliberately not built here (smallest model, ADR-0115 wave 5)
+ * ## Deliberately not built here (smallest model, ADR-0115 wave 5-6)
  *
- * - `status` is `online | offline` only. "Online but unreachable" is a distinct
- *   state wave 6 earns when the desktop can be asleep while its synced history
- *   still reads; folding it in now would be a status the proof cannot yet
- *   exercise.
  * - There is no directory store, route, or presence feed: a host does not
  *   publish an entry anywhere yet. The wire and mount for discovery are a later
- *   refinement; this wave pins the shape the guard protects.
+ *   refinement; this wave pins the shape the guard protects. Wave 6 adds the
+ *   `unreachable` status to the enum and gives it a consumer (Super Chat's
+ *   ask-gate), but the live publish/discover wire stays deferred.
  */
 
 import { type } from 'arktype';
 
 /**
- * A host's liveness in the directory. `online` means the host endpoint is
- * currently registered and reachable for a fresh attach; `offline` means it is
- * not. "Online but unreachable" (synced history reads, but a new local-source
- * question cannot) is deferred to ADR-0115 wave 6, so this enum stays two-valued
- * until the proof that distinguishes it lands.
+ * A host's liveness in the directory, the whole signal a client dials on. Three
+ * states, because the phone must tell "wake your desktop" from "reconnecting"
+ * (ADR-0115 wave 6):
+ * - `online`: the host endpoint is registered and reachable for a fresh attach.
+ * - `offline`: the desktop is not connected at all (asleep or shut down).
+ * - `unreachable`: the host is known but its live channel is not usable right
+ *   now (its relay socket dropped, or a partition), so a fresh attach cannot
+ *   form even though the desktop is not definitively gone.
+ *
+ * Both `offline` and `unreachable` deny a new local-source question and both
+ * still allow reading synced history: reading is a durable-replica read that
+ * needs no live host (ADR-0055), while asking needs the live session. The two
+ * are kept distinct so a client renders the right recovery, never so the relay
+ * routes on them; the relay never sees this enum.
  */
-export const AttachHostStatus = type("'online' | 'offline'");
+export const AttachHostStatus = type("'online' | 'offline' | 'unreachable'");
 export type AttachHostStatus = typeof AttachHostStatus.infer;
 
 /**

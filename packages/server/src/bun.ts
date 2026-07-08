@@ -53,6 +53,13 @@ export {
 // relay behind the deployment's bearer gate, with the principal stamped
 // server-side. On self-host the bearer is now a per-device grant.
 export { mountAttachGrantsApp } from './attach-relay/grants-app.js';
+// The attach host directory entry (ADR-0115 wave 5-6): the closed presence
+// schema a client discovers a host by (`hostId`, `label`, `status`), and its
+// three-valued liveness. No route, capability, or tool field can land in it.
+export {
+	AttachHostDirectoryEntry,
+	AttachHostStatus,
+} from './attach-relay/host-directory.js';
 export { mountAttachRelayApp } from './attach-relay/mount.js';
 export { ATTACH_RELAY_ROUTE } from './attach-relay/route.js';
 // The single-partition instance's bearer resolver (self-host; ADR-0075): the

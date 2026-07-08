@@ -1,12 +1,13 @@
 /**
- * Attach host directory guard proof (ADR-0115 wave 5): the directory entry
- * carries `hostId`, `label`, and `status` only, and rejects any route-,
- * capability-, action-, or tool-shaped field. This is PR #2277's presence-schema
- * guard re-homed onto the AttachRelay directory, so the directory cannot grow
- * into a capability registry.
+ * Attach host directory guard proof (ADR-0115 wave 5, wave 6 status): the
+ * directory entry carries `hostId`, `label`, and `status` only, and rejects any
+ * route-, capability-, action-, or tool-shaped field. This is PR #2277's
+ * presence-schema guard re-homed onto the AttachRelay directory, so the
+ * directory cannot grow into a capability registry.
  *
  * What this pins:
- * - a well-formed `online`/`offline` entry parses and infers its three fields;
+ * - a well-formed `online`/`offline`/`unreachable` entry parses and infers its
+ *   three fields (wave 6 added `unreachable` as a distinct liveness state);
  * - a bad or missing `status`, and an empty `hostId`, fail closed;
  * - every capability/route/action/tool-shaped extra field fails to parse,
  *   because the schema rejects undeclared keys.
@@ -30,13 +31,15 @@ describe('attach host directory entry: valid shapes', () => {
 		expect(parsed).toEqual(validEntry);
 	});
 
-	test('an offline entry parses', () => {
-		const parsed = AttachHostDirectoryEntry({
-			hostId: 'mac-1',
-			label: "Braden's Mac",
-			status: 'offline',
-		});
-		expect(parsed instanceof type.errors).toBe(false);
+	test('offline and unreachable entries parse as distinct liveness states', () => {
+		for (const status of ['offline', 'unreachable'] as const) {
+			const parsed = AttachHostDirectoryEntry({
+				hostId: 'mac-1',
+				label: "Braden's Mac",
+				status,
+			});
+			expect(parsed instanceof type.errors).toBe(false);
+		}
 	});
 });
 
@@ -49,8 +52,8 @@ describe('attach host directory entry: malformed core fields fail closed', () =>
 	});
 
 	test('a status outside the closed enum fails', () => {
-		// "unreachable" is deferred to wave 6; today it is not a valid status.
-		for (const status of ['busy', 'unreachable', 'live', '']) {
+		// The enum is online | offline | unreachable (wave 6); nothing else parses.
+		for (const status of ['busy', 'live', 'asleep', '']) {
 			expect(
 				AttachHostDirectoryEntry({ ...validEntry, status }) instanceof
 					type.errors,
