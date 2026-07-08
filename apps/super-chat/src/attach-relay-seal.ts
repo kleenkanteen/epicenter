@@ -1,5 +1,5 @@
 /**
- * Super Chat attach sealing (ADR-0115 wave 4): authenticated, content-blind
+ * Super Chat attach sealing (ADR-0115): authenticated, content-blind
  * encryption that rides above the AttachRelay so a Cloud relay forwards only
  * ciphertext and the endpoint envelope. This module owns all of the crypto; the
  * relay coordinator (`packages/server/src/attach-relay/core.ts`) stays
@@ -35,7 +35,7 @@
  *
  * ### Why the PSK is not the device grant
  *
- * The wave-3 device grant authenticates the socket TO the relay: the client
+ * The device grant authenticates the socket TO the relay: the client
  * presents it as `bearer.<grant>` and the mount hashes and compares it, so the
  * relay sees the raw grant transiently on every connect. A secret the relay sees
  * cannot defeat a malicious relay, so the anti-MITM secret must be one the relay
@@ -45,7 +45,7 @@
  * connect," the PSK answers "is my peer the device I paired with." This module
  * takes the PSK as an injected pairing artifact and does not mint it; deriving
  * the grant and the PSK from one pairing secret is an account-layer refinement
- * left to a later wave.
+ * left to a later refinement.
  *
  * ## Nonce discipline
  *

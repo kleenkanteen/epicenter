@@ -1,6 +1,6 @@
 /**
  * A read-only local source the Super Chat host can read on this machine and
- * offer as one verb (ADR-0115 wave 6). The desktop composes a source it owns
+ * offer as one verb (ADR-0115). The desktop composes a source it owns
  * locally (iMessage in the design memo; an injected reader here) into the same
  * {@link ToolCatalog} the agent loop already consumes, so a chat turn can ask a
  * question that reads it and the answer streams back to every attached client.
@@ -25,8 +25,8 @@
  *
  * The reader is injected the way the boxed-app spawn command is (`localBooks`):
  * a test passes a fixture, and a later real host passes a Messages reader,
- * without this module or the host learning which. This keeps the proof a proof:
- * the source-plane behavior is exercised end to end without scraping Messages.app.
+ * without this module or the host learning which, so the source-plane behavior
+ * is exercised end to end without scraping Messages.app.
  */
 
 import type {

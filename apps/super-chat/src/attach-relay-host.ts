@@ -13,9 +13,10 @@
  * The host addresses each attached client endpoint on its own wire frame, never
  * a broadcast: on any host change it sends each client its own snapshot, and on
  * a client's command bytes it drives `handleCommand`. Addressing each client
- * separately is the seam wave 4 seals (the host will seal per device grant, so
- * the relay only ever forwards per-endpoint ciphertext, ADR-0115 clause 5);
- * wave 1 sends the same plaintext snapshot to each, but already per endpoint.
+ * separately is what lets the host seal per endpoint: with sealing configured it
+ * forwards only per-endpoint ciphertext (ADR-0115 clause 5); without it (the
+ * self-host plaintext opt-out) it sends the same snapshot to each, still per
+ * endpoint.
  *
  * The relay reads none of this: the snapshot and the command bytes are the
  * opaque `payload`; only the endpoint envelope (`deviceId`, `attachId`) is the
@@ -47,7 +48,7 @@ export type AttachRelayHostOptions = {
 	/**
 	 * The principal that owns both ends. The authenticated relay ignores this and
 	 * stamps the principal from the device grant (the instance principal on
-	 * self-host, ADR-0115 wave 3), so it is carried only to complete the connect
+	 * self-host, ADR-0115), so it is carried only to complete the connect
 	 * URL's addressing quadruple and can never point the attach at another
 	 * partition.
 	 */
@@ -55,7 +56,7 @@ export type AttachRelayHostOptions = {
 	/** This desktop's stable host id, the endpoint clients attach to. */
 	hostId: string;
 	/**
-	 * This host's device grant for the relay (ADR-0115 wave 3): the operator mints
+	 * This host's device grant for the relay (ADR-0115): the operator mints
 	 * one grant per device, the desktop host's own included, and it rides the
 	 * `bearer.<token>` WebSocket subprotocol, the one channel a browser upgrade has.
 	 * Every attach is authenticated, so this is required; revoking the grant cuts
@@ -69,7 +70,7 @@ export type AttachRelayHostOptions = {
 	 */
 	openSocket?: (url: string, protocols?: string[]) => RelayHostSocket;
 	/**
-	 * Seal every attached client's frames (ADR-0115 wave 4). When present, each
+	 * Seal every attached client's frames (ADR-0115). When present, each
 	 * client endpoint runs an authenticated ECDH handshake before any snapshot is
 	 * sent, so the relay forwards only ciphertext: prompts, tool results, and
 	 * approvals never cross it in the clear. `resolvePsk` returns the pairing

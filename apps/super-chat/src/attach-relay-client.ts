@@ -32,7 +32,7 @@ export type AttachRelayClientOptions = {
 	/** This attach session's id, unique per attach on the device. */
 	attachId: string;
 	/**
-	 * This device's attach grant (ADR-0115 wave 3): the operator pairs the device
+	 * This device's attach grant (ADR-0115): the operator pairs the device
 	 * once and hands over the minted grant (a QR or a paste), and it rides the
 	 * `bearer.<token>` WebSocket subprotocol, the one channel a browser upgrade has.
 	 * Every attach is authenticated, so this is required; a revoked or never-minted
@@ -42,7 +42,7 @@ export type AttachRelayClientOptions = {
 	/** Inject the socket opener in tests; defaults to the global `WebSocket`. */
 	openSocket?: (url: string, protocols?: string[]) => RelayClientSocket;
 	/**
-	 * Seal this attach (ADR-0115 wave 4). When present, the client runs an
+	 * Seal this attach (ADR-0115). When present, the client runs an
 	 * authenticated ECDH handshake with the host before any command or snapshot
 	 * crosses the relay, so the relay forwards only ciphertext. `psk` is this
 	 * pairing's pre-shared key (the QR/paste secret, distinct from the relay
@@ -64,7 +64,11 @@ export type RelayClientSocket = {
 };
 
 export type AttachRelayClient = {
-	/** Resolves once the attach socket has opened. */
+	/**
+	 * Resolves once this client can send: on socket open when unsealed, or after
+	 * the seal handshake completes when sealing is on. A caller that awaits it may
+	 * send at once.
+	 */
 	ready: Promise<void>;
 	/** Send one host command as opaque bytes to the shared session. */
 	send(command: SuperChatClientCommand): void;

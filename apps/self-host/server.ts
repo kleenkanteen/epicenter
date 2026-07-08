@@ -34,7 +34,7 @@
  *
  * Surface: session + rooms + inference + blobs behind the operator bearer, zero
  * billing, no dashboard SPA, no auth surface. Remote Super Chat attach is the one
- * exception (ADR-0115 wave 3): an attach connect carries a revocable per-device
+ * exception (ADR-0115): an attach connect carries a revocable per-device
  * grant instead of the operator token, and the operator token administers that
  * device allowlist through `/attach/grants`. The blob store is a portable
  * content-addressed media store over any S3 (your own MinIO/Garage/R2); it is
@@ -135,15 +135,15 @@ export function startSelfHostServer(): void {
 	const dataDir = resolve(env.DATA_DIR ?? './.data/rooms');
 	mkdirSync(dataDir, { recursive: true });
 	const bunRooms = createBunRooms({ dir: dataDir });
-	// The AttachRelay coordinator for this instance (ADR-0115 wave 2): the
+	// The AttachRelay coordinator for this instance (ADR-0115): the
 	// endpoint-addressed byte forwarder. It shares this process's one `Bun.serve`
 	// with the rooms backend (see the merged websocket handler below).
 	const attachRelay = createAttachRelayBunServer();
-	// The revocable per-device attach allowlist (ADR-0115 wave 3). Attach connects
+	// The revocable per-device attach allowlist (ADR-0115). Attach connects
 	// resolve against this, not the operator token: a device pairs once (the
 	// operator mints it a grant, below), presents that grant on connect, and loses
-	// access the moment the operator revokes it. In-memory for the proof, so a
-	// restart re-pairs devices; persisting grants beside the rooms is a later wave.
+	// access the moment the operator revokes it. In-memory, so a restart re-pairs
+	// devices; persisting grants beside the rooms is deferred.
 	const attachGrants = createDeviceGrantStore();
 
 	const app = createServerApp({
@@ -170,11 +170,11 @@ export function startSelfHostServer(): void {
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
 	mountRoomsApp(app, { resolveBearerPrincipal });
 	// The AttachRelay upgrade (`/attach`), WS-aware and gated by a per-device grant
-	// (ADR-0115 wave 3), not the operator token: a connect resolves against the
+	// (ADR-0115), not the operator token: a connect resolves against the
 	// device-grant store, and the instance principal is stamped server-side so a
 	// query `principalId` can never point an attach at another partition (ADR-0075).
-	// A revoked or never-minted grant fails the handshake closed. Cloud attach stays
-	// unmounted until the wave-4 sealing layer lands.
+	// A revoked or never-minted grant fails the handshake closed. Cloud attach is
+	// not built.
 	mountAttachRelayApp(app, {
 		resolveBearerPrincipal: attachGrants.resolveBearerPrincipal,
 		relay: attachRelay,

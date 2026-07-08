@@ -1,8 +1,7 @@
 import { defineErrors, type InferErrors } from 'wellcrafted/error';
 
 /**
- * Structured error variants for the `/attach/grants` admin surface (ADR-0115
- * wave 3).
+ * Structured error variants for the `/attach/grants` admin surface (ADR-0115).
  *
  * The device-grant admin surface has only two client-visible failures: a
  * malformed mint body, and a revoke of a grant that is not there. Auth failures

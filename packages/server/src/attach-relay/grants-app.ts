@@ -1,5 +1,5 @@
 /**
- * The operator's device-grant admin surface (ADR-0115 wave 3): mint, list, and
+ * The operator's device-grant admin surface (ADR-0115): mint, list, and
  * revoke the per-device attach grants a {@link DeviceGrantStore} holds.
  *
  * This is the "desktop approves a device" surface of ADR-0115 clause 3, realized

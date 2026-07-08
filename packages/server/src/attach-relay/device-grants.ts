@@ -1,15 +1,14 @@
 /**
- * Per-device attach grants (ADR-0115 wave 3): the revocable allowlist that
- * replaces the single shared operator token on the attach surface.
+ * Per-device attach grants (ADR-0115): the revocable allowlist that replaces the
+ * single shared operator token on the attach surface.
  *
  * ## Why this exists
  *
- * Wave 2 authenticated every attach with the one operator bearer
- * (`INSTANCE_TOKEN`): a device that held the token attached, and there was no way
- * to let one device in and another out. Wave 3 splits that single credential into
- * a list of per-device grants the operator can revoke one at a time. A second
- * device pairs once (the operator mints it a grant, handed over out of band as a
- * QR or a paste), the device presents that grant on connect, and revoking the
+ * A single shared operator bearer (`INSTANCE_TOKEN`) cannot let one device in and
+ * another out: every device that holds the token attaches, and there is no way to
+ * cut just one off. Per-device grants split that one credential into a revocable
+ * list. A device pairs once (the operator mints it a grant, handed over out of
+ * band as a QR or a paste), presents that grant on connect, and revoking the
  * grant kills the device's next attach without touching any other device or the
  * sync plane.
  *
@@ -27,9 +26,9 @@
  *
  * The store's {@link DeviceGrantStore.resolveBearerPrincipal} is a plain
  * {@link ResolveBearerPrincipal}: exactly the seam `createEnvTokenResolver`
- * fills, so the attach mount closes over it with no change to `mountAttachRelayApp`
- * (this is the swap the wave-2 JSDoc predicted). It resolves any LIVE grant to the
- * one instance principal (`INSTANCE_PRINCIPAL_ID`), the same principal the operator
+ * fills, so the attach mount closes over it with no change to
+ * `mountAttachRelayApp`. It resolves any LIVE grant to the one instance principal
+ * (`INSTANCE_PRINCIPAL_ID`), the same principal the operator
  * token resolves to, so grants never re-partition: they are a finer credential for
  * the same single partition (ADR-0075), never a second principal model.
  *
@@ -48,22 +47,21 @@
  *
  * - The grant is not bound to the connect's query `deviceId`: the `deviceId` is
  *   recorded at mint time so the operator can see and revoke "my old phone," but
- *   the relay's `deviceId`/`attachId` stay opaque addressing labels (as in wave
- *   2), never trusted identity. Binding a grant to one `deviceId` at connect is a
- *   refinement deferred until a directory (wave 5) or sealing (wave 4) needs a
- *   trusted device identity.
+ *   the relay's `deviceId`/`attachId` stay opaque addressing labels, never trusted
+ *   identity. Binding a grant to one `deviceId` at connect is a refinement
+ *   deferred until a directory or sealing needs a trusted device identity.
  * - Grants are not scoped by role: any live grant can register as a host or attach
  *   as a client. On a single-principal instance every grant is the operator's own
  *   paired device, so role scoping would guard only within-owner behavior; it is
  *   deferred until a real threat earns it.
  * - Revocation kills future connects, not live sockets: closing an in-flight
  *   attach on revoke would make the store hold socket handles or reach into the
- *   coordinator, and the wave-3 target is "dead on the next connect." Live-socket
+ *   coordinator, and the target is "dead on the next connect." Live-socket
  *   eviction is a later refinement.
  * - The store is in-memory: grants do not survive a process restart, so a restart
  *   re-pairs devices. Persisting them (a `bun:sqlite` file beside the rooms, like
- *   the operator token's own durability story) is deferred until the proof asks
- *   for it.
+ *   the operator token's own durability story) is deferred until a real need earns
+ *   it.
  */
 
 import { generateInstanceToken, Principal } from '@epicenter/auth';

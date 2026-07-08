@@ -13,9 +13,11 @@
  * The relay reads the envelope only: which host endpoint, which client
  * endpoint, and the byte length and timing of a frame. It never parses the
  * `payload`: the Super Chat command types, prompt text, tool results, and
- * approval answers are opaque to it (ADR-0115 clause 2). In wave 1 the payload
- * is plaintext JSON; wave 4 seals it, and the relay's blindness to it does not
- * change, because the relay never looked inside.
+ * approval answers are opaque to it (ADR-0115 clause 2). Super Chat seals the
+ * payload in its own adapters, above this transport (ADR-0115 clause 4); the
+ * relay's blindness does not depend on that, because it never looks inside the
+ * payload whether it carries sealed ciphertext or the self-host plaintext
+ * opt-out.
  *
  * @see `attach-relay/core.ts` for the coordinator that consumes these types.
  */
@@ -65,10 +67,9 @@ export type RelayToHostFrame =
 /**
  * A frame the host sends the relay: opaque bytes addressed to exactly one
  * client endpoint. There is no broadcast frame: the host addresses each client
- * endpoint on its own, which is the seam wave 4 needs, where the host seals
- * per device grant and the relay only ever forwards per-endpoint ciphertext
- * (ADR-0115 clause 5). Fan-out to N clients is N of these, never one frame the
- * relay expands.
+ * endpoint on its own, which is what lets Super Chat seal per endpoint so the
+ * relay only ever forwards per-endpoint ciphertext (ADR-0115 clause 5). Fan-out
+ * to N clients is N of these, never one frame the relay expands.
  */
 export type HostToRelayFrame = ClientEndpoint & { payload: string };
 
