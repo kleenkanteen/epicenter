@@ -130,4 +130,9 @@ export const api = {
 		if (!res.ok) throw await toError(res);
 		return res.json();
 	},
+	setTrashed: async (input: { ids: string[]; trashed: boolean }) => {
+		const res = await client.api.messages.trash.$post({ json: input });
+		if (!res.ok) throw await toError(res);
+		return res.json();
+	},
 };

@@ -62,7 +62,41 @@
 		onError: (error: Error) => toast.error(error.message),
 	}));
 
-	// The one write path. Both the toolbar (via `onDispatch`) and the keyboard
+	// Every message write (label modify, trash, untrash) returns the same
+	// per-id outcome; this reports it once. Success is self-evident from the
+	// effect (the row leaves, chips update), so the only transient element that
+	// earns a toast is Undo. `onUndo` is null when there is nothing to offer
+	// (a no-op action, or the undo write itself, which fires silently).
+	type ModifyOutcome = Awaited<ReturnType<typeof api.modify>>;
+	function reportOutcome(
+		outcome: ModifyOutcome,
+		label: string,
+		onUndo: (() => void) | null,
+	): void {
+		const failed = outcome.results.filter((r) => r.error).length;
+		if (outcome.aborted) {
+			toast.error(`${label} aborted: ${outcome.aborted.message}`);
+			return;
+		}
+		if (failed) {
+			toast.error(`${label} failed`, {
+				description: outcome.results.find((r) => r.error)?.error?.message,
+			});
+			return;
+		}
+		if (onUndo) toast.success(label, { action: { label: 'Undo', onClick: onUndo } });
+		// `folded:false` = Gmail accepted it but the mirror row was not patched.
+		// That is a mirror-state fact, so it goes to the chip.
+		if (outcome.results.some((r) => !r.folded)) flashCatchingUp();
+	}
+
+	function invalidateAfterWrite(id: string): void {
+		queryClient.invalidateQueries({ queryKey: ['messages'] });
+		queryClient.invalidateQueries({ queryKey: ['status'] });
+		queryClient.invalidateQueries({ queryKey: ['message', id] });
+	}
+
+	// The label write path. Both the toolbar (via `onDispatch`) and the keyboard
 	// call this; the read-only gate and the undo toast live here alone. `id` is
 	// explicit so Undo targets the original message even after the selection has
 	// moved on.
@@ -75,31 +109,31 @@
 				removeLabels: v.action.removeLabels,
 			}),
 		onSuccess: (outcome, v) => {
-			const failed = outcome.results.filter((r) => r.error).length;
-			if (outcome.aborted) {
-				toast.error(`${v.action.label} aborted: ${outcome.aborted.message}`);
-			} else if (failed) {
-				toast.error(`${v.action.label} failed`, {
-					description: outcome.results.find((r) => r.error)?.error?.message,
-				});
-			} else {
-				// Success is self-evident from the effect (the row leaves, chips
-				// update). The only transient element that earns its place is Undo.
-				if (v.undoable && isReversible(v.action)) {
-					toast.success(v.action.label, {
-						action: {
-							label: 'Undo',
-							onClick: () => runOn(v.id, invert(v.action), false),
-						},
-					});
-				}
-				// `folded:false` = Gmail accepted it but the mirror row was not
-				// patched. That is a mirror-state fact, so it goes to the chip.
-				if (outcome.results.some((r) => !r.folded)) flashCatchingUp();
-			}
-			queryClient.invalidateQueries({ queryKey: ['messages'] });
-			queryClient.invalidateQueries({ queryKey: ['status'] });
-			queryClient.invalidateQueries({ queryKey: ['message', v.id] });
+			reportOutcome(
+				outcome,
+				v.action.label,
+				v.undoable && isReversible(v.action)
+					? () => runOn(v.id, invert(v.action), false)
+					: null,
+			);
+			invalidateAfterWrite(v.id);
+		},
+		onError: (error: Error) => toast.error(error.message),
+	}));
+
+	// Trash is its own Gmail endpoint, not a label delta, so it is a separate
+	// write; `trashed` carries the direction, matching the core. Undo restores
+	// (untrash) by firing the same mutation the other way, and fires silently.
+	const setTrashed = createMutation(() => ({
+		mutationFn: (v: { id: string; trashed: boolean }) =>
+			api.setTrashed({ ids: [v.id], trashed: v.trashed }),
+		onSuccess: (outcome, v) => {
+			reportOutcome(
+				outcome,
+				v.trashed ? 'Moved to trash' : 'Restored from trash',
+				v.trashed ? () => setTrashed.mutate({ id: v.id, trashed: false }) : null,
+			);
+			invalidateAfterWrite(v.id);
 		},
 		onError: (error: Error) => toast.error(error.message),
 	}));
@@ -107,6 +141,10 @@
 	function runOn(id: string, action: TriageAction, undoable: boolean): void {
 		if (readOnly) return;
 		modify.mutate({ id, action, undoable });
+	}
+	function trashSelected(): void {
+		if (readOnly || !selectedId) return;
+		setTrashed.mutate({ id: selectedId, trashed: true });
 	}
 	/** Dispatch a planned action against the current selection. */
 	function dispatch(action: TriageAction): void {
@@ -211,6 +249,11 @@
 		} else if (e.key === 'l') {
 			labelsOpen = true;
 			e.preventDefault();
+		} else if (e.key === '#') {
+			// Gmail's own trash key. Shift-guarded already: `#` is never produced
+			// while typing here because the text-field guard returned above.
+			trashSelected();
+			e.preventDefault();
 		}
 	}
 
@@ -220,6 +263,7 @@
 		{ keys: ['e'], label: 'Archive / move to inbox' },
 		{ keys: ['s'], label: 'Star / unstar' },
 		{ keys: ['⇧', 'U'], label: 'Mark unread / read' },
+		{ keys: ['#'], label: 'Move to trash' },
 		{ keys: ['l'], label: 'Labels menu' },
 		{ keys: ['/'], label: 'Search' },
 		{ keys: ['?'], label: 'This help' },
@@ -261,9 +305,10 @@
 				id={selectedId}
 				{readOnly}
 				labels={labelList}
-				busy={modify.isPending}
+				busy={modify.isPending || setTrashed.isPending}
 				{labelsOpen}
 				onDispatch={dispatch}
+				onTrash={trashSelected}
 				onLabelsOpenChange={(open) => (labelsOpen = open)}
 			/>
 		{/key}
