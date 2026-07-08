@@ -134,20 +134,21 @@ export function createGmailClient(deps: {
 	const backoffMs = (attempt: number) =>
 		Math.min(THROTTLE_WAIT_MS, 1000 * 2 ** attempt);
 
-	async function requestJson<S extends TSchema>(
-		schema: S,
-		operation: string,
-		path: string,
-		{
-			params = {},
-			method = 'GET',
-			body: requestBody,
-		}: {
-			params?: Record<string, string>;
-			method?: 'GET' | 'POST';
-			body?: unknown;
-		} = {},
-	): Promise<Result<Static<S>, GmailClientError>> {
+	async function requestJson<S extends TSchema>({
+		schema,
+		operation,
+		path,
+		params = {},
+		method = 'GET',
+		body: requestBody,
+	}: {
+		schema: S;
+		operation: string;
+		path: string;
+		params?: Record<string, string>;
+		method?: 'GET' | 'POST';
+		body?: unknown;
+	}): Promise<Result<Static<S>, GmailClientError>> {
 		const url = new URL(`${config.apiBase}/gmail/v1/users/me/${path}`);
 		for (const [key, value] of Object.entries(params)) {
 			url.searchParams.set(key, value);
@@ -243,17 +244,15 @@ export function createGmailClient(deps: {
 		): Promise<
 			Result<{ ids: string[]; nextPageToken?: string }, GmailClientError>
 		> {
-			const { data, error } = await requestJson(
-				ListMessageIdsResponseSchema,
-				'messages.list',
-				'messages',
-				{
-					params: {
-						maxResults: String(config.pageSize),
-						...(pageToken ? { pageToken } : {}),
-					},
+			const { data, error } = await requestJson({
+				schema: ListMessageIdsResponseSchema,
+				operation: 'messages.list',
+				path: 'messages',
+				params: {
+					maxResults: String(config.pageSize),
+					...(pageToken ? { pageToken } : {}),
 				},
-			);
+			});
 			if (error) return { data: null, error };
 			return Ok({
 				ids: (data.messages ?? []).map((m) => m.id),
@@ -267,7 +266,10 @@ export function createGmailClient(deps: {
 		async getMessage(
 			id: string,
 		): Promise<Result<GmailMessage, GmailClientError>> {
-			return requestJson(GmailMessageSchema, 'messages.get', `messages/${id}`, {
+			return requestJson({
+				schema: GmailMessageSchema,
+				operation: 'messages.get',
+				path: `messages/${id}`,
 				params: { format: 'full' },
 			});
 		},
@@ -279,12 +281,13 @@ export function createGmailClient(deps: {
 			id: string,
 			body: { addLabelIds: string[]; removeLabelIds: string[] },
 		): Promise<Result<GmailMessage, GmailClientError>> {
-			return requestJson(
-				GmailMessageSchema,
-				'messages.modify',
-				`messages/${id}/modify`,
-				{ method: 'POST', body },
-			);
+			return requestJson({
+				schema: GmailMessageSchema,
+				operation: 'messages.modify',
+				path: `messages/${id}/modify`,
+				method: 'POST',
+				body,
+			});
 		},
 
 		/** Move a message to Trash (`messages.trash`). Adds the `TRASH` label and
@@ -296,12 +299,12 @@ export function createGmailClient(deps: {
 		): Promise<Result<GmailMessage, GmailClientError>> {
 			// No request body: `messages.trash` takes an empty POST, so `requestJson`
 			// sends no Content-Type and Gmail returns the updated message resource.
-			return requestJson(
-				GmailMessageSchema,
-				'messages.trash',
-				`messages/${id}/trash`,
-				{ method: 'POST' },
-			);
+			return requestJson({
+				schema: GmailMessageSchema,
+				operation: 'messages.trash',
+				path: `messages/${id}/trash`,
+				method: 'POST',
+			});
 		},
 
 		/** Restore a message from Trash (`messages.untrash`): the inverse of
@@ -309,12 +312,12 @@ export function createGmailClient(deps: {
 		async untrashMessage(
 			id: string,
 		): Promise<Result<GmailMessage, GmailClientError>> {
-			return requestJson(
-				GmailMessageSchema,
-				'messages.untrash',
-				`messages/${id}/untrash`,
-				{ method: 'POST' },
-			);
+			return requestJson({
+				schema: GmailMessageSchema,
+				operation: 'messages.untrash',
+				path: `messages/${id}/untrash`,
+				method: 'POST',
+			});
 		},
 
 		/** Page through `history.list` from `startHistoryId`: the change feed an
@@ -324,7 +327,10 @@ export function createGmailClient(deps: {
 			startHistoryId: string,
 			pageToken?: string,
 		): Promise<Result<HistoryPage, GmailClientError>> {
-			return requestJson(HistoryPageSchema, 'history.list', 'history', {
+			return requestJson({
+				schema: HistoryPageSchema,
+				operation: 'history.list',
+				path: 'history',
 				params: {
 					startHistoryId,
 					...(pageToken ? { pageToken } : {}),
@@ -335,11 +341,11 @@ export function createGmailClient(deps: {
 		/** List every label in the mailbox (`labels.list`), used to resolve label
 		 * names to ids and to mirror the label set. */
 		async listLabels(): Promise<Result<GmailLabel[], GmailClientError>> {
-			const { data, error } = await requestJson(
-				ListLabelsResponseSchema,
-				'labels.list',
-				'labels',
-			);
+			const { data, error } = await requestJson({
+				schema: ListLabelsResponseSchema,
+				operation: 'labels.list',
+				path: 'labels',
+			});
 			if (error) return { data: null, error };
 			return Ok(data.labels ?? []);
 		},
@@ -348,7 +354,11 @@ export function createGmailClient(deps: {
 		async getProfile(): Promise<
 			Result<{ historyId: string; emailAddress?: string }, GmailClientError>
 		> {
-			return requestJson(ProfileResponseSchema, 'getProfile', 'profile');
+			return requestJson({
+				schema: ProfileResponseSchema,
+				operation: 'getProfile',
+				path: 'profile',
+			});
 		},
 	};
 }
