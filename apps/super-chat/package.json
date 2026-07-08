@@ -17,6 +17,7 @@
 		"@epicenter/chat": "workspace:*",
 		"@epicenter/client": "workspace:*",
 		"@epicenter/honeycrisp": "workspace:*",
+		"@epicenter/server": "workspace:*",
 		"@epicenter/todos": "workspace:*",
 		"@epicenter/ui": "workspace:*",
 		"@epicenter/workspace": "workspace:*",

@@ -25,6 +25,24 @@
 // The pure generator + boot entropy gate (`generateInstanceToken` /
 // `assertStrongToken`) live in `@epicenter/auth`.
 export { createEnvTokenResolver } from './auth/instance-token.js';
+// The AttachRelay (ADR-0115): the transport-agnostic coordinator plus the Bun
+// WebSocket transport a desktop or self-hosted instance serves. Wave 1 is
+// plaintext and loopback and is not mounted on the authenticated server app;
+// wave 2 mounts it on a self-hosted instance, wave 4 seals Cloud attach.
+export type {
+	ClientEndpoint,
+	HostToRelayFrame,
+	RelaySocket,
+	RelayToHostFrame,
+} from './attach-relay/contracts.js';
+export { RELAY_CLOSE } from './attach-relay/contracts.js';
+export { createAttachRelayBunServer } from './attach-relay/bun-server.js';
+export {
+	type ClientConnection,
+	createAttachRelay,
+	type HostConnection,
+} from './attach-relay/core.js';
+export { ATTACH_RELAY_ROUTE } from './attach-relay/route.js';
 // The OAuth resource-boundary error union the bearer resolver emits. Exported
 // here too (it is not a Cloudflare module) so a Bun entry's dev bearer resolver
 // gets it without importing the main barrel, which would drag in the `Room`
