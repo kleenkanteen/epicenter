@@ -30,13 +30,13 @@ export {
 // Super Chat seals its frames above this unchanged relay (`apps/super-chat`), so
 // the relay forwards opaque bytes and never learns a seal exists. The coordinator
 // itself (`createAttachRelay`) stays package-internal, the way the room
-// coordinator does; only its transport and mounts are public. Cloud attach stays
-// unmounted until its wave.
+// coordinator does; only its transport and mounts are public. Cloud attach is
+// not built.
 export {
 	RELAY_CLOSE,
 	type RelayToHostFrame,
 } from './attach-relay/contracts.js';
-// The per-device attach grants (ADR-0115 wave 3): the revocable allowlist that
+// The per-device attach grants (ADR-0115): the revocable allowlist that
 // replaces the shared operator token on the attach surface. The store's
 // `resolveBearerPrincipal` is the seam the attach mount closes over; the operator
 // token administers the allowlist through `mountAttachGrantsApp`.
@@ -45,9 +45,9 @@ export {
 	type DeviceGrant,
 	type DeviceGrantStore,
 } from './attach-relay/device-grants.js';
-// The authenticated self-host mount (ADR-0115 wave 2, wave 3 grants): the attach
-// relay behind the deployment's bearer gate, with the principal stamped
-// server-side. On self-host the bearer is now a per-device grant.
+// The authenticated self-host mount (ADR-0115): the attach relay behind the
+// deployment's bearer gate, with the principal stamped server-side. On self-host
+// the bearer is a per-device grant.
 export { mountAttachGrantsApp } from './attach-relay/grants-app.js';
 // The attach host directory entry (ADR-0115 wave 5-6): the closed presence
 // schema a client discovers a host by (`hostId`, `label`, `status`), and its

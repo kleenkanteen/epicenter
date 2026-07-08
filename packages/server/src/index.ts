@@ -18,7 +18,7 @@
 // and the frame the relay delivers to a host, the shared addressing vocabulary
 // any transport or client speaks. The content-blind coordinator and its Bun
 // transport are package-internal (the Bun transport lives in the `/bun` barrel);
-// a Durable Object backend is a later wave. The relay forwards opaque bytes for
+// a Durable Object backend is not built. The relay forwards opaque bytes for
 // one consumer, Super Chat attach (clause 4); it is never a routing product.
 export {
 	RELAY_CLOSE,

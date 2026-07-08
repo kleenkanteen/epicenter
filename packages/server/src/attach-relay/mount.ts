@@ -1,6 +1,6 @@
 /**
- * Mount the AttachRelay on a Bun deployment behind its bearer gate (ADR-0115
- * wave 2: self-host symmetry). A self-hosted instance serves the relay
+ * Mount the AttachRelay on a Bun deployment behind its bearer gate (ADR-0115:
+ * self-host symmetry). A self-hosted instance serves the relay
  * coordinator reached by URL and operator token (ADR-0075), so a desktop host
  * and a client attach against a self-host and it "just works after sign-in."
  * This is the one way the relay is reached: every attach is authenticated and
@@ -56,10 +56,9 @@ type AttachRelayUpgradeHandler = {
  *
  * On failure it answers a standard OAuth 401. Rooms additionally closes a failed
  * WebSocket upgrade with a readable app close code (4401) so a browser's sync
- * supervisor can park permanently; the attach client has no such supervisor yet
- * and wave 3 replaces this whole auth model with per-device grants, so the
- * readable-close-code refinement is deferred rather than duplicated here. A
- * failed handshake is still fail-closed: the attach cannot proceed.
+ * supervisor can park permanently; the attach client has no such supervisor, so
+ * the readable-close-code refinement is not duplicated here. A failed handshake
+ * is still fail-closed: the attach cannot proceed.
  */
 function requireAttachBearer<E extends Env>(
 	resolveBearerPrincipal: ResolveBearerPrincipal<E>,
