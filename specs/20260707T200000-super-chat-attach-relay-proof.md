@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Date:** 2026-07-07
 - **Relates:** ADR-0115 (the decision this proves), ADR-0080, ADR-0079, ADR-0113, ADR-0086, trust-model.md
-- **Nature:** Execution scaffolding for ADR-0115. Proof waves only; waves 1-4 have landed. When the remaining waves land, harvest any durable refinement into ADR-0115 and delete this spec (two-state lifecycle).
+- **Nature:** Execution scaffolding for ADR-0115. Proof waves only; waves 1-5 have landed. When the remaining waves land, harvest any durable refinement into ADR-0115 and delete this spec (two-state lifecycle).
 
 This spec sequences the smallest proofs that the AttachRelay is endpoint-addressed, content-blind, and not the deleted relay floor. Each wave has one verification target. The waves are ordered so the plane separation and the anti-resurrection guard land before any network or crypto risk.
 
@@ -55,11 +55,15 @@ Durable refinement (harvested into ADR-0115): the PSK is a distinct pairing secr
 
 Deferred, not built here (smallest model): the PSK is an injected pairing artifact, not minted here (deriving both the grant and the PSK from one pairing secret is an account-layer refinement); the Cloudflare-DO relay backend and the actual Cloud attach mount stay unbuilt (this wave proves the sealing gate, it does not open Cloud); "Cloud always seals" as an enforced deployment policy (the adapter supports sealing, forcing it on for the Cloud wiring is that mount's job); and mapping an endpoint to its PSK by the transport `deviceId` is a test convenience, since the relay `deviceId` is still untrusted addressing (a wrong id yields a wrong PSK and a fail-closed stall, never a wrong-peer session).
 
-### Wave 5: directory presence guard (no routes)
+### Wave 5: directory presence guard (no routes) (landed)
 
 The host advertises a directory entry of `hostId`, label, and status only, with no capability, route, or action field. With one consumer, an attachable host is a Super Chat host by definition, so no capability label is needed.
 
-Verification target: assert the presence schema rejects any capability-shaped, route-shaped, or action-shaped field (PR #2277's guard holds), so the directory cannot grow into a capability registry.
+Verification target (met): the presence schema rejects any capability-shaped, route-shaped, action-shaped, or tool-shaped field (PR #2277's guard holds), so the directory cannot grow into a capability registry.
+
+Landed shape: a closed `AttachHostDirectoryEntry` schema (`packages/server/src/attach-relay/host-directory.ts`) of exactly `hostId`, `label`, and `status`, built with arktype's `.onUndeclaredKey('reject')`, so any undeclared key fails to parse and there is nowhere for a route/capability/action/tool field to land. It lives in the account-and-device layer beside the device grants, never inside the relay coordinator (`core.ts` and `contracts.ts` are untouched, so the relay stays directory-blind). `status` is `online | offline` only; "online but unreachable" is deferred to wave 6. This wave is a schema plus its guard tests: no runtime mount consumes the entry yet, so no host publishes one, matching "prefer a tiny schema over a live product directory until a consumer earns it." Proof: `packages/server/src/attach-relay/host-directory.test.ts` (valid online/offline entries parse; missing/out-of-enum `status` and empty/missing `hostId` fail closed; every capability-, route-, action-, and MCP/tool-shaped extra field, and a full capability catalog, are refused).
+
+Deferred, not built here (smallest model): the directory store, the publish/discover wire, and the mount that surfaces entries to a client (a host does not advertise itself anywhere yet); the `unreachable` status (wave 6); binding an entry to a device grant's `deviceId` (the relay's `deviceId` stays opaque addressing, as in waves 2-4).
 
 ### Wave 6: source-plane tool and desktop-offline behavior
 
