@@ -1,24 +1,12 @@
 ---
 name: testing
-description: 'Test file conventions: setup functions, factories, organization, type testing, naming, and pruning low-value tests. Use when: "write tests", "add a test", "fix this test", "delete tests", "prune tests", "audit tests", or modifying *.test.ts files.'
+description: 'Test file conventions: setup functions, factories, Result assertion helpers, organization, type testing, naming, and pruning low-value tests. Use when: "write tests", "add a test", "fix this test", "delete tests", "prune tests", "audit tests", or modifying *.test.ts files.'
 metadata:
   author: epicenter
   version: '2.0'
 ---
 
 # Test File Conventions
-
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Write or refactor `*.test.ts` files in this codebase.
-- Structure tests with `setup()` functions instead of mutable `beforeEach` setup.
-- Split large test files into focused behavior/type/scenario files.
-- Enforce behavior-based test naming and clear failure intent.
-- Add or review negative type tests using `@ts-expect-error`.
-- Audit a test file for assertions that cannot fail or fakes that don't earn their lines.
-- Prune tests that cannot name a real regression they would catch.
 
 ## References
 
@@ -39,6 +27,27 @@ External reading:
 - Matt Pocock, [`shoehorn`](https://github.com/total-typescript/shoehorn) : partial mocks for test ergonomics
 
 > **Related Skills**: See `services-layer` for the service patterns being tested. See `typescript` for type testing conventions.
+
+## Result Assertions
+
+When a test asserts a wellcrafted `Result`, use `expectOk` and `expectErr`
+from `wellcrafted/testing` instead of hand-rolled error checks.
+
+```ts
+import { expectErr, expectOk } from 'wellcrafted/testing';
+
+const data = expectOk(await service.doThing());
+expect(data.id).toBe('1');
+
+const error = expectErr(await service.doThing({ invalid: true }));
+expect(error.name).toBe('InvalidInput');
+```
+
+Avoid local helper clones, `expect(error).toBeNull()` success checks, and
+`if (error) throw ...` unwrapping when the value is a wellcrafted `Result`.
+
+This rule does not apply to plain response bodies, UI snapshots, or other
+objects that merely have an `error` property.
 
 ## Tests vs. Benchmarks
 

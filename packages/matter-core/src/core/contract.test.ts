@@ -1,19 +1,20 @@
 import { describe, expect, test } from 'bun:test';
+import { expectOk } from 'wellcrafted/testing';
 import { parseContract, validateContract } from './contract';
 
 describe('validateContract (the matter.json gate)', () => {
 	test('accepts the palette subset and derives kinds in declared order', () => {
-		const { data, error } = validateContract({
-			fields: {
-				title: { type: 'string' },
-				status: { type: 'string', enum: ['draft', 'published'] },
-				labels: { type: 'array', items: { enum: ['red', 'green'] } },
-				tags: { type: 'array', items: { type: 'string' } },
-				url: { type: 'string', format: 'uri' },
-			},
-		});
-		expect(error).toBeNull();
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: {
+					title: { type: 'string' },
+					status: { type: 'string', enum: ['draft', 'published'] },
+					labels: { type: 'array', items: { enum: ['red', 'green'] } },
+					tags: { type: 'array', items: { type: 'string' } },
+					url: { type: 'string', format: 'uri' },
+				},
+			}),
+		);
 		expect(data.fields.map((c) => [c.name, c.kind])).toEqual([
 			['title', 'string'],
 			['status', 'select'],
@@ -33,15 +34,15 @@ describe('validateContract (the matter.json gate)', () => {
 	});
 
 	test('top-level optional marks typed fields as not required', () => {
-		const { data, error } = validateContract({
-			fields: {
-				title: { type: 'string' },
-				publishDate: { type: 'string', format: 'date' },
-			},
-			optional: ['publishDate'],
-		});
-		expect(error).toBeNull();
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: {
+					title: { type: 'string' },
+					publishDate: { type: 'string', format: 'date' },
+				},
+				optional: ['publishDate'],
+			}),
+		);
 		expect(data.fields.map((c) => [c.name, c.required])).toEqual([
 			['title', true],
 			['publishDate', false],
@@ -59,43 +60,47 @@ describe('validateContract (the matter.json gate)', () => {
 	});
 
 	test('searchable defaults to body plus every TEXT-storage field', () => {
-		const { data, error } = validateContract({
-			fields: {
-				title: { type: 'string' },
-				count: { type: 'integer' },
-				live: { type: 'boolean' },
-				tags: { type: 'array', items: { type: 'string' } },
-			},
-		});
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: {
+					title: { type: 'string' },
+					count: { type: 'integer' },
+					live: { type: 'boolean' },
+					tags: { type: 'array', items: { type: 'string' } },
+				},
+			}),
+		);
 		// body + the TEXT fields (title, tags); the integer and boolean fields are not full-text.
 		expect(data.searchable).toEqual(['body', 'title', 'tags']);
 	});
 
 	test('top-level searchable overrides the default and may drop body', () => {
-		const { data, error } = validateContract({
-			fields: { title: { type: 'string' }, note: { type: 'string' } },
-			searchable: ['note'],
-		});
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: { title: { type: 'string' }, note: { type: 'string' } },
+				searchable: ['note'],
+			}),
+		);
 		expect(data.searchable).toEqual(['note']);
 	});
 
 	test('searchable drops names that are not real columns', () => {
-		const { data, error } = validateContract({
-			fields: { title: { type: 'string' } },
-			searchable: ['body', 'title', 'nope'],
-		});
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: { title: { type: 'string' } },
+				searchable: ['body', 'title', 'nope'],
+			}),
+		);
 		expect(data.searchable).toEqual(['body', 'title']);
 	});
 
 	test('an empty searchable means no full-text index', () => {
-		const { data, error } = validateContract({
-			fields: { title: { type: 'string' } },
-			searchable: [],
-		});
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: { title: { type: 'string' } },
+				searchable: [],
+			}),
+		);
 		expect(data.searchable).toEqual([]);
 	});
 
@@ -109,15 +114,15 @@ describe('validateContract (the matter.json gate)', () => {
 	});
 
 	test('reports optional entries that do not match typed fields', () => {
-		const { data, error } = validateContract({
-			fields: {
-				title: { type: 'string' },
-				meta: { type: 'object' },
-			},
-			optional: ['title', 'meta', 'missing'],
-		});
-		expect(error).toBeNull();
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: {
+					title: { type: 'string' },
+					meta: { type: 'object' },
+				},
+				optional: ['title', 'meta', 'missing'],
+			}),
+		);
 		expect(data.fields.map((c) => [c.name, c.required])).toEqual([
 			['title', false],
 		]);
@@ -126,18 +131,18 @@ describe('validateContract (the matter.json gate)', () => {
 	});
 
 	test('views ride on a typed contract; malformed entries surface as viewErrors', () => {
-		const { data, error } = validateContract({
-			fields: {
-				title: { type: 'string' },
-				status: { type: 'string', enum: ['draft', 'published'] },
-			},
-			views: [
-				{ id: 'pipeline', type: 'board', groupBy: 'status' },
-				{ id: 'broken', type: 'board', groupBy: 'nope' },
-			],
-		});
-		expect(error).toBeNull();
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: {
+					title: { type: 'string' },
+					status: { type: 'string', enum: ['draft', 'published'] },
+				},
+				views: [
+					{ id: 'pipeline', type: 'board', groupBy: 'status' },
+					{ id: 'broken', type: 'board', groupBy: 'nope' },
+				],
+			}),
+		);
 		expect(data.views).toEqual([
 			{ id: 'pipeline', type: 'board', groupBy: 'status' },
 		]);
@@ -150,10 +155,11 @@ describe('validateContract (the matter.json gate)', () => {
 	});
 
 	test('no views key means an empty views list, not a diagnostic', () => {
-		const { data, error } = validateContract({
-			fields: { title: { type: 'string' } },
-		});
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: { title: { type: 'string' } },
+			}),
+		);
 		expect(data.views).toEqual([]);
 		expect(data.viewErrors).toEqual([]);
 	});
@@ -167,9 +173,7 @@ describe('validateContract (the matter.json gate)', () => {
 	// No `fields` map is no longer a contract error: it is the untyped marker, classified by
 	// `parseContract`. As a typed contract a fields-less object is simply zero declared fields.
 	test('an object with no fields map is a zero-field contract, not an error', () => {
-		const { data, error } = validateContract({ views: {} });
-		expect(error).toBeNull();
-		if (error) throw new Error(error.message);
+		const data = expectOk(validateContract({ views: {} }));
 		expect(data.fields).toEqual([]);
 		expect(data.untyped).toEqual([]);
 	});
@@ -177,26 +181,26 @@ describe('validateContract (the matter.json gate)', () => {
 	// Per-field degrade: a field outside the palette does not error the contract. It is
 	// recorded in `untyped` (shown raw), and the rest of the folder stays typed.
 	test('a non-object field is untyped, not a contract error', () => {
-		const { data, error } = validateContract({
-			fields: { title: { type: 'string' }, bad: 'string' },
-		});
-		expect(error).toBeNull();
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: { title: { type: 'string' }, bad: 'string' },
+			}),
+		);
 		expect(data.fields.map((c) => c.name)).toEqual(['title']);
 		expect(data.untyped).toEqual(['bad']);
 		expect(data.unmatchedOptional).toEqual([]);
 	});
 
 	test('a shape outside the palette is untyped; the rest stays typed', () => {
-		const { data, error } = validateContract({
-			fields: {
-				title: { type: 'string' },
-				meta: { type: 'object' }, // not a palette shape
-				note: { anyOf: [{ type: 'string' }, { type: 'null' }] }, // nullable: deleted axis
-			},
-		});
-		expect(error).toBeNull();
-		if (error) throw new Error(error.message);
+		const data = expectOk(
+			validateContract({
+				fields: {
+					title: { type: 'string' },
+					meta: { type: 'object' }, // not a palette shape
+					note: { anyOf: [{ type: 'string' }, { type: 'null' }] }, // nullable: deleted axis
+				},
+			}),
+		);
 		expect(data.fields.map((c) => c.name)).toEqual(['title']);
 		expect(data.untyped).toEqual(['meta', 'note']);
 		expect(data.unmatchedOptional).toEqual([]);

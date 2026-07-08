@@ -23,6 +23,7 @@ import {
 	type ViewSpec,
 	validateContract,
 } from '@epicenter/matter-core';
+import { expectOk } from 'wellcrafted/testing';
 import {
 	type BoardCard,
 	boardColumnsFor,
@@ -31,15 +32,15 @@ import {
 } from './board';
 
 function contract(): Contract {
-	const { data, error } = validateContract({
-		fields: {
-			title: { type: 'string' },
-			status: { type: 'string', enum: ['todo', 'doing', 'done'] },
-			platform: { type: 'string' },
-		},
-	});
-	if (error) throw new Error(error.message);
-	return data;
+	return expectOk(
+		validateContract({
+			fields: {
+				title: { type: 'string' },
+				status: { type: 'string', enum: ['todo', 'doing', 'done'] },
+				platform: { type: 'string' },
+			},
+		}),
+	);
 }
 
 function row(fileName: string, frontmatter: Record<string, unknown>): Row {
@@ -130,16 +131,17 @@ test('boardColumnsFor orders cards within a column by orderedStems', () => {
 test('boardColumnsFor defaults to up to three non-group fields when card is omitted', () => {
 	// A wider contract than the shared one: five fields so the fallback has to both
 	// drop the groupBy field AND cap at three, proving the slice is not a no-op.
-	const { data: model, error } = validateContract({
-		fields: {
-			title: { type: 'string' },
-			status: { type: 'string', enum: ['todo', 'doing', 'done'] },
-			platform: { type: 'string' },
-			owner: { type: 'string' },
-			priority: { type: 'string' },
-		},
-	});
-	if (error) throw new Error(error.message);
+	const model = expectOk(
+		validateContract({
+			fields: {
+				title: { type: 'string' },
+				status: { type: 'string', enum: ['todo', 'doing', 'done'] },
+				platform: { type: 'string' },
+				owner: { type: 'string' },
+				priority: { type: 'string' },
+			},
+		}),
+	);
 
 	const conformance = classifyRows(model.fields, [
 		row('alpha.md', {
