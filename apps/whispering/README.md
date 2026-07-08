@@ -638,12 +638,13 @@ The architecture achieves extensive code reuse through build-time platform detec
 
 > Want to contribute? See [CONTRIBUTING.md](../../CONTRIBUTING.md) for fork and PR instructions.
 
-To run the desktop app and website:
+To run the desktop app with the local Epicenter API:
 
 ```bash
-cd apps/whispering
-bun tauri dev
+bun dev:whispering
 ```
+
+Use `bun dev:whispering:ui` for the browser UI without the API or Tauri shell.
 
 ### Build The Executable Yourself
 

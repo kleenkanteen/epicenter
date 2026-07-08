@@ -64,8 +64,9 @@ vocab.browser.ts            # openVocabBrowser runtime wiring
 ## Scripts
 
 ```sh
-bun run dev        # Start dev server
-bun run build      # Production build
-bun run preview    # Preview production build
-bun run typecheck  # svelte-check
+bun dev:vocab      # Start the local API and Vocab UI from the repo root
+bun dev:vocab:ui   # Start only the Vocab UI
+bun run build      # Production build, from apps/vocab
+bun run preview    # Preview production build, from apps/vocab
+bun run typecheck  # svelte-check, from apps/vocab
 ```

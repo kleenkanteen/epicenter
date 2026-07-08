@@ -7,11 +7,11 @@
 	import { Input } from '@epicenter/ui/input';
 	import { Link } from '@epicenter/ui/link';
 	import * as Select from '@epicenter/ui/select';
+	import { Spinner } from '@epicenter/ui/spinner';
 	import { Textarea } from '@epicenter/ui/textarea';
 	import { cn } from '@epicenter/ui/utils';
 	import { createMutation } from '@tanstack/svelte-query';
-	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-	import { mutationOptions } from 'wellcrafted/query';
+	import { resultMutationOptions } from 'wellcrafted/query';
 	import CopyablePre from '$lib/components/copyable/CopyablePre.svelte';
 	import {
 		SUPPORTED_LANGUAGES_OPTIONS,
@@ -125,7 +125,7 @@
 	const isSignedIn = $derived(auth.state.status === 'signed-in');
 	const accountLocked = $derived(recordingActive.current);
 	const startSignIn = createMutation(() =>
-		mutationOptions({
+		resultMutationOptions({
 			mutationKey: ['transcription-setup', 'startSignIn'],
 			mutationFn: () => auth.startSignIn(),
 		}),
@@ -212,7 +212,7 @@
 				disabled={startSignIn.isPending || accountLocked}
 			>
 				{#if startSignIn.isPending}
-					<LoaderCircle class="size-4 animate-spin" />
+					<Spinner class="size-4" />
 					Signing in...
 				{:else if auth.state.status === 'reauth-required'}
 					Reconnect

@@ -23,6 +23,10 @@ Gmail, not a local-only table.
 - `messages.body_text` is decoded at ingest from `text/plain` MIME parts, with
   stripped `text/html` as a fallback. That makes SQL and MCP useful for body
   questions without adding FTS yet.
+- The app detail pane can render formatted email from the raw Gmail payload, but
+  only behind the SPA sanitizer boundary. DOMPurify strips executable markup and
+  remote assets before the single `{@html}` sink renders the body on a light
+  email canvas; plain text stays available as the fallback view.
 
 ## Commands
 
@@ -32,17 +36,18 @@ token records the concrete client id that minted it, and later refreshes refuse
 if the configured client id changes:
 
 ```sh
-infisical run --path=/apps/local-mail -- \
-  bun run src/bin.ts connect
+bun run src/bin.ts connect
 ```
 
-The app-local Infisical config should point at your personal secrets project,
-with those two secrets under `prod /apps/local-mail`. This is per-person
-bring-your-own provider configuration, not Epicenter-hosted infrastructure. Copy
-`.infisical.json.example` to `.infisical.json` and keep the real file local.
-That file is ignored because each operator has a different personal Infisical
-project. The committed `apps/api` and `ops` configs point at Epicenter's hosted
-project instead. See [`.env.example`](.env.example) for the canonical names.
+The client pair is machine-level bring-your-own configuration, not Epicenter
+infrastructure. Provide it however you keep local secrets for the first connect:
+an export, a local `.env`, or a secrets manager such as
+`infisical run --path=/apps/local-mail -- bun run src/bin.ts connect`. On the
+first successful connect or refresh, Local Mail caches the pair to a 0600
+`<data-dir>/provider.json` sibling to `credentials.json`. Every later run and
+every other git worktree on this machine reads it from there, so no per-worktree
+secrets config is needed. See [`.env.example`](.env.example) for the canonical
+names.
 
 Local Mail requests `gmail.modify` so write-through label changes can round-trip
 through Gmail. Although Google grants send at the same OAuth layer, Local Mail
@@ -55,18 +60,15 @@ here rather than on the first sync, and the account email comes from the
 Gmail profile instead of being typed:
 
 ```sh
-infisical run --path=/apps/local-mail -- \
-  bun run src/bin.ts seed-token <refresh-token>
+bun run src/bin.ts seed-token <refresh-token>
 ```
 
 Build or refresh the mirror:
 
 ```sh
-infisical run --path=/apps/local-mail -- \
-  bun run src/bin.ts sync --full
+bun run src/bin.ts sync --full
 
-infisical run --path=/apps/local-mail -- \
-  bun run src/bin.ts sync --watch
+bun run src/bin.ts sync --watch
 ```
 
 Check connection and mirror state:
@@ -148,8 +150,9 @@ Tools:
 ## Config
 
 - `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET`: the BYO Google OAuth Desktop client
-  keys. The resolver reads them lazily at connect/refresh; missing credentials
-  fail loudly naming the exact variables.
+  keys. The resolver reads them at connect/refresh from the environment first,
+  then `<data-dir>/provider.json`, which is cached as `0600` on first connect.
+  Missing credentials fail loudly naming the exact variables.
 - `LOCAL_MAIL_ACCOUNT`: optional account override for `sync`, `query`, and
   `mcp`. Required only when more than one account is connected.
 - `LOCAL_MAIL_DIR`: data directory override.
@@ -178,9 +181,9 @@ stdio subprocess for the agent-facing protocol surface.
 
 ## Not built yet
 
-- HTML mail-body rendering. The detail pane shows the pre-extracted plain-text
-  body; rich HTML rendering (the sanitizer + sandboxed srcdoc + CSP + show-images
-  proxy) is deferred, which is why the SPA has no mail-body iframe yet.
+- Remote image loading and Gmail-perfect HTML fidelity. Formatted bodies render
+  as sanitized inline HTML on a light canvas; remote assets stay stripped, and
+  there is no show-images proxy yet.
 - Compile-embed distribution (`bun build --compile`) and the Tauri wrapper. `app`
   serves `ui/dist` from disk; the route table is the seam the distribution wave
   swaps for embedded assets later.

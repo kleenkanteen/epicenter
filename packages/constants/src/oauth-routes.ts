@@ -6,10 +6,14 @@
  * authorization-server endpoints Epicenter clients (CLI, Tauri, hosted
  * UI) hit during OAuth flows.
  *
- * URL values mirror Better Auth's default issuer path layout. Changing
- * them requires a coordinated Better Auth configuration change; this
- * module is the single place every caller imports from so the change
- * lands once.
+ * The `token`, `authorize`, and `revoke` values mirror Better Auth's default
+ * issuer path layout under `/auth/*`; changing them requires a coordinated
+ * Better Auth configuration change. `cliCallback` is the exception: it is a
+ * page Epicenter owns (the CLI's OOB redirect target), not a Better Auth
+ * endpoint, so it lives at root (`/cli-callback`) alongside the other hosted
+ * auth UI pages (`/sign-in`, `/consent`) instead of inside Better Auth's
+ * reserved `/auth/*` catch-all namespace. This module is the single place
+ * every caller imports from so the change lands once.
  *
  * @example
  * ```ts
@@ -23,8 +27,8 @@ const stripTrailing = (s: string) => s.replace(/\/+$/, '');
 
 export const OAUTH_ROUTES = {
 	cliCallback: {
-		pattern: '/auth/cli-callback',
-		url: (baseURL: string) => `${stripTrailing(baseURL)}/auth/cli-callback`,
+		pattern: '/cli-callback',
+		url: (baseURL: string) => `${stripTrailing(baseURL)}/cli-callback`,
 	},
 	token: {
 		pattern: '/auth/oauth2/token',

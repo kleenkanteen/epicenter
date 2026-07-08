@@ -223,15 +223,25 @@ cd epicenter
 bun install
 ```
 
-Root `bun dev` starts the current default local workflow: the API and Tab Manager.
+Every app starts from the repo root. `bun dev:<app>` runs every process the app needs; for apps that talk to the hosted API, that includes the API worker on `localhost:8787`. `bun dev:<app>:ui` runs the app's frontend alone when that split exists, and `bun dev:api` runs just the backend. Bare `bun dev` is the current default workflow (API and Tab Manager), and `bun run` with no arguments lists every target.
 
-```bash
-bun dev
-bun run dev:api
-bun run dev:tab-manager:ui
-```
+| Command | Starts | App port |
+| --- | --- | --- |
+| `bun dev:api` | Hosted API worker alone | 8787 |
+| `bun dev:api-dashboard` | API + dashboard UI | 5178 |
+| `bun dev:honeycrisp` | API + Honeycrisp desktop | 5175 |
+| `bun dev:opensidian` | API + Opensidian | 5176 |
+| `bun dev:tab-manager` | API + Tab Manager extension | extension build |
+| `bun dev:vocab` | API + Vocab | 8888 |
+| `bun dev:whispering` | API + Whispering desktop | 1420 |
+| `bun dev:landing` | Landing site, standalone | 4321 |
+| `bun dev:matter` | Matter desktop, standalone | 5180 |
+| `bun dev:posthog-reverse-proxy` | PostHog reverse proxy Worker | wrangler default |
+| `bun dev:self-host` | Self-host server (needs `INSTANCE_TOKEN`) | 8787 |
+| `bun dev:skills` | Skills editor, standalone | vite default |
+| `bun dev:todos` | Todos, standalone | 5177 |
 
-See [apps/api/README.md](apps/api/README.md) for local Postgres and Infisical setup. Rust is needed for Tauri surfaces such as Whispering and Matter.
+The API needs local Postgres and Infisical; see [apps/api/README.md](apps/api/README.md). Rust is needed for the Tauri apps (Whispering, Matter, Honeycrisp). Local Books, Local Mail, and Super Chat run their own multi-process dev flows; their READMEs document them.
 
 Useful checks:
 

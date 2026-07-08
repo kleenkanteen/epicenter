@@ -44,7 +44,7 @@
 	<Item.Button
 		size="sm"
 		class={cn(
-			'gap-2 rounded px-2 py-1.5 text-sm',
+			'w-full justify-start text-left',
 			selectedLabel === id
 				? 'bg-accent font-medium text-accent-foreground'
 				: 'text-foreground/80 hover:bg-accent/50',
@@ -58,6 +58,12 @@
 			<span class="truncate">{label}</span>
 		</Item.Content>
 	</Item.Button>
+{/snippet}
+
+{#snippet groupLabel(text: string)}
+	<p class="px-2 pb-1 pt-4 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+		{text}
+	</p>
 {/snippet}
 
 <nav class="flex w-56 shrink-0 flex-col border-r border-border bg-background">
@@ -84,9 +90,7 @@
 		</ul>
 
 		{#if categories.length}
-			<p class="px-2 pb-1 pt-4 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
-				Categories
-			</p>
+			{@render groupLabel('Categories')}
 			<ul class="space-y-0.5">
 				{#each categories as label (label.id)}
 					<li>
@@ -101,9 +105,7 @@
 		{/if}
 
 		{#if userLabels.length}
-			<p class="px-2 pb-1 pt-4 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
-				Labels
-			</p>
+			{@render groupLabel('Labels')}
 			<ul class="space-y-0.5">
 				{#each userLabels as label (label.id)}
 					<li>

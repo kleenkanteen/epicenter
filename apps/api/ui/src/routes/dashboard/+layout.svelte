@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { Button } from '@epicenter/ui/button';
 	import * as Card from '@epicenter/ui/card';
-	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+	import { Spinner } from '@epicenter/ui/spinner';
 	import { createMutation } from '@tanstack/svelte-query';
-	import { mutationOptions } from 'wellcrafted/query';
+	import { resultMutationOptions } from 'wellcrafted/query';
 	import UserMenu from '$lib/components/UserMenu.svelte';
 	import { auth } from '$lib/platform/auth';
 
 	let { children } = $props();
 
 	const startSignIn = createMutation(() =>
-		mutationOptions({
+		resultMutationOptions({
 			mutationKey: ['auth', 'startSignIn'],
 			mutationFn: () => auth.startSignIn(),
 		}),
@@ -46,7 +46,7 @@
 					disabled={startSignIn.isPending}
 				>
 					{#if startSignIn.isPending}
-						<LoaderCircle class="size-4 animate-spin" />
+						<Spinner class="size-4" />
 						Signing in…
 					{:else}
 						Sign in with Epicenter

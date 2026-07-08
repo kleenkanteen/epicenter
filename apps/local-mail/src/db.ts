@@ -1,8 +1,8 @@
 import { Database } from 'bun:sqlite';
-import { Buffer } from 'node:buffer';
 import { chmodSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { type GmailLabel, type GmailMessage, headerValue } from './schema.ts';
+import { bodyHtml, bodyText, headerValue } from './message-fields.ts';
+import type { GmailLabel, GmailMessage } from './schema.ts';
 
 /**
  * The local mirror: one SQLite file per connected Gmail account. Ports
@@ -55,13 +55,17 @@ export type MessageSummary = {
 	labelIds: string[];
 };
 
-/** A single message opened in the detail pane: a summary plus its extracted
- * plain-text body and the `To` header. Bodies are stored pre-extracted as
- * text (`db.ts`'s `bodyText`), so the read surface never ships raw HTML. */
+/** A single message opened in the detail pane: a summary, its `To`/`Date`
+ * headers, and both body projections. `bodyText` is the stored searchable
+ * plain text; `unsafeBodyHtml` is the raw `text/html` derived from `raw` at
+ * read time (never stored, so no schema change), unsanitized on purpose. The
+ * name carries the warning across the wire: the only caller that may render it
+ * is the sanitizer boundary in the SPA, which runs DOMPurify first. */
 export type MessageDetail = MessageSummary & {
 	to: string | null;
 	date: string | null;
 	bodyText: string | null;
+	unsafeBodyHtml: string | null;
 };
 
 /** A mirrored Gmail label, for the label-filter rail and the add/remove menu. */
@@ -84,65 +88,6 @@ function parseLabelIds(json: string | null): string[] {
 }
 
 export type MailDb = ReturnType<typeof openMailDb>;
-
-type GmailMessagePart = {
-	mimeType?: string;
-	body?: { data?: string };
-	parts?: GmailMessagePart[];
-};
-
-function decodeBase64Url(data: string): string | null {
-	try {
-		const normalized = data
-			.replace(/-/g, '+')
-			.replace(/_/g, '/')
-			.padEnd(Math.ceil(data.length / 4) * 4, '=');
-		return Buffer.from(normalized, 'base64').toString('utf8');
-	} catch {
-		return null;
-	}
-}
-
-function flattenParts(part: GmailMessagePart | undefined): GmailMessagePart[] {
-	if (!part) return [];
-	return [part, ...(part.parts ?? []).flatMap((child) => flattenParts(child))];
-}
-
-function stripHtmlTags(html: string): string {
-	return html
-		.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
-		.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
-		.replace(/<[^>]+>/g, ' ')
-		.replace(/&nbsp;/gi, ' ')
-		.replace(/&amp;/gi, '&')
-		.replace(/&lt;/gi, '<')
-		.replace(/&gt;/gi, '>')
-		.replace(/&quot;/gi, '"')
-		.replace(/&#39;/g, "'")
-		.replace(/\s+/g, ' ')
-		.trim();
-}
-
-function bodyText(message: GmailMessage): string | null {
-	try {
-		// `payload.parts` is the unvalidated Gmail wire boundary until TypeBox exposes a recursive schema here.
-		const parts = flattenParts(message.payload as GmailMessagePart | undefined);
-		const plain = parts.find(
-			(part) =>
-				part.mimeType?.toLowerCase() === 'text/plain' && part.body?.data,
-		);
-		if (plain?.body?.data) return decodeBase64Url(plain.body.data);
-
-		const html = parts.find(
-			(part) => part.mimeType?.toLowerCase() === 'text/html' && part.body?.data,
-		);
-		if (!html?.body?.data) return null;
-		const decoded = decodeBase64Url(html.body.data);
-		return decoded === null ? null : stripHtmlTags(decoded);
-	} catch {
-		return null;
-	}
-}
 
 function secureDir(path: string): void {
 	mkdirSync(path, { recursive: true, mode: 0o700 });
@@ -434,6 +379,15 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 				);
 				params.$labelId = labelId;
 			}
+			// Mirror Gmail's own rule: Trash is hidden from every view (Inbox, All
+			// mail, any label) except Trash itself. A trashed row is folded, not
+			// deleted, so this read-model filter is what makes it leave the current
+			// view the instant `messages.trash` returns, before sync sweeps it.
+			if (labelId !== 'TRASH') {
+				where.push(
+					`NOT EXISTS (SELECT 1 FROM json_each(messages.label_ids) WHERE value = 'TRASH')`,
+				);
+			}
 			if (search) {
 				where.push(`(subject LIKE $q OR sender LIKE $q OR body_text LIKE $q)`);
 				params.$q = `%${search}%`;
@@ -494,10 +448,16 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 			if (!row) return null;
 			let to: string | null = null;
 			let date: string | null = null;
+			// Derived at read time from `raw`, never stored: an HTML body column
+			// would only mirror `body_text` for symmetry's sake and force a schema
+			// bump. `bodyHtml` is defensive on its own, but the parse shares this
+			// try so a corrupt `raw` yields nulls rather than throwing.
+			let unsafeBodyHtml: string | null = null;
 			try {
 				const message = JSON.parse(row.raw) as GmailMessage;
 				to = headerValue(message, 'To');
 				date = headerValue(message, 'Date');
+				unsafeBodyHtml = bodyHtml(message);
 			} catch {
 				// Fall back to nulls; the summary fields already carry the essentials.
 			}
@@ -512,6 +472,7 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 				to,
 				date,
 				bodyText: row.body_text,
+				unsafeBodyHtml,
 			};
 		},
 

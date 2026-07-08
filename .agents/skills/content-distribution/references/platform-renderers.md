@@ -164,10 +164,10 @@ Optimize for:
 Best default:
 
 ```txt
-publications/*.md record
+variants/*.md placements[]
   + destination wrappers
   + attempts
   + performance notes
 ```
 
-`publications/` should own distribution state, not the source idea. `pages/` owns finished writing. `publications/` owns where it went, what wrapper was used, and what happened next.
+A variant's `placements[]` should own distribution state, not the source idea. `pages/` owns finished writing. The variant owns the shaped artifact; its placements own where it went, what wrapper was used, and what happened next.

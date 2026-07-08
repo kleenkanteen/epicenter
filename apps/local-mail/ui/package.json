@@ -20,6 +20,8 @@
 		"@sveltejs/vite-plugin-svelte": "catalog:",
 		"@tailwindcss/vite": "catalog:",
 		"@types/bun": "catalog:",
+		"@types/jsdom": "^21.1.7",
+		"jsdom": "^26.1.0",
 		"mode-watcher": "catalog:",
 		"svelte": "catalog:",
 		"svelte-check": "catalog:",
@@ -31,6 +33,7 @@
 	"dependencies": {
 		"@epicenter/constants": "workspace:*",
 		"@tanstack/svelte-query": "catalog:",
+		"dompurify": "^3.4.10",
 		"hono": "catalog:"
 	},
 	"license": "AGPL-3.0-or-later"

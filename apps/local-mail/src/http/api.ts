@@ -4,7 +4,10 @@ import { sValidator } from '@hono/standard-validator';
 import { type } from 'arktype';
 import { Hono } from 'hono';
 import type { MailDb } from '../db.ts';
-import { resolveAndModifyMessageLabels } from '../modify.ts';
+import {
+	resolveAndModifyMessageLabels,
+	setMessagesTrashed,
+} from '../modify.ts';
 import type { LocalMailRuntime } from '../runtime.ts';
 import { readMailStatus } from '../status.ts';
 import { type SyncDeps, syncMailbox } from '../sync.ts';
@@ -23,8 +26,12 @@ import { ApiError } from './api-errors.ts';
  * returns `c.json(...)`, so the client's response types are inferred from the
  * exact shapes the server returns: the wire contract cannot silently drift.
  *
- * Writes go through the same core the CLI and MCP use
- * (`resolveAndModifyMessageLabels`); there are no per-intent routes.
+ * Label writes go through the same core the CLI and MCP use
+ * (`resolveAndModifyMessageLabels`); the archive/read/label intents desugar into
+ * one `/api/messages/modify` route, not per-intent routes. Trash is separate
+ * because Gmail models trash/untrash as their own endpoints, not a label delta,
+ * but it stays one route: `/api/messages/trash` carries the direction as a
+ * `trashed` boolean, the same shape the core (`setMessagesTrashed`) already owns.
  */
 
 /** Bound online guessing by another local user against the exchange endpoint. */
@@ -49,6 +56,11 @@ const ModifyBody = type({
 	'addLabels?': 'string[]',
 	'removeLabels?': 'string[]',
 });
+
+/** `POST /api/messages/trash` body: the ids and the direction. `trashed:true`
+ * moves them to Trash, `false` restores them (the write behind Undo). The
+ * direction is explicit, matching the core's `setMessagesTrashed({trashed})`. */
+const TrashBody = type({ ids: 'string[]', trashed: 'boolean' });
 
 /** `GET /api/messages` query. Values arrive as strings; `limit`/`offset` are
  * parsed and clamped in the handler, matching the original bounds. */
@@ -171,6 +183,20 @@ export function createApiApp(deps: ApiDeps) {
 				ids,
 				addLabels: addLabels ?? [],
 				removeLabels: removeLabels ?? [],
+				readOnly,
+			});
+			if (error) {
+				const err = ApiError.ModifyFailed({ message: error.message });
+				return c.json(err, err.error.status);
+			}
+			return c.json(data);
+		})
+		.post('/api/messages/trash', sValidator('json', TrashBody), async (c) => {
+			const { ids, trashed } = c.req.valid('json');
+			const { data, error } = await setMessagesTrashed({
+				deps: syncDeps,
+				ids,
+				trashed,
 				readOnly,
 			});
 			if (error) {

@@ -4,9 +4,8 @@
  * Mounts every URL the auth flows live behind:
  *
  *   /sign-in          hosted auth UI shell after redirect policy
- *   /sign-in/context  JSON bootstrap for the hosted sign-in UI
  *   /consent          hosted consent UI shell after session policy
- *   /auth/cli-callback CLI OOB landing page shell
+ *   /cli-callback     CLI OOB landing page shell
  *   /auth/.well-known/openid-configuration   OIDC discovery
  *   /auth/.well-known/oauth-authorization-server   OAuth metadata
  *   /.well-known/oauth-protected-resource   resource server metadata
@@ -26,7 +25,6 @@ import { OAUTH_ROUTES } from '@epicenter/constants/oauth-routes';
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { describeRoute } from 'hono-openapi';
-import type { CloudAuthBindings } from '../auth/create-auth.js';
 import {
 	createOAuthIssuerURL,
 	OAUTH_AUTHORIZATION_SERVER_METADATA_PATH,
@@ -36,62 +34,12 @@ import {
 } from '../auth/oauth-metadata.js';
 import type { CloudEnv } from '../types.js';
 
-export type SignInContext = {
-	providers: Record<'google' | 'github' | 'microsoft' | 'apple', boolean>;
-	passkeyEnabled: false;
-	session: { name: string; email: string } | null;
-};
-
-function getSignInProviders(
-	authSecrets: CloudAuthBindings,
-): SignInContext['providers'] {
-	return {
-		google: Boolean(
-			authSecrets.GOOGLE_CLIENT_ID && authSecrets.GOOGLE_CLIENT_SECRET,
-		),
-		github: Boolean(
-			authSecrets.GITHUB_CLIENT_ID && authSecrets.GITHUB_CLIENT_SECRET,
-		),
-		microsoft: Boolean(
-			authSecrets.MICROSOFT_CLIENT_ID && authSecrets.MICROSOFT_CLIENT_SECRET,
-		),
-		apple: Boolean(
-			authSecrets.APPLE_CLIENT_ID &&
-				authSecrets.APPLE_TEAM_ID &&
-				authSecrets.APPLE_KEY_ID &&
-				authSecrets.APPLE_PRIVATE_KEY,
-		),
-	};
-}
-
 /**
  * Auth sub-app. Registration order matters: OAuth discovery routes must
  * register before the `/auth/*` Better Auth catch-all, or the catch-all
  * swallows discovery requests.
  */
 export const authApp = new Hono<CloudEnv>()
-	.get(
-		'/sign-in/context',
-		describeRoute({
-			description: 'Hosted sign-in UI bootstrap',
-			tags: ['auth'],
-		}),
-		async (c) => {
-			const session = await c.var.auth.api.getSession({
-				headers: c.req.raw.headers,
-			});
-			return c.json({
-				providers: getSignInProviders(c.var.authSecrets),
-				passkeyEnabled: false,
-				session: session
-					? {
-							name: session.user.name,
-							email: session.user.email,
-						}
-					: null,
-			} satisfies SignInContext);
-		},
-	)
 	// Hosted sign-in UI. Re-entry into OAuth happens when the caller arrives
 	// with `?sig=` (signed authorize params); safe callback URLs are resolved
 	// before the browser shell renders.

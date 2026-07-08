@@ -2,10 +2,10 @@
 	import { Button } from '@epicenter/ui/button';
 	import * as Field from '@epicenter/ui/field';
 	import { toastOnError } from '@epicenter/ui/sonner';
+	import { Spinner } from '@epicenter/ui/spinner';
 	import { createMutation } from '@tanstack/svelte-query';
-	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import LogOut from '@lucide/svelte/icons/log-out';
-	import { mutationOptions } from 'wellcrafted/query';
+	import { resultMutationOptions } from 'wellcrafted/query';
 	import { auth } from '#platform/auth';
 	import { recordingActive } from '$lib/state/recording-active.svelte';
 
@@ -19,14 +19,14 @@
 	const accountLocked = $derived(recordingActive.current);
 
 	const startSignIn = createMutation(() =>
-		mutationOptions({
+		resultMutationOptions({
 			mutationKey: ['account', 'startSignIn'],
 			mutationFn: () => auth.startSignIn(),
 		}),
 	);
 
 	const signOut = createMutation(() =>
-		mutationOptions({
+		resultMutationOptions({
 			mutationKey: ['account', 'signOut'],
 			mutationFn: () => auth.signOut(),
 			onError: (error) => toastOnError(error, 'Failed to sign out'),
@@ -64,7 +64,7 @@
 					disabled={signOut.isPending || accountLocked}
 				>
 					{#if signOut.isPending}
-						<LoaderCircle class="size-4 animate-spin" />
+						<Spinner class="size-4" />
 					{:else}
 						<LogOut class="size-4" />
 					{/if}
@@ -84,7 +84,7 @@
 					disabled={startSignIn.isPending || accountLocked}
 				>
 					{#if startSignIn.isPending}
-						<LoaderCircle class="size-4 animate-spin" />
+						<Spinner class="size-4" />
 						Signing in...
 					{:else if auth.state.status === 'reauth-required'}
 						Reconnect

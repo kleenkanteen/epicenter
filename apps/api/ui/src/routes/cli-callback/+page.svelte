@@ -2,7 +2,7 @@
 	OAuth callback surface for the CLI's OOB authorization code flow.
 
 	The CLI launcher prints an /auth/oauth2/authorize URL; after the user signs
-	in, Better Auth redirects to /auth/cli-callback?code=...&state=.... This
+	in, Better Auth redirects to /cli-callback?code=...&state=.... This
 	page renders the code in a monospace block with a copy button so the user
 	can paste it into the terminal where `epicenter auth login` waits on stdin.
 
@@ -17,6 +17,7 @@
 	import * as Card from '@epicenter/ui/card';
 	import { CopyButton } from '@epicenter/ui/copy-button';
 	import AuthCard from '$lib/auth/AuthCard.svelte';
+	import AuthHeader from '$lib/auth/AuthHeader.svelte';
 
 	const code = $derived(page.url.searchParams.get('code'));
 	const oauthError = $derived(page.url.searchParams.get('error'));
@@ -29,12 +30,9 @@
 
 <AuthCard>
 	{#if oauthError}
-		<Card.Header class="justify-items-center text-center">
-			<Card.Title><h1 class="text-xl">Sign-in failed</h1></Card.Title>
-			<Card.Description>
-				The authorization server rejected the request.
-			</Card.Description>
-		</Card.Header>
+		<AuthHeader title="Sign-in failed">
+			{#snippet description()}The authorization server rejected the request.{/snippet}
+		</AuthHeader>
 		<Card.Content class="flex flex-col gap-2 text-sm">
 			<p>Error: <code class="font-mono text-xs">{oauthError}</code></p>
 			{#if oauthErrorDescription}
@@ -49,12 +47,10 @@
 			</p>
 		</Card.Content>
 	{:else if !code}
-		<Card.Header class="justify-items-center text-center">
-			<Card.Title><h1 class="text-xl">Sign-in failed</h1></Card.Title>
-			<Card.Description>
-				This page expects an authorization code from the sign-in flow.
-			</Card.Description>
-		</Card.Header>
+		<AuthHeader title="Sign-in failed">
+			{#snippet description()}This page expects an authorization code from the sign-in
+				flow.{/snippet}
+		</AuthHeader>
 		<Card.Content class="flex flex-col gap-2 text-sm">
 			<p>Error: <code class="font-mono text-xs">missing_code</code></p>
 			<p class="text-muted-foreground">
@@ -63,13 +59,10 @@
 			</p>
 		</Card.Content>
 	{:else}
-		<Card.Header class="justify-items-center text-center">
-			<Card.Title><h1 class="text-xl">Signed in to Epicenter CLI</h1></Card.Title>
-			<Card.Description>
-				Copy this code and paste it into the terminal where you ran
-				<code class="font-mono text-xs">epicenter auth login</code>.
-			</Card.Description>
-		</Card.Header>
+		<AuthHeader title="Signed in to Epicenter CLI">
+			{#snippet description()}Copy this code and paste it into the terminal where you
+				ran <code class="font-mono text-xs">epicenter auth login</code>.{/snippet}
+		</AuthHeader>
 		<Card.Content class="flex flex-col gap-3">
 			<pre
 				class="overflow-x-auto rounded-md border bg-muted/50 p-3 text-center font-mono text-sm break-all whitespace-pre-wrap"><code

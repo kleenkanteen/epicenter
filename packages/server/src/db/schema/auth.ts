@@ -2,10 +2,12 @@ import { relations } from 'drizzle-orm';
 import {
 	boolean,
 	index,
+	integer,
 	jsonb,
 	pgTable,
 	text,
 	timestamp,
+	unique,
 } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
@@ -61,7 +63,21 @@ export const account = pgTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index('account_userId_idx').on(table.userId)],
+	(table) => [
+		index('account_userId_idx').on(table.userId),
+		// One external provider account maps to exactly one Epicenter user.
+		// Better Auth's link-social flow only checks `findAccountByProviderId`
+		// before inserting, so two concurrent fresh-session link ceremonies for
+		// the same provider account can both pass the read and attach it to two
+		// different users. This composite unique is the durable, race-proof floor
+		// that turns the second insert into a constraint violation. It is also
+		// the DB expression of the v1 promise that we do not support two
+		// same-provider accounts on one user (a re-link is an upsert, not a dup).
+		unique('account_providerId_accountId_unique').on(
+			table.providerId,
+			table.accountId,
+		),
+	],
 );
 
 export const verification = pgTable(
@@ -200,6 +216,29 @@ export const oauthConsent = pgTable(
 	],
 );
 
+export const passkey = pgTable(
+	'passkey',
+	{
+		id: text('id').primaryKey(),
+		name: text('name'),
+		publicKey: text('public_key').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		credentialID: text('credential_id').notNull(),
+		counter: integer('counter').notNull(),
+		deviceType: text('device_type').notNull(),
+		backedUp: boolean('backed_up').notNull(),
+		transports: text('transports'),
+		createdAt: timestamp('created_at'),
+		aaguid: text('aaguid'),
+	},
+	(table) => [
+		index('passkey_userId_idx').on(table.userId),
+		index('passkey_credentialID_idx').on(table.credentialID),
+	],
+);
+
 export const userRelations = relations(user, ({ many }) => ({
 	sessions: many(session),
 	accounts: many(account),
@@ -207,6 +246,7 @@ export const userRelations = relations(user, ({ many }) => ({
 	oauthRefreshTokens: many(oauthRefreshToken),
 	oauthAccessTokens: many(oauthAccessToken),
 	oauthConsents: many(oauthConsent),
+	passkeys: many(passkey),
 }));
 
 export const sessionRelations = relations(session, ({ one, many }) => ({
@@ -283,6 +323,13 @@ export const oauthConsentRelations = relations(oauthConsent, ({ one }) => ({
 	}),
 	user: one(user, {
 		fields: [oauthConsent.userId],
+		references: [user.id],
+	}),
+}));
+
+export const passkeyRelations = relations(passkey, ({ one }) => ({
+	user: one(user, {
+		fields: [passkey.userId],
 		references: [user.id],
 	}),
 }));

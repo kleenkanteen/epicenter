@@ -3,7 +3,7 @@
  *
  * Prints an authorize URL, optionally opens it in the user's browser,
  * waits for the user to paste the one-time code from
- * `https://api.epicenter.so/auth/cli-callback`, then exchanges the code
+ * `https://api.epicenter.so/cli-callback`, then exchanges the code
  * at `/auth/oauth2/token` with PKCE. Returns a completed OAuth launch result
  * containing a 3-field `OAuthTokenGrant`.
  *

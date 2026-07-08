@@ -1,7 +1,7 @@
 <!--
-	Centered card shell shared by every auth surface (sign-in, consent,
-	CLI callback): Epicenter mark centered on top, page content composed by the
-	caller with Card.Header / Card.Content / Card.Footer.
+	Hosted auth card shell shared by sign-in, consent, and CLI callback.
+
+	Keep this surface plain and operational: see ADR-0113.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -12,7 +12,7 @@
 </script>
 
 <div class="flex min-h-dvh items-center justify-center p-6">
-	<Card.Root class="w-full max-w-sm">
+	<Card.Root class="w-full max-w-sm gap-5">
 		<div class="flex justify-center">
 			<EpicenterMark class="size-12 rounded-xl" />
 		</div>

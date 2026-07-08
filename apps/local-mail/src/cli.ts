@@ -1,6 +1,6 @@
 import { loadConfig } from './config.ts';
 import {
-	type ModifyMessageLabelsOutcome,
+	type MessageWriteOutcome,
 	resolveAndModifyMessageLabels,
 } from './modify.ts';
 import { redeemRefreshToken, runAuthorizationFlow } from './oauth.ts';
@@ -316,13 +316,13 @@ async function runSync(args: ParsedArgs): Promise<number> {
  * abort exits 1 so `local-mail mark-read <id> && next` never proceeds on a
  * mailbox that did not change.
  */
-export function modifyExitCode(outcome: ModifyMessageLabelsOutcome): number {
+export function modifyExitCode(outcome: MessageWriteOutcome): number {
 	const anyFailed = outcome.results.some((result) => result.error !== null);
 	return outcome.aborted !== null || anyFailed ? 1 : 0;
 }
 
 function renderModifyOutcome(
-	outcome: ModifyMessageLabelsOutcome,
+	outcome: MessageWriteOutcome,
 	done: string,
 ): string {
 	const lines = outcome.results.map((result) => {

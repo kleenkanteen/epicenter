@@ -16,7 +16,7 @@
 	// --- Static assets: cloud UI SPA (built by SvelteKit adapter-static) ---
 	// SvelteKit writes hashed assets to ui/build/_app/* plus a fallback.html
 	// shell. The asset layer serves matching files (/_app/*, favicon) before the
-	// Worker runs; UI URLs (/dashboard, /sign-in, /consent, /auth/cli-callback)
+	// Worker runs; UI URLs (/dashboard, /sign-in, /consent, /cli-callback)
 	// match no file and fall through to Hono, which serves fallback.html for
 	// the routes it owns. The shell is deliberately not index.html so the asset
 	// layer never shadows the Worker's `/` route. `html_handling: none` keeps
@@ -73,15 +73,18 @@
 			// dev and production cannot accidentally share a checked-in client id.
 			"GOOGLE_CLIENT_ID",
 			"GOOGLE_CLIENT_SECRET",
-			// GitHub OAuth is optional at the library level (ServerBindings types
-			// it `?`), but it MUST be listed here so `wrangler types` reproduces
-			// it: defining `secrets.required` replaces wrangler's .dev.vars/.env
-			// inference, so any secret the worker reads (create-auth.ts,
-			// routes/auth.ts gate GitHub sign-in on these) that is NOT listed gets
-			// dropped from the generated Cloudflare.Env. A required `string` here
-			// still satisfies the library's optional binding.
+			// The shared server library keeps every provider register-when-present,
+			// but the hosted cloud product promise is stricter: the hosted sign-in UI
+			// always offers Google, GitHub, and Apple. Listing all provider bindings
+			// here makes Wrangler fail deploy/typegen when the hosted edge is
+			// missing a provider the UI would show. A required `string` here still
+			// satisfies the library's optional CloudAuthBindings fields.
 			"GITHUB_CLIENT_ID",
 			"GITHUB_CLIENT_SECRET",
+			"APPLE_CLIENT_ID",
+			"APPLE_TEAM_ID",
+			"APPLE_KEY_ID",
+			"APPLE_PRIVATE_KEY",
 			// House AI keys are required here even though the library types them
 			// as optional bindings: hosted credits are billed against house-key
 			// usage, so a deploy without them would 503 paying users.
