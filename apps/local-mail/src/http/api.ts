@@ -4,7 +4,7 @@ import { sValidator } from '@hono/standard-validator';
 import { type } from 'arktype';
 import { Hono } from 'hono';
 import type { MailDb } from '../db.ts';
-import { resolveAndModifyMessageLabels } from '../modify.ts';
+import { resolveAndModifyMessageLabels, setMessagesTrashed } from '../modify.ts';
 import type { LocalMailRuntime } from '../runtime.ts';
 import { readMailStatus } from '../status.ts';
 import { type SyncDeps, syncMailbox } from '../sync.ts';
@@ -23,8 +23,12 @@ import { ApiError } from './api-errors.ts';
  * returns `c.json(...)`, so the client's response types are inferred from the
  * exact shapes the server returns: the wire contract cannot silently drift.
  *
- * Writes go through the same core the CLI and MCP use
- * (`resolveAndModifyMessageLabels`); there are no per-intent routes.
+ * Label writes go through the same core the CLI and MCP use
+ * (`resolveAndModifyMessageLabels`); the archive/read/label intents desugar into
+ * one `/api/messages/modify` route, not per-intent routes. Trash is the one
+ * exception: Gmail models trash/untrash as their own endpoints with their own
+ * semantics, so they get dedicated `/api/messages/{trash,untrash}` routes rather
+ * than being faked as a label delta.
  */
 
 /** Bound online guessing by another local user against the exchange endpoint. */
@@ -49,6 +53,10 @@ const ModifyBody = type({
 	'addLabels?': 'string[]',
 	'removeLabels?': 'string[]',
 });
+
+/** `POST /api/messages/{trash,untrash}` body: the ids to move to (or out of)
+ * Trash. No `undo` flag: undo is a UI concept and maps to the untrash route. */
+const TrashBody = type({ ids: 'string[]' });
 
 /** `GET /api/messages` query. Values arrive as strings; `limit`/`offset` are
  * parsed and clamped in the handler, matching the original bounds. */
@@ -171,6 +179,34 @@ export function createApiApp(deps: ApiDeps) {
 				ids,
 				addLabels: addLabels ?? [],
 				removeLabels: removeLabels ?? [],
+				readOnly,
+			});
+			if (error) {
+				const err = ApiError.ModifyFailed({ message: error.message });
+				return c.json(err, err.error.status);
+			}
+			return c.json(data);
+		})
+		.post('/api/messages/trash', sValidator('json', TrashBody), async (c) => {
+			const { ids } = c.req.valid('json');
+			const { data, error } = await setMessagesTrashed({
+				deps: syncDeps,
+				ids,
+				trashed: true,
+				readOnly,
+			});
+			if (error) {
+				const err = ApiError.ModifyFailed({ message: error.message });
+				return c.json(err, err.error.status);
+			}
+			return c.json(data);
+		})
+		.post('/api/messages/untrash', sValidator('json', TrashBody), async (c) => {
+			const { ids } = c.req.valid('json');
+			const { data, error } = await setMessagesTrashed({
+				deps: syncDeps,
+				ids,
+				trashed: false,
 				readOnly,
 			});
 			if (error) {

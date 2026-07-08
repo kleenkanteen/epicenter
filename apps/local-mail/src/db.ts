@@ -434,6 +434,15 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 				);
 				params.$labelId = labelId;
 			}
+			// Mirror Gmail's own rule: Trash is hidden from every view (Inbox, All
+			// mail, any label) except Trash itself. A trashed row is folded, not
+			// deleted, so this read-model filter is what makes it leave the current
+			// view the instant `messages.trash` returns, before sync sweeps it.
+			if (labelId !== 'TRASH') {
+				where.push(
+					`NOT EXISTS (SELECT 1 FROM json_each(messages.label_ids) WHERE value = 'TRASH')`,
+				);
+			}
 			if (search) {
 				where.push(`(subject LIKE $q OR sender LIKE $q OR body_text LIKE $q)`);
 				params.$q = `%${search}%`;

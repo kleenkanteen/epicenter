@@ -71,6 +71,14 @@ export type GmailClient = {
 		id: string,
 		body: { addLabelIds: string[]; removeLabelIds: string[] },
 	): Promise<Result<GmailMessage, GmailClientError>>;
+	/** Move a message to Trash (`messages.trash`). Adds the `TRASH` label and
+	 * drops it from `INBOX`; the returned resource carries the new `labelIds`.
+	 * Needs only the `gmail.modify` scope, unlike the permanent `messages.delete`
+	 * (`https://mail.google.com/`), which this client deliberately never calls. */
+	trashMessage(id: string): Promise<Result<GmailMessage, GmailClientError>>;
+	/** Restore a message from Trash (`messages.untrash`): the inverse of
+	 * `trashMessage`, and the write behind the UI's Undo. */
+	untrashMessage(id: string): Promise<Result<GmailMessage, GmailClientError>>;
 	listHistory(
 		startHistoryId: string,
 		pageToken?: string,
@@ -283,6 +291,24 @@ export function createGmailClient(deps: GmailClientDeps): GmailClient {
 			});
 			if (error) return { data: null, error };
 			return checkedResult(GmailMessageSchema, data, 'messages.modify');
+		},
+
+		async trashMessage(id) {
+			// No request body: `messages.trash` takes an empty POST, so `request`
+			// sends no Content-Type and Gmail returns the updated message resource.
+			const { data, error } = await request(`messages/${id}/trash`, {
+				method: 'POST',
+			});
+			if (error) return { data: null, error };
+			return checkedResult(GmailMessageSchema, data, 'messages.trash');
+		},
+
+		async untrashMessage(id) {
+			const { data, error } = await request(`messages/${id}/untrash`, {
+				method: 'POST',
+			});
+			if (error) return { data: null, error };
+			return checkedResult(GmailMessageSchema, data, 'messages.untrash');
 		},
 
 		async listHistory(startHistoryId, pageToken) {
