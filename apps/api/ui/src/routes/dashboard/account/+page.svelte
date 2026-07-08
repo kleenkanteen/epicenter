@@ -308,7 +308,9 @@
 			{:else if linkedQuery.error}
 				<Alert.Root variant="destructive">
 					<CircleAlertIcon class="size-4" />
-					<Alert.Description>{linkedQuery.error.message}</Alert.Description>
+					<Alert.Description>
+						{linkedQuery.error.message || 'Could not load connected accounts.'}
+					</Alert.Description>
 				</Alert.Root>
 			{:else}
 				<ul class="flex flex-col divide-y rounded-md border">
@@ -369,7 +371,9 @@
 			{:else if passkeysQuery.error}
 				<Alert.Root variant="destructive">
 					<CircleAlertIcon class="size-4" />
-					<Alert.Description>{passkeysQuery.error.message}</Alert.Description>
+					<Alert.Description>
+						{passkeysQuery.error.message || 'Could not load passkeys.'}
+					</Alert.Description>
 				</Alert.Root>
 			{:else if passkeys.length > 0}
 				<ul class="flex flex-col divide-y rounded-md border">
