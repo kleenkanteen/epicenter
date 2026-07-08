@@ -24,4 +24,6 @@ export const PROVIDER_LABELS = {
 export type SocialProvider = keyof typeof PROVIDER_LABELS;
 
 /** Insertion order is the display order. */
-export const SOCIAL_PROVIDERS = Object.keys(PROVIDER_LABELS) as SocialProvider[];
+export const SOCIAL_PROVIDERS = Object.keys(
+	PROVIDER_LABELS,
+) as SocialProvider[];
