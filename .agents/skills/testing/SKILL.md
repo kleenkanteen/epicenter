@@ -8,19 +8,6 @@ metadata:
 
 # Test File Conventions
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Write or refactor `*.test.ts` files in this codebase.
-- Structure tests with `setup()` functions instead of mutable `beforeEach` setup.
-- Split large test files into focused behavior/type/scenario files.
-- Enforce behavior-based test naming and clear failure intent.
-- Add or review negative type tests using `@ts-expect-error`.
-- Assert wellcrafted `Result` values with `expectOk` / `expectErr`.
-- Audit a test file for assertions that cannot fail or fakes that don't earn their lines.
-- Prune tests that cannot name a real regression they would catch.
-
 ## References
 
 Load these on demand based on what you're working on:
