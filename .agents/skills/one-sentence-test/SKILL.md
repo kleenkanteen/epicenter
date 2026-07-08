@@ -23,9 +23,9 @@ The move has two applications. They're distinct lenses on the same discipline: p
 
 ## Application A: Cohesion Audit (top-down)
 
-**When**: reviewing a design, spec, or surface (commands, endpoints, options, tables) for coherence. The sentence is the thesis; every surface is audited against it.
+**Subject**: a design, spec, or surface (commands, endpoints, options, tables) whose coherence is in question. The sentence is the thesis; every surface is audited against it.
 
-Triggers:
+Signals:
 
 - A design discussion is wrapping up and code is about to start
 - A spec draft exists but its sections feel unrelated
@@ -90,9 +90,9 @@ The good sentence names the objects (actions), their source (config file), the v
 
 ## Application B: Value-Add Audit (bottom-up)
 
-**When**: evaluating a single utility, wrapper, flag, endpoint, or config option to see if it's earning its keep. The sentence describes what the code *actually does*, ignoring docs, then specializes under the defaults in use.
+**Subject**: a single utility, wrapper, flag, endpoint, or config option whose value is in question. The sentence describes what the code *actually does*, ignoring docs, then specializes under the defaults in use.
 
-Triggers:
+Signals:
 
 - Evaluating whether an abstraction earns its keep
 - Reviewing a wrapper around an existing utility

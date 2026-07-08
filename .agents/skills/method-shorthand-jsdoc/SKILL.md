@@ -132,19 +132,11 @@ function createService(client) {
 }
 ```
 
-## When to Apply
+## Decision Rule
 
-Use this pattern when:
+Move a helper into the returned object when it is only used by returned methods, consumers need hover JSDoc on that method, and the helper does not run during initialization.
 
-- Helper functions are ONLY used by methods in the return object
-- You want JSDoc visible when consumers hover over the method
-- The helper doesn't need to be called before the return statement
-
-Keep helpers separate when:
-
-- They're called during initialization (before return)
-- They're used by multiple factories (extract to shared module)
-- They're truly internal and shouldn't be exposed
+Keep helpers separate when they are called before `return`, shared across factories, or truly internal and not exposed.
 
 ## Arrow Functions Don't Work
 

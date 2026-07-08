@@ -31,16 +31,6 @@ Before adding custom fonts, new global tokens, background effects, motion system
 
 The user provides frontend requirements: a component, page, application, or interface to build. They may include context about the purpose, audience, or technical constraints.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Build or redesign a frontend component, page, or full interface.
-- Define and execute a strong aesthetic direction before coding.
-- Produce polished UI with intentional typography, color, motion, and composition.
-- Avoid generic, repetitive AI-style design choices.
-- Match implementation complexity to the chosen visual direction.
-
 ## Refactor Fidelity
 
 When redesigning or refactoring an existing UI, treat pixel fidelity as a

@@ -21,14 +21,7 @@ Skip DeepWiki for repo-local Bun script conventions already documented below.
 
 The monorepo uses consistent script naming conventions:
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Run formatting, linting, or type-check scripts in this monorepo.
-- Choose between auto-fix commands and `:check` CI-only variants.
-- Verify final changes with the repo-standard `bun typecheck` workflow.
-- Scaffold a new package in `packages/`.
+## Commands
 
 | Command            | Purpose                                        | When to use |
 | ------------------ | ---------------------------------------------- | ----------- |

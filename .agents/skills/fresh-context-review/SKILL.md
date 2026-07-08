@@ -5,10 +5,9 @@ description: Fresh-context review and adversarial review for concrete diffs, sta
 
 # Fresh Context Review
 
-Use this skill when the current implementer may be too close to the design.
-The job is to read the change like a capable TypeScript developer who has not
-been part of the conversation, then push until the lifecycle, names, and type
-shapes either become obvious or collapse to something simpler.
+Read the change like a capable TypeScript developer who has not been part of
+the conversation, then push until the lifecycle, names, and type shapes either
+become obvious or collapse to something simpler.
 
 This is not a normal code review. It is a structured challenge pass.
 

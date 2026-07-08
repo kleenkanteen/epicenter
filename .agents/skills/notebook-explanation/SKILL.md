@@ -8,7 +8,7 @@ metadata:
 
 # Notebook Explanation
 
-Use this skill when the user wants to understand a technical system, not just receive a polished answer. Write like private working notes from someone trying to make the system obvious to themself.
+Write like private working notes from someone trying to make the system obvious to themself.
 
 The point is compression:
 

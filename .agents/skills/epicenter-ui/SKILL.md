@@ -12,8 +12,9 @@ Reach for a local `@epicenter/ui` component before writing one-off UI. Most stat
 
 For product apps, `@epicenter/ui` is the default visual system, not a bag of optional primitives. Preserve the shared Vega/Geist baseline unless the task explicitly reopens product identity. Use `frontend-design` for new visual direction, but do not let it replace local primitives, theme tokens, or package boundaries by default.
 
-- Use `svelte` for branch mechanics: `{#if}`, `{#await}`, derived state, query state, lifecycle.
+- Use `svelte` for branch mechanics: `{#if}`, `{#await}`, derived state, query state, and component lifecycle.
 - Use `styling` for Tailwind details, whether a wrapper element is needed, scroll traps, and disabled-state styling.
+- Local component choice and composition stay here.
 
 `packages/ui/README.md` is the source of truth for package internals and the shared product-system stance: import boundary, `style-vega` activation, `cn-*` style hooks, overlay deltas, visual baseline, component ownership, and the vendored-component update workflow. Read it before changing anything inside `packages/ui`.
 

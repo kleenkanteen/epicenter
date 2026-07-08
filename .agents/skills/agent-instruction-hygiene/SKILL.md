@@ -5,8 +5,6 @@ description: Review AGENTS.md, CLAUDE.md, and `.agents/skills` for instruction s
 
 # Agent Instruction Hygiene
 
-Use this skill when the instruction system itself is the design surface.
-
 The goal is not to capture every lesson. The goal is to keep future agents
 pointed at the smallest durable instruction that changes behavior.
 

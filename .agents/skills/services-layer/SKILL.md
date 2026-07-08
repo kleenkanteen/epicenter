@@ -12,15 +12,6 @@ This skill documents how to implement services in the Whispering architecture. S
 
 > **Related Skills**: See `error-handling` for trySync/tryAsync patterns. See `define-errors` for error variant factories. See `query-layer` for consuming services from `$lib/rpc` with TanStack Query.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Create a new service with domain-specific error handling
-- Add error types with structured context (like HTTP status codes)
-- Understand how services are organized and exported
-- Implement platform-specific service variants (desktop vs web)
-
 ## Core Architecture
 
 Services follow a three-layer architecture: **Service** -> **RPC/Query** -> **UI**

@@ -8,9 +8,8 @@ metadata:
 
 # Post Implementation Review
 
-Use this skill after code changes and before final handoff. The goal is a hard
-second read: catch stale abstractions, dead paths, bad ownership, and confusing
-names while the edit context is still fresh.
+The goal is a hard second read: catch stale abstractions, dead paths, bad
+ownership, and confusing names while the edit context is still fresh.
 
 Do not silently fix structural concerns. First name what is wrong and why it
 matters, then fix it when it clears the evidence bar below.

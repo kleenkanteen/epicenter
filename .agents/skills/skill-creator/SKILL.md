@@ -5,8 +5,6 @@ description: Create, revise, audit, evaluate, and validate Vercel-backed Agent S
 
 # Skill Creator
 
-Use this skill to create and maintain project-local skills under `.agents/skills`.
-
 The Vercel `skills` CLI is the source of truth for format and discovery. Do not maintain a separate local validator unless the user explicitly asks for one.
 
 Skills should encode repeatable project expertise: real conventions, recurring failure modes, fragile workflows, and corrections the agent would otherwise miss. Do not turn one-off advice into a skill.
@@ -114,6 +112,8 @@ Before drafting body content:
 ## Write The Description First
 
 The description is always loaded and drives selection. It must carry the trigger logic because the body is loaded only after the skill is selected.
+
+Do not add body sections like `When to apply this skill`, `When to load`, `Trigger phrases`, or `Use this skill when...`. By the time the body is read, routing already happened. Put routing in the frontmatter description; use the body for workflow, guardrails, examples, and final checks.
 
 Include:
 
