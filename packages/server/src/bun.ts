@@ -40,8 +40,19 @@ export {
 	createAttachRelay,
 	type HostConnection,
 } from './attach-relay/core.js';
-// The authenticated self-host mount (ADR-0115 wave 2): the attach relay behind
-// the deployment's bearer gate, with the principal stamped server-side.
+// The per-device attach grants (ADR-0115 wave 3): the revocable allowlist that
+// replaces the shared operator token on the attach surface. The store's
+// `resolveBearerPrincipal` is the seam the attach mount closes over; the operator
+// token administers the allowlist through `mountAttachGrantsApp`.
+export {
+	createDeviceGrantStore,
+	type DeviceGrant,
+	type DeviceGrantStore,
+} from './attach-relay/device-grants.js';
+// The authenticated self-host mount (ADR-0115 wave 2, wave 3 grants): the attach
+// relay behind the deployment's bearer gate, with the principal stamped
+// server-side. On self-host the bearer is now a per-device grant.
+export { mountAttachGrantsApp } from './attach-relay/grants-app.js';
 export { mountAttachRelayApp } from './attach-relay/mount.js';
 export { ATTACH_RELAY_ROUTE } from './attach-relay/route.js';
 // The single-partition instance's bearer resolver (self-host; ADR-0075): the

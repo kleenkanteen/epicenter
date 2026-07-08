@@ -32,8 +32,11 @@
  * keeping the instance Bun-or-Cloudflare (the operator supplies the secret either
  * way).
  *
- * Surface: session + rooms + inference + blobs behind one bearer, zero billing,
- * no dashboard SPA, no auth surface. The blob store is a portable
+ * Surface: session + rooms + inference + blobs behind the operator bearer, zero
+ * billing, no dashboard SPA, no auth surface. Remote Super Chat attach is the one
+ * exception (ADR-0115 wave 3): an attach connect carries a revocable per-device
+ * grant instead of the operator token, and the operator token administers that
+ * device allowlist through `/attach/grants`. The blob store is a portable
  * content-addressed media store over any S3 (your own MinIO/Garage/R2); it is
  * mounted by default and answers 503 until `BLOBS_S3_*` is set, exactly as the
  * inference gateway answers 503 until a provider house key is set. Owning your
@@ -48,9 +51,11 @@ import { assertStrongToken } from '@epicenter/auth';
 import {
 	createAttachRelayBunServer,
 	createBunRooms,
+	createDeviceGrantStore,
 	createEnvTokenResolver,
 	createServerApp,
 	mergeBunWebSocketHandlers,
+	mountAttachGrantsApp,
 	mountAttachRelayApp,
 	mountBlobsApp,
 	mountInferenceApp,
@@ -131,10 +136,15 @@ export function startSelfHostServer(): void {
 	mkdirSync(dataDir, { recursive: true });
 	const bunRooms = createBunRooms({ dir: dataDir });
 	// The AttachRelay coordinator for this instance (ADR-0115 wave 2): the
-	// endpoint-addressed byte forwarder behind the operator bearer. It shares this
-	// process's one `Bun.serve` with the rooms backend (see the merged websocket
-	// handler below).
+	// endpoint-addressed byte forwarder. It shares this process's one `Bun.serve`
+	// with the rooms backend (see the merged websocket handler below).
 	const attachRelay = createAttachRelayBunServer();
+	// The revocable per-device attach allowlist (ADR-0115 wave 3). Attach connects
+	// resolve against this, not the operator token: a device pairs once (the
+	// operator mints it a grant, below), presents that grant on connect, and loses
+	// access the moment the operator revokes it. In-memory for the proof, so a
+	// restart re-pairs devices; persisting grants beside the rooms is a later wave.
+	const attachGrants = createDeviceGrantStore();
 
 	const app = createServerApp({
 		// The instance composes no Postgres (no Better Auth), so it never calls
@@ -159,12 +169,22 @@ export function startSelfHostServer(): void {
 	mountSessionApp(app, { auth });
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
 	mountRoomsApp(app, { resolveBearerPrincipal });
-	// The AttachRelay upgrade (`/attach`), also WS-aware and bearer-gated. It
-	// resolves the operator token to the instance principal and stamps that
-	// principal onto the socket server-side, so a query `principalId` can never
-	// point an attach at another partition (ADR-0115 wave 2, ADR-0075). Cloud
-	// attach stays unmounted until the wave-4 sealing layer lands.
-	mountAttachRelayApp(app, { resolveBearerPrincipal, relay: attachRelay });
+	// The AttachRelay upgrade (`/attach`), WS-aware and gated by a per-device grant
+	// (ADR-0115 wave 3), not the operator token: a connect resolves against the
+	// device-grant store, and the instance principal is stamped server-side so a
+	// query `principalId` can never point an attach at another partition (ADR-0075).
+	// A revoked or never-minted grant fails the handshake closed. Cloud attach stays
+	// unmounted until the wave-4 sealing layer lands.
+	mountAttachRelayApp(app, {
+		resolveBearerPrincipal: attachGrants.resolveBearerPrincipal,
+		relay: attachRelay,
+	});
+	// The operator's device-grant admin surface (`/attach/grants`), gated by the
+	// operator token, NOT a grant: the operator mints a grant per device (the
+	// desktop host's own device included), lists them, and revokes one to cut a
+	// device off. This is where "the desktop approves a device" lives on an
+	// instance (ADR-0115 clause 3); minting the secret here is the pairing step.
+	mountAttachGrantsApp(app, { auth, grants: attachGrants });
 	// Inference spends the operator's house key on every request. Cap the burn
 	// rate so a leaked or overused bearer cannot run the provider bill up
 	// unbounded between invoices. This is the in-process backstop; the real

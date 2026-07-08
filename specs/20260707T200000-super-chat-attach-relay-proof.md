@@ -31,11 +31,17 @@ Deferred, not built here: the Cloudflare-DO relay backend (the self-host Worker 
 
 Verification target (met): attach works against self-host exactly as against loopback, proving "just works after sign-in"; a wrong or missing token cannot attach (fail-closed behind `INSTANCE_TOKEN`); two ends with different query `principalId`s still pair, proving the principal is resolved server-side. See `apps/super-chat/src/attach-relay-self-host.test.ts`.
 
-### Wave 3: pairing and device grant (account and device layer)
+### Wave 3: pairing and device grant (account and device layer) (landed)
 
 Replace the single per-launch Super Chat token with a per-device grant. Pair a second device by QR or account-mediated challenge; the desktop approves; revoke the device and confirm the bearer is dead on the next connect. Add an opt-in auto-allow for the principal's own devices.
 
-Verification target: the desktop owns a revocable allowlist, and revocation kills attach without touching the sync plane.
+Verification target (met): the desktop owns a revocable allowlist, and revocation kills attach without touching the sync plane.
+
+Landed shape: a `createDeviceGrantStore()` (`packages/server/src/attach-relay/device-grants.ts`) holds the revocable per-device allowlist beside the attach mount, never inside the relay coordinator (which stays grant-blind). Its `resolveBearerPrincipal` is a plain `ResolveBearerPrincipal`, so `mountAttachRelayApp` closes over it with no change (the swap wave 2's JSDoc predicted); the attach coordinator, socket-data shape, wire contracts, and connect URL are all untouched. The operator token no longer authenticates an attach connect: it administers the allowlist through `mountAttachGrantsApp` (`/attach/grants` mint/list/revoke, `packages/server/src/attach-relay/grants-app.ts`), so the two credentials split cleanly with no fallback path. A connect carries a device grant as `bearer.<grant>`; the mount resolves it to the one instance principal and stamps that principal server-side, so a query `principalId` stays untrusted. `apps/self-host/server.ts` wires both mounts. Proofs run on the one authenticated surface: `apps/super-chat/src/attach-relay-self-host.test.ts` (pair, share, unpaired-refused, revoke-dies-next-connect, operator-only admin) and `packages/server/src/attach-relay/device-grants.test.ts` (mint/resolve/revoke unit).
+
+The grant secret is a strong random URL-safe token, hashed at rest (SHA-256): `mint` returns it once (the QR/paste pairing payload), and resolution hashes the presented bearer and looks the digest up, so a forged grant needs a preimage of the digest (the same argument the operator token's constant-time compare rests on). Pairing IS the out-of-band handoff of that secret; no separate challenge/response handshake was needed.
+
+Deferred, not built here (smallest model): the grant is not bound to the connect's query `deviceId` (recorded at mint for the operator's revoke-by-device list, but the relay's `deviceId`/`attachId` stay opaque addressing labels as in wave 2); grants are not role-scoped (any live grant can host or attach, which on a single-principal instance only spans the operator's own devices); revocation kills future connects, not live sockets; the store is in-memory, so a restart re-pairs devices (persisting beside the rooms is a later refinement); and "auto-allow the principal's own devices" is a desktop-side self-mint on a single-principal instance, not a server seeding mode.
 
 ### Wave 4: authenticated content-blind sealing (Cloud gate)
 

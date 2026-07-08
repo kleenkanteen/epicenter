@@ -1,24 +1,30 @@
 /**
- * AttachRelay proof (ADR-0115): authenticated attach behind INSTANCE_TOKEN.
+ * AttachRelay proof (ADR-0115 wave 3): authenticated attach behind per-device
+ * grants.
  *
  * The relay is served the way a self-hosted instance serves it: mounted on
- * `createServerApp` behind the operator bearer (`INSTANCE_TOKEN`, ADR-0075),
- * sharing one `Bun.serve` with the rooms backend through the merged websocket
- * handler. There is one principal-resolution model: the mount resolves the
- * bearer server-side and stamps the instance principal onto the socket. The
- * unauthenticated loopback `fetch` path was removed with its wave-1 test (it had
- * no production caller and was a second principal model), so these proofs run on
- * the one authenticated surface.
+ * `createServerApp`, sharing one `Bun.serve` with the rooms backend through the
+ * merged websocket handler. Wave 3 splits the single operator token into two
+ * credentials on the attach surface:
+ * - an attach CONNECT carries a per-device grant (`mountAttachRelayApp` closes
+ *   over the grant store's resolver), and the mount stamps the instance principal
+ *   server-side;
+ * - the operator token administers the device allowlist through `/attach/grants`
+ *   (`mountAttachGrantsApp`): it mints a grant per device and revokes one to cut a
+ *   device off. There is no fallback path where one credential does both.
  *
  * What this pins:
- * - a host and a client that carry the token attach and share one session,
- *   proving "just works after sign-in" against a self-host URL + token;
+ * - a host and a client, each carrying their own device grant, attach and share
+ *   one session, proving "just works after pairing" against a self-host URL;
  * - two clients share one host session, and either can approve a mutation the
  *   other's turn raised (the host fans one session to every endpoint);
- * - the surface is fail-closed: a wrong token or no token cannot attach;
+ * - an unpaired device (a never-minted grant) cannot attach, and a revoked device
+ *   is dead on its next connect, without touching the sync plane;
+ * - the admin surface is gated by the operator token, not a grant, and its
+ *   `/attach/grants` routing does not collide with the `/attach` upgrade;
  * - `principalId` is resolved SERVER-SIDE: two ends that put DIFFERENT
- *   `principalId`s in their query still pair, because the mount ignores the
- *   query and stamps the one instance principal the bearer resolves to;
+ *   `principalId`s in their query still pair, because the mount ignores the query
+ *   and stamps the one instance principal every grant resolves to;
  * - the authenticated host wire carries only the endpoint envelope, never a
  *   route, channel, or capability name (ADR-0115 clause 1).
  */
@@ -30,10 +36,14 @@ import { join } from 'node:path';
 import {
 	createAttachRelayBunServer,
 	createBunRooms,
+	createDeviceGrantStore,
 	createEnvTokenResolver,
 	createServerApp,
+	type DeviceGrantStore,
 	mergeBunWebSocketHandlers,
+	mountAttachGrantsApp,
 	mountAttachRelayApp,
+	requireBearerPrincipal,
 } from '@epicenter/server/bun';
 import type { AgentEngine, EngineChunk } from '@epicenter/workspace/agent';
 import { createAttachRelayClient } from './attach-relay-client.ts';
@@ -44,8 +54,8 @@ import {
 import { createSuperChatHost, type SuperChatHost } from './host.ts';
 import type { SuperChatServerEvent } from './server.ts';
 
-/** A strong-enough operator bearer for the resolver's constant-time compare. */
-const TOKEN = 'self-host-instance-token-0123456789abcdef';
+/** A strong-enough operator bearer for the admin surface's constant-time compare. */
+const OPERATOR_TOKEN = 'self-host-instance-token-0123456789abcdef';
 const HOST_ID = 'host-mac';
 
 function scriptedEngine(scripts: EngineChunk[][]): AgentEngine {
@@ -71,13 +81,21 @@ function createTestHost(engine: AgentEngine) {
 
 /**
  * Stand up the authenticated self-host relay: `createServerApp` +
- * `mountAttachRelayApp` behind the env-token resolver, sharing one `Bun.serve`
- * with the rooms backend via the merged websocket handler. This is the exact
- * production wiring of `apps/self-host/server.ts`, minus inference/blobs.
+ * `mountAttachRelayApp` (attach connects gated by device grants) +
+ * `mountAttachGrantsApp` (the admin surface gated by the operator token), sharing
+ * one `Bun.serve` with the rooms backend. This is the exact production wiring of
+ * `apps/self-host/server.ts`, minus inference/blobs. Returns the grant store so a
+ * test can mint and revoke directly, plus the HTTP origin for the admin surface.
  */
-function serveSelfHostRelay(token: string) {
+function serveSelfHostRelay(operatorToken: string): {
+	server: ReturnType<typeof Bun.serve>;
+	origin: string;
+	httpOrigin: string;
+	grants: DeviceGrantStore;
+} {
 	const bunRooms = createBunRooms({ dir: testDataDir() });
 	const attachRelay = createAttachRelayBunServer();
+	const grants = createDeviceGrantStore();
 	const app = createServerApp({
 		resolveRooms: () => bunRooms.rooms,
 		identity: {
@@ -85,8 +103,14 @@ function serveSelfHostRelay(token: string) {
 			resolveTrustedOrigins: () => [],
 		},
 	});
-	const resolveBearerPrincipal = createEnvTokenResolver(token);
-	mountAttachRelayApp(app, { resolveBearerPrincipal, relay: attachRelay });
+	mountAttachRelayApp(app, {
+		resolveBearerPrincipal: grants.resolveBearerPrincipal,
+		relay: attachRelay,
+	});
+	mountAttachGrantsApp(app, {
+		auth: requireBearerPrincipal(createEnvTokenResolver(operatorToken)),
+		grants,
+	});
 
 	const server = Bun.serve({
 		hostname: '127.0.0.1',
@@ -99,7 +123,20 @@ function serveSelfHostRelay(token: string) {
 	});
 	bunRooms.bindServer(server);
 	attachRelay.bindServer(server);
-	return { server, origin: `ws://127.0.0.1:${server.port}` };
+	return {
+		server,
+		origin: `ws://127.0.0.1:${server.port}`,
+		httpOrigin: `http://127.0.0.1:${server.port}`,
+		grants,
+	};
+}
+
+/** Mint a grant directly on the store and return its secret (the pairing payload). */
+async function pairDevice(
+	grants: DeviceGrantStore,
+	deviceId: string,
+): Promise<string> {
+	return (await grants.mint({ deviceId })).token;
 }
 
 /** Resolve on the first snapshot matching `predicate`, checking the latest first. */
@@ -147,8 +184,8 @@ const settledWith =
 
 /**
  * Open a raw WebSocket and resolve how the handshake settled: `open` if the
- * server upgraded it, `close` if it refused. The negative proof needs no
- * adapter; it only needs to know whether the socket ever opened.
+ * server upgraded it, `close` if it refused. The auth proof needs no adapter; it
+ * only needs to know whether the grant let the socket upgrade.
  */
 function handshakeOutcome(
 	url: string,
@@ -183,9 +220,10 @@ function capturingHostSocket(
 	};
 }
 
-/** Attach a client endpoint carrying the operator token. */
+/** Attach a client endpoint carrying its own device grant. */
 async function attachClient(
 	origin: string,
+	bearer: string,
 	deviceId: string,
 	attachId: string,
 ) {
@@ -195,26 +233,26 @@ async function attachClient(
 		hostId: HOST_ID,
 		deviceId,
 		attachId,
-		bearer: TOKEN,
+		bearer,
 	});
 	await client.ready;
 	return client;
 }
 
-describe('AttachRelay: authenticated attach behind INSTANCE_TOKEN', () => {
-	test('a host and client that carry the token share one session', async () => {
+describe('AttachRelay: attach behind per-device grants', () => {
+	test('a host and client, each with a device grant, share one session', async () => {
 		await using host: SuperChatHost = await createTestHost(
 			scriptedEngine([
 				[{ type: 'text-delta', delta: 'Attached through self-host.' }],
 			]),
 		);
-		const { server, origin } = serveSelfHostRelay(TOKEN);
+		const { server, origin, grants } = serveSelfHostRelay(OPERATOR_TOKEN);
 		const relayHost = attachHostToRelay({
 			host,
 			relayOrigin: origin,
 			principalId: 'ignored-by-server',
 			hostId: HOST_ID,
-			bearer: TOKEN,
+			bearer: await pairDevice(grants, 'host-mac'),
 		});
 		await relayHost.ready;
 
@@ -224,7 +262,7 @@ describe('AttachRelay: authenticated attach behind INSTANCE_TOKEN', () => {
 			hostId: HOST_ID,
 			deviceId: 'phone',
 			attachId: 'attach-1',
-			bearer: TOKEN,
+			bearer: await pairDevice(grants, 'phone'),
 		});
 		await client.ready;
 		try {
@@ -250,17 +288,16 @@ describe('AttachRelay: authenticated attach behind INSTANCE_TOKEN', () => {
 		await using host: SuperChatHost = await createTestHost(
 			scriptedEngine([[{ type: 'text-delta', delta: 'One partition.' }]]),
 		);
-		const { server, origin } = serveSelfHostRelay(TOKEN);
-		// The host and the client put DIFFERENT principalIds in their query. On the
-		// unauthenticated wave-1 relay this would key two different partitions and
-		// never pair; here the mount ignores both and stamps the one instance
-		// principal, so they DO pair.
+		const { server, origin, grants } = serveSelfHostRelay(OPERATOR_TOKEN);
+		// The host and the client put DIFFERENT principalIds in their query. The
+		// mount ignores both and stamps the one instance principal every grant
+		// resolves to, so they DO pair.
 		const relayHost = attachHostToRelay({
 			host,
 			relayOrigin: origin,
 			principalId: 'principal-A',
 			hostId: HOST_ID,
-			bearer: TOKEN,
+			bearer: await pairDevice(grants, 'host-mac'),
 		});
 		await relayHost.ready;
 
@@ -270,7 +307,7 @@ describe('AttachRelay: authenticated attach behind INSTANCE_TOKEN', () => {
 			hostId: HOST_ID,
 			deviceId: 'phone',
 			attachId: 'attach-1',
-			bearer: TOKEN,
+			bearer: await pairDevice(grants, 'phone'),
 		});
 		await client.ready;
 		try {
@@ -292,22 +329,79 @@ describe('AttachRelay: authenticated attach behind INSTANCE_TOKEN', () => {
 		}
 	});
 
-	test('a wrong token and a missing token both fail closed', async () => {
-		const { server, origin } = serveSelfHostRelay(TOKEN);
+	test('an unpaired device is refused, and a revoked device dies on its next connect', async () => {
+		const { server, origin, grants } = serveSelfHostRelay(OPERATOR_TOKEN);
 		try {
 			const hostUrl = `${origin}/attach?role=host&principalId=x&hostId=${HOST_ID}`;
-			// Wrong token: the bearer resolves to InvalidToken, so the upgrade never
-			// happens and the handshake closes.
+			// A never-minted grant: nothing resolves, so the upgrade never happens.
 			expect(
-				await handshakeOutcome(hostUrl, ['epicenter', `bearer.${TOKEN}-wrong`]),
+				await handshakeOutcome(hostUrl, ['epicenter', 'bearer.never-minted']),
 			).toBe('close');
-			// No token at all: nothing to extract, so 401 and no upgrade.
+			// No grant at all: nothing to extract, so 401 and no upgrade.
 			expect(await handshakeOutcome(hostUrl, ['epicenter'])).toBe('close');
-			expect(await handshakeOutcome(hostUrl)).toBe('close');
-			// The correct token DOES upgrade (a host registers with no live client).
+
+			// A paired device DOES upgrade.
+			const grant = await grants.mint({ deviceId: 'phone' });
 			expect(
-				await handshakeOutcome(hostUrl, ['epicenter', `bearer.${TOKEN}`]),
+				await handshakeOutcome(hostUrl, ['epicenter', `bearer.${grant.token}`]),
 			).toBe('open');
+
+			// Revoke it; the same grant is now dead on the next connect, without any
+			// change to the sync plane (rooms never consulted the grant store).
+			expect(grants.revoke(grant.id)).toBe(true);
+			expect(
+				await handshakeOutcome(hostUrl, ['epicenter', `bearer.${grant.token}`]),
+			).toBe('close');
+		} finally {
+			await server.stop(true);
+		}
+	});
+
+	test('the operator token mints and revokes over the admin surface, and a grant cannot self-administer', async () => {
+		const { server, origin, httpOrigin } = serveSelfHostRelay(OPERATOR_TOKEN);
+		try {
+			const mint = (token: string) =>
+				fetch(`${httpOrigin}/attach/grants`, {
+					method: 'POST',
+					headers: {
+						authorization: `Bearer ${token}`,
+						'content-type': 'application/json',
+					},
+					body: JSON.stringify({ deviceId: 'phone', label: 'Phone' }),
+				});
+
+			// A wrong operator token cannot mint.
+			expect((await mint('wrong-operator-token')).status).toBe(401);
+
+			// The operator mints a grant; the secret comes back once.
+			const minted = await mint(OPERATOR_TOKEN);
+			expect(minted.status).toBe(201);
+			const grant = (await minted.json()) as { id: string; token: string };
+			expect(typeof grant.token).toBe('string');
+
+			const hostUrl = `${origin}/attach?role=host&principalId=x&hostId=${HOST_ID}`;
+			// The minted grant attaches; a device grant cannot reach the admin surface.
+			expect(
+				await handshakeOutcome(hostUrl, ['epicenter', `bearer.${grant.token}`]),
+			).toBe('open');
+			expect(
+				(
+					await fetch(`${httpOrigin}/attach/grants`, {
+						method: 'GET',
+						headers: { authorization: `Bearer ${grant.token}` },
+					})
+				).status,
+			).toBe(401);
+
+			// The operator revokes it; the grant is dead on the next connect.
+			const revoked = await fetch(`${httpOrigin}/attach/grants/${grant.id}`, {
+				method: 'DELETE',
+				headers: { authorization: `Bearer ${OPERATOR_TOKEN}` },
+			});
+			expect(revoked.status).toBe(204);
+			expect(
+				await handshakeOutcome(hostUrl, ['epicenter', `bearer.${grant.token}`]),
+			).toBe('close');
 		} finally {
 			await server.stop(true);
 		}
@@ -317,14 +411,14 @@ describe('AttachRelay: authenticated attach behind INSTANCE_TOKEN', () => {
 		await using host: SuperChatHost = await createTestHost(
 			scriptedEngine([[{ type: 'text-delta', delta: 'Endpoint only.' }]]),
 		);
-		const { server, origin } = serveSelfHostRelay(TOKEN);
+		const { server, origin, grants } = serveSelfHostRelay(OPERATOR_TOKEN);
 		const hostWireFrames: string[] = [];
 		const relayHost = attachHostToRelay({
 			host,
 			relayOrigin: origin,
 			principalId: 'ignored',
 			hostId: HOST_ID,
-			bearer: TOKEN,
+			bearer: await pairDevice(grants, 'host-mac'),
 			openSocket: capturingHostSocket(hostWireFrames),
 		});
 		await relayHost.ready;
@@ -335,7 +429,7 @@ describe('AttachRelay: authenticated attach behind INSTANCE_TOKEN', () => {
 			hostId: HOST_ID,
 			deviceId: 'phone',
 			attachId: 'attach-1',
-			bearer: TOKEN,
+			bearer: await pairDevice(grants, 'phone'),
 		});
 		await client.ready;
 		try {
@@ -375,20 +469,32 @@ describe('AttachRelay: authenticated attach behind INSTANCE_TOKEN', () => {
 
 	test('a turn one client drives settles for both attached clients', async () => {
 		await using host: SuperChatHost = await createTestHost(
-			scriptedEngine([[{ type: 'text-delta', delta: 'Shared over the relay.' }]]),
+			scriptedEngine([
+				[{ type: 'text-delta', delta: 'Shared over the relay.' }],
+			]),
 		);
-		const { server, origin } = serveSelfHostRelay(TOKEN);
+		const { server, origin, grants } = serveSelfHostRelay(OPERATOR_TOKEN);
 		const relayHost = attachHostToRelay({
 			host,
 			relayOrigin: origin,
 			principalId: 'ignored-by-server',
 			hostId: HOST_ID,
-			bearer: TOKEN,
+			bearer: await pairDevice(grants, 'host-mac'),
 		});
 		await relayHost.ready;
 
-		const phone = await attachClient(origin, 'phone', 'attach-1');
-		const cli = await attachClient(origin, 'cli', 'attach-2');
+		const phone = await attachClient(
+			origin,
+			await pairDevice(grants, 'phone'),
+			'phone',
+			'attach-1',
+		);
+		const cli = await attachClient(
+			origin,
+			await pairDevice(grants, 'cli'),
+			'cli',
+			'attach-2',
+		);
 		try {
 			const phoneSettled = nextClientSnapshot(
 				phone,
@@ -436,18 +542,28 @@ describe('AttachRelay: authenticated attach behind INSTANCE_TOKEN', () => {
 				[{ type: 'text-delta', delta: 'Created over the relay.' }],
 			]),
 		);
-		const { server, origin } = serveSelfHostRelay(TOKEN);
+		const { server, origin, grants } = serveSelfHostRelay(OPERATOR_TOKEN);
 		const relayHost = attachHostToRelay({
 			host,
 			relayOrigin: origin,
 			principalId: 'ignored-by-server',
 			hostId: HOST_ID,
-			bearer: TOKEN,
+			bearer: await pairDevice(grants, 'host-mac'),
 		});
 		await relayHost.ready;
 
-		const phone = await attachClient(origin, 'phone', 'attach-1');
-		const cli = await attachClient(origin, 'cli', 'attach-2');
+		const phone = await attachClient(
+			origin,
+			await pairDevice(grants, 'phone'),
+			'phone',
+			'attach-1',
+		);
+		const cli = await attachClient(
+			origin,
+			await pairDevice(grants, 'cli'),
+			'cli',
+			'attach-2',
+		);
 		try {
 			const phonePending = nextClientSnapshot(
 				phone,

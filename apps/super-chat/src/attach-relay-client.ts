@@ -27,9 +27,11 @@ export type AttachRelayClientOptions = {
 	/** This attach session's id, unique per attach on the device. */
 	attachId: string;
 	/**
-	 * The operator bearer for the relay (self-host `INSTANCE_TOKEN`). It rides the
-	 * `bearer.<token>` WebSocket subprotocol, the one channel a browser upgrade
-	 * has. Every attach is authenticated, so this is required.
+	 * This device's attach grant (ADR-0115 wave 3): the operator pairs the device
+	 * once and hands over the minted grant (a QR or a paste), and it rides the
+	 * `bearer.<token>` WebSocket subprotocol, the one channel a browser upgrade has.
+	 * Every attach is authenticated, so this is required; a revoked or never-minted
+	 * grant fails the handshake, so an unpaired device cannot attach.
 	 */
 	bearer: string;
 	/** Inject the socket opener in tests; defaults to the global `WebSocket`. */

@@ -40,18 +40,20 @@ export type AttachRelayHostOptions = {
 	relayOrigin: string;
 	/**
 	 * The principal that owns both ends. The authenticated relay ignores this and
-	 * stamps the principal from the bearer (the instance principal on self-host,
-	 * ADR-0115 wave 2), so it is carried only to complete the connect URL's
-	 * addressing quadruple and can never point the attach at another partition.
-	 * Wave 3 derives it from the host's device grant.
+	 * stamps the principal from the device grant (the instance principal on
+	 * self-host, ADR-0115 wave 3), so it is carried only to complete the connect
+	 * URL's addressing quadruple and can never point the attach at another
+	 * partition.
 	 */
 	principalId: string;
 	/** This desktop's stable host id, the endpoint clients attach to. */
 	hostId: string;
 	/**
-	 * The operator bearer for the relay (self-host `INSTANCE_TOKEN`). It rides the
-	 * `bearer.<token>` WebSocket subprotocol, the one channel a browser upgrade
-	 * has. Every attach is authenticated, so this is required.
+	 * This host's device grant for the relay (ADR-0115 wave 3): the operator mints
+	 * one grant per device, the desktop host's own included, and it rides the
+	 * `bearer.<token>` WebSocket subprotocol, the one channel a browser upgrade has.
+	 * Every attach is authenticated, so this is required; revoking the grant cuts
+	 * this host off on its next connect.
 	 */
 	bearer: string;
 	/**
