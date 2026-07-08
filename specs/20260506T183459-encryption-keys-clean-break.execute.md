@@ -21,7 +21,7 @@ tripwire, browser reload-on-change) is one helper or one inline subscription.
 - Branch: `feat/encrypted-local-workspace-storage`. Stay on it.
 - Style: no em/en dashes anywhere (prose, comments, JSDoc, errors). Use a
   colon, semicolon, parenthesis, or sentence break.
-- Skills available: load `cohesive-clean-breaks`, `refactoring`,
+- Skills available: load `greenfield-clean-breaks`, `refactoring`,
   `incremental-commits`, `git`, `post-implementation-review` if the harness
   exposes them.
 

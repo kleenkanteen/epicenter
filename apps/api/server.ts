@@ -71,14 +71,14 @@ import { buildEpicenterTrustedOrigins } from './worker/trusted-origins.js';
  * and this host's process config (`DATABASE_URL`, port, origin, data dir).
  *
  * `CloudAuthBindings` already requires `BETTER_AUTH_SECRET` and leaves each OAuth
- * provider optional (register-when-present, ADR-0071); this hub additionally
- * mandates Google (its one sign-in method) by re-declaring it required. So a
- * misconfiguration fails closed at boot instead of as a downstream surprise.
- * Unlike the Cloudflare edge (whose bindings are deploy-gated and
- * `wrangler types`-typed), `process.env` is unchecked, so boot is the place to
- * validate it. The validated env is also what feeds `mountCloudAuth`'s
- * `resolveAuthSecrets` below, so the Cloud-only secrets reach Better Auth without
- * ever entering the portable `ServerBindings`.
+ * provider optional (register-when-present, ADR-0071). This hosted hub is
+ * stricter: its sign-in UI always offers Google, GitHub, and Apple, so the Bun
+ * host requires all three provider credential sets at boot instead of
+ * letting a shown provider fail later. Unlike the Cloudflare edge (whose bindings
+ * are deploy-gated and `wrangler types`-typed), `process.env` is unchecked, so
+ * boot is the place to validate it. The validated env is also what feeds
+ * `mountCloudAuth`'s `resolveAuthSecrets` below, so the Cloud-only secrets reach
+ * Better Auth without ever entering the portable `ServerBindings`.
  */
 const ApiBunBindings = ServerBindings.merge(CloudAuthBindings).merge({
 	DATABASE_URL: 'string',
@@ -87,6 +87,12 @@ const ApiBunBindings = ServerBindings.merge(CloudAuthBindings).merge({
 	'DATA_DIR?': 'string',
 	GOOGLE_CLIENT_ID: 'string',
 	GOOGLE_CLIENT_SECRET: 'string',
+	GITHUB_CLIENT_ID: 'string',
+	GITHUB_CLIENT_SECRET: 'string',
+	APPLE_CLIENT_ID: 'string',
+	APPLE_TEAM_ID: 'string',
+	APPLE_KEY_ID: 'string',
+	APPLE_PRIVATE_KEY: 'string',
 });
 
 /**
@@ -142,6 +148,14 @@ export function startBunApiServer(
 		opts.resolveBearerPrincipal ?? resolveRequestOAuthPrincipal;
 	const cookieOrBearer = requireCookieOrBearerPrincipal(resolveBearerPrincipal);
 	const bearer = requireBearerPrincipal(resolveBearerPrincipal);
+	const serveAuthUiShell = () =>
+		new Response(
+			'Hosted auth UI is served by the SvelteKit app in Bun dev. Use `bun run --cwd apps/api/ui dev` for browser auth surfaces, or `bun run --cwd apps/api dev` for the Worker asset shell.',
+			{
+				status: 503,
+				headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+			},
+		);
 
 	app.get('/', (c) =>
 		c.json({ product: 'hub', version: '0.1.0', runtime: 'bun' }),
@@ -160,7 +174,10 @@ export function startBunApiServer(
 	// (this host and the Worker alike); the dev host differs only in non-Secure
 	// attributes for localhost. The Cloud-only auth secrets come from the
 	// validated `env` closure (ADR-0076), never the portable `ServerBindings`.
-	mountCloudAuth(app, { resolveAuthSecrets: () => env });
+	mountCloudAuth(app, {
+		resolveAuthSecrets: () => env,
+		serveAuthUiShell,
+	});
 	mountSessionApp(app, { auth: cookieOrBearer });
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
 	mountRoomsApp(app, { resolveBearerPrincipal });

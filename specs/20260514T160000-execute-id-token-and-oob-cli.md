@@ -125,7 +125,7 @@ If any of these are still open when you start, stop and ask. Do not guess.
 
 **Goal**: ship `customIdTokenClaims` and the `/auth/cli-callback` page. Both additive. `/workspace-identity` keeps working. No client changes.
 
-**Skills to load**: `spec-execution`, `cohesive-clean-breaks`, `encryption`, `elysia` is not relevant (the api uses Hono + Better Auth), `error-handling`, `monorepo`.
+**Skills to load**: `spec-execution`, `greenfield-clean-breaks`, `encryption`, `elysia` is not relevant (the api uses Hono + Better Auth), `error-handling`, `monorepo`.
 
 ### Files to touch
 

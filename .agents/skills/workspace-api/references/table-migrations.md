@@ -147,7 +147,7 @@ deleteConversation(message.id);  // Error: ChatMessageId is not ConversationId
 
 ### Reference Implementations
 
-See `apps/honeycrisp/honeycrisp.ts` and `apps/fuji/src/lib/workspace/index.ts` for the canonical co-located pattern (brand type + `generate*` / `as*` + table + `InferTableRow` export).
+See `apps/honeycrisp/src/lib/workspace/index.ts` and `apps/tab-manager/src/lib/workspace/definition.ts` for the canonical co-located pattern (brand type + `generate*` / `as*` + table + `InferTableRow` export).
 See `apps/whispering/src/lib/workspace/definition.ts` for a multi-table example including `field.json(Type.Union([...]))` for discriminated JSON results. No first-party app has a multi-version migration yet; for `.migrate()` examples, see the test suites at `packages/workspace/src/document/create-table.test.ts` and `packages/workspace/src/document/define-table.test.ts`.
 
 ### Pattern
@@ -156,8 +156,8 @@ See `apps/whispering/src/lib/workspace/definition.ts` for a multi-table example 
 import type { Brand } from 'wellcrafted/brand';
 import { field } from '@epicenter/field';
 import {
-  createWorkspace,
   defineTable,
+  defineWorkspace,
   generateId,
   type InferTableRow,
 } from '@epicenter/workspace';
@@ -187,54 +187,49 @@ export type Post = InferTableRow<typeof postsTable>;
 
 const myAppTables = { users: usersTable, posts: postsTable };
 
-// ─── Workspace factory ──────────────────────────────────────────────────
+// ─── Workspace definition ───────────────────────────────────────────────
 
-export function createMyAppWorkspace() {
-  return createWorkspace({
-    id: 'my-workspace',
-    tables: myAppTables,
-    kv: {},
-  });
-}
-
-export const workspace = createMyAppWorkspace();
+export const myAppWorkspace = defineWorkspace({
+  id: 'epicenter-my-app',
+  name: 'my-app',
+  tables: myAppTables,
+  kv: {},
+});
 ```
 
 ### Why This Structure
 
 - **Co-located types**: Each `export type` sits right below its `defineTable`: easy to verify 1:1 correspondence, easy to remove both together.
-- **Error co-location**: If you forget `id` or pass a non-flat column shape, the error surfaces on the `defineTable()` call itself, not buried inside the `createWorkspace({ tables })` call.
+- **Error co-location**: If you forget `id` or pass a non-flat column shape, the error surfaces on the `defineTable()` call itself, not buried inside the `defineWorkspace({ tables })` call.
 - **Single source of truth**: `InferTableRow` derives from the schema. Migrations always infer the latest version's row.
 - **Fast type inference**: `InferTableRow<typeof usersTable>` resolves against a standalone const. Avoids expensive indirection through the workspace bundle type.
 
 ### Anti-Pattern: Inline Tables + Deep Indirection
 
 ```typescript
-// BAD: Tables inline inside createWorkspace, types derived through indirection off the bundle
-export function createMyAppWorkspace() {
-  return createWorkspace({
-    id: 'my-workspace',
-    tables: {
-      users: defineTable({ id: field.string<UserId>(), email: field.string() }),
-    },
-    kv: {},
-  });
-}
-type Tables = ReturnType<typeof createMyAppWorkspace>['tables'];
+// BAD: Tables inline inside defineWorkspace, types derived through indirection
+export const myAppWorkspace = defineWorkspace({
+  id: 'epicenter-my-app',
+  name: 'my-app',
+  tables: {
+    users: defineTable({ id: field.string<UserId>(), email: field.string() }),
+  },
+  kv: {},
+});
+type Tables = ReturnType<typeof myAppWorkspace.create>['tables'];
 export type User = InferTableRow<Tables['users']>;
 
-// GOOD: Extract table, co-locate type, reference it in createWorkspace
+// GOOD: Extract table, co-locate type, reference it in defineWorkspace
 const usersTable = defineTable({
   id: field.string<UserId>(),
   email: field.string(),
 });
 export type User = InferTableRow<typeof usersTable>;
 
-export function createMyAppWorkspace() {
-  return createWorkspace({
-    id: 'my-workspace',
-    tables: { users: usersTable },
-    kv: {},
-  });
-}
+export const myAppWorkspace = defineWorkspace({
+  id: 'epicenter-my-app',
+  name: 'my-app',
+  tables: { users: usersTable },
+  kv: {},
+});
 ```

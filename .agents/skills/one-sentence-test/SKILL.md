@@ -10,7 +10,7 @@ metadata:
 
 Related skills: use [post-implementation-review](../post-implementation-review/SKILL.md)
 when the sentence is part of a post-change second read, and
-[cohesive-clean-breaks](../cohesive-clean-breaks/SKILL.md) when the sentence
+[greenfield-clean-breaks](../greenfield-clean-breaks/SKILL.md) when the sentence
 drives an API, ownership, lifecycle, or package boundary change.
 
 **Core move.** Before continuing, stop and write one concrete sentence that describes the subject. Name the objects, verbs, and scope. No marketing words. No "flexibly handles." No "unified experience." Then use the sentence as an audit tool.
@@ -23,9 +23,9 @@ The move has two applications. They're distinct lenses on the same discipline: p
 
 ## Application A: Cohesion Audit (top-down)
 
-**When**: reviewing a design, spec, or surface (commands, endpoints, options, tables) for coherence. The sentence is the thesis; every surface is audited against it.
+**Subject**: a design, spec, or surface (commands, endpoints, options, tables) whose coherence is in question. The sentence is the thesis; every surface is audited against it.
 
-Triggers:
+Signals:
 
 - A design discussion is wrapping up and code is about to start
 - A spec draft exists but its sections feel unrelated
@@ -52,8 +52,8 @@ decision, candidate list, and refusal template.
 1. List the convenience features, rare modes, old shapes, and fast paths.
 2. Circle the one that forces the most extra surface area.
 3. Remove that one from the sentence.
-4. If the sentence still describes a useful product, run the asymmetric wins
-   pass in cohesive-clean-breaks.
+4. If the sentence still describes a useful product, run the asymmetric-wins
+   pass.
 ```
 
 This matters most before greenfield implementation, when AI can make a second
@@ -90,9 +90,9 @@ The good sentence names the objects (actions), their source (config file), the v
 
 ## Application B: Value-Add Audit (bottom-up)
 
-**When**: evaluating a single utility, wrapper, flag, endpoint, or config option to see if it's earning its keep. The sentence describes what the code *actually does*, ignoring docs, then specializes under the defaults in use.
+**Subject**: a single utility, wrapper, flag, endpoint, or config option whose value is in question. The sentence describes what the code *actually does*, ignoring docs, then specializes under the defaults in use.
 
-Triggers:
+Signals:
 
 - Evaluating whether an abstraction earns its keep
 - Reviewing a wrapper around an existing utility

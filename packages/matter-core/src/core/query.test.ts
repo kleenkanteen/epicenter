@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { describe, expect, test } from 'bun:test';
+import { expectOk } from 'wellcrafted/testing';
 import { classifyRows } from './conformance';
 import { validateContract } from './contract';
 import type { Row } from './parse';
@@ -55,15 +56,15 @@ describe('buildStemQuery (the SQL shapes)', () => {
 });
 
 describe('buildStemQuery (executed against a real projection in bun:sqlite)', () => {
-	const built = validateContract({
-		fields: {
-			title: { type: 'string' },
-			rating: { type: 'integer' },
-			status: { type: 'string', enum: ['reading', 'done'] },
-		},
-	});
-	if (built.error) throw new Error(built.error.message);
-	const contract = built.data;
+	const contract = expectOk(
+		validateContract({
+			fields: {
+				title: { type: 'string' },
+				rating: { type: 'integer' },
+				status: { type: 'string', enum: ['reading', 'done'] },
+			},
+		}),
+	);
 
 	const rows: Row[] = [
 		{

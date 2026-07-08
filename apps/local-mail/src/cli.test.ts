@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { modifyExitCode, parseArgs, runCli } from './cli.ts';
 import { loadConfig } from './config.ts';
-import type { ModifyMessageLabelsOutcome } from './modify.ts';
+import type { MessageWriteOutcome } from './modify.ts';
 import { createFileTokenStore } from './token-store.ts';
 import type { TokenSet } from './tokens.ts';
 
@@ -89,11 +89,11 @@ test('label parses repeatable label changes and --json', () => {
 });
 
 test('modifyExitCode is nonzero on any per-id failure or systemic abort', () => {
-	const clean: ModifyMessageLabelsOutcome = {
+	const clean: MessageWriteOutcome = {
 		results: [{ id: 'm1', labelIds: ['INBOX'], folded: true, error: null }],
 		aborted: null,
 	};
-	const perId: ModifyMessageLabelsOutcome = {
+	const perId: MessageWriteOutcome = {
 		results: [
 			{ id: 'm1', labelIds: ['INBOX'], folded: true, error: null },
 			{
@@ -105,7 +105,7 @@ test('modifyExitCode is nonzero on any per-id failure or systemic abort', () => 
 		],
 		aborted: null,
 	};
-	const aborted: ModifyMessageLabelsOutcome = {
+	const aborted: MessageWriteOutcome = {
 		results: [{ id: 'm1', labelIds: ['INBOX'], folded: true, error: null }],
 		aborted: { name: 'Throttled', message: 'slow down' },
 	};
@@ -130,7 +130,6 @@ test('label honors LOCAL_MAIL_READ_ONLY before resolving labels', async () => {
 	const token: TokenSet = {
 		accountEmail: 'you@example.com',
 		clientIdUsed: 'client-id',
-		environment: 'dev',
 		accessToken: 'access-token',
 		refreshToken: 'refresh-token',
 		accessTokenExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
@@ -174,7 +173,6 @@ test('status --json resolves the sole stored account and prints JSON', async () 
 	const token: TokenSet = {
 		accountEmail: 'you@example.com',
 		clientIdUsed: 'client-id',
-		environment: 'dev',
 		accessToken: 'access-token',
 		refreshToken: 'refresh-token',
 		accessTokenExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),

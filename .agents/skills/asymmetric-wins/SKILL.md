@@ -1,6 +1,6 @@
 ---
 name: asymmetric-wins
-description: "Find the small promise to refuse when preserving it forces a large implementation family: trade a measured amount of fidelity, compatibility, modes, or reproducibility to delete disproportionate complexity. Use when the user says \"asymmetric wins\", \"asymmetric win\", \"what can we refuse\", \"what collapses the most code\", \"does this UI refactor need to be pixel perfect\", or when a design adds a fast path, fallback parser, provider-specific SDK, second transport, compatibility alias, exact reproduction requirement, or rare mode beside the canonical path. Pairs with one-sentence-test (detects the opportunity), refactoring (counts the code family), and cohesive-clean-breaks (executes the break)."
+description: "Find the small promise to refuse when preserving it forces a large implementation family: trade a measured amount of fidelity, compatibility, modes, or reproducibility to delete disproportionate complexity. Use when the user says \"asymmetric wins\", \"asymmetric win\", \"what can we refuse\", \"what collapses the most code\", \"does this UI refactor need to be pixel perfect\", or when a design adds a fast path, fallback parser, provider-specific SDK, second transport, compatibility alias, exact reproduction requirement, or rare mode beside the canonical path."
 ---
 
 # Asymmetric Wins
@@ -38,29 +38,9 @@ the loss is load-bearing.
   docs paths, and other code-family evidence before the refusal is executed.
 - `frontend-design` owns visual direction, accessibility, brand, and whether a
   UI detail is load-bearing before pixel fidelity is refused.
-- `cohesive-clean-breaks` executes the resulting breaking change, wave ordering,
+- `greenfield-clean-breaks` executes the resulting breaking change, wave ordering,
   and old-path deletion.
-- `greenfield-clean-breaks` and `radical-options` link here instead of
-  re-deriving the refusal move.
-
-## When To Run
-
-Run this pass when a design adds or preserves:
-
-```txt
-a fast path beside the canonical path
-a provider-specific SDK wrapper beside a standard protocol
-a fallback parser for an old shape
-a second transport for one environment's nicer UX
-a compatibility alias nobody explicitly asked for
-an option that only preserves an old mental model
-a partial reflection API that makes callers ask which surfaces are real
-pixel-perfect reproduction of an old UI as a refactor requirement
-exact snapshot, fixture, layout, animation, or responsive-state compatibility
-a hand-drawn HTML diagram or component tree that reproduces structure already
-  owned by a UI primitive
-a rare mode whose tests, docs, branches, and state outlive its value
-```
+- `radical-options` links here instead of re-deriving the refusal move.
 
 ## Domain Manifestations
 
@@ -96,9 +76,9 @@ Architecture
 2. List candidate refusal points: fast paths, old shapes, rare modes, provider
    exceptions, compatibility aliases, fallback parsers, exact reproduction,
    partial reflection, hand-reproduced UI structure.
-3. For each candidate, list the code family it forces: methods, adapters,
-   unions, error variants, tests, docs branches, UI states, styling branches,
-   fixtures, screenshots, migrations, local markup, custom CSS, diagram upkeep.
+3. For each candidate, name the deletion prize: methods, adapters, unions,
+   error variants, tests, docs branches, UI states, styling branches, fixtures,
+   screenshots, migrations, local markup, custom CSS, diagram upkeep.
 4. Pick the candidate with the largest code family, not the most visible name.
 5. Ask who loses what if that behavior is refused.
 6. If the loss is a small convenience and the deletion removes a second shape,
@@ -121,7 +101,7 @@ Product sentence:
 Candidate refusal:
   ...
 
-Code family it deletes:
+Deletion prize:
   ...
 
 User loss:
@@ -149,7 +129,7 @@ Can refuse:
   locally reproduced HTML when a shared primitive owns the same contract,
   exhaustive component trees when a smaller artifact preserves the decision
 
-Code family it deletes:
+Deletion prize:
   ...
 
 Replacement artifact:
@@ -199,7 +179,7 @@ Product sentence:
 Candidate refusal:
   Browser SPAs can use Google GIS for a roughly 1-second sign-in.
 
-Code family it deletes:
+Deletion prize:
   signInWithIdToken
   OIDCProvider narrowing
   per-app GIS helpers

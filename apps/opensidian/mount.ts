@@ -4,9 +4,9 @@
  * `opensidian()` returns the `Mount` that an `epicenter.config.ts`
  * default-exports.
  *
- * The shared workspace currently exposes no daemon actions and no materializers,
- * so `.mount()` runs with no `compose` and serves the workspace's base actions.
- * Opensidian's file and shell actions need browser services (Yjs filesystem,
+ * The shared workspace currently exposes no headless-only actions and no
+ * materializers, so `.mount()` runs with no `compose` and keeps the workspace's
+ * base action registry in-process. Opensidian's file and shell actions need browser services (Yjs filesystem,
  * in-browser SQLite, just-bash) and are added only by the browser runtime.
  */
 

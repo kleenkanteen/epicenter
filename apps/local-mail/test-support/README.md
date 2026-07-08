@@ -5,8 +5,33 @@ label, mark read/unread, star) against a **mock Gmail backend** and a
 **throwaway copy** of your mirror, so you can verify write UX without ever
 touching real Gmail or your real mirror.
 
-This is developer tooling, not CI. Nothing here runs in the pipeline: the smoke
-needs a real connected mirror to copy from.
+This is developer tooling, not `bun test`. The write-path smoke needs a real
+connected mirror to copy from; `check-gmail-discovery.ts` makes a live Google
+call. Neither is hermetic, so both stay out of the offline suite.
+
+## Gmail API drift check
+
+`check-gmail-discovery.ts` fetches Gmail's Discovery document and asserts that
+every method and schema field `src/gmail-client.ts` / `src/schema.ts` rely on is
+still present and still the type we expect. Our schemas are deliberately partial
+and permissive (they tolerate unknown Gmail fields, and every read field is
+optional, so a removed field passes `Value.Check` and reaches a reader as
+`undefined`), which is exactly what makes Gmail *removing*, *moving*, or
+*retyping* something we depend on invisible until a live sync misbehaves.
+
+The schema-side contract is not re-listed: the check walks the actual `schema.ts`
+TypeBox objects (JSON Schema at runtime), so `schema.ts` stays the single source
+of the fields we read. The only hand-maintained pieces are the small set of
+methods we call (the client builds those paths as string templates, nothing to
+derive) and the root-schema name map.
+
+```sh
+bun run --cwd apps/local-mail check:gmail-drift
+```
+
+It runs weekly (and on demand) via `.github/workflows/local-mail.gmail-drift.yml`,
+not per-PR: it is a network call and drift is slow-moving. Exits non-zero listing
+each drift.
 
 ## Safety model
 
@@ -39,6 +64,7 @@ Four independent guarantees keep this from touching anything real:
 | `fingerprint.sh`   | Hashes the real mirror's durable state, for the before/after safety proof. |
 | `boot.ts`          | Shared boot used by `smoke.ts` (and any manual session): stands up copy + mock + `up` on ephemeral ports and hands back the launch coordinates. The one owner of the safety-critical wiring. |
 | `smoke.ts`         | Headless one-shot: fires one real write through `/api/messages/modify`, asserts it hit the mock, asserts the real mirror is unchanged. |
+| `check-gmail-discovery.ts` | Gmail API drift check: fetches the live Discovery doc and asserts the methods (hand-listed) + schema fields (walked from `schema.ts`) the client relies on are still present and correctly typed. |
 
 Runtime artifacts (the copy, the modify log, server logs) live under
 `LM_TEST_DIR`, never inside the repo.

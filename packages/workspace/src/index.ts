@@ -42,7 +42,7 @@
 // ACTION SYSTEM
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { Action, ActionManifest, ActionRegistry } from './shared/actions';
+export type { Action, ActionRegistry } from './shared/actions';
 export {
 	defineActions,
 	defineMutation,
@@ -177,7 +177,6 @@ export {
 	type LocalPersistenceAttachment,
 	type LocalWorkspace,
 	type MountComposeContext,
-	type MountComposition,
 	type MountOptions,
 	type MountWorkerContext,
 	type MountWorkerFactory,

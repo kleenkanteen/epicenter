@@ -22,15 +22,15 @@ type Db = NodePgDatabase<typeof schema>;
  * secrets it does not read (ADR-0076). The cloud threads it onto
  * `c.var.authSecrets` (mount-cloud-auth.ts) from its own deploy-gated env, the
  * same honest-edge move every Cloudflare-only binding already makes (ADR-0066),
- * so both readers (this builder and the `authApp` sign-in page) take it from one
- * resolved value rather than reaching into the raw `c.env` bag.
+ * so this builder can resolve provider credentials once rather than scattering
+ * raw `c.env` checks through auth setup.
  *
  * `BETTER_AUTH_SECRET` is required: every deployment that reaches this composes
  * Better Auth and must sign sessions with a real secret (the runtime gate below
- * is defense-in-depth against an empty value). Each OAuth provider is optional
- * and register-when-present (ADR-0071): a deployment configures the ones it has
- * an app for, or none; an absent provider is simply not offered, never a button
- * that 500s.
+ * is defense-in-depth against an empty value). At the shared library boundary,
+ * each OAuth provider stays optional and register-when-present (ADR-0071). The
+ * hosted `apps/api` deployable may impose a stricter product promise, such as
+ * requiring every provider its static sign-in UI shows.
  */
 export const CloudAuthBindings = type({
 	BETTER_AUTH_SECRET: 'string',
@@ -38,8 +38,6 @@ export const CloudAuthBindings = type({
 	'GOOGLE_CLIENT_SECRET?': 'string',
 	'GITHUB_CLIENT_ID?': 'string',
 	'GITHUB_CLIENT_SECRET?': 'string',
-	'MICROSOFT_CLIENT_ID?': 'string',
-	'MICROSOFT_CLIENT_SECRET?': 'string',
 	// Apple is register-when-present like the others, but "present" means all
 	// four parts of the signing material: the Services ID plus the Team ID, Key
 	// ID, and .p8 private key the client-secret JWT is minted from (there is no
@@ -52,6 +50,44 @@ export const CloudAuthBindings = type({
 export type CloudAuthBindings = typeof CloudAuthBindings.infer;
 
 /**
+ * The single owner of "which OAuth providers can Better Auth register": each
+ * provider resolves to its credentials when fully configured and `null`
+ * otherwise. Apple is present only when all four parts of its signing material
+ * are (the client-secret JWT is minted per request from them; see
+ * {@link generateAppleClientSecret}).
+ */
+export function configuredProviders(env: CloudAuthBindings) {
+	return {
+		google:
+			env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+				? {
+						clientId: env.GOOGLE_CLIENT_ID,
+						clientSecret: env.GOOGLE_CLIENT_SECRET,
+					}
+				: null,
+		github:
+			env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
+				? {
+						clientId: env.GITHUB_CLIENT_ID,
+						clientSecret: env.GITHUB_CLIENT_SECRET,
+					}
+				: null,
+		apple:
+			env.APPLE_CLIENT_ID &&
+			env.APPLE_TEAM_ID &&
+			env.APPLE_KEY_ID &&
+			env.APPLE_PRIVATE_KEY
+				? {
+						clientId: env.APPLE_CLIENT_ID,
+						teamId: env.APPLE_TEAM_ID,
+						keyId: env.APPLE_KEY_ID,
+						privateKey: env.APPLE_PRIVATE_KEY,
+					}
+				: null,
+	};
+}
+
+/**
  * Assemble and return a configured `betterAuth()` instance from runtime deps.
  *
  * Cloudflare Workers doesn't expose `env` or database connections at module scope,
@@ -60,9 +96,9 @@ export type CloudAuthBindings = typeof CloudAuthBindings.infer;
  *
  * Wires up:
  * - Drizzle adapter (portable Postgres wire; Hyperdrive on Workers, a pool on Node)
- * - Google OAuth, plus GitHub, Microsoft, and Apple when their credentials are
- *   configured (email/password is disabled; see {@link BASE_AUTH_CONFIG})
- * - Plugins: JWT (ES256), OAuth provider (PKCE)
+ * - Google OAuth, plus GitHub and Apple when their credentials are configured
+ *   (email/password is disabled; see {@link BASE_AUTH_CONFIG})
+ * - Plugins: JWT (ES256), OAuth provider (PKCE), passkey (WebAuthn)
  *
  * `/api/session` is the single Epicenter session surface; this builder no longer
  * enriches `/auth/get-session` with encryption keys.
@@ -94,15 +130,12 @@ export function createAuth({
 			'BETTER_AUTH_SECRET is not set: refusing to construct Better Auth with an empty signing secret, which would fall back to a public default and sign forgeable sessions.',
 		);
 	}
-	// Apple needs all four parts of its signing material to be offered at all;
-	// the same flag gates both the provider registration and the trusted-origin
-	// addition below (Apple posts its callback from appleid.apple.com).
-	const appleConfigured = Boolean(
-		env.APPLE_CLIENT_ID &&
-			env.APPLE_TEAM_ID &&
-			env.APPLE_KEY_ID &&
-			env.APPLE_PRIVATE_KEY,
-	);
+	// One presence predicate for all three providers (see configuredProviders).
+	// `apple` is bound to a local so its narrowing survives into the async
+	// client-secret factory below; the same value gates the trusted-origin
+	// addition (Apple posts its callback from appleid.apple.com).
+	const providers = configuredProviders(env);
+	const apple = providers.apple;
 	return betterAuth({
 		...BASE_AUTH_CONFIG,
 		database: drizzleAdapter(db, { provider: 'pg', schema }),
@@ -116,78 +149,38 @@ export function createAuth({
 		// sign-in POST. An earlier note disabled the cookie check on the theory
 		// that the sign-in POST was a cross-origin fetch whose third-party
 		// Set-Cookie browsers would drop. That is not how this deploys: the only
-		// caller of `/auth/sign-in/social` is the API-hosted sign-in page
-		// (auth-pages/scripts/sign-in.ts), which fetches a same-origin relative
-		// URL, so the state cookie is first-party, stored, and sent on the
+		// caller of `/auth/sign-in/social` is the API-hosted Svelte sign-in page,
+		// which fetches a same-origin relative URL, so the state cookie is
+		// first-party, stored, and sent on the
 		// Google callback navigation. The cookie binds the callback to the
 		// initiating browser (the DB record alone does not), so keeping the check
 		// on restores that login-CSRF / session-fixation defense.
 		//
-		// Each provider is registered only when its credentials are configured,
-		// so the hosted star is Google-by-default and a custom self-hosted
-		// deployment that configures an OAuth app adds whichever providers it set,
-		// instead of a button that 500s. The single-partition instance offers none:
-		// it composes no Better Auth at all (this builder is cloud-only, reached
-		// only through `mountCloudAuth`), and the operator bearer is its only gate
-		// (ADR-0075). better-auth requests `read:user` +
+		// Each provider is registered only when its credentials are configured.
+		// The hosted apps/api deployable requires the three providers its static UI
+		// shows, while this shared builder keeps the lower-level register-when-present
+		// behavior. The single-partition instance offers none: it composes no Better
+		// Auth at all (this builder is cloud-only, reached only through
+		// `mountCloudAuth`), and the operator bearer is its only gate (ADR-0075).
+		// better-auth requests `read:user` +
 		// `user:email` for GitHub by default, so it reads the primary email and
 		// GitHub's verification flag. GitHub is deliberately NOT a trusted linking
 		// provider (see BASE_AUTH_CONFIG): an unverified GitHub email must not link
 		// into an existing account.
 		socialProviders: {
-			...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-				? {
-						google: {
-							clientId: env.GOOGLE_CLIENT_ID,
-							clientSecret: env.GOOGLE_CLIENT_SECRET,
-						},
-					}
-				: {}),
-			...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
-				? {
-						github: {
-							clientId: env.GITHUB_CLIENT_ID,
-							clientSecret: env.GITHUB_CLIENT_SECRET,
-						},
-					}
-				: {}),
-			// Microsoft (Entra / personal MSA), register-when-present like GitHub.
-			// tenantId defaults to 'common' so both work/school and personal
-			// accounts can sign in. Like GitHub, Microsoft is deliberately NOT a
-			// trusted linking provider (see BASE_AUTH_CONFIG): a personal MSA email
-			// is not a guaranteed-verified assertion, so an untrusted Microsoft
-			// identity only links to an existing same-email account when Microsoft
-			// itself reports the email verified.
-			...(env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET
-				? {
-						microsoft: {
-							clientId: env.MICROSOFT_CLIENT_ID,
-							clientSecret: env.MICROSOFT_CLIENT_SECRET,
-						},
-					}
-				: {}),
+			...(providers.google ? { google: providers.google } : {}),
+			...(providers.github ? { github: providers.github } : {}),
 			// Apple's clientSecret is a per-request-minted ES256 JWT, so this is
-			// an async factory rather than a static pair. `appleConfigured`
-			// guarantees the four inputs are present (the `!` are safe under it).
-			// Like GitHub and Microsoft, Apple is NOT a trusted linking provider:
-			// it can issue a private-relay email, so an untrusted Apple identity
-			// only links to an existing same-email account when Apple reports the
-			// email verified.
-			...(appleConfigured
+			// an async factory rather than a static pair over the configured
+			// signing material. Like GitHub, Apple is NOT a trusted linking
+			// provider: it can issue a private-relay email, so an
+			// untrusted Apple identity only links to an existing same-email
+			// account when Apple reports the email verified.
+			...(apple
 				? {
 						apple: async () => ({
-							// biome-ignore lint/style/noNonNullAssertion: guarded by appleConfigured
-							clientId: env.APPLE_CLIENT_ID!,
-							clientSecret: await generateAppleClientSecret({
-								// biome-ignore lint/style/noNonNullAssertion: guarded by appleConfigured
-								clientId: env.APPLE_CLIENT_ID!,
-								// biome-ignore lint/style/noNonNullAssertion: guarded by appleConfigured
-								teamId: env.APPLE_TEAM_ID!,
-								// biome-ignore lint/style/noNonNullAssertion: guarded by appleConfigured
-								keyId: env.APPLE_KEY_ID!,
-								// biome-ignore lint/style/noNonNullAssertion: guarded by appleConfigured
-								privateKey: env.APPLE_PRIVATE_KEY!,
-							}),
+							clientId: apple.clientId,
+							clientSecret: await generateAppleClientSecret(apple),
 						}),
 					}
 				: {}),
@@ -220,7 +213,7 @@ export function createAuth({
 		// Apple posts its OAuth callback from appleid.apple.com (response_mode=
 		// form_post), so that origin must be trusted for the flow to complete.
 		// Only added when Apple is configured, to avoid widening the allow-list.
-		trustedOrigins: appleConfigured
+		trustedOrigins: apple
 			? [...trustedOrigins, APPLE_AUDIENCE]
 			: trustedOrigins,
 		// Postgres is the only auth store: sessions and OAuth verification
@@ -232,8 +225,8 @@ export function createAuth({
 		// Rate limiting consequently runs in-process, not in a shared store:
 		// dropping KV flips Better Auth's default from "secondary-storage" to
 		// "memory", so on the Worker each isolate keeps its own counters.
-		// Acceptable here because email/password is disabled and Google is the
-		// only sign-in (see BASE_AUTH_CONFIG), so there is no password
+		// Acceptable here because email/password is disabled and social OAuth is
+		// the only sign-in path (see BASE_AUTH_CONFIG), so there is no password
 		// brute-force surface a shared counter would protect; a single self-host
 		// process gets exact in-memory limiting for free. Upgrade trigger: add a
 		// `rateLimit` table to the schema and set `storage: 'database'` if

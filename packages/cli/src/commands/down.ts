@@ -1,14 +1,14 @@
 /**
- * `epicenter daemon down`: stop a running `daemon up` daemon.
+ * `epicenter down`: stop a running watcher.
  *
  * Sends `SIGTERM` to the recorded pid and polls until the process exits. The
- * daemon installs a `SIGTERM` handler that runs the same teardown as the
- * `daemon up` Ctrl-C path, so the OS signal is the whole shutdown channel:
- * there is no separate IPC `/shutdown` route. If the daemon has not exited
- * within {@link SHUTDOWN_TIMEOUT_MS} (hung handler), escalate to `SIGKILL`.
+ * watcher installs a `SIGTERM` handler that runs the same teardown as the
+ * `up` Ctrl-C path, so the OS signal is the whole shutdown channel: there is
+ * no separate IPC `/shutdown` route. If the watcher has not exited within
+ * {@link SHUTDOWN_TIMEOUT_MS} (hung handler), escalate to `SIGKILL`.
  *
- * `--all` enumerates every daemon for the current user and stops them in
- * parallel. No confirmation prompt: daemons are kill-friendly by design.
+ * `--all` enumerates every watcher for the current user and stops them in
+ * parallel. No confirmation prompt: watchers are kill-friendly by design.
  *
  * See spec: `20260426T235000-cli-up-long-lived-peer.md` § "Process lifecycle".
  */
@@ -30,10 +30,10 @@ const POLL_INTERVAL_MS = 50;
 type Outcome = { kind: 'stopped' | 'killed'; pid: number };
 
 /**
- * Stop a single daemon by metadata. Sends `SIGTERM`, then polls the pid until
- * it exits. Escalates to `SIGKILL` if the daemon is still alive after
+ * Stop a single watcher by metadata. Sends `SIGTERM`, then polls the pid until
+ * it exits. Escalates to `SIGKILL` if the watcher is still alive after
  * {@link SHUTDOWN_TIMEOUT_MS}. Sweeps the metadata sidecar on the exit paths a
- * graceful daemon shutdown would not have reached it itself.
+ * graceful watcher shutdown would not have reached it itself.
  */
 async function shutdownOne(meta: DaemonMetadata): Promise<Outcome> {
 	if (!isProcessAlive(meta.pid)) {
@@ -70,13 +70,13 @@ async function shutdownOne(meta: DaemonMetadata): Promise<Outcome> {
 
 export const downCommand = cmd({
 	command: 'down',
-	describe: 'Stop a running `epicenter daemon up` daemon.',
+	describe: 'Stop a running epicenter watcher.',
 	builder: {
 		C: epicenterRootOption,
 		all: {
 			type: 'boolean',
 			default: false,
-			description: 'Stop every running daemon for this user.',
+			description: 'Stop every running watcher for this user.',
 		},
 	},
 	handler: async (argv) => {
@@ -85,7 +85,7 @@ export const downCommand = cmd({
 				enumerateDaemons().map((m) => shutdownOne(m)),
 			);
 			process.stdout.write(
-				`stopped ${outcomes.length} daemon${outcomes.length === 1 ? '' : 's'}\n`,
+				`stopped ${outcomes.length} watcher${outcomes.length === 1 ? '' : 's'}\n`,
 			);
 			return;
 		}
@@ -93,7 +93,7 @@ export const downCommand = cmd({
 		const epicenterRoot = resolve(argv.C);
 		const meta = readMetadata(epicenterRoot);
 		if (!meta) {
-			process.stderr.write(`no daemon running for ${epicenterRoot}\n`);
+			process.stderr.write(`no watcher running for ${epicenterRoot}\n`);
 			return;
 		}
 

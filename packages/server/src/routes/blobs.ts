@@ -259,28 +259,23 @@ async function listPrincipalBlobs(
  * uniformly gated by the same chain: the deployment's auth (the cloud passes
  * `requireCookieOrBearerPrincipal`), then {@link requireBlobStore}
  * (which 503s a deployment with no object storage and otherwise stamps
- * `c.var.blobStore`), then any deployment policies. Cloud passes no policies in v1
- * (storage is unmetered until Autumn is wired); a future `syncBlobStorageWithAutumn`
- * would slot into `policies`.
+ * `c.var.blobStore`). Unlike inference and transcription, blobs takes no
+ * `policies`: no deployment gates storage today (the cloud is unmetered until
+ * Autumn is wired, and a self-host's bucket is the operator's own, so there is
+ * no house key to cap). The first real storage policy adds the seam back in
+ * the same change that adds the policy.
  */
 export function mountBlobsApp<E extends Env = Env>(
 	app: Hono<E>,
-	opts: {
-		auth: MiddlewareHandler<E>;
-		/** Extra middleware after auth on every blob route. */
-		policies?: MiddlewareHandler<E>[];
-	},
+	opts: { auth: MiddlewareHandler<E> },
 ): void {
-	// Every blob route runs the same chain: authenticate, ensure object storage is
-	// configured, then any deployment policies. The chain is typed as a non-empty tuple so its leading fixed
-	// handler satisfies `app.on`'s overload (a bare `MiddlewareHandler[]` spread
-	// would be read as the path argument). It is bare-typed because it mixes the
+	// Every blob route runs the same chain: authenticate, then ensure object
+	// storage is configured. The chain is bare-typed because it mixes the
 	// deployment's `E`-typed auth with the blob-local `BlobEnv` middleware
 	// (`requireBlobStore` stamps `c.var.blobStore`); both run on the same app.
-	const chain: [MiddlewareHandler, ...MiddlewareHandler[]] = [
+	const chain: [MiddlewareHandler, MiddlewareHandler] = [
 		opts.auth,
 		requireBlobStore,
-		...(opts.policies ?? []),
 	];
 
 	app.use(API_ROUTES.blobs.list.pattern, ...chain);

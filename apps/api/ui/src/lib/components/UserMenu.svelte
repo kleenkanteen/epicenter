@@ -10,6 +10,7 @@
 	import UserIcon from '@lucide/svelte/icons/user';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { mode, toggleMode } from 'mode-watcher';
+	import { goto } from '$app/navigation';
 	import { billingApi } from '$lib/billing/api';
 	import { billing } from '$lib/billing/queries';
 	import { auth } from '$lib/platform/auth';
@@ -65,6 +66,10 @@
 		<DropdownMenu.Separator />
 
 		<DropdownMenu.Group>
+			<DropdownMenu.Item onclick={() => goto('/dashboard/account')}>
+				<UserIcon class="mr-2 size-4" />
+				Account
+			</DropdownMenu.Item>
 			<DropdownMenu.Item onclick={openBillingPortal}>
 				<CreditCardIcon class="mr-2 size-4" />
 				Manage billing

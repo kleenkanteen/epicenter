@@ -1,6 +1,9 @@
 /**
  * The loop's view of its tools, kept tool-agnostic: the loop knows how to offer
- * tools to the model and how to run one, never where a tool lives. A
+ * tools to the model and how to run one, never where a tool lives. Action
+ * definitions keep exact input and result types at the authoring site; catalogs
+ * intentionally erase that precision to JSON-shaped tool calls because the
+ * model, approval gate, and adapters all meet at this boundary. A
  * {@link ToolCatalog} can be local actions, stdio MCP, or another host-specific
  * adapter; the loop does not change.
  */
@@ -47,6 +50,52 @@ export type ToolCatalog = {
 	definitions(): AgentToolDefinition[];
 	resolve(call: AgentToolCall, signal: AbortSignal): Promise<AgentToolOutcome>;
 };
+
+/**
+ * Run one tool call through the shared approval gate. Chat turns and direct
+ * invocations must share this path so mutation policy cannot drift by caller.
+ */
+export async function resolveApprovedToolCall({
+	tools,
+	approval,
+	call,
+	signal,
+}: {
+	tools: ToolCatalog;
+	approval: Approval;
+	call: AgentToolCall;
+	signal: AbortSignal;
+}): Promise<AgentToolOutcome> {
+	const definition = tools
+		.definitions()
+		.find((candidate) => candidate.name === call.toolName);
+	// Fail closed on an unlisted name: catalog resolvers are not required to
+	// police their own listings (the stdio MCP resolver forwards any name to
+	// the subprocess), so reaching `resolve` without a definition would run an
+	// unlisted tool with no approval decision at all.
+	if (!definition) {
+		return {
+			content: `No tool named ${call.toolName} is available.`,
+			isError: true,
+		};
+	}
+	const decision = approval.decide(call, definition);
+
+	if (decision === 'deny') {
+		return { content: 'Denied by policy.', isError: true };
+	}
+	if (decision === 'ask') {
+		const approved = await approval.request(call, definition);
+		// The approval prompt is the one await before execution; a stop that
+		// landed while it was pending must win over a late approval.
+		if (signal.aborted) {
+			return { content: 'Stopped before the tool ran.', isError: true };
+		}
+		if (!approved) return { content: 'Denied by the user.', isError: true };
+	}
+
+	return tools.resolve(call, signal);
+}
 
 /** The empty catalog: a capability-free agent offers and runs no tools. */
 export const NO_TOOLS: ToolCatalog = {

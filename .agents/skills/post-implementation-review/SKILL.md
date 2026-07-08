@@ -1,6 +1,6 @@
 ---
 name: post-implementation-review
-description: "Hub for the broad second-read pass after an implementation: list every touched file as an ASCII tree, mentally inline helpers, audit dead paths and stale imports, name invariant owners, sanity-check API shape and naming. Delegates to focused simplification, clean-break, first-read, testing, TypeScript, Svelte, and Yjs skills as needed. Use after finishing an implementation, before final response, or when the user says 'review what you just did', 'second pass', 'final sweep'."
+description: "Hub for the broad post-implementation review and second-read pass after an implementation: list every touched file as an ASCII tree, mentally inline helpers, audit dead paths and stale imports, name invariant owners, sanity-check API shape and naming, and delegate to focused review skills as needed. Use after finishing an implementation, before final response, or when the user says 'post-implementation review', 'review what you just did', 'second pass', or 'final sweep'."
 metadata:
   author: epicenter
   version: '1.0'
@@ -8,9 +8,8 @@ metadata:
 
 # Post Implementation Review
 
-Use this skill after code changes and before final handoff. The goal is a hard
-second read: catch stale abstractions, dead paths, bad ownership, and confusing
-names while the edit context is still fresh.
+The goal is a hard second read: catch stale abstractions, dead paths, bad
+ownership, and confusing names while the edit context is still fresh.
 
 Do not silently fix structural concerns. First name what is wrong and why it
 matters, then fix it when it clears the evidence bar below.
@@ -55,8 +54,7 @@ Load only the skills that match the touched surface:
 
 ```txt
 collapse-pass            continuous deletion of unearned indirection
-cohesive-clean-breaks    public API, package boundary, config, lifecycle, naming, or ownership change
-greenfield-clean-breaks  compatibility refusal and ideal-shape review
+greenfield-clean-breaks    public API, package boundary, config, lifecycle, naming, ownership, greenfield, or clean-break decision
 fresh-context-review     independent adversarial review of a concrete diff or design
 asymmetric-wins          refuse a feature to collapse a disproportionate code family
 refactoring              caller counts, inlining, dead exports, stale imports, straggler sweep

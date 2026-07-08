@@ -5,8 +5,6 @@
  * bundles do not traverse modules that import `node:*` or `bun:*`.
  */
 
-export { connectDaemonActions } from './client/connect-daemon-actions.js';
-export type { DaemonActions } from './client/daemon-actions.js';
 export { findEpicenterRoot } from './client/find-epicenter-root.js';
 export { DEFAULT_EPICENTER_CONFIG_SOURCE } from './config/epicenter-config-source.js';
 export { EpicenterConfigError } from './config/load-epicenter-config.js';
@@ -18,23 +16,10 @@ export {
 	WorkspaceAppError,
 	type WorkspaceAuthClient,
 } from './config/open-epicenter-root.js';
-export { RunError } from './daemon/action-errors.js';
-export type { DaemonListSnapshot } from './daemon/app.js';
-export {
-	PeerSnapshot,
-	RunRequest,
-} from './daemon/app.js';
 export {
 	type AttachMountInfrastructureOptions,
 	attachMountInfrastructure,
 } from './daemon/attach-mount-infrastructure.js';
-export {
-	type DaemonClient,
-	DaemonError,
-	daemonClient,
-	getDaemon,
-	pingDaemon,
-} from './daemon/client.js';
 export {
 	defineMount,
 	defineSessionMount,
@@ -70,14 +55,8 @@ export {
 	leasePathFor,
 	logPathFor,
 	metadataPathFor,
-	socketPathFor,
 } from './daemon/paths.js';
 export { sweepDaemonRuntimeFiles } from './daemon/runtime-files.js';
-export {
-	type DaemonServer,
-	type DaemonServerOptions,
-	startDaemonServer,
-} from './daemon/server.js';
 export { StartupError } from './daemon/startup-errors.js';
 export type { DaemonRuntime, StartedMount } from './daemon/types.js';
 export {

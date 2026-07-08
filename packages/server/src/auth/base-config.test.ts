@@ -39,6 +39,16 @@ describe('credential lockdown (BASE_AUTH_CONFIG)', () => {
 		]);
 	});
 
+	test('different-email linking is allowed for the explicit link-social flow', () => {
+		// Enables the account page to link a work/personal provider whose email
+		// differs from the account email. Safe only because it pairs with the
+		// fresh-session gate (see account-linking.test.ts); it does NOT enable
+		// different-email IMPLICIT linking during sign-in (structurally impossible).
+		expect(BASE_AUTH_CONFIG.account.accountLinking.allowDifferentEmails).toBe(
+			true,
+		);
+	});
+
 	test('POST /auth/sign-up/email does not create a session', async () => {
 		const auth = createProductionShapedAuth();
 		const res = await auth.handler(

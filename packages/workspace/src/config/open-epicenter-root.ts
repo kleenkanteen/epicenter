@@ -2,7 +2,7 @@
  * Open an Epicenter root: the single daemon entry point from
  * `epicenter.config.ts` to the live mount runtime.
  *
- * `openEpicenterRoot()` is what `epicenter daemon up` calls. It owns the whole
+ * `openEpicenterRoot()` is what `epicenter up` calls. It owns the whole
  * startup path:
  *
  *   1. `loadEpicenterConfig(epicenterRoot)` imports `epicenter.config.ts` and

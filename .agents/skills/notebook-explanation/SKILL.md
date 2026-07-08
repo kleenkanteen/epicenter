@@ -8,7 +8,7 @@ metadata:
 
 # Notebook Explanation
 
-Use this skill when the user wants to understand a technical system, not just receive a polished answer. Write like private working notes from someone trying to make the system obvious to themself.
+Write like private working notes from someone trying to make the system obvious to themself.
 
 The point is compression:
 
@@ -71,23 +71,29 @@ Rule:
 For architecture, show ownership first:
 
 ```txt
-apps/server owns:
-  private workspace auth
-  private workspace sync
+packages/server owns:
+  shared Hono route handlers
+  room relay behavior
+  server library contracts
 
-apps/cloud owns:
-  public product modules
-  public records
+apps/api owns:
+  hosted personal cloud deployment
+  OAuth, billing, hosted principal resolution
+
+apps/self-host owns:
+  self-hosted single-partition deployment
+  instance principal resolution
 
 module owns:
   routes
   schemas
-  scope names
+  action registry
 
-network owns:
-  domain
-  records
-  policy
+workspace definition owns:
+  tables
+  kv
+  child-doc layouts
+  isomorphic actions
 
 token owns:
   identity proof
@@ -101,10 +107,10 @@ policy owns:
 Then show the flow:
 
 ```txt
-private draft
-  -> explicit publish
-  -> network API
-  -> public record
+defineWorkspace(...)
+  -> connect(connection | null)
+  -> local storage and optional relay sync
+  -> tables / kv / child-doc openers
 ```
 
 ## Zoom Out Explanations
@@ -181,9 +187,10 @@ A layer is hierarchy, and indentation already expresses hierarchy, so indent-arr
 
 ```txt
 Layer (workspace builder):
-  createDisposableCache(id => ...).open(id)
-    -> createWorkspace({ id, tables, kv })
-      -> defineTable() / defineKv()
+  defineWorkspace({ id, tables, kv, actions })
+    -> connect(connection | null)
+      -> createWorkspace({ id, tables, kv })
+      -> storage + optional collaboration
 ```
 
 For box art and a worked example of all four shapes, see `docs/articles/four-diagrams-explain-the-ykeyvalue-decision.md`. It takes one decision and draws it four ways, journey, layer, flow, and comparison, each shape answering a different question.
@@ -220,15 +227,15 @@ policy   = whether this user can do this exact thing now
 Good:
 
 ```txt
-audience: https://ark.alice.com
-scope:    ark:publish
-policy:   user is allowed to publish to Alice's network
+audience: https://api.epicenter.so
+scope:    workspace:sync
+policy:   principal may open this room now
 ```
 
 Bad:
 
 ```txt
-scope: ark:alice:post:create:public:not-banned
+scope: workspace:alice:room:write:not-suspended
 ```
 
 ## Code Break Explanations
@@ -236,26 +243,26 @@ scope: ark:alice:post:create:public:not-banned
 When showing code organization, make the folder tree express ownership:
 
 ```txt
-apps/cloud/src/
-  modules/
-    ark/
-      routes.ts
-      schema.ts
-      scopes.ts
-      policy.ts
-  networks/
-    config.ts
-    host-dispatch.ts
+apps/api/worker/
+  routes/
+    rooms.ts
+    billing.ts
+  billing/
+    autumn.config.ts
+
+packages/server/src/
+  routes/
+    rooms.ts
+  principal/
+    hosted.ts
+    instance.ts
 ```
 
 Then show the smallest useful type or function:
 
 ```ts
-type Network = {
-  host: string;
-  module: string;
-  audience: string;
-  supportedScopes: string[];
+type PrincipalResolver = {
+	resolve(request: Request): Promise<PrincipalId | null>;
 };
 ```
 

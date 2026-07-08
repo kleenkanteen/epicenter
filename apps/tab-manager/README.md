@@ -79,18 +79,18 @@ Prerequisites: [Bun](https://bun.sh).
 git clone https://github.com/EpicenterHQ/epicenter.git
 cd epicenter
 bun install
-bun dev
+bun dev:tab-manager
 ```
 
-From the repo root, `bun dev` starts the local API and the WXT extension dev server. To work on only the extension UI, run:
+From the repo root, `bun dev:tab-manager` starts the local API and the WXT extension dev server. Bare `bun dev` currently aliases this default workflow. To work on only the extension UI, run:
 
 ```bash
-bun run dev:tab-manager:ui
+bun dev:tab-manager:ui
 ```
 
 To load the extension in Chrome: open `chrome://extensions`, enable Developer Mode, click "Load unpacked," and select the `apps/tab-manager/.output/chrome-mv3-dev` directory.
 
-From inside `apps/tab-manager`, `bun dev` starts WXT only. Use that when `bun run dev:api` is already running from the repo root, or when you are intentionally testing UI-only behavior.
+The package-local `bun dev` still starts WXT only, but the root commands are the preferred dev entrypoints.
 
 
 Firefox:

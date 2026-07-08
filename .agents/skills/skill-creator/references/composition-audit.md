@@ -5,9 +5,8 @@ routing collisions, duplicated bodies, dead links, and unclear roles. Run it
 after extracting or merging a skill, after adding a description trigger, or on a
 cadence over a named cluster (for example the review/simplify cluster:
 `post-implementation-review`, `collapse-pass`, `fresh-context-review`,
-`cohesive-clean-breaks`, `greenfield-clean-breaks`,
-`radical-options`, `asymmetric-wins`, `approachability-audit`,
-`one-sentence-test`).
+`greenfield-clean-breaks`, `radical-options`, `asymmetric-wins`,
+`approachability-audit`, `one-sentence-test`).
 
 This complements, does not replace:
 
@@ -44,16 +43,15 @@ For each phrase you say out loud as a trigger, exactly one description should
 claim it. More than one is an over-trigger.
 
 ```bash
-PHRASE="asymmetric wins"
-for d in */SKILL.md; do
-  sed -n '/^description:/,/^---$/p' "$d" | grep -qi "$PHRASE" && echo "$PHRASE -> $d"
-done
+bun run skill-creator/scripts/audit-routing-collisions.ts "asymmetric wins"
 ```
 
-Two or more hits = collision. Fix by narrowing every description except the one
-true owner: do not let a hub or manual *open* with a move's name. (This check
-catches the case where a manual was branded "Asymmetric-wins pass" while a
-dedicated `asymmetric-wins` move also existed.)
+The script searches only the `description` field in each skill's frontmatter.
+Exactly one hit = clean routing. Zero hits = no owner. Two or more hits =
+collision. Fix by narrowing every description except the one true owner: do not
+let a hub or manual *open* with a move's name. (This check catches the case where
+a manual was branded "Asymmetric-wins pass" while a dedicated `asymmetric-wins`
+move also existed.)
 
 ### 2. Duplicated bodies
 

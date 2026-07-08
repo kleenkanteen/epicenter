@@ -14,7 +14,7 @@
  *     `EPICENTER_TOKEN` (or `EPICENTER_TOKEN_FILE`) and consumed by
  *     {@link createInstanceTokenAuth}. It is never written to disk.
  *
- * This is the single choke point both consumers (`epicenter daemon up`,
+ * This is the single choke point both consumers (`epicenter up`,
  * `epicenter blobs`) call so neither re-implements the fork. The rule: a
  * configured static token wins and selects the instance-token client; otherwise
  * fall back to the persisted OAuth cell.

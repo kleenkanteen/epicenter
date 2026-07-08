@@ -10,16 +10,6 @@ metadata:
 
 All articles must follow [writing-voice](../writing-voice/SKILL.md) rules. This skill owns article shape; `writing-voice` owns house voice and punctuation.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Write technical articles in `docs/articles/` or blog-style engineering posts.
-- Turn headings and titles into arguments instead of neutral topic labels.
-- Structure prose, code, and visuals with deliberate rhythm and pacing.
-- Open with the core insight first instead of announcing the topic.
-- Edit drafts to remove AI tell patterns and keep writing concrete.
-
 ## Core Principles
 
 Title should BE the takeaway, not a topic. "Write Context to a File, Not a Prompt" not "Context Management in Agent Workflows".
@@ -85,7 +75,7 @@ When you have multiple independent reasons for something, write them as regular 
 For articles about ownership, routing, auth, billing, sync, tenancy, API shape, or deployment boundaries, compose skills in this order:
 
 1. Use [notebook-explanation](../notebook-explanation/SKILL.md) to build the private model: ownership, boundaries, flow, good/bad examples, and durable rules.
-2. Use this skill to turn that model into a public argument: title, opening, section claims, rhythm, code, diagrams, and closing.
+2. Turn that model into a public argument here: title, opening, section claims, rhythm, code, diagrams, and closing.
 3. Use [writing-voice](../writing-voice/SKILL.md) throughout as the house voice and final punctuation pass.
 
 Do not publish the notebook scaffold unchanged unless the article is intentionally notebook-style. The notebook is the thinking format; the article is the reader format.

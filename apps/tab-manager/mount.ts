@@ -3,12 +3,11 @@
  *
  * `tabManager(opts?)` returns the Mount used by `epicenter.config.ts`.
  * It projects saved tabs, bookmarks, and devices into markdown while keeping
- * the Y.Doc update log and SQLite mirror under `.epicenter/`. The daemon serves
- * only the materializer actions: Tab Manager's tab/bookmark actions are
- * browser-only and live in `tab-manager/extension.ts`.
+ * the Y.Doc update log and SQLite mirror under `.epicenter/`. Tab Manager's
+ * tab/bookmark actions are browser-only and live in `tab-manager/extension.ts`;
+ * the watcher only syncs and materializes (ADR-0112).
  */
 
-import { defineActions } from '@epicenter/workspace';
 import type { GitAutosaveConfig } from '@epicenter/workspace/document/materializer/markdown';
 import {
 	attachMountMarkdown,
@@ -35,13 +34,13 @@ export function tabManager({
 		baseURL,
 		runtime: nodeMountRuntime(),
 		compose({ workspace, scope }) {
-			const sqlite = attachMountSqlite(scope, workspace, {
+			attachMountSqlite(scope, workspace, {
 				fts: {
 					bookmarks: ['title', 'url'],
 					savedTabs: ['title', 'url'],
 				},
 			});
-			const markdown = attachMountMarkdown(scope, workspace, {
+			attachMountMarkdown(scope, workspace, {
 				tables: {
 					bookmarks: {},
 					devices: {},
@@ -49,13 +48,6 @@ export function tabManager({
 				},
 				git,
 			});
-			return {
-				actions: defineActions({
-					...workspace.actions,
-					...sqlite.actions,
-					...markdown.actions,
-				}),
-			};
 		},
 	});
 }

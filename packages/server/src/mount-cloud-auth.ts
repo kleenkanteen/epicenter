@@ -33,6 +33,12 @@ export function mountCloudAuth(
 		 * validated env. Read per request because a Worker has no module-scope env.
 		 */
 		resolveAuthSecrets: (c: Context<CloudEnv>) => CloudAuthBindings;
+		/**
+		 * Serve the SvelteKit fallback shell for hosted auth browser surfaces after
+		 * auth route policy has run. The app deployment owns the concrete asset
+		 * source; the shared server package only calls it.
+		 */
+		serveAuthUiShell: (c: Context<CloudEnv>) => Response | Promise<Response>;
 	},
 ): void {
 	// Better Auth context. Built per request (Workers expose no module-scope env
@@ -42,11 +48,12 @@ export function mountCloudAuth(
 	// `c.var.auth` and `c.var.authSecrets`. First-party OAuth client rows are
 	// seeded at deploy time (apps/api `oauth:seed:*`), so this path only reads.
 	app.use('*', async (c, next) => {
-		// Resolve the cloud-only secrets once and stamp them on the context, so both
-		// readers (this Better Auth construction and the `authApp` sign-in page) take
-		// them from one resolved value rather than the raw `c.env` bag (ADR-0076).
+		// Resolve the cloud-only secrets once and stamp them on the context, so
+		// Better Auth construction reads one validated value rather than the raw
+		// `c.env` bag (ADR-0076).
 		const authSecrets = opts.resolveAuthSecrets(c);
 		c.set('authSecrets', authSecrets);
+		c.set('authUiShell', opts.serveAuthUiShell);
 		c.set(
 			'auth',
 			createAuth({

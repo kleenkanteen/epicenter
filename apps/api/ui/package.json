@@ -1,6 +1,6 @@
 {
 	"name": "@epicenter/api-ui",
-	"description": "Dashboard SPA bundled with apps/api (billing and credits)",
+	"description": "Cloud UI bundled with apps/api (auth, dashboard, billing, and credits)",
 	"private": true,
 	"version": "0.0.2",
 	"type": "module",
@@ -28,9 +28,11 @@
 		"vite": "catalog:"
 	},
 	"dependencies": {
+		"@better-auth/passkey": "catalog:",
 		"@epicenter/auth": "workspace:*",
 		"@epicenter/constants": "workspace:*",
 		"@epicenter/svelte": "workspace:*",
+		"better-auth": "catalog:",
 		"@tanstack/svelte-query": "catalog:",
 		"@tanstack/svelte-query-devtools": "catalog:",
 		"bits-ui": "catalog:",

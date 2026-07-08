@@ -5,22 +5,9 @@
  * callers see exactly what the author wrote (sync stays sync, `Result` stays
  * `Result`).
  *
- * One shape, two views:
- *
- *     ActionRegistry                       ActionManifest
- *     flat, callable                       flat, metadata-only
- *     local, in-memory                     wire form
- *
- *     {                                    {
- *       tabs_close:   Action,                tabs_close:   { type, ... },
- *       'ping':       Action,                'ping':       { type, ... },
- *     }                                    }
- *
- * Functions don't serialize, so the wire form drops them and keeps just the
- * metadata. The wire form is "the registry minus handlers"; both views index
- * by the same snake_case key. There is no walker, no segment loop, no path
- * resolver: `Object.entries(actions)` is the iterator, `actions[key]` is
- * the lookup.
+ * One shape: a flat in-memory registry. There is no walker, no segment loop,
+ * no path resolver: `Object.entries(actions)` is the iterator, `actions[key]`
+ * is the lookup.
  *
  * Boundary callers use `invokeAction`, which Ok-wraps raw values, preserves
  * existing Results, and catches throws as `Err(cause)`.
@@ -120,13 +107,6 @@ export type ActionMeta<
 };
 
 /**
- * Flat snake_case key to `ActionMeta` map. The metadata-only projection of an
- * `ActionRegistry`, suitable for surfaces that cannot carry callable handlers,
- * such as the daemon `/list` route.
- */
-export type ActionManifest = Record<string, ActionMeta>;
-
-/**
  * A query or mutation action definition. Callable function with metadata
  * properties attached. Queries are idempotent reads; mutations write. The
  * `type` discriminant lives on the value, so the type stays a single union
@@ -142,8 +122,8 @@ export type Action<
 
 /**
  * Flat snake_case key to `Action` map. The single shape for an in-process
- * action surface: keys are the local address, daemon argument, CLI flag, and AI
- * tool name. Author with `defineActions({...})` so the helper enforces the key
+ * action surface: keys are the local address and AI tool name. Author with
+ * `defineActions({...})` so the helper enforces the key
  * shape at compile time and at construction; consumers iterate with
  * `Object.entries` or index by string.
  */
@@ -290,8 +270,8 @@ export function defineQuery({ handler, ...rest }: any): Action {
  * Define a mutation (write operation) with full type inference.
  *
  * Returns the handler with metadata attached. The action callable IS the
- * handler. Local callers see whatever the handler returns; remote/AI/CLI
- * consumers see uniform `Promise<Result>` via the boundary normalizers.
+ * handler. Local callers see whatever the handler returns; boundary adapters
+ * can normalize responses with {@link invokeAction}.
  */
 /** No input. `TInput` is explicitly `undefined`. */
 export function defineMutation<R>(
@@ -304,24 +284,6 @@ export function defineMutation<TInput extends TSchema, R>(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function defineMutation({ handler, ...rest }: any): Action {
 	return Object.assign(handler, { type: 'mutation' as const, ...rest });
-}
-
-/**
- * Project a callable action onto its wire-form metadata. Functions drop;
- * live schemas, titles, and descriptions are kept. Used at the daemon
- * `/list` route and any other surface that needs metadata without handlers.
- */
-export function toActionMeta({
-	type,
-	input,
-	title,
-	description,
-}: Action): ActionMeta {
-	const meta: ActionMeta = { type };
-	if (input !== undefined) meta.input = input;
-	if (title !== undefined) meta.title = title;
-	if (description !== undefined) meta.description = description;
-	return meta;
 }
 
 /**

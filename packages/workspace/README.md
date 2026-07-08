@@ -15,14 +15,14 @@ Read path:
     -> Markdown files generated from the workspace
 
 Write path:
-  app UI / TanStack AI tool / Bun script / epicenter CLI
-    -> workspace action
+  app UI / TanStack AI tool / Bun script
+    -> in-process workspace action
     -> live Y.Doc tables, KV, or child content docs
     -> sync peers
     -> SQLite mirror and Markdown export refresh
 ```
 
-Agents can still edit ordinary project files. They should not patch generated `.md` files to mutate app data. Give them actions instead: browser chat uses `createLocalToolCatalog`, scripts use `connectDaemonActions`, and humans or automation can call `epicenter run <action>`. The action writes the Yjs datastore; the materializers write the files back out.
+Agents can still edit ordinary project files. They should not patch generated `.md` files to mutate app data. Give them actions instead through an in-process tool catalog or app-specific script. The action writes the Yjs datastore; the materializers write the files back out.
 
 The current center is small:
 
@@ -345,8 +345,7 @@ Writes:
   UI component
   TanStack AI tool
   Bun script
-  epicenter run <action>
-    -> defineMutation action
+    -> in-process defineMutation action
       -> Y.Doc tables, KV, or child content docs
         -> sync peers
         -> persistence
@@ -396,7 +395,7 @@ Yjs supports multiple providers simultaneously. A phone can connect to desktop, 
    For one-shot Node operations: derive the same child-doc guid and read the room directly.
 4. Await the right readiness signal before reading persisted state. The rule is scoped by what kind of bundle you are building:
    - **Opener and runtime bundles expose subsystem readiness.** Expose the subsystem (`storage`, `persistence`, ...) on the bundle root and let consumers reach through: `await bundle.storage.whenLoaded`. Inside this layer, do not alias `whenLoaded`/`whenReady` flat at the bundle root just to save `.storage`.
-   - **Two or more subsystems to compose into one barrier.** Then `whenReady` earns its place: `whenReady: Promise.all([persistence.whenLoaded, unlock.whenChecked, sync.whenConnected])`. Because the field is typed `Promise<unknown>`, `Promise.all([...])` is assignable directly. Consumers `await bundle.whenReady`. The CLI's `run` command, migrations, `@epicenter/filesystem` ops, the sqlite-index materializer, and `{#await}` gates in editors all consume this aggregate.
+   - **Two or more subsystems to compose into one barrier.** Then `whenReady` earns its place: `whenReady: Promise.all([persistence.whenLoaded, unlock.whenChecked, sync.whenConnected])`. Because the field is typed `Promise<unknown>`, `Promise.all([...])` is assignable directly. Consumers `await bundle.whenReady`. Migrations, `@epicenter/filesystem` ops, the sqlite-index materializer, and `{#await}` gates in editors all consume this aggregate.
    - **App singletons may expose an app-level `whenReady`.** When one promise is the product-level readiness contract (the load gate, the sign-in migration), an app singleton aliasing `whenReady: storage.whenLoaded` is legitimate: the app owns that contract and its consumers should not care which subsystem backs it.
 
 5. Read and write through `bundle.tables`, `bundle.kv`, and `bundle.collaboration.peers`, and (for per-row content docs) whatever you exposed in the returned bundle.
@@ -849,7 +848,7 @@ Browser apps use `attachIndexedDb(ydoc)` for unauthenticated docs, or `attachLoc
 
 For authenticated apps, call `await wipeLocalStorage({ server, principalId })` after disposing the bundle to delete every principal-scoped IDB database on the current browser profile (sign-out, "delete my local data", account switch).
 
-`attachBunSqliteMaterializer` and `attachMarkdownExport` are not persistence: they project workspace rows into queryable SQLite tables or `.md` files. They are read surfaces, not write surfaces. Projection actions such as `sqlite_rebuild`, `sqlite_search`, and `markdown_rebuild` maintain or query the projection; app data mutations stay in app-defined actions. See the materializer subsections below.
+`attachBunSqliteMaterializer` and `attachMarkdownExport` are not persistence: they project workspace rows into queryable SQLite tables or `.md` files. They are read surfaces, not write surfaces. Maintenance methods such as `rebuild()` and `search()` maintain or query the projection; app data mutations stay in app-defined actions. See the materializer subsections below.
 
 ```typescript
 import { field } from '@epicenter/field';
@@ -943,9 +942,9 @@ Ordering is just lexical: `collaboration` reads `idb.whenLoaded` as `waitFor` be
 
 ### Markdown seam: read-only export
 
-Markdown comes from one seam, `attachMarkdownExport` (in `@epicenter/workspace/document/materializer/markdown`): a continuous, one-way Yjs to disk projection with free serialization (custom `filename`, `toMarkdown`, per-table `dir`). It exposes a single `markdown_rebuild` mutation for a destructive full re-export (orphan cleanup after a filename or layout change); there is no import path.
+Markdown comes from one seam, `attachMarkdownExport` (in `@epicenter/workspace/document/materializer/markdown`): a continuous, one-way Yjs to disk projection with free serialization (custom `filename`, `toMarkdown`, per-table `dir`). It exposes a single `rebuild()` method for a destructive full re-export (orphan cleanup after a filename or layout change); there is no import path.
 
-The projection is read-only on purpose. The materialized `.md` is never read back into Yjs, so it carries no round-trip obligation and can shape the output however a human-readable export or a published site wants. App data mutates through validated actions (`epicenter run <action>`, `connectDaemonActions`, or agent tools created by `createLocalToolCatalog`), never by editing the materialized files. If an app needs Markdown as the authoring format, that parser/editor belongs in an app action or UI surface that writes Yjs. This export is not that path. The SQLite materializer is the read-only sibling for a relational projection.
+The projection is read-only on purpose. The materialized `.md` is never read back into Yjs, so it carries no round-trip obligation and can shape the output however a human-readable export or a published site wants. App data mutates through validated in-process actions, never by editing the materialized files. If an app needs Markdown as the authoring format, that parser/editor belongs in an app action or UI surface that writes Yjs. This export is not that path. The SQLite materializer is the read-only sibling for a relational projection.
 
 ```typescript
 import { field } from '@epicenter/field';
@@ -986,7 +985,7 @@ void openNotes;
 
 The SQLite materializer is exported from `@epicenter/workspace/document/materializer/sqlite`. It mirrors every table in the workspace bundle into queryable SQLite tables with optional FTS5 full-text search. Pass the workspace directly; use the keyed `fts` slot to opt specific columns into FTS5.
 
-Treat the mirror as a read-only SQL projection. Scripts open it with `openSqliteReader`, which sets `PRAGMA query_only = ON`; app writes go through the daemon action path (`connectDaemonActions` or `epicenter run`) so the live Y.Doc stays authoritative and the mirror catches up from the same source as every other projection.
+Treat the mirror as a read-only SQL projection. Scripts open it with `openSqliteReader`, which sets `PRAGMA query_only = ON`; app writes go through an in-process action or app-specific command so the live Y.Doc stays authoritative and the mirror catches up from the same source as every other projection.
 
 ```typescript
 import { field } from '@epicenter/field';
@@ -1018,12 +1017,12 @@ function openBlog() {
 }
 
 // After mirror.whenFlushed:
-// blog.mirror.actions.sqlite_search({ table: 'posts', query: 'hello' });
-// blog.mirror.actions.sqlite_rebuild({ table: 'posts' });
+// blog.mirror.search('posts', 'hello');
+// blog.mirror.rebuild('posts');
 void openBlog;
 ```
 
-The Bun SQLite materializer owns the daemon's queryable SQLite mirror file. When you pass `fts: {...}`, the returned `actions` registry includes `sqlite_search`; omit `fts` and the search action is absent.
+The Bun SQLite materializer owns the daemon's queryable SQLite mirror file. When you pass `fts: {...}`, the result exposes `search(...)`; omit `fts` and `search` is undefined.
 
 ## Workspace Dependencies
 
@@ -1294,7 +1293,7 @@ browser-safe entry point.
 | Import path | What it exports | Public today |
 | --- | --- | --- |
 | `@epicenter/workspace` | `createDisposableCache`, `defineTable`, `defineKv`, browser-safe `attach*` (tables, kv, indexeddb, broadcast-channel, rich-text, plain-text, timeline), `openCollaboration`, `roomWsUrl`, action helpers, `onLocalUpdate`, `docGuid`, ids, dates, types | Yes |
-| `@epicenter/workspace/node` | Bun/Node `attach*` and `open*` (`attachYjsLog`, `attachYjsLogReader`, `openSqliteReader`, `openWorkspaceSqlite`), daemon clients (`connectDaemonActions`, `findEpicenterRoot`), workspace paths | Yes |
+| `@epicenter/workspace/node` | Bun/Node `attach*` and `open*` (`attachYjsLog`, `attachYjsLogReader`, `openSqliteReader`, `openWorkspaceSqlite`), Epicenter root discovery (`findEpicenterRoot`), workspace paths | Yes |
 | `@epicenter/workspace/document/materializer/markdown` | `attachMarkdownExport`, `attachGitAutosave`, `MarkdownShape` | Yes |
 | `@epicenter/workspace/document/materializer/sqlite` | `attachBunSqliteMaterializer`, `generateDdl`, types | Yes |
 
@@ -1595,7 +1594,7 @@ The core package does not export an MCP server or own every adapter. What it doe
 
 That is enough to expose workspace actions over HTTP, CLI, TanStack AI, or MCP without coupling the core package to one transport.
 
-For AI editing, expose workspace mutations as tools. `createLocalToolCatalog(...)` does not teach the model to patch the materialized Markdown folder. It wires tool calls to the same action handlers the UI and CLI use. Query tools can read data; mutation tools write Yjs. The agent loop runs queries unattended by default, asks before mutations, and denies gated mutations when no approval prompt is wired.
+For AI editing, expose workspace mutations as tools. `createLocalToolCatalog(...)` does not teach the model to patch the materialized Markdown folder. It wires tool calls to the same action handlers the UI uses. Query tools can read data; mutation tools write Yjs. The agent loop runs queries unattended by default, asks before mutations, and denies gated mutations when no approval prompt is wired.
 
 ### Setup
 

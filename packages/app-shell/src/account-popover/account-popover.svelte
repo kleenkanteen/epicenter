@@ -6,19 +6,17 @@
 	import { toast, toastOnError } from '@epicenter/ui/sonner';
 	import { Spinner } from '@epicenter/ui/spinner';
 	import type { Collaboration, SyncStatus } from '@epicenter/workspace';
-	import Cloud from '@lucide/svelte/icons/cloud';
-	import CloudOff from '@lucide/svelte/icons/cloud-off';
+	import CircleUser from '@lucide/svelte/icons/circle-user';
 	import DatabaseZap from '@lucide/svelte/icons/database-zap';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
-	import User from '@lucide/svelte/icons/user';
 	import {
 		createMutation,
 		createQuery,
 		QueryClient,
 	} from '@tanstack/svelte-query';
 	import { extractErrorMessage } from 'wellcrafted/error';
-	import { mutationOptions, queryOptions } from 'wellcrafted/query';
+	import { resultMutationOptions, resultQueryOptions } from 'wellcrafted/query';
 	import CreditBalance from '../credit-balance/credit-balance.svelte';
 	import { fetchCreditOverview } from '../credit-balance/credit-balance.js';
 	import InstanceSettingsModal from './instance-settings-modal.svelte';
@@ -146,10 +144,10 @@
 	// Identity lives on the auth client: `state` carries the principal partition,
 	// and `getProfile()` reads presentational identity (the email) on demand.
 	// TanStack Query owns the reactive cache here, keyed by account, and
-	// `queryOptions` bridges the Result into its throw-on-error contract.
+	// `resultQueryOptions` bridges the Result into its throw-on-error contract.
 	const profile = createQuery(
 		() =>
-			queryOptions({
+			resultQueryOptions({
 				queryKey: ['account-profile', accountCacheKey],
 				queryFn: () => auth.getProfile(),
 				enabled: auth.state.status !== 'signed-out' && !selfHostHost,
@@ -167,7 +165,7 @@
 	// to show. Keyed by account so switching identity refetches.
 	const credits = createQuery(
 		() =>
-			queryOptions({
+			resultQueryOptions({
 				queryKey: ['account-credits', accountCacheKey],
 				queryFn: () => fetchCreditOverview(auth.fetch, auth.deployment.baseURL),
 				enabled: auth.state.status === 'signed-in' && !selfHostHost,
@@ -183,7 +181,7 @@
 	);
 	const signOut = createMutation(
 		() =>
-			mutationOptions({
+			resultMutationOptions({
 				mutationKey: ['account', 'signOut'],
 				mutationFn: () => auth.signOut(),
 				onMutate: () => {
@@ -208,27 +206,39 @@
 		return unsubscribe;
 	});
 
-	// The sync phase copy is decided once here: the popover line shows the
-	// label, the trigger tooltip adds the action hint. (The trigger icon still
-	// branches on the raw status; it mixes in auth and pending states.)
+	// The sync phase copy and dot tone are decided once here: the popover's
+	// sync line renders the dot beside its label (the legend), the trigger
+	// reuses the same dot, and the tooltip adds the action hint. Dot tones
+	// are theme tokens (success connected, warning pulse in flight, muted
+	// offline, destructive failed).
 	const sync = $derived.by(() => {
 		if (!syncStatus) return undefined;
 		switch (syncStatus.phase) {
 			case 'connected':
-				return { label: 'Connected', tooltip: 'Connected' };
+				return {
+					label: 'Connected',
+					dot: 'bg-success',
+					tooltip: 'Connected',
+				};
 			case 'connecting':
 				return {
 					label: 'Connecting…',
+					dot: 'bg-warning animate-pulse',
 					tooltip:
 						syncStatus.retries > 0
 							? `Reconnecting (retry ${syncStatus.retries})…`
 							: 'Connecting…',
 				};
 			case 'offline':
-				return { label: 'Offline', tooltip: 'Offline. Click to reconnect' };
+				return {
+					label: 'Offline',
+					dot: 'bg-muted-foreground',
+					tooltip: 'Offline. Click to reconnect',
+				};
 			case 'failed':
 				return {
 					label: 'Failed',
+					dot: 'bg-destructive',
 					tooltip: 'Authentication failed. Click to reconnect',
 				};
 		}
@@ -237,7 +247,15 @@
 	const tooltip = $derived.by(() => {
 		if (disabledReason) return disabledReason;
 		if (!isSignedIn) return sync ? 'Sign in to sync across devices' : 'Sign in';
-		return sync?.tooltip ?? 'Account';
+		return sync ? `Account · ${sync.tooltip}` : 'Account';
+	});
+	// The dot is presence for sync: it appears only when a signed-in account
+	// has a sync surface attached. Signed out renders a dimmed glyph instead
+	// of a nudge dot; local-only is a valid resting state, not a notification.
+	const triggerDot = $derived.by(() => {
+		if (!isSignedIn) return undefined;
+		if (signOut.isPending) return 'bg-warning animate-pulse';
+		return sync?.dot;
 	});
 
 	function openInstanceModal() {
@@ -273,25 +291,20 @@
 <Popover.Root bind:open={popoverOpen}>
 	<Popover.Trigger>
 		{#snippet child({ props })}
-			<Button {...props} variant="ghost" size="icon-sm" class="relative" {tooltip}>
-				{#if signOut.isPending}
-					<Spinner class="size-4" />
-				{:else if !isSignedIn}
-					<CloudOff class="size-4 text-muted-foreground" />
-				{:else if !syncStatus}
-					<User class="size-4" />
-				{:else if syncStatus.phase === 'connected'}
-					<Cloud class="size-4" />
-				{:else if syncStatus.phase === 'connecting'}
-					<Spinner class="size-4" />
-				{:else}
-					<CloudOff class="size-4 text-destructive" />
-				{/if}
-				{#if !isSignedIn}
-					<span
-						class="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary"
-					></span>
-				{/if}
+			<Button {...props} variant="ghost" size="icon-sm" {tooltip}>
+				<!-- Identity glyph stays fixed; the sync dot sits at its
+				     bottom-right like a presence badge (top-right would read
+				     as a notification). -->
+				<span class="relative">
+					<CircleUser
+						class="size-4 {isSignedIn ? '' : 'text-muted-foreground'}"
+					/>
+					{#if triggerDot}
+						<span
+							class="absolute -right-0.5 -bottom-0.5 size-2 rounded-full {triggerDot}"
+						></span>
+					{/if}
+				</span>
 			</Button>
 		{/snippet}
 	</Popover.Trigger>
@@ -328,8 +341,13 @@
 					<p class="text-xs text-muted-foreground">{disabledReason}</p>
 				{/if}
 				{#if collaboration && sync}
-					<div class="border-t pt-3 space-y-1">
-						<p class="text-xs text-muted-foreground">Sync: {sync.label}</p>
+					<!-- Same dot as the trigger, beside its meaning: this line is
+					     the legend for the trigger's presence badge. -->
+					<div
+						class="border-t pt-3 flex items-center gap-1.5 text-xs text-muted-foreground"
+					>
+						<span class="size-2 shrink-0 rounded-full {sync.dot}"></span>
+						<span>Sync: {sync.label}</span>
 					</div>
 				{/if}
 				<div class="border-t pt-3 flex gap-2">

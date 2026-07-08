@@ -77,11 +77,10 @@ Prerequisites: [Bun](https://bun.sh).
 git clone https://github.com/EpicenterHQ/epicenter.git
 cd epicenter
 bun install
-cd apps/opensidian
-bun dev
+bun dev:opensidian
 ```
 
-This starts the app dev server on port 5176. Auth and sync expect the local API on `localhost:8787`; start it from the repo root with `bun run dev:api`.
+This starts the app dev server on port 5176 alongside the local API on `localhost:8787`, which auth and sync expect. `bun dev:opensidian:ui` runs the app without the API.
 
 ### Auth deployment
 

@@ -7,9 +7,12 @@ import {
 import { Ok, type Result } from 'wellcrafted/result';
 import type { AppConfig } from './config.ts';
 import { createGmailClient } from './gmail-client.ts';
-import { resolveGmailCredentials } from './gmail-credentials.ts';
 import {
-	type GmailEnvironment,
+	gmailCredentialSource,
+	persistGmailProviderCredentials,
+	resolveGmailCredentials,
+} from './gmail-credentials.ts';
+import {
 	type TokenGrantError,
 	type TokenSet,
 	tokenSetFromGrant,
@@ -24,8 +27,6 @@ import {
 
 export const OAuthError = defineErrors({
 	MissingCredentials: ({ reason }: { reason: string }) => ({
-		// `reason` is the resolver's message, which names the exact missing
-		// environment-qualified variables (ADR-0108).
 		message: reason,
 		reason,
 	}),
@@ -69,18 +70,15 @@ export const OAuthError = defineErrors({
 	ClientIdMismatch: ({
 		stored,
 		configured,
-		environment,
 	}: {
 		stored: string;
 		configured: string;
-		environment: GmailEnvironment;
 	}) => ({
 		message:
-			`The stored token was minted by OAuth client ${stored}, but GMAIL_${environment.toUpperCase()}_CLIENT_ID is now ${configured}. ` +
+			`The stored token was minted by OAuth client ${stored}, but GMAIL_CLIENT_ID is now ${configured}. ` +
 			'Refreshing through a different client fails as invalid_grant; restore the original client id or run "local-mail connect" again.',
 		stored,
 		configured,
-		environment,
 	}),
 });
 export type OAuthError = InferErrors<typeof OAuthError>;
@@ -88,8 +86,6 @@ export type OAuthError = InferErrors<typeof OAuthError>;
 type GrantResult = Promise<Result<TokenSet, OAuthError | TokenGrantError>>;
 
 type AuthorizationFlowOptions = {
-	/** The provider-environment to connect under (ADR-0108); tags the minted token. */
-	environment: GmailEnvironment;
 	now: () => number;
 	openBrowser?: (url: string) => void;
 	log?: (message: string) => void;
@@ -120,17 +116,14 @@ function httpOptions(config: AppConfig) {
 }
 
 /**
- * Resolve the Google OAuth client keyset for a provider-environment (ADR-0108),
- * lazily, at the connect/refresh site rather than eagerly in `loadConfig`, so a
- * credential-free verb never reads keys it does not use. The resolver throws when
- * the qualified names are absent; convert that into the {@link OAuthError} Result
- * channel so the loud "Missing GMAIL_<ENV>_CLIENT_ID" message reaches the caller.
+ * Resolve the BYO Gmail OAuth client lazily at the connect/refresh site rather
+ * than eagerly in `loadConfig`, so credential-free verbs never read secrets.
  */
 function loadGmailCredentials(
-	environment: GmailEnvironment,
+	config: AppConfig,
 ): Result<{ clientId: string; clientSecret: string }, OAuthError> {
 	try {
-		return Ok(resolveGmailCredentials(environment));
+		return Ok(resolveGmailCredentials(gmailCredentialSource(config.dataDir)));
 	} catch (cause) {
 		return OAuthError.MissingCredentials({
 			reason: extractErrorMessage(cause),
@@ -206,11 +199,10 @@ export async function runAuthorizationFlow(
 	config: AppConfig,
 	options: AuthorizationFlowOptions,
 ): GrantResult {
-	// Resolve the chosen environment's keyset lazily; this is the connect path's
-	// ONLY credentials read. Destructured so the narrowing survives the awaits.
-	const { data: credentials, error: credentialsError } = loadGmailCredentials(
-		options.environment,
-	);
+	// Resolve the BYO OAuth keyset lazily; this is the connect path's only
+	// credentials read. Destructured so the narrowing survives the awaits.
+	const { data: credentials, error: credentialsError } =
+		loadGmailCredentials(config);
 	if (credentialsError) return { data: null, error: credentialsError };
 	const { clientId, clientSecret } = credentials;
 
@@ -277,12 +269,14 @@ export async function runAuthorizationFlow(
 			grant,
 		);
 		if (error) return { data: null, error };
-		return tokenSetFromGrant(grant, {
+		const { data: token, error: tokenError } = tokenSetFromGrant(grant, {
 			accountEmail,
 			clientIdUsed: clientId,
-			environment: options.environment,
 			now: options.now(),
 		});
+		if (tokenError) return { data: null, error: tokenError };
+		persistGmailProviderCredentials(config.dataDir, credentials);
+		return Ok(token);
 	} catch (cause) {
 		if (cause instanceof oauth.AuthorizationResponseError) {
 			return OAuthError.AuthorizationDenied({
@@ -336,12 +330,8 @@ export async function refreshAccessToken(
 	token: TokenSet,
 	now: () => number,
 ): GrantResult {
-	// Resolve the keyset for the environment this token was minted under
-	// (ADR-0108 rule 3): the tag selects the qualified names, and a missing keyset
-	// fails loudly here naming GMAIL_<ENV>_*.
-	const { data: credentials, error: credentialsError } = loadGmailCredentials(
-		token.environment,
-	);
+	const { data: credentials, error: credentialsError } =
+		loadGmailCredentials(config);
 	if (credentialsError) return { data: null, error: credentialsError };
 	// A refresh token is bound to the client that minted it; refreshing through a
 	// different client id (the environment's key was rotated) dies as a bare
@@ -351,7 +341,6 @@ export async function refreshAccessToken(
 		return OAuthError.ClientIdMismatch({
 			stored: token.clientIdUsed,
 			configured: credentials.clientId,
-			environment: token.environment,
 		});
 	}
 	const { data: grant, error } = await requestRefreshGrant({
@@ -361,12 +350,11 @@ export async function refreshAccessToken(
 		refreshToken: token.refreshToken,
 	});
 	if (error) return { data: null, error };
-	// Rotation: Google may omit refresh_token when the old one stays valid. The
-	// minted token carries the same environment, asserted by the token manager.
+	persistGmailProviderCredentials(config.dataDir, credentials);
+	// Rotation: Google may omit refresh_token when the old one stays valid.
 	return tokenSetFromGrant(grant, {
 		accountEmail: token.accountEmail,
 		clientIdUsed: token.clientIdUsed,
-		environment: token.environment,
 		now: now(),
 		fallbackRefreshToken: token.refreshToken,
 	});
@@ -383,11 +371,10 @@ export async function refreshAccessToken(
 export async function redeemRefreshToken(
 	config: AppConfig,
 	refreshToken: string,
-	environment: GmailEnvironment,
 	now: () => number,
 ): GrantResult {
 	const { data: credentials, error: credentialsError } =
-		loadGmailCredentials(environment);
+		loadGmailCredentials(config);
 	if (credentialsError) return { data: null, error: credentialsError };
 	const { data: grant, error } = await requestRefreshGrant({
 		config,
@@ -401,11 +388,13 @@ export async function redeemRefreshToken(
 		grant,
 	);
 	if (profileError) return { data: null, error: profileError };
-	return tokenSetFromGrant(grant, {
+	const { data: token, error: tokenError } = tokenSetFromGrant(grant, {
 		accountEmail,
 		clientIdUsed: credentials.clientId,
-		environment,
 		now: now(),
 		fallbackRefreshToken: refreshToken,
 	});
+	if (tokenError) return { data: null, error: tokenError };
+	persistGmailProviderCredentials(config.dataDir, credentials);
+	return Ok(token);
 }
