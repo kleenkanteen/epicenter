@@ -9,16 +9,30 @@
  * itself, never a sub-surface of a host, so it is not a route in the sense
  * ADR-0115 forbids.
  *
- * Wave 1 carries `principalId` in the query for a loopback, plaintext proof.
- * Wave 3 replaces it with a per-device grant resolved from the bearer, the same
- * way the rooms surface resolves its principal; the addressing shape here does
- * not change.
+ * The query carries `principalId` as part of the addressing quadruple, but the
+ * authenticated mount stamps the principal from the resolved bearer and never
+ * trusts the query value, so a client cannot address another partition by
+ * putting one there. Wave 3 replaces the bearer-to-instance-principal step with
+ * a per-device grant, the same way the rooms surface resolves its principal; the
+ * addressing shape here does not change.
  */
+
+import { BEARER_SUBPROTOCOL_PREFIX, MAIN_SUBPROTOCOL } from '@epicenter/sync';
 
 const stripTrailing = (s: string): string => s.replace(/\/+$/, '');
 
 export const ATTACH_RELAY_ROUTE = {
 	pattern: '/attach',
+	/**
+	 * The WebSocket subprotocols an attach client offers: the main one plus the
+	 * bearer, carried as `bearer.<token>` because a browser upgrade cannot set
+	 * `Authorization` (the same channel the rooms client uses). Every attach is
+	 * authenticated, so both endpoints always offer these; the mount echoes only
+	 * the main one on the 101, so the token never round-trips.
+	 */
+	subprotocols(bearer: string): string[] {
+		return [MAIN_SUBPROTOCOL, `${BEARER_SUBPROTOCOL_PREFIX}${bearer}`];
+	},
 	/** The host endpoint's connect URL: it registers under `(principalId, hostId)`. */
 	hostUrl(
 		baseURL: string,

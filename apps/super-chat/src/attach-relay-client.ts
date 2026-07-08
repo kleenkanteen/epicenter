@@ -26,8 +26,14 @@ export type AttachRelayClientOptions = {
 	deviceId: string;
 	/** This attach session's id, unique per attach on the device. */
 	attachId: string;
+	/**
+	 * The operator bearer for the relay (self-host `INSTANCE_TOKEN`). It rides the
+	 * `bearer.<token>` WebSocket subprotocol, the one channel a browser upgrade
+	 * has. Every attach is authenticated, so this is required.
+	 */
+	bearer: string;
 	/** Inject the socket opener in tests; defaults to the global `WebSocket`. */
-	openSocket?: (url: string) => RelayClientSocket;
+	openSocket?: (url: string, protocols?: string[]) => RelayClientSocket;
 };
 
 /** The minimal client-socket surface this adapter drives. */
@@ -64,7 +70,7 @@ export function createAttachRelayClient(
 		deviceId: options.deviceId,
 		attachId: options.attachId,
 	});
-	const socket = open(url);
+	const socket = open(url, ATTACH_RELAY_ROUTE.subprotocols(options.bearer));
 
 	let latest: SuperChatServerEvent | undefined;
 	const listeners = new Set<(event: SuperChatServerEvent) => void>();
@@ -104,8 +110,11 @@ export function createAttachRelayClient(
 	};
 }
 
-function defaultOpenSocket(url: string): RelayClientSocket {
-	return new WebSocket(url) as unknown as RelayClientSocket;
+function defaultOpenSocket(
+	url: string,
+	protocols?: string[],
+): RelayClientSocket {
+	return new WebSocket(url, protocols) as unknown as RelayClientSocket;
 }
 
 /** Parse a forwarded host snapshot; a non-snapshot or malformed frame drops. */

@@ -39,18 +39,27 @@ export type AttachRelayHostOptions = {
 	/** The relay's origin, e.g. `ws://127.0.0.1:<port>` on loopback. */
 	relayOrigin: string;
 	/**
-	 * The principal that owns both ends. Wave 1 addresses the relay with it
-	 * directly; wave 3 derives it from the host's device grant.
+	 * The principal that owns both ends. The authenticated relay ignores this and
+	 * stamps the principal from the bearer (the instance principal on self-host,
+	 * ADR-0115 wave 2), so it is carried only to complete the connect URL's
+	 * addressing quadruple and can never point the attach at another partition.
+	 * Wave 3 derives it from the host's device grant.
 	 */
 	principalId: string;
 	/** This desktop's stable host id, the endpoint clients attach to. */
 	hostId: string;
 	/**
+	 * The operator bearer for the relay (self-host `INSTANCE_TOKEN`). It rides the
+	 * `bearer.<token>` WebSocket subprotocol, the one channel a browser upgrade
+	 * has. Every attach is authenticated, so this is required.
+	 */
+	bearer: string;
+	/**
 	 * Open a WebSocket to the relay. Defaults to the global `WebSocket`; tests
 	 * inject one so no real global is needed. Kept minimal on purpose: only
 	 * `send`, `close`, and the three event hooks the adapter drives.
 	 */
-	openSocket?: (url: string) => RelayHostSocket;
+	openSocket?: (url: string, protocols?: string[]) => RelayHostSocket;
 };
 
 /** The minimal outbound-socket surface the host adapter drives. */
@@ -78,11 +87,11 @@ export type AttachRelayHost = {
 export function attachHostToRelay(
 	options: AttachRelayHostOptions,
 ): AttachRelayHost {
-	const { host, relayOrigin, principalId, hostId } = options;
+	const { host, relayOrigin, principalId, hostId, bearer } = options;
 	const open = options.openSocket ?? defaultOpenSocket;
 
 	const url = ATTACH_RELAY_ROUTE.hostUrl(relayOrigin, { principalId, hostId });
-	const socket = open(url);
+	const socket = open(url, ATTACH_RELAY_ROUTE.subprotocols(bearer));
 
 	// The client endpoints currently attached to this host, keyed by
 	// `deviceId`/`attachId`. The host re-sends each its own snapshot on change.
@@ -158,8 +167,8 @@ export function attachHostToRelay(
 }
 
 /** The default outbound socket: the global `WebSocket` as a {@link RelayHostSocket}. */
-function defaultOpenSocket(url: string): RelayHostSocket {
-	return new WebSocket(url) as unknown as RelayHostSocket;
+function defaultOpenSocket(url: string, protocols?: string[]): RelayHostSocket {
+	return new WebSocket(url, protocols) as unknown as RelayHostSocket;
 }
 
 /** Parse one relay-to-host frame; anything off the endpoint-addressed shape drops. */

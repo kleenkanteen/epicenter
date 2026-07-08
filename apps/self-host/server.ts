@@ -46,9 +46,12 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { assertStrongToken } from '@epicenter/auth';
 import {
+	createAttachRelayBunServer,
 	createBunRooms,
 	createEnvTokenResolver,
 	createServerApp,
+	mergeBunWebSocketHandlers,
+	mountAttachRelayApp,
 	mountBlobsApp,
 	mountInferenceApp,
 	mountRoomsApp,
@@ -127,6 +130,11 @@ export function startSelfHostServer(): void {
 	const dataDir = resolve(env.DATA_DIR ?? './.data/rooms');
 	mkdirSync(dataDir, { recursive: true });
 	const bunRooms = createBunRooms({ dir: dataDir });
+	// The AttachRelay coordinator for this instance (ADR-0115 wave 2): the
+	// endpoint-addressed byte forwarder behind the operator bearer. It shares this
+	// process's one `Bun.serve` with the rooms backend (see the merged websocket
+	// handler below).
+	const attachRelay = createAttachRelayBunServer();
 
 	const app = createServerApp({
 		// The instance composes no Postgres (no Better Auth), so it never calls
@@ -151,6 +159,12 @@ export function startSelfHostServer(): void {
 	mountSessionApp(app, { auth });
 	// Rooms resolves the bearer itself (WS-aware), so it takes the raw resolver.
 	mountRoomsApp(app, { resolveBearerPrincipal });
+	// The AttachRelay upgrade (`/attach`), also WS-aware and bearer-gated. It
+	// resolves the operator token to the instance principal and stamps that
+	// principal onto the socket server-side, so a query `principalId` can never
+	// point an attach at another partition (ADR-0115 wave 2, ADR-0075). Cloud
+	// attach stays unmounted until the wave-4 sealing layer lands.
+	mountAttachRelayApp(app, { resolveBearerPrincipal, relay: attachRelay });
 	// Inference spends the operator's house key on every request. Cap the burn
 	// rate so a leaked or overused bearer cannot run the provider bill up
 	// unbounded between invoices. This is the in-process backstop; the real
@@ -178,11 +192,19 @@ export function startSelfHostServer(): void {
 	const server = Bun.serve({
 		port,
 		fetch: (req) => app.fetch(req, env),
-		websocket: bunRooms.websocket,
+		// Rooms and the attach relay both need WebSockets on this one port, but
+		// `Bun.serve` takes ONE handler. Each backend tags its `ws.data` with a
+		// `surface`, so this merged handler forwards every socket to its owner
+		// without blending their state.
+		websocket: mergeBunWebSocketHandlers({
+			rooms: bunRooms.websocket,
+			attach: attachRelay.websocket,
+		}),
 	});
-	// `server` only exists once `Bun.serve` returns; hand it to the room registry
-	// so `handleUpgrade` can call `server.upgrade`.
+	// `server` only exists once `Bun.serve` returns; hand it to both backends so
+	// each `handleUpgrade` can call `server.upgrade` on the shared server.
 	bunRooms.bindServer(server);
+	attachRelay.bindServer(server);
 
 	console.log(
 		`apps/self-host instance (Bun) listening on ${origin} ` +

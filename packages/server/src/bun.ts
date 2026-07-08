@@ -20,11 +20,10 @@
  * and `connectHyperdriveDb`. A Bun host supplies its own room and db concerns.
  */
 
-// The single-partition instance's bearer resolver (self-host; ADR-0075): the
-// `ResolveBearerPrincipal` a Bun instance injects (`createEnvTokenResolver(token)`).
-// The pure generator + boot entropy gate (`generateInstanceToken` /
-// `assertStrongToken`) live in `@epicenter/auth`.
-export { createEnvTokenResolver } from './auth/instance-token.js';
+export {
+	type AttachRelayBunServer,
+	createAttachRelayBunServer,
+} from './attach-relay/bun-server.js';
 // The AttachRelay (ADR-0115): the transport-agnostic coordinator plus the Bun
 // WebSocket transport a desktop or self-hosted instance serves. Wave 1 is
 // plaintext and loopback and is not mounted on the authenticated server app;
@@ -36,19 +35,29 @@ export type {
 	RelayToHostFrame,
 } from './attach-relay/contracts.js';
 export { RELAY_CLOSE } from './attach-relay/contracts.js';
-export { createAttachRelayBunServer } from './attach-relay/bun-server.js';
 export {
 	type ClientConnection,
 	createAttachRelay,
 	type HostConnection,
 } from './attach-relay/core.js';
+// The authenticated self-host mount (ADR-0115 wave 2): the attach relay behind
+// the deployment's bearer gate, with the principal stamped server-side.
+export { mountAttachRelayApp } from './attach-relay/mount.js';
 export { ATTACH_RELAY_ROUTE } from './attach-relay/route.js';
+// The single-partition instance's bearer resolver (self-host; ADR-0075): the
+// `ResolveBearerPrincipal` a Bun instance injects (`createEnvTokenResolver(token)`).
+// The pure generator + boot entropy gate (`generateInstanceToken` /
+// `assertStrongToken`) live in `@epicenter/auth`.
+export { createEnvTokenResolver } from './auth/instance-token.js';
 // The OAuth resource-boundary error union the bearer resolver emits. Exported
 // here too (it is not a Cloudflare module) so a Bun entry's dev bearer resolver
 // gets it without importing the main barrel, which would drag in the `Room`
 // Durable Object and its `cloudflare:workers` import.
 export { OAuthError } from './auth/oauth-errors.js';
 export { createDb } from './db/create-db.js';
+// Merge several Bun `WebSocketHandler`s onto one `Bun.serve`, dispatching each
+// socket to its backend by a `surface` tag (rooms + attach relay on one port).
+export { mergeBunWebSocketHandlers } from './merge-bun-websocket-handlers.js';
 // An opt-in burn-rate cap for the inference `policies` seam (ADR-0076).
 export { rateLimit } from './middleware/rate-limit.js';
 export {
