@@ -15,10 +15,14 @@
 		provider,
 		disabled = false,
 		onclick,
+		label,
 	}: {
 		provider: SocialProvider;
 		disabled?: boolean;
 		onclick: () => void;
+		/** Override the button text. Defaults to "Continue with <provider>"; the
+		 *  account page passes "Connect <provider>" to link rather than sign in. */
+		label?: string;
 	} = $props();
 </script>
 
@@ -74,5 +78,5 @@
 			/>
 		</svg>
 	{/if}
-	Continue with {PROVIDER_LABELS[provider]}
+	{label ?? `Continue with ${PROVIDER_LABELS[provider]}`}
 </Button>

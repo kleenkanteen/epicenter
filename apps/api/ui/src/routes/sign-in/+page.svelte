@@ -31,12 +31,13 @@
 	import AuthCard from '$lib/auth/AuthCard.svelte';
 	import AuthHeader from '$lib/auth/AuthHeader.svelte';
 	import ProviderButton from '$lib/auth/ProviderButton.svelte';
-	import { getOAuthQuery } from '$lib/auth/oauth-query';
 	import {
-		authenticateWithPasskey,
-		registerPasskey,
+		authClient,
+		isPasskeyCancellation,
+		requiresReauth,
 		supportsPasskeys,
-	} from '$lib/auth/passkey';
+	} from '$lib/auth/client';
+	import { getOAuthQuery } from '$lib/auth/oauth-query';
 	import {
 		PROVIDER_LABELS,
 		type SocialProvider,
@@ -107,8 +108,8 @@
 	async function startPasskey() {
 		errorMessage = null;
 		busy = true;
-		const result = await authenticateWithPasskey();
-		if (!result.error) {
+		const { error } = await authClient.signIn.passkey();
+		if (!error) {
 			// Reload with the query string intact; the server's GET /sign-in sees
 			// the new session cookie and continues the `?sig=` authorize re-entry
 			// (or the safe callbackURL redirect) with no extra client logic.
@@ -116,8 +117,9 @@
 			return;
 		}
 		// A dismissed browser prompt is expected; reset quietly.
-		errorMessage =
-			result.error.name === 'PromptCancelled' ? null : result.error.message;
+		errorMessage = isPasskeyCancellation(error)
+			? null
+			: (error.message ?? 'Passkey sign-in failed.');
 		busy = false;
 	}
 
@@ -125,12 +127,15 @@
 		errorMessage = null;
 		passkeyAdded = false;
 		addingPasskey = true;
-		const result = await registerPasskey();
-		if (!result.error) {
+		const { error } = await authClient.passkey.addPasskey();
+		if (!error) {
 			passkeyAdded = true;
+		} else if (isPasskeyCancellation(error)) {
+			// Dismissed prompt; reset quietly.
+		} else if (requiresReauth(error)) {
+			errorMessage = 'Sign in again to add a passkey.';
 		} else {
-			errorMessage =
-				result.error.name === 'PromptCancelled' ? null : result.error.message;
+			errorMessage = error.message ?? 'Could not add a passkey.';
 		}
 		addingPasskey = false;
 	}

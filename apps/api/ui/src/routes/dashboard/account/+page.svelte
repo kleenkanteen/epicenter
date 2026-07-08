@@ -1,0 +1,419 @@
+<!--
+	Account management: profile, connected sign-in providers, and passkeys.
+
+	Every mutation here can be refused by the server's fresh-session gate
+	(SESSION_NOT_FRESH) because adding or removing a login method is sensitive;
+	the remedy is always the same hosted re-sign-in, surfaced as a toast action.
+	Different-email linking is deliberate: the confirm dialog names the current
+	account email before the OAuth ceremony runs (the provider's own email is
+	only known after the ceremony, so it cannot be named up front).
+-->
+<script lang="ts">
+	import * as Alert from '@epicenter/ui/alert';
+	import * as Avatar from '@epicenter/ui/avatar';
+	import { Badge } from '@epicenter/ui/badge';
+	import { Button } from '@epicenter/ui/button';
+	import * as Card from '@epicenter/ui/card';
+	import {
+		ConfirmationDialog,
+		confirmationDialog,
+	} from '@epicenter/ui/confirmation-dialog';
+	import { Input } from '@epicenter/ui/input';
+	import { Separator } from '@epicenter/ui/separator';
+	import { toast } from '@epicenter/ui/sonner';
+	import { Spinner } from '@epicenter/ui/spinner';
+	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
+	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import UserIcon from '@lucide/svelte/icons/user';
+	import { createQuery } from '@tanstack/svelte-query';
+	import { account, accountKeys } from '$lib/account/queries';
+	import {
+		type AuthError,
+		authClient,
+		isPasskeyCancellation,
+		type LinkedAccount,
+		type Passkey,
+		requiresReauth,
+		supportsPasskeys,
+	} from '$lib/auth/client';
+	import ProviderButton from '$lib/auth/ProviderButton.svelte';
+	import {
+		PROVIDER_LABELS,
+		type SocialProvider,
+	} from '$lib/auth/sign-in-context';
+	import { auth } from '$lib/platform/auth';
+	import { queryClient } from '$lib/query/client';
+
+	const contextQuery = createQuery(() => account.context);
+	const linkedQuery = createQuery(() => account.linked);
+	const passkeysQuery = createQuery(() => account.passkeys);
+
+	const profile = $derived(contextQuery.data?.session ?? null);
+	const providers = $derived(contextQuery.data?.providers ?? []);
+	const linkedAccounts = $derived(linkedQuery.data ?? []);
+	const passkeys = $derived(passkeysQuery.data ?? []);
+	// The server refuses to unlink the last account (it would leave no way in),
+	// so the button is only offered when another account remains.
+	const canUnlink = $derived(linkedAccounts.length > 1);
+	const passkeysSupported = supportsPasskeys();
+
+	let editingPasskeyId = $state<string | null>(null);
+	let editingName = $state('');
+	let renaming = $state(false);
+
+	function providerLabel(providerId: string): string {
+		return PROVIDER_LABELS[providerId as SocialProvider] ?? providerId;
+	}
+
+	function formatDate(iso: string): string {
+		return new Date(iso).toLocaleDateString(undefined, {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric',
+		});
+	}
+
+	function invalidate(queryKey: readonly unknown[]) {
+		queryClient.invalidateQueries({ queryKey });
+	}
+
+	/** The stale-session remedy is a one-click re-sign-in. */
+	function reauthToast() {
+		toast.error('Sign in again to change your sign-in methods.', {
+			action: { label: 'Sign in', onClick: () => auth.startSignIn() },
+		});
+	}
+
+	/**
+	 * Surface a Better Auth error and report whether it is terminal. A 401/403
+	 * (session gone or not fresh) is terminal: the remedy is re-auth elsewhere,
+	 * so a confirm dialog should close. Anything else is retryable (the dialog
+	 * stays open for another attempt).
+	 */
+	function reportError(error: AuthError, fallback: string): { terminal: boolean } {
+		if (requiresReauth(error)) {
+			reauthToast();
+			return { terminal: true };
+		}
+		toast.error(error.message || fallback);
+		return { terminal: false };
+	}
+
+	function connect(provider: SocialProvider) {
+		const email = profile?.email ?? 'this account';
+		const label = PROVIDER_LABELS[provider];
+		confirmationDialog.open({
+			title: `Connect ${label}`,
+			description: `You're signed in as ${email}. Connect a ${label} account as another way to sign in? If its email differs from ${email}, it is still linked to this account.`,
+			confirm: { text: 'Connect' },
+			onConfirm: async () => {
+				const { data, error } = await authClient.linkSocial({
+					provider,
+					callbackURL: window.location.href,
+				});
+				if (error) {
+					reportError(error, `Could not connect ${label}.`);
+					return;
+				}
+				// Leave for the provider; on return the linked list refetches.
+				if (data?.url) window.location.href = data.url;
+			},
+		});
+	}
+
+	function disconnect(linkedAccount: LinkedAccount) {
+		const label = providerLabel(linkedAccount.providerId);
+		const email = profile?.email ?? 'this account';
+		confirmationDialog.open({
+			title: `Disconnect ${label}`,
+			description: `Remove ${label} as a way to sign in to ${email}? You can reconnect it anytime.`,
+			confirm: { text: 'Disconnect', variant: 'destructive' },
+			onConfirm: async () => {
+				const { error } = await authClient.unlinkAccount({
+					providerId: linkedAccount.providerId,
+					accountId: linkedAccount.accountId,
+				});
+				if (error) {
+					if (reportError(error, `Could not disconnect ${label}.`).terminal) {
+						return;
+					}
+					throw error; // retryable: keep the dialog open
+				}
+				toast.success(`${label} disconnected`);
+				invalidate(accountKeys.linked);
+			},
+		});
+	}
+
+	async function addPasskey() {
+		const { error } = await authClient.passkey.addPasskey();
+		if (error) {
+			if (isPasskeyCancellation(error)) return;
+			if (requiresReauth(error)) {
+				reauthToast();
+				return;
+			}
+			toast.error(error.message || 'Could not add a passkey.');
+			return;
+		}
+		toast.success('Passkey added');
+		invalidate(accountKeys.passkeys);
+	}
+
+	function startRename(passkey: Passkey) {
+		editingPasskeyId = passkey.id;
+		editingName = passkey.name ?? '';
+	}
+
+	function cancelRename() {
+		editingPasskeyId = null;
+		editingName = '';
+	}
+
+	async function saveRename(passkey: Passkey) {
+		const name = editingName.trim();
+		if (!name || name === passkey.name) {
+			cancelRename();
+			return;
+		}
+		renaming = true;
+		const { error } = await authClient.passkey.updatePasskey({
+			id: passkey.id,
+			name,
+		});
+		renaming = false;
+		if (error) {
+			reportError(error, 'Could not rename this passkey.');
+			return;
+		}
+		cancelRename();
+		invalidate(accountKeys.passkeys);
+	}
+
+	function deletePasskey(passkey: Passkey) {
+		const label = passkey.name?.trim() || 'this passkey';
+		confirmationDialog.open({
+			title: 'Remove passkey',
+			description: `Remove ${label}? You won't be able to sign in with it anymore.`,
+			confirm: { text: 'Remove', variant: 'destructive' },
+			onConfirm: async () => {
+				const { error } = await authClient.passkey.deletePasskey({
+					id: passkey.id,
+				});
+				if (error) {
+					if (reportError(error, 'Could not remove this passkey.').terminal) {
+						return;
+					}
+					throw error; // retryable: keep the dialog open
+				}
+				toast.success('Passkey removed');
+				invalidate(accountKeys.passkeys);
+			},
+		});
+	}
+</script>
+
+<svelte:head><title>Account: Epicenter</title></svelte:head>
+
+<div class="flex flex-col gap-6">
+	<div>
+		<h1 class="text-2xl font-semibold tracking-tight">Account</h1>
+		<p class="text-sm text-muted-foreground">
+			Manage how you sign in to Epicenter.
+		</p>
+	</div>
+
+	<!-- Profile -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Profile</Card.Title>
+		</Card.Header>
+		<Card.Content>
+			{#if contextQuery.isLoading}
+				<Spinner class="size-4" />
+			{:else if profile}
+				<div class="flex items-center gap-3">
+					<Avatar.Root class="size-10">
+						<Avatar.Fallback><UserIcon class="size-5" /></Avatar.Fallback>
+					</Avatar.Root>
+					<div class="flex flex-col">
+						{#if profile.name && profile.name !== profile.email}
+							<span class="text-sm font-medium">{profile.name}</span>
+						{/if}
+						<span class="text-sm text-muted-foreground">{profile.email}</span>
+					</div>
+				</div>
+			{/if}
+		</Card.Content>
+	</Card.Root>
+
+	<!-- Connected accounts -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Connected accounts</Card.Title>
+			<Card.Description>
+				Sign in with any connected provider. They all reach this one Epicenter
+				account.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="flex flex-col gap-4">
+			{#if linkedQuery.isLoading}
+				<Spinner class="size-4" />
+			{:else if linkedQuery.error}
+				<Alert.Root variant="destructive">
+					<CircleAlertIcon class="size-4" />
+					<Alert.Description>{linkedQuery.error.message}</Alert.Description>
+				</Alert.Root>
+			{:else}
+				<ul class="flex flex-col divide-y rounded-md border">
+					{#each linkedAccounts as linkedAccount (linkedAccount.id)}
+						<li class="flex items-center justify-between gap-3 px-4 py-3">
+							<div class="flex flex-col">
+								<span class="text-sm font-medium">
+									{providerLabel(linkedAccount.providerId)}
+								</span>
+								<span class="text-xs text-muted-foreground">
+									Connected {formatDate(linkedAccount.createdAt)}
+								</span>
+							</div>
+							<Button
+								variant="ghost"
+								size="sm"
+								disabled={!canUnlink}
+								title={canUnlink
+									? undefined
+									: 'Connect another provider before disconnecting this one.'}
+								onclick={() => disconnect(linkedAccount)}
+							>
+								Disconnect
+							</Button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+
+			{#if providers.length > 0}
+				<Separator />
+				<div class="flex flex-col gap-3">
+					<p class="text-sm font-medium">Connect another account</p>
+					{#each providers as provider (provider)}
+						<ProviderButton
+							{provider}
+							label={`Connect ${PROVIDER_LABELS[provider]}`}
+							onclick={() => connect(provider)}
+						/>
+					{/each}
+				</div>
+			{/if}
+		</Card.Content>
+	</Card.Root>
+
+	<!-- Passkeys -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Passkeys</Card.Title>
+			<Card.Description>
+				Sign in with your fingerprint, face, or device PIN. Passkeys are an
+				extra way in; they never replace your connected accounts.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="flex flex-col gap-4">
+			{#if passkeysQuery.isLoading}
+				<Spinner class="size-4" />
+			{:else if passkeysQuery.error}
+				<Alert.Root variant="destructive">
+					<CircleAlertIcon class="size-4" />
+					<Alert.Description>{passkeysQuery.error.message}</Alert.Description>
+				</Alert.Root>
+			{:else if passkeys.length > 0}
+				<ul class="flex flex-col divide-y rounded-md border">
+					{#each passkeys as passkey (passkey.id)}
+						<li class="flex items-center justify-between gap-3 px-4 py-3">
+							{#if editingPasskeyId === passkey.id}
+								<Input
+									class="h-8 max-w-56"
+									bind:value={editingName}
+									placeholder="Passkey name"
+									disabled={renaming}
+									onkeydown={(event) => {
+										if (event.key === 'Enter') saveRename(passkey);
+										if (event.key === 'Escape') cancelRename();
+									}}
+								/>
+								<div class="flex items-center gap-1">
+									<Button
+										variant="ghost"
+										size="sm"
+										disabled={renaming}
+										onclick={() => saveRename(passkey)}
+									>
+										{#if renaming}<Spinner class="size-3.5" />{:else}Save{/if}
+									</Button>
+									<Button
+										variant="ghost"
+										size="sm"
+										disabled={renaming}
+										onclick={cancelRename}
+									>
+										Cancel
+									</Button>
+								</div>
+							{:else}
+								<div class="flex flex-col">
+									<div class="flex items-center gap-2">
+										<span class="text-sm font-medium">
+											{passkey.name?.trim() || 'Passkey'}
+										</span>
+										{#if passkey.backedUp}
+											<Badge variant="secondary" class="text-[10px] px-1.5 py-0">
+												Synced
+											</Badge>
+										{/if}
+									</div>
+									<span class="text-xs text-muted-foreground">
+										Added {formatDate(passkey.createdAt)}
+									</span>
+								</div>
+								<div class="flex items-center gap-1">
+									<Button
+										variant="ghost"
+										size="icon"
+										class="size-8"
+										title="Rename passkey"
+										onclick={() => startRename(passkey)}
+									>
+										<PencilIcon class="size-4" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon"
+										class="size-8 text-muted-foreground hover:text-destructive"
+										title="Remove passkey"
+										onclick={() => deletePasskey(passkey)}
+									>
+										<Trash2Icon class="size-4" />
+									</Button>
+								</div>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="text-sm text-muted-foreground">No passkeys yet.</p>
+			{/if}
+
+			{#if passkeysSupported}
+				<div>
+					<Button variant="outline" onclick={addPasskey}>
+						<FingerprintIcon class="size-4" />
+						Add a passkey
+					</Button>
+				</div>
+			{/if}
+		</Card.Content>
+	</Card.Root>
+</div>
+
+<ConfirmationDialog />
