@@ -330,17 +330,25 @@ describe('AttachRelay source plane (ADR-0115 wave 6)', () => {
 			// endpoint-addressed: no route, source, capability, or tool surface enters
 			// the relay envelope.
 			expect(hostWireFrames.length).toBeGreaterThan(0);
-			expect(hostWireFrames.some((frame) => frame.includes(question))).toBe(true);
-			expect(hostWireFrames.some((frame) => frame.includes(SOURCE_SECRET))).toBe(
+			expect(hostWireFrames.some((frame) => frame.includes(question))).toBe(
 				true,
 			);
+			expect(
+				hostWireFrames.some((frame) => frame.includes(SOURCE_SECRET)),
+			).toBe(true);
 			const allowedWireKeys = new Set([
 				'deviceId',
 				'attachId',
 				'event',
 				'payload',
 			]);
-			const forbidden = ['route', 'channel', 'capability', 'source', 'toolName'];
+			const forbidden = [
+				'route',
+				'channel',
+				'capability',
+				'source',
+				'toolName',
+			];
 			for (const frame of hostWireFrames) {
 				const envelope = JSON.parse(frame) as Record<string, unknown>;
 				for (const key of Object.keys(envelope)) {
