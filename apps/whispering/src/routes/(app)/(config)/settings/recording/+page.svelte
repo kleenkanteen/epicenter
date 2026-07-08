@@ -5,7 +5,7 @@
 	import { Link } from '@epicenter/ui/link';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import { createMutation } from '@tanstack/svelte-query';
-	import { mutationOptions } from 'wellcrafted/query';
+	import { resultMutationOptions } from 'wellcrafted/query';
 	import { SettingSelect, SettingSwitch } from '$lib/components/settings';
 	import {
 		BITRATE_OPTIONS,
@@ -24,7 +24,7 @@
 	import VadSelectRecordingDevice from './VadSelectRecordingDevice.svelte';
 
 	const exportRecordings = createMutation(() =>
-		mutationOptions({
+		resultMutationOptions({
 			mutationKey: ['recordings', 'export'],
 			mutationFn: whispering.actions.recordings_export_markdown,
 		}),
