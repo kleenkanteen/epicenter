@@ -1,8 +1,8 @@
 import { Database } from 'bun:sqlite';
-import { Buffer } from 'node:buffer';
 import { chmodSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { type GmailLabel, type GmailMessage, headerValue } from './schema.ts';
+import { bodyText, headerValue } from './message-fields.ts';
+import type { GmailLabel, GmailMessage } from './schema.ts';
 
 /**
  * The local mirror: one SQLite file per connected Gmail account. Ports
@@ -57,7 +57,8 @@ export type MessageSummary = {
 
 /** A single message opened in the detail pane: a summary plus its extracted
  * plain-text body and the `To` header. Bodies are stored pre-extracted as
- * text (`db.ts`'s `bodyText`), so the read surface never ships raw HTML. */
+ * text (`message-fields.ts`'s `bodyText`), so the read surface never ships raw
+ * HTML. */
 export type MessageDetail = MessageSummary & {
 	to: string | null;
 	date: string | null;
@@ -84,65 +85,6 @@ function parseLabelIds(json: string | null): string[] {
 }
 
 export type MailDb = ReturnType<typeof openMailDb>;
-
-type GmailMessagePart = {
-	mimeType?: string;
-	body?: { data?: string };
-	parts?: GmailMessagePart[];
-};
-
-function decodeBase64Url(data: string): string | null {
-	try {
-		const normalized = data
-			.replace(/-/g, '+')
-			.replace(/_/g, '/')
-			.padEnd(Math.ceil(data.length / 4) * 4, '=');
-		return Buffer.from(normalized, 'base64').toString('utf8');
-	} catch {
-		return null;
-	}
-}
-
-function flattenParts(part: GmailMessagePart | undefined): GmailMessagePart[] {
-	if (!part) return [];
-	return [part, ...(part.parts ?? []).flatMap((child) => flattenParts(child))];
-}
-
-function stripHtmlTags(html: string): string {
-	return html
-		.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
-		.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
-		.replace(/<[^>]+>/g, ' ')
-		.replace(/&nbsp;/gi, ' ')
-		.replace(/&amp;/gi, '&')
-		.replace(/&lt;/gi, '<')
-		.replace(/&gt;/gi, '>')
-		.replace(/&quot;/gi, '"')
-		.replace(/&#39;/g, "'")
-		.replace(/\s+/g, ' ')
-		.trim();
-}
-
-function bodyText(message: GmailMessage): string | null {
-	try {
-		// `payload.parts` is the unvalidated Gmail wire boundary until TypeBox exposes a recursive schema here.
-		const parts = flattenParts(message.payload as GmailMessagePart | undefined);
-		const plain = parts.find(
-			(part) =>
-				part.mimeType?.toLowerCase() === 'text/plain' && part.body?.data,
-		);
-		if (plain?.body?.data) return decodeBase64Url(plain.body.data);
-
-		const html = parts.find(
-			(part) => part.mimeType?.toLowerCase() === 'text/html' && part.body?.data,
-		);
-		if (!html?.body?.data) return null;
-		const decoded = decodeBase64Url(html.body.data);
-		return decoded === null ? null : stripHtmlTags(decoded);
-	} catch {
-		return null;
-	}
-}
 
 function secureDir(path: string): void {
 	mkdirSync(path, { recursive: true, mode: 0o700 });
