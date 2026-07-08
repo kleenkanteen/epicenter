@@ -28,6 +28,7 @@
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import { createQuery } from '@tanstack/svelte-query';
+	import { onMount } from 'svelte';
 	import { account, accountKeys } from '$lib/account/queries';
 	import {
 		type AuthError,
@@ -54,6 +55,16 @@
 	const providers = $derived(contextQuery.data?.providers ?? []);
 	const linkedAccounts = $derived(linkedQuery.data ?? []);
 	const passkeys = $derived(passkeysQuery.data ?? []);
+	// A provider already linked is not offered again: v1 stores no provider email
+	// on the account row, so a second same-provider account would be
+	// indistinguishable in the list (and the DB unique on (provider, account)
+	// would reject a true duplicate anyway). Offer only the not-yet-linked ones.
+	const linkedProviderIds = $derived(
+		new Set(linkedAccounts.map((linkedAccount) => linkedAccount.providerId)),
+	);
+	const availableProviders = $derived(
+		providers.filter((provider) => !linkedProviderIds.has(provider)),
+	);
 	// The server refuses to unlink the last account (it would leave no way in),
 	// so the button is only offered when another account remains.
 	const canUnlink = $derived(linkedAccounts.length > 1);
@@ -79,10 +90,38 @@
 		queryClient.invalidateQueries({ queryKey });
 	}
 
-	/** The stale-session remedy is a one-click re-sign-in. */
+	// A failed OAuth link returns here (errorCallbackURL) with Better Auth's
+	// `?error=<code>&error_description=<message>`. Surface it once, then strip the
+	// params so a reload does not re-toast a stale failure.
+	onMount(() => {
+		const url = new URL(window.location.href);
+		const code = url.searchParams.get('error');
+		if (!code) return;
+		const description = url.searchParams.get('error_description');
+		toast.error(description || 'Could not connect that account. Please try again.');
+		url.searchParams.delete('error');
+		url.searchParams.delete('error_description');
+		history.replaceState(null, '', url.pathname + url.search + url.hash);
+	});
+
+	/**
+	 * The stale-session remedy is a one-click re-sign-in. It must SIGN OUT first:
+	 * only a new sign-in mints a session with a fresh `createdAt` (Better Auth's
+	 * `getSession` refreshes `expiresAt`/`updatedAt` but never `createdAt`), and
+	 * the hosted `/sign-in` page bounces an already-signed-in browser straight
+	 * back to its callback, so a stale-but-valid session would loop without ever
+	 * seeing the provider buttons. Dropping the cookie first lets `/sign-in`
+	 * render the providers, and the returning session is fresh.
+	 */
 	function reauthToast() {
 		toast.error('Sign in again to change your sign-in methods.', {
-			action: { label: 'Sign in', onClick: () => auth.startSignIn() },
+			action: {
+				label: 'Sign in',
+				onClick: async () => {
+					await auth.signOut();
+					await auth.startSignIn();
+				},
+			},
 		});
 	}
 
@@ -112,6 +151,11 @@
 				const { data, error } = await authClient.linkSocial({
 					provider,
 					callbackURL: window.location.href,
+					// Without this, a link failure AFTER the provider round trip lands
+					// on Better Auth's default `/error` (which this app never mounts).
+					// Return to this page instead; the on-mount reader below turns the
+					// `?error`/`?error_description` it appends into a toast.
+					errorCallbackURL: window.location.href,
 				});
 				if (error) {
 					reportError(error, `Could not connect ${label}.`);
@@ -294,11 +338,11 @@
 				</ul>
 			{/if}
 
-			{#if providers.length > 0}
+			{#if availableProviders.length > 0}
 				<Separator />
 				<div class="flex flex-col gap-3">
 					<p class="text-sm font-medium">Connect another account</p>
-					{#each providers as provider (provider)}
+					{#each availableProviders as provider (provider)}
 						<ProviderButton
 							{provider}
 							label={`Connect ${PROVIDER_LABELS[provider]}`}
