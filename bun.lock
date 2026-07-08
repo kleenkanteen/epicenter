@@ -438,6 +438,8 @@
         "@epicenter/ui": "workspace:*",
         "@epicenter/workspace": "workspace:*",
         "@modelcontextprotocol/sdk": "catalog:",
+        "@noble/ciphers": "^2.1.1",
+        "@noble/hashes": "^2.0.1",
         "hono": "catalog:",
         "yjs": "catalog:",
       },
