@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { expectOk } from 'wellcrafted/testing';
 import { loadPath } from '../load/fs';
 import { classifyRows } from './conformance';
 import { validateContract } from './contract';
@@ -26,9 +27,7 @@ function contract(
 	fields: Record<string, Record<string, unknown>>,
 	optional?: string[],
 ) {
-	const { data, error } = validateContract({ fields, optional });
-	if (error) throw new Error(error.message);
-	return data;
+	return expectOk(validateContract({ fields, optional }));
 }
 
 const m = contract({
@@ -216,12 +215,13 @@ describe('FTS5 block (emitted when the contract is searchable)', () => {
 	});
 
 	test('no FTS create or trigger when searchable is empty, but the index drop still runs', () => {
-		const built = validateContract({
-			fields: { title: { type: 'string' } },
-			searchable: [],
-		});
-		if (built.error) throw new Error(built.error.message);
-		const { schema } = projectToSqlite('posts', built.data, []);
+		const built = expectOk(
+			validateContract({
+				fields: { title: { type: 'string' } },
+				searchable: [],
+			}),
+		);
+		const { schema } = projectToSqlite('posts', built, []);
 		expect(schema).not.toContain('fts5');
 		expect(schema).not.toContain('CREATE TRIGGER');
 		// The DROP still runs, so a folder that just lost searchability sheds its stale index.
@@ -251,15 +251,16 @@ describe('FTS5 block (emitted when the contract is searchable)', () => {
 		).toEqual({ n: 1 });
 
 		// Re-project the SAME folder as non-searchable, with a different row at the same rowid.
-		const bare = validateContract({
-			fields: { title: { type: 'string' } },
-			searchable: [],
-		});
-		if (bare.error) throw new Error(bare.error.message);
+		const bare = expectOk(
+			validateContract({
+				fields: { title: { type: 'string' } },
+				searchable: [],
+			}),
+		);
 		const nonSearchable = projectToSqlite(
 			'posts',
-			bare.data,
-			classifyRows(bare.data.fields, [
+			bare,
+			classifyRows(bare.fields, [
 				{
 					fileName: 'beta.md',
 					frontmatter: { title: 'Beta' },
