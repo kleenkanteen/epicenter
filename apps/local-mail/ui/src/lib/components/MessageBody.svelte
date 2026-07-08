@@ -45,14 +45,14 @@
 		</div>
 	{/if}
 
-	<div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+	<div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-4">
 		{#if safeHtml && view === 'formatted'}
 			<!-- A formatted email is a foreign document that assumes a light canvas,
 			     so it renders on its own bounded white sheet rather than inheriting
 			     the app's dark theme. `color-scheme: light` keeps inherited/default
 			     colors readable; the sanitizer already stripped remote assets. -->
 			<div
-				class="email-canvas mx-auto max-w-[640px] rounded-lg border border-border bg-white px-6 py-5 text-neutral-900 [color-scheme:light]"
+				class="email-canvas mx-auto box-border w-full max-w-[640px] overflow-hidden rounded-lg border border-border bg-white px-6 py-5 text-neutral-900 [color-scheme:light]"
 			>
 				<!-- The single `{@html}` site in the app. `safeHtml` is DOMPurify
 				     output; remote assets are stripped and links open in a new tab. -->
@@ -73,9 +73,28 @@
 	/* Keep hostile email markup inside its lane: cap media/table width so a wide
 	   layout cannot force the sheet (or the app) to scroll horizontally. Not
 	   fidelity styling, just containment. */
+	.email-canvas {
+		overflow-wrap: anywhere;
+	}
+	.email-canvas :global(*) {
+		box-sizing: border-box;
+		max-width: 100%;
+		overflow-wrap: anywhere;
+	}
 	.email-canvas :global(img),
 	.email-canvas :global(table) {
 		max-width: 100%;
+	}
+	.email-canvas :global(img) {
+		height: auto;
+	}
+	.email-canvas :global(table) {
+		table-layout: fixed;
+		width: 100% !important;
+	}
+	.email-canvas :global(td),
+	.email-canvas :global(th) {
+		overflow-wrap: anywhere;
 	}
 	.email-canvas :global(a) {
 		text-decoration: underline;
