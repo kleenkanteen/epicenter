@@ -75,18 +75,14 @@
 			"GOOGLE_CLIENT_SECRET",
 			// The shared server library keeps every provider register-when-present,
 			// but the hosted cloud product promise is stricter: the hosted sign-in UI
-			// always offers Google, GitHub, Microsoft, and Apple. Listing all provider
-			// bindings here makes Wrangler fail deploy/typegen when the hosted edge is
-			// missing a provider the UI would show. A required `string` here still
-			// satisfies the library's optional CloudAuthBindings fields.
+			// offers only providers with production credentials. Listing those
+			// provider bindings here makes Wrangler fail deploy/typegen when the
+			// hosted edge is missing a provider the UI would show. A required `string`
+			// here still satisfies the library's optional CloudAuthBindings fields.
 			"GITHUB_CLIENT_ID",
 			"GITHUB_CLIENT_SECRET",
 			"MICROSOFT_CLIENT_ID",
 			"MICROSOFT_CLIENT_SECRET",
-			"APPLE_CLIENT_ID",
-			"APPLE_TEAM_ID",
-			"APPLE_KEY_ID",
-			"APPLE_PRIVATE_KEY",
 			// House AI keys are required here even though the library types them
 			// as optional bindings: hosted credits are billed against house-key
 			// usage, so a deploy without them would 503 paying users.
