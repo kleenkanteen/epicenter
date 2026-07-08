@@ -21,6 +21,14 @@ When a design implementation depends on Svelte behavior, use source-backed groun
 
 Do not use upstream repos as authority for visual taste. Use them for component API and behavior only.
 
+## Epicenter Product UI
+
+For Epicenter product apps, the shared product system is the default design surface. Start from `@epicenter/ui`, the app's existing layout language, and the Vega/Geist theme documented in `packages/ui/README.md`. Distinctiveness should usually come from workflow fit, hierarchy, density, copy, state design, and a few purposeful app-level details, not from replacing the shared type stack or inventing decorative systems inside one screen.
+
+Use this skill's bolder aesthetic guidance when the task is a new marketing surface, prototype, poster, landing page, explicit redesign, or isolated experience whose visual identity is the work. For routine product UI, compose local primitives first, then use visual judgment to make the surface clear and memorable within the shared system.
+
+Before adding custom fonts, new global tokens, background effects, motion systems, or component forks to an Epicenter app, name the product reason and why `@epicenter/ui` cannot carry it. If the reason is only "make it feel designed", improve composition, spacing, information hierarchy, and empty/loading/error states first.
+
 The user provides frontend requirements: a component, page, application, or interface to build. They may include context about the purpose, audience, or technical constraints.
 
 ## When to Apply This Skill
@@ -61,7 +69,7 @@ Before coding, understand the context and commit to a BOLD aesthetic direction:
 - **Constraints**: Technical requirements (framework, performance, accessibility).
 - **Differentiation**: What makes this UNFORGETTABLE? What's the one thing someone will remember?
 
-**CRITICAL**: Choose a clear conceptual direction and execute it with precision. Bold maximalism and refined minimalism both work - the key is intentionality, not intensity.
+**CRITICAL**: Choose a clear conceptual direction and execute it with precision. Bold maximalism and refined minimalism both work; the key is intentionality, not intensity.
 
 Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
 - Production-grade and functional
@@ -72,15 +80,15 @@ Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
 ## Frontend Aesthetics Guidelines
 
 Focus on:
-- **Typography**: Choose fonts that are beautiful, unique, and interesting. Avoid generic fonts like Arial and Inter; opt instead for distinctive choices that elevate the frontend's aesthetics; unexpected, characterful font choices. Pair a distinctive display font with a refined body font.
+- **Typography**: Choose fonts that are beautiful, unique, and interesting for standalone design work. Avoid generic fonts like Arial and Inter when the surface is meant to establish its own identity; opt instead for distinctive choices that elevate the frontend's aesthetics. In Epicenter product apps, preserve the shared Geist stack unless the task explicitly reopens product identity.
 - **Color & Theme**: Commit to a cohesive aesthetic. Use CSS variables for consistency. Dominant colors with sharp accents outperform timid, evenly-distributed palettes.
 - **Motion**: Use animations for effects and micro-interactions. Prioritize CSS-only solutions for HTML. Use Motion library for React when available. Focus on high-impact moments: one well-orchestrated page load with staggered reveals (animation-delay) creates more delight than scattered micro-interactions. Use scroll-triggering and hover states that surprise.
 - **Spatial Composition**: Unexpected layouts. Asymmetry. Overlap. Diagonal flow. Grid-breaking elements. Generous negative space OR controlled density.
 - **Backgrounds & Visual Details**: Create atmosphere and depth rather than defaulting to solid colors. Add contextual effects and textures that match the overall aesthetic. Apply creative forms like gradient meshes, noise textures, geometric patterns, layered transparencies, dramatic shadows, decorative borders, custom cursors, and grain overlays.
 
-NEVER use generic AI-generated aesthetics like overused font families (Inter, Roboto, Arial, system fonts), cliched color schemes (particularly purple gradients on white backgrounds), predictable layouts and component patterns, and cookie-cutter design that lacks context-specific character.
+For standalone design work, never use generic AI-generated aesthetics like overused font families (Inter, Roboto, Arial, system fonts), cliched color schemes (particularly purple gradients on white backgrounds), predictable layouts and component patterns, and cookie-cutter design that lacks context-specific character.
 
-Interpret creatively and make unexpected choices that feel genuinely designed for the context. No design should be the same. Vary between light and dark themes, different fonts, different aesthetics. NEVER converge on common choices (Space Grotesk, for example) across generations.
+Interpret creatively and make unexpected choices that feel genuinely designed for the context. No standalone design should be the same. Vary between light and dark themes, different fonts, and different aesthetics. Do not converge on common choices (Space Grotesk, for example) across generations. For Epicenter product apps, the anti-generic move is usually a sharper workflow and clearer composition inside the shared system, not a new theme.
 
 **IMPORTANT**: Match implementation complexity to the aesthetic vision. Maximalist designs need elaborate code with extensive animations and effects. Minimalist or refined designs need restraint, precision, and careful attention to spacing, typography, and subtle details. Elegance comes from executing the vision well.
 

@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { chmodSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { bodyText, headerValue } from './message-fields.ts';
+import { bodyHtml, bodyText, headerValue } from './message-fields.ts';
 import type { GmailLabel, GmailMessage } from './schema.ts';
 
 /**
@@ -55,14 +55,17 @@ export type MessageSummary = {
 	labelIds: string[];
 };
 
-/** A single message opened in the detail pane: a summary plus its extracted
- * plain-text body and the `To` header. Bodies are stored pre-extracted as
- * text (`message-fields.ts`'s `bodyText`), so the read surface never ships raw
- * HTML. */
+/** A single message opened in the detail pane: a summary, its `To`/`Date`
+ * headers, and both body projections. `bodyText` is the stored searchable
+ * plain text; `unsafeBodyHtml` is the raw `text/html` derived from `raw` at
+ * read time (never stored, so no schema change), unsanitized on purpose. The
+ * name carries the warning across the wire: the only caller that may render it
+ * is the sanitizer boundary in the SPA, which runs DOMPurify first. */
 export type MessageDetail = MessageSummary & {
 	to: string | null;
 	date: string | null;
 	bodyText: string | null;
+	unsafeBodyHtml: string | null;
 };
 
 /** A mirrored Gmail label, for the label-filter rail and the add/remove menu. */
@@ -445,10 +448,16 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 			if (!row) return null;
 			let to: string | null = null;
 			let date: string | null = null;
+			// Derived at read time from `raw`, never stored: an HTML body column
+			// would only mirror `body_text` for symmetry's sake and force a schema
+			// bump. `bodyHtml` is defensive on its own, but the parse shares this
+			// try so a corrupt `raw` yields nulls rather than throwing.
+			let unsafeBodyHtml: string | null = null;
 			try {
 				const message = JSON.parse(row.raw) as GmailMessage;
 				to = headerValue(message, 'To');
 				date = headerValue(message, 'Date');
+				unsafeBodyHtml = bodyHtml(message);
 			} catch {
 				// Fall back to nulls; the summary fields already carry the essentials.
 			}
@@ -463,6 +472,7 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 				to,
 				date,
 				bodyText: row.body_text,
+				unsafeBodyHtml,
 			};
 		},
 
