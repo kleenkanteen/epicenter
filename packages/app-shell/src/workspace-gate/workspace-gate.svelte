@@ -31,8 +31,8 @@
 	import * as Empty from '@epicenter/ui/empty';
 	import { Loading } from '@epicenter/ui/loading';
 	import { toast } from '@epicenter/ui/sonner';
+	import { Spinner } from '@epicenter/ui/spinner';
 	import DatabaseZapIcon from '@lucide/svelte/icons/database-zap';
-	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
@@ -134,7 +134,7 @@
 							disabled={forgettingDevice}
 						>
 							{#if forgettingDevice}
-								<LoaderCircleIcon class="size-4 animate-spin" />
+								<Spinner class="size-4" />
 							{:else}
 								<DatabaseZapIcon class="size-4" />
 							{/if}

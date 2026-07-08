@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '@epicenter/ui/button';
 	import * as Dialog from '@epicenter/ui/dialog';
-	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+	import { Spinner } from '@epicenter/ui/spinner';
 	import type { SignInMigrationState } from './create-sign-in-migration.svelte';
 
 	/**
@@ -39,7 +39,7 @@
 					onclick={() => migration.deleteFromDevice()}
 				>
 					{#if migration.phase === 'deleting'}
-						<LoaderCircle class="size-4 animate-spin" />
+						<Spinner class="size-4" />
 					{/if}
 					Delete from device
 				</Button>
@@ -48,7 +48,7 @@
 					onclick={() => migration.addToAccount()}
 				>
 					{#if migration.phase === 'adding'}
-						<LoaderCircle class="size-4 animate-spin" />
+						<Spinner class="size-4" />
 					{/if}
 					Add to my account
 				</Button>
