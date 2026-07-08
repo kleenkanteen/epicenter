@@ -1,8 +1,8 @@
 /**
- * `epicenter daemon logs`: print recent log lines for a running daemon.
+ * `epicenter logs`: print recent log lines for a running watcher.
  *
  * Prints the last 50 lines and exits (mirrors `tail` defaults). To stream a
- * live daemon's log, run `tail -F` against the printed path: the OS already
+ * live watcher's log, run `tail -F` against the printed path: the OS already
  * does follow-through-rotation correctly, so the CLI does not reimplement it.
  *
  * Uses the discovered Epicenter root by default. `-C <dir>` changes the discovery
@@ -24,7 +24,7 @@ const DEFAULT_TAIL_LINES = 50;
  * when the file is missing or empty.
  *
  * Implementation note: `readFileSync` is fine here. The log is bounded
- * to the daemon log rotation threshold before rotation, so worst-case memory
+ * to the watcher log rotation threshold before rotation, so worst-case memory
  * is small and predictable.
  */
 function tailLines(path: string, n: number): string {
@@ -39,7 +39,7 @@ function tailLines(path: string, n: number): string {
 
 export const logsCommand = cmd({
 	command: 'logs',
-	describe: 'Print recent log lines for a running daemon.',
+	describe: 'Print recent log lines for a running watcher.',
 	builder: {
 		C: epicenterRootOption,
 	},

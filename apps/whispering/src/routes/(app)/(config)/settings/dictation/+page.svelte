@@ -86,10 +86,12 @@
 							<Textarea
 								id="polish-instructions"
 								placeholder={settings.getDefault('polish.instructions')}
-								bind:value={
-									() => settings.get('polish.instructions'),
-									(value) => settings.set('polish.instructions', value)
-								}
+								value={settings.get('polish.instructions')}
+								onblur={(e) => {
+									const next = e.currentTarget.value;
+									if (next !== settings.get('polish.instructions'))
+										settings.set('polish.instructions', next);
+								}}
 							/>
 							<Field.Description>
 								What Polish does to every transcript. Keep it

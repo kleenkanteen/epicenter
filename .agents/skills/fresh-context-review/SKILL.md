@@ -1,14 +1,13 @@
 ---
 name: fresh-context-review
-description: Fresh-context adversarial review for concrete diffs, state machines, type shapes, lifecycle boundaries, and confusing abstractions. Use when the user asks for "fresh eyes", an independent reviewer, adversarial review of a diff, a state-machine audit, or whether a type or lifecycle shape earns itself. Not for generic helper delegation, executor prompts, ordinary final review, or interactive planning interviews.
+description: Fresh-context review and adversarial review for concrete diffs, state machines, type shapes, lifecycle boundaries, and confusing abstractions. Use when the user asks for "fresh-context review", "fresh eyes", an independent reviewer, adversarial review of a diff, a state-machine audit, or whether a type or lifecycle shape earns itself. Not for generic helper delegation, executor prompts, ordinary final review, or interactive planning interviews.
 ---
 
 # Fresh Context Review
 
-Use this skill when the current implementer may be too close to the design.
-The job is to read the change like a capable TypeScript developer who has not
-been part of the conversation, then push until the lifecycle, names, and type
-shapes either become obvious or collapse to something simpler.
+Read the change like a capable TypeScript developer who has not been part of
+the conversation, then push until the lifecycle, names, and type shapes either
+become obvious or collapse to something simpler.
 
 This is not a normal code review. It is a structured challenge pass.
 
@@ -39,10 +38,9 @@ Load only the relevant local skills before reviewing:
 - `typescript` for type ownership, local shape copies, and discriminated unions
 - `approachability-audit` for first-read clarity
 - `refactoring` for caller counts and helper inlining
-- `cohesive-clean-breaks` for refusing low-value behavior or states
 - `greenfield-clean-breaks` when the user says "greenfield", "no users",
-  "clean break", "refuse compatibility", or asks whether old behavior can be
-  deleted
+  "clean break", "refuse compatibility", asks whether old behavior can be
+  deleted, or the review points to a public-shape or ownership break
 - `define-errors` and `error-handling` when `Result`, `Err`, `Ok`, or
   `defineErrors` shapes are involved
 - `collapse-pass` when the user asks to shrink indirection or delete state
@@ -115,8 +113,8 @@ If the user asks you to act on the review:
 
 1. Add or adjust focused tests first.
 2. Make the correction that resolves the problem at its real owner. Use
-   `greenfield-clean-breaks` only when compatibility pressure has been
-   explicitly released.
+   `greenfield-clean-breaks` when compatibility pressure has been explicitly
+   released or the correction changes public shape.
 3. Re-read every touched file.
 4. Run package typecheck and tests.
 5. Stage only the files you touched when the user asks for staging.

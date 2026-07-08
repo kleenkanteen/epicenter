@@ -2,15 +2,12 @@
 #
 # Boots the Bun runtime port (apps/api/server.dev.ts) against plain Postgres and
 # a real S3 (versitygw, the same store dev uses), then runs the one-scenario
-# smoke (apps/api/scripts/smoke.ts) end to end: health, session, open+read a
-# room, and the full content-addressed blob lifecycle. A non-zero smoke exit
-# fails the job.
+# smoke (apps/api/scripts/smoke.ts). A non-zero smoke exit fails the job.
 #
-# No real secrets, OAuth, or JWKS are needed: the server runs with the dev
-# resolver (server.dev.ts), which resolves `Authorization: Bearer dev:<userId>`
-# to a synthetic user on localhost. The Google and Better-Auth env vars are
-# present only because boot validates them as strings; the dev path never
-# exercises them, so they are obvious throwaways.
+# No real secrets, OAuth, or JWKS are needed: the smoke wrapper starts the
+# server with the dev resolver (server.dev.ts), which resolves `Authorization:
+# Bearer dev:<userId>` to a synthetic user on localhost and fills fake auth env
+# values only where this job has not supplied them.
 #
 # Scope: this proves LOGIC parity (the same Hono app over injected runtime
 # hooks). It does NOT prove TRANSPORT parity: `Bun.serve` vs workerd, and the
@@ -55,11 +52,6 @@ jobs:
 
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/epicenter
-      # Required by boot validation as strings; the dev resolver bypasses them,
-      # so these are deliberately fake and never reach Google or JWKS.
-      BETTER_AUTH_SECRET: ci-runtime-parity-not-a-real-secret
-      GOOGLE_CLIENT_ID: ci-not-a-real-client-id
-      GOOGLE_CLIENT_SECRET: ci-not-a-real-client-secret
       # Point the portable S3 client at the local versitygw store (below).
       BLOBS_S3_ENDPOINT: http://localhost:7070
       BLOBS_S3_ACCESS_KEY_ID: epicenter-local
@@ -118,37 +110,7 @@ jobs:
           exit 1
 
       - name: Run runtime-parity smoke (Bun)
-        # Boot the Bun port with the dev resolver, wait for health, run the one
-        # scenario, and propagate its exit code. The server log is dumped on any
-        # failure so a red gate is diagnosable from the run alone.
-        run: |
-          bun apps/api/server.dev.ts > /tmp/bun-server.log 2>&1 &
-          SERVER_PID=$!
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8788/ >/dev/null 2>&1; then
-              ready=1
-              break
-            fi
-            echo "waiting for Bun server ($i)..."
-            sleep 1
-          done
-          if [ -z "$ready" ]; then
-            echo "::error::Bun server did not become ready"
-            cat /tmp/bun-server.log
-            kill "$SERVER_PID" 2>/dev/null || true
-            exit 1
-          fi
-          set +e
-          bun apps/api/scripts/smoke.ts http://localhost:8788
-          code=$?
-          set -e
-          kill "$SERVER_PID" 2>/dev/null || true
-          if [ "$code" -ne 0 ]; then
-            echo "::error::Runtime-parity smoke failed (exit $code)"
-            echo "----- Bun server log -----"
-            cat /tmp/bun-server.log
-          fi
-          exit $code
+        run: bun apps/api/scripts/smoke-local.ts
 
       - name: Stop local S3
         if: always()

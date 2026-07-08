@@ -3,87 +3,57 @@ import {
 	type ProviderCredentialSpec,
 	resolveProviderCredentials,
 } from '@epicenter/constants/provider-credentials';
-import { Err, Ok, type Result } from 'wellcrafted/result';
-import type { GmailEnvironment } from './tokens.ts';
+import { providerFilePath } from './paths.ts';
+import {
+	readProviderFile,
+	writeProviderFileIfAbsent,
+} from './provider-store.ts';
 
 /**
- * Gmail provider-credential spec (ADR-0108), app-owned. Local Mail has two Google
- * Desktop OAuth clients, a dev/unverified one and a prod/verified one, and they
- * are entirely distinct clients (different ids, secrets, and consent screens), so
- * both roles vary per environment and are environment-qualified:
- *
- *   GMAIL_DEV_CLIENT_ID   / GMAIL_DEV_CLIENT_SECRET    (unverified dev client)
- *   GMAIL_PROD_CLIENT_ID  / GMAIL_PROD_CLIENT_SECRET   (verified prod client)
- *
- * The old undifferentiated `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` are retired.
- * Which vault environment stores each qualified name is an orthogonal
- * access-control choice, not a selector: the name carries the environment.
+ * The single BYO Google OAuth Desktop client Local Mail connects through
+ * (ADR-0108). Gmail issues one client, not a per-account keyset, so it is a
+ * single-environment provider: names stay unqualified GMAIL_CLIENT_ID /
+ * GMAIL_CLIENT_SECRET.
  */
 export const GMAIL_SPEC = {
 	prefix: 'GMAIL',
-	environments: ['dev', 'prod'],
+	environments: ['default'],
 	environmentRoles: ['CLIENT_ID', 'CLIENT_SECRET'],
-} as const satisfies ProviderCredentialSpec<GmailEnvironment>;
+} as const satisfies ProviderCredentialSpec<'default'>;
 
-/**
- * Resolve the Google OAuth client keyset for a target environment. Throws a
- * `ProviderCredentialError` naming the exact missing qualified variables when the
- * environment's keys are absent, so a wrong-keyset run fails loudly at resolution
- * time instead of dying later as an opaque Google `invalid_client`.
- */
-export function resolveGmailCredentials(
-	environment: GmailEnvironment,
-	read?: CredentialSource,
-): { clientId: string; clientSecret: string } {
-	const credentials = resolveProviderCredentials(GMAIL_SPEC, environment, read);
+export function resolveGmailCredentials(read?: CredentialSource): {
+	clientId: string;
+	clientSecret: string;
+} {
+	const credentials = resolveProviderCredentials(GMAIL_SPEC, 'default', read);
 	return {
 		clientId: credentials.CLIENT_ID,
 		clientSecret: credentials.CLIENT_SECRET,
 	};
 }
 
-/** The environments whose full keyset is present in the injected source. */
-export function availableGmailEnvironments(
-	read?: CredentialSource,
-): GmailEnvironment[] {
-	return GMAIL_SPEC.environments.filter((environment) => {
-		try {
-			resolveGmailCredentials(environment, read);
-			return true;
-		} catch {
-			return false;
-		}
-	});
+/**
+ * The machine-tier credential source: env wins per-name, then the 0600
+ * provider.json at the data-dir root. Env stays the override/CI/test seam; the
+ * file is the durable default every worktree shares.
+ */
+export function gmailCredentialSource(dataDir: string): CredentialSource {
+	const file = readProviderFile(providerFilePath(dataDir));
+	return (name) => {
+		const fromEnv = process.env[name];
+		if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
+		const fromFile = file[name];
+		return fromFile !== undefined && fromFile.length > 0 ? fromFile : undefined;
+	};
 }
 
-/**
- * Pick the provider-environment to connect an account under (ADR-0108 rule 4).
- * The `--gmail-env` flag is the chooser and the disambiguator: it is required
- * only when more than one environment's credentials are present. With a single
- * keyset present it is inferred; with none present the failure names both
- * keysets so the operator knows what to set.
- */
-export function selectGmailEnvironment(
-	explicit: GmailEnvironment | undefined,
-	read?: CredentialSource,
-): Result<GmailEnvironment, { message: string }> {
-	const available = availableGmailEnvironments(read);
-	if (explicit) {
-		if (available.includes(explicit)) return Ok(explicit);
-		const upper = explicit.toUpperCase();
-		return Err({
-			message: `No Gmail ${explicit} credentials found. Set GMAIL_${upper}_CLIENT_ID and GMAIL_${upper}_CLIENT_SECRET (see .env.example).`,
-		});
-	}
-	if (available.length === 1) return Ok(available[0] as GmailEnvironment);
-	if (available.length === 0) {
-		return Err({
-			message:
-				'No Gmail OAuth credentials found. Set GMAIL_DEV_CLIENT_ID / GMAIL_DEV_CLIENT_SECRET or GMAIL_PROD_CLIENT_ID / GMAIL_PROD_CLIENT_SECRET (see .env.example).',
-		});
-	}
-	return Err({
-		message:
-			'Both dev and prod Gmail credentials are present; choose one with --gmail-env dev|prod.',
+/** Cache env-supplied client creds to the machine file after a good grant, if absent. */
+export function persistGmailProviderCredentials(
+	dataDir: string,
+	creds: { clientId: string; clientSecret: string },
+): void {
+	writeProviderFileIfAbsent(providerFilePath(dataDir), {
+		GMAIL_CLIENT_ID: creds.clientId,
+		GMAIL_CLIENT_SECRET: creds.clientSecret,
 	});
 }

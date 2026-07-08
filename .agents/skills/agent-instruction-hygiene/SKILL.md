@@ -5,8 +5,6 @@ description: Review AGENTS.md, CLAUDE.md, and `.agents/skills` for instruction s
 
 # Agent Instruction Hygiene
 
-Use this skill when the instruction system itself is the design surface.
-
 The goal is not to capture every lesson. The goal is to keep future agents
 pointed at the smallest durable instruction that changes behavior.
 
@@ -14,7 +12,8 @@ pointed at the smallest durable instruction that changes behavior.
 
 - `skill-creator` owns skill format, discovery, validation, and update mechanics.
 - `writing-voice` owns prose tone and punctuation.
-- `greenfield-clean-breaks` owns compatibility refusal and ideal-shape review.
+- `greenfield-clean-breaks` owns clean-break, greenfield, compatibility-refusal,
+  and ideal-shape review.
 - `git` owns staging, commits, and branch hygiene.
 
 ## Product Sentence

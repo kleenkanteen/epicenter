@@ -8,7 +8,7 @@ metadata:
 
 # Comparable Apps
 
-Related skills: use [one-sentence-test](../one-sentence-test/SKILL.md) to write the cohesion sentence that the comparable-apps check audits against, and [cohesive-clean-breaks](../cohesive-clean-breaks/SKILL.md) when the comparison surfaces an asymmetric win (refuse a feature).
+Related skills: use [one-sentence-test](../one-sentence-test/SKILL.md) to write the cohesion sentence that the comparable-apps check audits against, and [greenfield-clean-breaks](../greenfield-clean-breaks/SKILL.md) when the comparison surfaces an asymmetric win (refuse a feature).
 
 **Core move.** Before designing a user-facing surface, name 3-5 comparable apps and write one line each about what they do for the same problem. Then ask: which category is Epicenter in, and does the proposed design match that category's pattern? When the design diverges from the category, name the reason. When it converges, the comparison is your evidence that the choice is unsurprising.
 
@@ -179,4 +179,4 @@ After the move, the design doc has a short comparison table that names the categ
 
 - Not market research. The point is design coherence, not competitive analysis.
 - Not a vote. Five apps doing X is evidence, not authority. Epicenter can refuse the pattern; the comparison just makes the refusal explicit.
-- Not a substitute for one-sentence-test or cohesive-clean-breaks. This skill surfaces the question; those skills resolve it.
+- Not a substitute for one-sentence-test or greenfield-clean-breaks. This skill surfaces the question; those skills resolve it.

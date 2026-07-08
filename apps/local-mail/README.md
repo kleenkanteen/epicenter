@@ -23,26 +23,31 @@ Gmail, not a local-only table.
 - `messages.body_text` is decoded at ingest from `text/plain` MIME parts, with
   stripped `text/html` as a fallback. That makes SQL and MCP useful for body
   questions without adding FTS yet.
+- The app detail pane can render formatted email from the raw Gmail payload, but
+  only behind the SPA sanitizer boundary. DOMPurify strips executable markup and
+  remote assets before the single `{@html}` sink renders the body on a light
+  email canvas; plain text stays available as the fallback view.
 
 ## Commands
 
-Connect once. `--gmail-env` picks the OAuth keyset: `dev` reads `GMAIL_DEV_*`
-(the unverified client), `prod` reads `GMAIL_PROD_*` (the verified one). It is
-required only when both keysets are present, and inferred when just one is. The
-account records the environment it was connected under, and every later sync
-asserts it (ADR-0108):
+Connect once. Local Mail is BYO: set one Google OAuth Desktop client pair as
+`GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET`, then run the connect flow. The stored
+token records the concrete client id that minted it, and later refreshes refuse
+if the configured client id changes:
 
 ```sh
-infisical run --path=/apps/local-mail -- \
-  bun run src/bin.ts connect --gmail-env dev
+bun run src/bin.ts connect
 ```
 
-The name carries the provider target. The app-local Infisical config should
-point at your personal secrets project, where both keysets sit under
-`prod /apps/local-mail` for a single injection. Copy
-`.infisical.json.example` to `.infisical.json` and keep the real file local.
-See [`.env.example`](.env.example) for the canonical names. The old
-unqualified `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` are retired.
+The client pair is machine-level bring-your-own configuration, not Epicenter
+infrastructure. Provide it however you keep local secrets for the first connect:
+an export, a local `.env`, or a secrets manager such as
+`infisical run --path=/apps/local-mail -- bun run src/bin.ts connect`. On the
+first successful connect or refresh, Local Mail caches the pair to a 0600
+`<data-dir>/provider.json` sibling to `credentials.json`. Every later run and
+every other git worktree on this machine reads it from there, so no per-worktree
+secrets config is needed. See [`.env.example`](.env.example) for the canonical
+names.
 
 Local Mail requests `gmail.modify` so write-through label changes can round-trip
 through Gmail. Although Google grants send at the same OAuth layer, Local Mail
@@ -55,18 +60,15 @@ here rather than on the first sync, and the account email comes from the
 Gmail profile instead of being typed:
 
 ```sh
-infisical run --path=/apps/local-mail -- \
-  bun run src/bin.ts seed-token <refresh-token> --gmail-env dev
+bun run src/bin.ts seed-token <refresh-token>
 ```
 
 Build or refresh the mirror:
 
 ```sh
-infisical run --path=/apps/local-mail -- \
-  bun run src/bin.ts sync --full
+bun run src/bin.ts sync --full
 
-infisical run --path=/apps/local-mail -- \
-  bun run src/bin.ts sync --watch
+bun run src/bin.ts sync --watch
 ```
 
 Check connection and mirror state:
@@ -147,10 +149,10 @@ Tools:
 
 ## Config
 
-- `GMAIL_DEV_CLIENT_ID` / `GMAIL_DEV_CLIENT_SECRET`, `GMAIL_PROD_CLIENT_ID` /
-  `GMAIL_PROD_CLIENT_SECRET`: the Google OAuth Desktop client keys, one keyset per
-  environment (ADR-0108). `--gmail-env` selects which the resolver reads, lazily at
-  connect/refresh; a missing keyset fails loudly naming the exact variables.
+- `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET`: the BYO Google OAuth Desktop client
+  keys. The resolver reads them at connect/refresh from the environment first,
+  then `<data-dir>/provider.json`, which is cached as `0600` on first connect.
+  Missing credentials fail loudly naming the exact variables.
 - `LOCAL_MAIL_ACCOUNT`: optional account override for `sync`, `query`, and
   `mcp`. Required only when more than one account is connected.
 - `LOCAL_MAIL_DIR`: data directory override.
@@ -179,9 +181,9 @@ stdio subprocess for the agent-facing protocol surface.
 
 ## Not built yet
 
-- HTML mail-body rendering. The detail pane shows the pre-extracted plain-text
-  body; rich HTML rendering (the sanitizer + sandboxed srcdoc + CSP + show-images
-  proxy) is deferred, which is why the SPA has no mail-body iframe yet.
+- Remote image loading and Gmail-perfect HTML fidelity. Formatted bodies render
+  as sanitized inline HTML on a light canvas; remote assets stay stripped, and
+  there is no show-images proxy yet.
 - Compile-embed distribution (`bun build --compile`) and the Tauri wrapper. `app`
   serves `ui/dist` from disk; the route table is the seam the distribution wave
   swaps for embedded assets later.

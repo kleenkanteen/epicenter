@@ -16,7 +16,7 @@
  * The CLI uses an out-of-band (OOB) authorization-code + PKCE flow against
  * the same `/auth/oauth2/token` endpoint the browser uses. After sign-in
  * on the hosted portal, Better Auth redirects to the API origin's
- * `/auth/cli-callback`, which renders the one-time code; the user pastes
+ * `/cli-callback`, which renders the one-time code; the user pastes
  * it into the terminal. This identifies the CLI app type, not a user,
  * machine, install, or secret. Every CLI install uses the same value.
  */

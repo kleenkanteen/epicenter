@@ -15,23 +15,6 @@ import {
 } from './schema.ts';
 import type { TokenError, TokenManager } from './token-manager.ts';
 
-/**
- * The Gmail REST API client: `messages.list`/`messages.get` for full pulls,
- * `history.list` for incremental refresh, `labels.list`, and `getProfile` for
- * the pre-full-pull `historyId` baseline. Same job as `apps/local-books`'
- * `qb-client.ts`: bearer auth from the token manager, one-shot refresh on 401,
- * backoff on throttling.
- *
- * Grounded against Gmail API docs (2026-06-30/07-01):
- * - Rate limiting is 429 (`rateLimitExceeded`/`userRateLimitExceeded`) or 403
- *   (`dailyLimitExceeded`, project-level); both back off, everything else 403
- *   is a hard permission error, not retried.
- *   https://developers.google.com/gmail/api/guides/handle-errors
- * - `history.list` 404s when `startHistoryId` is expired/invalid ("typically
- *   available for at least one week and often longer"); the caller must fall
- *   back to a full sync. https://developers.google.com/gmail/api/guides/sync
- */
-
 export const GmailApiError = defineErrors({
 	Network: ({ cause }: { cause: unknown }) => ({
 		message: `Network error calling the Gmail API: ${String(cause)}`,
@@ -60,33 +43,12 @@ export type GmailApiError = InferErrors<typeof GmailApiError>;
 
 export type GmailClientError = GmailApiError | TokenError;
 
-export type GmailClient = {
-	listMessageIds(
-		pageToken?: string,
-	): Promise<
-		Result<{ ids: string[]; nextPageToken?: string }, GmailClientError>
-	>;
-	getMessage(id: string): Promise<Result<GmailMessage, GmailClientError>>;
-	modifyMessage(
-		id: string,
-		body: { addLabelIds: string[]; removeLabelIds: string[] },
-	): Promise<Result<GmailMessage, GmailClientError>>;
-	listHistory(
-		startHistoryId: string,
-		pageToken?: string,
-	): Promise<Result<HistoryPage, GmailClientError>>;
-	listLabels(): Promise<Result<GmailLabel[], GmailClientError>>;
-	/** Current mailbox `historyId`, used as the baseline right before a full pull. */
-	getProfile(): Promise<
-		Result<{ historyId: string; emailAddress?: string }, GmailClientError>
-	>;
-};
-
-type GmailClientDeps = {
-	config: AppConfig;
-	tokens: TokenManager;
-	log?: (message: string) => void;
-};
+/**
+ * The public Gmail client surface. Derived from `createGmailClient` rather than
+ * hand-written so the type can never drift from the factory: the returned
+ * object's method signatures (and their JSDoc) are the single source of truth.
+ */
+export type GmailClient = ReturnType<typeof createGmailClient>;
 
 const MAX_RETRIES = 5;
 const THROTTLE_WAIT_MS = 30_000;
@@ -142,24 +104,51 @@ function checkedResult<S extends TSchema>(
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-export function createGmailClient(deps: GmailClientDeps): GmailClient {
+/**
+ * The Gmail REST API client: `messages.list`/`messages.get` for full pulls,
+ * `history.list` for incremental refresh, `labels.list`, and `getProfile` for
+ * the pre-full-pull `historyId` baseline. Same job as `apps/local-books`'
+ * `qb-client.ts`: bearer auth from the token manager, one-shot refresh on 401,
+ * backoff on throttling.
+ *
+ * The returned methods (not a hand-written interface) define the public
+ * `GmailClient` type; `test-support/check-gmail-discovery.ts` diffs the
+ * methods and field paths they rely on against Gmail's live Discovery document.
+ *
+ * Grounded against Gmail API docs (2026-06-30/07-01):
+ * - Rate limiting is 429 (`rateLimitExceeded`/`userRateLimitExceeded`) or 403
+ *   (`dailyLimitExceeded`, project-level); both back off, everything else 403
+ *   is a hard permission error, not retried.
+ *   https://developers.google.com/gmail/api/guides/handle-errors
+ * - `history.list` 404s when `startHistoryId` is expired/invalid ("typically
+ *   available for at least one week and often longer"); the caller must fall
+ *   back to a full sync. https://developers.google.com/gmail/api/guides/sync
+ */
+export function createGmailClient(deps: {
+	config: AppConfig;
+	tokens: TokenManager;
+	log?: (message: string) => void;
+}) {
 	const { config, tokens } = deps;
 	const log = deps.log ?? (() => {});
 	const backoffMs = (attempt: number) =>
 		Math.min(THROTTLE_WAIT_MS, 1000 * 2 ** attempt);
 
-	async function request(
-		path: string,
-		{
-			params = {},
-			method = 'GET',
-			body: requestBody,
-		}: {
-			params?: Record<string, string>;
-			method?: 'GET' | 'POST';
-			body?: unknown;
-		} = {},
-	): Promise<Result<unknown, GmailClientError>> {
+	async function requestJson<S extends TSchema>({
+		schema,
+		operation,
+		path,
+		params = {},
+		method = 'GET',
+		body: requestBody,
+	}: {
+		schema: S;
+		operation: string;
+		path: string;
+		params?: Record<string, string>;
+		method?: 'GET' | 'POST';
+		body?: unknown;
+	}): Promise<Result<Static<S>, GmailClientError>> {
 		const url = new URL(`${config.apiBase}/gmail/v1/users/me/${path}`);
 		for (const [key, value] of Object.entries(params)) {
 			url.searchParams.set(key, value);
@@ -197,13 +186,12 @@ export function createGmailClient(deps: GmailClientDeps): GmailClient {
 			}
 
 			if (response.ok) {
+				// Validate at the transport boundary: `schema` is required, so no
+				// caller ever receives an unvalidated Gmail response. A non-object or
+				// malformed body fails `Value.Check` here and surfaces as an
+				// InvalidResponse, so there is no separate "is it a JSON object" guard.
 				const json = await response.json().catch(() => null);
-				if (json === null || typeof json !== 'object') {
-					return GmailApiError.InvalidResponse({
-						detail: 'body was not a JSON object',
-					});
-				}
-				return Ok(json);
+				return checkedResult(schema, json, operation);
 			}
 
 			if (response.status === 401 && !refreshed) {
@@ -248,70 +236,129 @@ export function createGmailClient(deps: GmailClientDeps): GmailClient {
 	}
 
 	return {
-		async listMessageIds(pageToken) {
-			const { data, error } = await request('messages', {
+		/** Page through `messages.list`, returning just the message ids plus the
+		 * cursor for the next page. Full content is fetched separately per id via
+		 * `getMessage`; this is the id spine a FULL pull paginates. */
+		async listMessageIds(
+			pageToken?: string,
+		): Promise<
+			Result<{ ids: string[]; nextPageToken?: string }, GmailClientError>
+		> {
+			const { data, error } = await requestJson({
+				schema: ListMessageIdsResponseSchema,
+				operation: 'messages.list',
+				path: 'messages',
 				params: {
 					maxResults: String(config.pageSize),
 					...(pageToken ? { pageToken } : {}),
 				},
 			});
 			if (error) return { data: null, error };
-			const parsed = checkedResult(
-				ListMessageIdsResponseSchema,
-				data,
-				'messages.list',
-			);
-			if (parsed.error) return parsed;
 			return Ok({
-				ids: (parsed.data.messages ?? []).map((m) => m.id),
-				nextPageToken: parsed.data.nextPageToken,
+				ids: (data.messages ?? []).map((m) => m.id),
+				nextPageToken: data.nextPageToken,
 			});
 		},
 
-		async getMessage(id) {
-			const { data, error } = await request(`messages/${id}`, {
+		/** Fetch one full message resource (`messages.get`, `format=full`): the
+		 * headers, payload, and label state a FULL pull or an incremental upsert
+		 * stores verbatim. */
+		async getMessage(
+			id: string,
+		): Promise<Result<GmailMessage, GmailClientError>> {
+			return requestJson({
+				schema: GmailMessageSchema,
+				operation: 'messages.get',
+				path: `messages/${id}`,
 				params: { format: 'full' },
 			});
-			if (error) return { data: null, error };
-			return checkedResult(GmailMessageSchema, data, 'messages.get');
 		},
 
-		async modifyMessage(id, body) {
-			const { data, error } = await request(`messages/${id}/modify`, {
+		/** Add and remove labels on one message (`messages.modify`). Gmail returns
+		 * the updated resource with its new `labelIds`, which the caller folds into
+		 * the mirror. */
+		async modifyMessage(
+			id: string,
+			body: { addLabelIds: string[]; removeLabelIds: string[] },
+		): Promise<Result<GmailMessage, GmailClientError>> {
+			return requestJson({
+				schema: GmailMessageSchema,
+				operation: 'messages.modify',
+				path: `messages/${id}/modify`,
 				method: 'POST',
 				body,
 			});
-			if (error) return { data: null, error };
-			return checkedResult(GmailMessageSchema, data, 'messages.modify');
 		},
 
-		async listHistory(startHistoryId, pageToken) {
-			const { data, error } = await request('history', {
+		/** Move a message to Trash (`messages.trash`). Adds the `TRASH` label and
+		 * drops it from `INBOX`; the returned resource carries the new `labelIds`.
+		 * Needs only the `gmail.modify` scope, unlike the permanent `messages.delete`
+		 * (`https://mail.google.com/`), which this client deliberately never calls. */
+		async trashMessage(
+			id: string,
+		): Promise<Result<GmailMessage, GmailClientError>> {
+			// No request body: `messages.trash` takes an empty POST, so `requestJson`
+			// sends no Content-Type and Gmail returns the updated message resource.
+			return requestJson({
+				schema: GmailMessageSchema,
+				operation: 'messages.trash',
+				path: `messages/${id}/trash`,
+				method: 'POST',
+			});
+		},
+
+		/** Restore a message from Trash (`messages.untrash`): the inverse of
+		 * `trashMessage`, and the write behind the UI's Undo. */
+		async untrashMessage(
+			id: string,
+		): Promise<Result<GmailMessage, GmailClientError>> {
+			return requestJson({
+				schema: GmailMessageSchema,
+				operation: 'messages.untrash',
+				path: `messages/${id}/untrash`,
+				method: 'POST',
+			});
+		},
+
+		/** Page through `history.list` from `startHistoryId`: the change feed an
+		 * incremental refresh folds. A `HistoryExpired` (bare 404) error means the
+		 * cursor aged out and the caller must fall back to a FULL pull. */
+		async listHistory(
+			startHistoryId: string,
+			pageToken?: string,
+		): Promise<Result<HistoryPage, GmailClientError>> {
+			return requestJson({
+				schema: HistoryPageSchema,
+				operation: 'history.list',
+				path: 'history',
 				params: {
 					startHistoryId,
 					...(pageToken ? { pageToken } : {}),
 				},
 			});
-			if (error) return { data: null, error };
-			return checkedResult(HistoryPageSchema, data, 'history.list');
 		},
 
-		async listLabels() {
-			const { data, error } = await request('labels');
+		/** List every label in the mailbox (`labels.list`), used to resolve label
+		 * names to ids and to mirror the label set. */
+		async listLabels(): Promise<Result<GmailLabel[], GmailClientError>> {
+			const { data, error } = await requestJson({
+				schema: ListLabelsResponseSchema,
+				operation: 'labels.list',
+				path: 'labels',
+			});
 			if (error) return { data: null, error };
-			const parsed = checkedResult(
-				ListLabelsResponseSchema,
-				data,
-				'labels.list',
-			);
-			if (parsed.error) return parsed;
-			return Ok(parsed.data.labels ?? []);
+			return Ok(data.labels ?? []);
 		},
 
-		async getProfile() {
-			const { data, error } = await request('profile');
-			if (error) return { data: null, error };
-			return checkedResult(ProfileResponseSchema, data, 'getProfile');
+		/** Current mailbox `historyId`, used as the baseline right before a full pull. */
+		async getProfile(): Promise<
+			Result<{ historyId: string; emailAddress?: string }, GmailClientError>
+		> {
+			return requestJson({
+				schema: ProfileResponseSchema,
+				operation: 'getProfile',
+				path: 'profile',
+			});
 		},
 	};
 }

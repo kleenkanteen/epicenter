@@ -1,6 +1,6 @@
 /**
  * Server metadata sidecar: the JSON-on-disk record that lets `claimDaemonLease`
- * surface a useful "already running (pid=X)" error when a second `daemon up`
+ * surface a useful "already running (pid=X)" error when a second `epicenter up`
  * tries to claim a lease another daemon already holds.
  *
  * One `<runtimeDir>/<dirHash>.meta.json` per running server. Written once at

@@ -93,6 +93,20 @@ test('smell 1: a terminal-status spec is flagged', () => {
 	});
 });
 
+test('smell 1: a blockquoted terminal-status spec is flagged', () => {
+	withRepo((dir) => {
+		write(
+			dir,
+			'specs/20260101T000000-x.md',
+			'# X\n\n> **Status: Superseded** by ADR-0001\n',
+		);
+		commitAll(dir);
+		const { code, out } = run(dir);
+		expect(code).toBe(1);
+		expect(out).toContain('SPEC TERMINAL STATUS');
+	});
+});
+
 test('smell 2: an orphaned Proposed ADR (no spec references it) is flagged', () => {
 	withRepo((dir) => {
 		write(

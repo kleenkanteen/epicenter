@@ -1,45 +1,152 @@
 ---
 name: handoff
-description: 'Draft a cold-start, copy-pasteable prompt so a fresh agent can continue, review, or implement this work without reading this thread. Use when the user says "hand this off", "wrap up for the next session", "resume this later", "continue in a new chat", "write a continuation prompt", "make a prompt I can copy-paste", "create a delegation brief", "prompt for an orchestrator", or invokes /handoff. Not for /goal lines (use agent-goal) or for prompts that ship inside product code.'
+description: 'Draft a compact, cold-start prompt to paste into Claude Code, with Claude as orchestrator and Codex available through /codex:rescue for bounded evidence gathering, focused implementation, commands, verification, cleanup, and creative support. Use when the user says "hand this off", "wrap up for the next session", "resume this later", "continue in a new chat", "write a continuation prompt", "make a prompt I can copy-paste", "create a delegation brief", "prompt for an orchestrator", or invokes /handoff. Not for /goal lines (use agent-goal) or prompts that ship inside product code.'
 argument-hint: "What should the next agent accomplish?"
 metadata:
   author: epicenter
-  version: '3.0'
+  version: '5.0'
 ---
 
-# Handoff
+# Claude Code Handoff
 
-Write the prompt for a competent stranger: a fresh agent with no thread context, possibly starting after this chat is closed. The test: pasted into a blank thread, the recipient can start working without reading this thread or asking what happened.
+Write one copy-paste prompt for Claude Code. It must be cold-start: Claude can continue without this thread.
 
-Return the prompt directly in the conversation so the user can copy it. This skill produces the prompt only; do not launch, supervise, or automate the recipient.
+Default output: return only the prompt. If the user is designing or reviewing the handoff itself, a short note before the prompt is allowed.
 
-## What The Prompt Must Answer
+## One Sentence
 
-Write one prompt regardless of recipient type, and cover these points. They are content requirements, not headings: a bounded review ask can cover them in a dozen lines, a multi-day continuation may need a section each.
+A handoff prompt gives Claude context, starting points, proof targets, and a strong bias to use `/codex:rescue` creatively, while leaving Claude free to rethink the plan and choose the delegation shape.
 
-1. Mission: one concrete outcome and the exact artifact wanted (diff, review memo, updated spec, ADR draft, summary).
-2. State: branch, dirty versus committed work, checks already run, and what remains open.
-3. Reading list: exact paths, commands, and snippets to read first, with why each matters.
-4. Decisions: what is settled and must not be reopened, what is known fact, what is only a recommendation, and which questions are open and whose call they are. Mixing these makes the recipient treat taste as evidence.
-5. Boundaries: what may change, what must not, and what adjacent work is out of scope.
-6. Execution model: handoffs usually target Claude models or orchestrators. Tell the recipient to route token-heavy work through Codex when available: search, grep, file reading, diff inspection, command execution, browser or computer use, and first-pass synthesis. Claude should read Codex's evidence packets and summaries, then spend reasoning budget on ambiguity, tradeoffs, ownership calls, implementation direction, and final synthesis.
-7. Plan: ordered next steps concrete enough to start without asking for context.
-8. Proof and stop: verification commands, the evidence expected in the final answer, and where to stop instead of continuing into the next phase.
+## Mental Model
 
-## Rules
+Claude is the continuing agent:
 
-- Paste real code or command output when it is shorter than explaining it. Use real paths, never vague references.
-- Do not duplicate specs, plans, commits, or diffs. Link the stable path and summarize the decision it carries.
-- Use absolute dates. "Today", "yesterday", and "recently" rot.
-- Do not imply the recipient has tools, credentials, apps, or subagents unless the user said so. Write "when available" when a step depends on the harness.
-- For Claude-targeted handoffs, encourage Claude or the orchestrator to route broad search, grep, file reading, diff exploration, command execution, browser or computer use, and first-pass summaries through Codex when available. Claude should consume those Codex outputs as evidence, not redo the same token-heavy exploration, then make the judgment calls.
-- Bound the work. If the recipient should not implement, say so; if implementation may follow, ask for a separate execution handoff after the decision pass.
+```txt
+Claude owns:
+  orchestration
+  context selection
+  ambiguity and tradeoffs
+  implementation direction
+  `/codex:rescue` delegation choices
+  final synthesis
 
-## Shape It To The Job
+Codex can help with:
+  broad search and grep
+  diff excavation
+  exact file reads
+  focused edits
+  command execution
+  tests and typechecks
+  browser checks
+  cleanup
+  adversarial checks
+  small prototypes
+```
 
-- Edits: send the recipient to a disposable git worktree on its own branch, break work into commit-sized waves, and note that the final diff still gets local review.
-- Review: one concrete question with exact paths or a diff command. Ask for findings, risks, and gaps, not approval.
-- Delegation: a recipient that can spawn subagents keeps synthesis and the final artifact; each delegated piece gets one question, bounded sources, and one deliverable. Name specific models or agents only when the user did.
-- Adversarial rework: for a fresh-context review, greenfield pass, or clean break, tell the recipient not to defer to prior conclusions, to state what would falsify the current direction, and to name refusals with the value each gives up.
+Do not pre-orchestrate the session. Prime Claude to use the literal `/codex:rescue` command, suggest seams when they are obvious, and explicitly allow Claude to revise, split, skip, or invent Codex calls after reading live context.
+
+## Ground Before Writing
+
+Gather the context the next agent should not have to rediscover.
+
+For coding handoffs, usually collect:
+
+```bash
+git status --short --branch
+git diff --name-status
+git diff -- <relevant paths>
+```
+
+Also read the key files, tests, specs, ADRs, PR notes, or logs that ground the prompt. Include commands already run and their pass/fail status when useful.
+
+For non-coding handoffs, gather the equivalent source material: docs, notes, links, current conclusions, open questions, and the artifact the next agent should produce.
+
+Skip heavy grounding only for obviously tiny handoffs or when the user asks for a fast conversational prompt.
+
+## Prompt Contents
+
+Include only live context. A small handoff should fit in 12 to 20 dense lines; a large handoff may need short sections.
+
+Cover what helps Claude start:
+
+```txt
+Mission:
+  One outcome and the artifact wanted.
+
+State:
+  Branch, dirty worktree, staged files, checks run, and what remains open.
+
+Source paths:
+  Exact files, diffs, commands, PRs, specs, ADRs, or notes to inspect first.
+
+Current read:
+  What seems true, recommendations so far, and why. Avoid calling these settled unless an ADR, code path, or explicit user decision makes them settled.
+
+Open questions:
+  What Claude should decide or re-check. Invite challenge when code, tests, ADRs, or product constraints contradict the current read.
+
+Watch-outs:
+  Only real hazards: dirty user work, destructive git, production or deploy actions, migrations, security, licensing/package boundaries, obsolete paths to avoid, or explicit user non-goals.
+
+Codex posture:
+  Tell Claude to look actively for work worth delegating through `/codex:rescue`. For substantial work, list candidate seams, but make them examples, not a queue.
+
+Proof and stop:
+  Likely verification commands or evidence targets, plus where to stop.
+```
+
+## Codex Posture
+
+Always prime Claude that Codex is available through the literal `/codex:rescue` command. For tiny handoffs, one sentence is enough:
+
+```txt
+Use /codex:rescue where it buys speed, breadth, focused execution, or independent verification.
+```
+
+For substantial coding, review, debugging, migration, or verification work, suggest candidate `/codex:rescue` seams. Name the command in the handoff so Claude does not have to infer it from “Codex.” Shape seams as options:
+
+```txt
+Candidate Codex seams:
+  - Diff excavation: inspect <range/paths>; return keep/rewrite/drop map with risks.
+  - Focused implementation: edit <bounded paths> for <one wave>; return changed files, diff summary, risks, and verification.
+  - Verification: run <commands>; return pass/fail output and likely next fix.
+```
+
+Rules for candidate Codex seams:
+
+- one job, bounded sources, one deliverable, clear stop condition
+- exact inputs when known
+- commit-sized waves for implementation
+- disposable worktree or clearly named branch when edits are non-trivial
+- result packets include changed files, diffs, command output, risks, and recommendations
+- Claude may revise, split, skip, or add jobs after reading live context
+
+## What To Avoid
+
+Do not turn the handoff into:
+
+```txt
+an execution script
+an unchallengeable decision record
+a mandatory Codex job queue
+a rigid constraints list
+a duplicate spec or pasted diff dump
+a transcript summary with no source paths
+```
+
+Prefer current read over settled decision. Prefer watch-out over prohibition. Prefer candidate seam over commandment.
+
+## Stop Condition
+
+The recipient should know what counts as done:
+
+```txt
+Stop after:
+  a review memo
+  a PR-ready diff
+  a clean implementation branch
+  a verified command output set
+  a blocker list with the smallest remaining decisions
+```
 
 For a `/goal` one-liner, use [agent-goal](../agent-goal/SKILL.md). For a human-facing progress summary, use [progress-summary](../progress-summary/SKILL.md).

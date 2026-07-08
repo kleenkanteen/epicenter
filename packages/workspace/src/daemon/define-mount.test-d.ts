@@ -32,7 +32,6 @@ export const localMount = defineMount({
 		ctx.openWebSocket;
 
 		return {
-			actions: {},
 			async [Symbol.asyncDispose]() {},
 		};
 	},
@@ -55,7 +54,6 @@ export const sessionAwareMount = defineMount({
 		ctx.session.principalId;
 
 		return {
-			actions: {},
 			async [Symbol.asyncDispose]() {},
 		};
 	},
@@ -71,7 +69,6 @@ export const sessionMount = defineSessionMount({
 		ctx.mount;
 
 		return {
-			actions: {},
 			async [Symbol.asyncDispose]() {},
 		};
 	},
@@ -81,7 +78,6 @@ export const minimalMount = defineMount({
 	name: 'minimal',
 	open() {
 		return {
-			actions: {},
 			async [Symbol.asyncDispose]() {},
 		};
 	},

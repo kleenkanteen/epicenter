@@ -240,5 +240,5 @@ change has no migration cost.
 - `apps/api/src/room.ts:68`, `apps/api/src/constants.ts` - the
   `MAX_COMPACTED_BYTES = 2MB` and `MAX_PAYLOAD_BYTES = 5MB` caps that bound
   any inline-in-Yjs approach.
-- `.claude/skills/cohesive-clean-breaks` - the asymmetric-wins pass that led
+- `.claude/skills/greenfield-clean-breaks` - the asymmetric-wins pass that led
   to refusing the encryption pipeline.

@@ -15,14 +15,14 @@ Read path:
     -> Markdown files generated from the workspace
 
 Write path:
-  app UI / TanStack AI tool / Bun script / epicenter CLI
-    -> workspace action
+  app UI / TanStack AI tool / Bun script
+    -> in-process workspace action
     -> live Y.Doc tables, KV, or child content docs
     -> sync peers
     -> SQLite mirror and Markdown export refresh
 ```
 
-Agents can still edit ordinary project files. They should not patch generated `.md` files to mutate app data. Give them actions instead: browser chat uses `actionsToAiTools`, scripts use `connectDaemonActions`, and humans or automation can call `epicenter run <action>`. The action writes the Yjs datastore; the materializers write the files back out.
+Agents can still edit ordinary project files. They should not patch generated `.md` files to mutate app data. Give them actions instead through an in-process tool catalog or app-specific script. The action writes the Yjs datastore; the materializers write the files back out.
 
 The current center is small:
 
@@ -42,7 +42,7 @@ satisfiesWorkspace()
 ```
 
 The app-facing path is `defineWorkspace({ id, tables, kv, actions }).connect(...)`.
-`open()` returns only the root document for daemon composition. The connection
+`create()` returns only the root document for daemon and test composition. The connection
 is the boot decision: `connect(null)` adds bare browser storage, wipe, and
 table child-doc openers with no relay; `connect(connection)` adds principal-scoped
 browser storage, root sync, wipe, and table child-doc openers.
@@ -78,16 +78,13 @@ const posts = defineTable({
 
 const blogWorkspace = defineWorkspace({
 	id: 'epicenter-blog',
+	name: 'Blog',
 	tables: { posts },
 	kv: {},
 });
 
-export function openBlog() {
-	return blogWorkspace.connect(null);
-}
-
-// Singleton style: open once at module scope, use everywhere.
-export const blog = openBlog();
+// Singleton style: connect once at module scope, use everywhere.
+export const blog = blogWorkspace.connect(null);
 
 async function quickStart() {
 	await blog.storage.whenLoaded;
@@ -111,16 +108,16 @@ void quickStart;
 That example uses the current public API end to end:
 
 - `defineTable(...)` with a real schema
-- a direct `openBlog()` builder function that calls `blogWorkspace.connect(null)`
-- `defineWorkspace(...)` for the shared contract and `open()` for the live root
+- `defineWorkspace(...)` for the shared contract and `connect(null)` for the live local bundle
+- a module-scope singleton: `export const blog = blogWorkspace.connect(null)`
 - direct property access via `blog.tables.posts`
 - `set`, `get`, `update`, `delete`, `scan`, and `observe`
 
 The quick start is local-first: it persists to browser storage and works
 offline. Sync is the credentialed arm of the same call. See [Sync](#sync).
 
-Singleton apps (one workspace per app) call a builder like `openBlog()` once at
-module scope. Browser child documents are declared on tables and opened through
+Singleton apps (one workspace per app) call `connect(...)` once at module
+scope. Browser child documents are declared on tables and opened through
 the connected table handle. One-shot Node scripts and daemon projections can
 derive the same child-doc guid for one row, read it, and destroy it. See
 [Per-row content documents](#per-row-content-documents) below.
@@ -171,6 +168,7 @@ const items = defineTable({
 
 export const myAppWorkspace = defineWorkspace({
 	id: 'epicenter.my-app',
+	name: 'My App',
 	tables: { items },
 	kv: {},
 	actions: ({ tables }) =>
@@ -258,7 +256,7 @@ That split is not cosmetic. It lets you share definitions across modules, infer 
 ### Inline composition is the extension system
 
 There is no builder chain. Runtime-specific extras are composed inline in
-`open(connection, compose)`, after principal-scoped local storage and before
+`connect(connection, compose)`, after principal-scoped local storage and before
 collaboration starts:
 
 ```typescript
@@ -298,8 +296,8 @@ function openBlogDaemon() {
 }
 ```
 
-Ordering is explicit: root-only `open()` callers choose every attachment, while
-browser `open(connection, compose)` callers receive the base runtime and return
+Ordering is explicit: root-only `create()` callers choose every attachment, while
+browser `connect(connection, compose)` callers receive the base runtime and return
 named extras. There is no magic `client.extensions` namespace; each attachment
 is whatever you named it in the returned bundle.
 
@@ -347,8 +345,7 @@ Writes:
   UI component
   TanStack AI tool
   Bun script
-  epicenter run <action>
-    -> defineMutation action
+    -> in-process defineMutation action
       -> Y.Doc tables, KV, or child content docs
         -> sync peers
         -> persistence
@@ -396,9 +393,10 @@ Yjs supports multiple providers simultaneously. A phone can connect to desktop, 
    browser apps: call `definition.connect(connection)`. For browser child documents:
    declare them with `table.docs(...)` and call `tables.<table>.docs.<field>.open(rowId)`.
    For one-shot Node operations: derive the same child-doc guid and read the room directly.
-4. Await the right readiness signal before reading persisted state. There are two shapes here, and the choice is load-bearing:
-   - **One subsystem to wait on.** Expose the subsystem (`storage`, `persistence`, ...) on the bundle root and let consumers reach through: `await bundle.storage.whenLoaded`. Do not alias `whenLoaded`/`whenReady` flat at the bundle root just to save `.storage`; the alias lies about composition.
-   - **Two or more subsystems to compose into one barrier.** Then `whenReady` earns its place: `whenReady: Promise.all([persistence.whenLoaded, unlock.whenChecked, sync.whenConnected])`. Because the field is typed `Promise<unknown>`, `Promise.all([...])` is assignable directly. Consumers `await bundle.whenReady`. The CLI's `run` command, migrations, `@epicenter/filesystem` ops, the sqlite-index materializer, and `{#await}` gates in editors all consume this aggregate.
+4. Await the right readiness signal before reading persisted state. The rule is scoped by what kind of bundle you are building:
+   - **Opener and runtime bundles expose subsystem readiness.** Expose the subsystem (`storage`, `persistence`, ...) on the bundle root and let consumers reach through: `await bundle.storage.whenLoaded`. Inside this layer, do not alias `whenLoaded`/`whenReady` flat at the bundle root just to save `.storage`.
+   - **Two or more subsystems to compose into one barrier.** Then `whenReady` earns its place: `whenReady: Promise.all([persistence.whenLoaded, unlock.whenChecked, sync.whenConnected])`. Because the field is typed `Promise<unknown>`, `Promise.all([...])` is assignable directly. Consumers `await bundle.whenReady`. Migrations, `@epicenter/filesystem` ops, the sqlite-index materializer, and `{#await}` gates in editors all consume this aggregate.
+   - **App singletons may expose an app-level `whenReady`.** When one promise is the product-level readiness contract (the load gate, the sign-in migration), an app singleton aliasing `whenReady: storage.whenLoaded` is legitimate: the app owns that contract and its consumers should not care which subsystem backs it.
 
 5. Read and write through `bundle.tables`, `bundle.kv`, and `bundle.collaboration.peers`, and (for per-row content docs) whatever you exposed in the returned bundle.
 6. Iterate `Object.entries(bundle.actions)` and read each action's metadata (`type`, `title`, `description`, `input`) if you want to build adapters such as HTTP, CLI, or MCP.
@@ -423,8 +421,8 @@ The ID becomes `ydoc.guid` for the workspace doc, so it is not a throwaway strin
 
 A workspace is a `Y.Doc` plus whatever `attach*` handles you bound to it,
 packaged as a bundle with `{ id, ydoc, [Symbol.dispose], ... }`. A browser
-workspace also exposes `wipe()`. A singleton app returns the bundle
-from a top-level function like `openBlog()`. A document cache returns disposable
+workspace also exposes `wipe()`. A singleton app assigns the bundle to a
+module-scope `const`. A document cache returns disposable
 handles over child documents keyed by row id.
 
 ### Yjs document
@@ -462,7 +460,7 @@ KV entries are for settings and scalar preferences. They are keyed by string and
 
 "Extensions" in Epicenter are just `attach*` calls inside your builder or runtime composer. There is no `.withExtension` chain, no extension registry, no priority flag: just lexical scope.
 
-- Call the relevant `attach*` or `open*` function inside `open()` daemon composition or `open(connection, compose)` browser composition, then include the handle in the returned bundle.
+- Call the relevant `attach*` or `open*` function inside `create()` daemon composition or `connect(connection, compose)` browser composition, then include the handle in the returned bundle.
 - Order matters only through lexical scope: later `attach*` calls see earlier handles directly.
 - For browser per-row content docs, declare a child-doc layout on the table and open it from the connected table handle. Daemon projections can use the same guid grammar to read one doc snapshot.
 
@@ -472,7 +470,7 @@ Actions are callable functions with metadata.
 
 - `defineQuery(...)` creates a read action
 - `defineMutation(...)` creates a write action
-- Include isomorphic actions in `defineWorkspace({ actions })`. Runtime-specific actions belong in `open(connection, compose)`, where the final registry is exposed on the workspace bundle. `defineActions` enforces snake_case ASCII keys at compile time and runtime; consumers index by string or iterate with `Object.entries`.
+- Include isomorphic actions in `defineWorkspace({ actions })`. Runtime-specific actions belong in `connect(connection, compose)`, where the final registry is exposed on the workspace bundle. `defineActions` enforces snake_case ASCII keys at compile time and runtime; consumers index by string or iterate with `Object.entries`.
 
 Handlers close over `tables`, `kv`, and anything else the builder has in scope through normal JavaScript closure. They do not receive a framework context object.
 
@@ -635,7 +633,7 @@ separate from this server-owned presence channel.
 
 Per-row content (one Y.Doc per file/note/entry) is declared on the table and
 opened from the connected table handle. The root workspace holds the metadata
-row; `open(connection)` owns live content Y.Docs, local storage, sync, and wipe.
+row; `connect(connection)` owns live content Y.Docs, local storage, sync, and wipe.
 The workspace owns guid derivation: every `.docs.<field>` exposes
 `guid(rowId)`, available on the unconnected root too, so a daemon one-shot
 reader derives the same guid with `workspace.tables.files.docs.content.guid(id)`
@@ -659,6 +657,7 @@ const files = defineTable({
 
 export const filesWorkspace = defineWorkspace({
 	id: 'epicenter.files',
+	name: 'Files',
 	tables: { files },
 	kv: {},
 });
@@ -849,7 +848,7 @@ Browser apps use `attachIndexedDb(ydoc)` for unauthenticated docs, or `attachLoc
 
 For authenticated apps, call `await wipeLocalStorage({ server, principalId })` after disposing the bundle to delete every principal-scoped IDB database on the current browser profile (sign-out, "delete my local data", account switch).
 
-`attachBunSqliteMaterializer` and `attachMarkdownExport` are not persistence: they project workspace rows into queryable SQLite tables or `.md` files. They are read surfaces, not write surfaces. Projection actions such as `sqlite_rebuild`, `sqlite_search`, and `markdown_rebuild` maintain or query the projection; app data mutations stay in app-defined actions. See the materializer subsections below.
+`attachBunSqliteMaterializer` and `attachMarkdownExport` are not persistence: they project workspace rows into queryable SQLite tables or `.md` files. They are read surfaces, not write surfaces. Maintenance methods such as `rebuild()` and `search()` maintain or query the projection; app data mutations stay in app-defined actions. See the materializer subsections below.
 
 ```typescript
 import { field } from '@epicenter/field';
@@ -943,9 +942,9 @@ Ordering is just lexical: `collaboration` reads `idb.whenLoaded` as `waitFor` be
 
 ### Markdown seam: read-only export
 
-Markdown comes from one seam, `attachMarkdownExport` (in `@epicenter/workspace/document/materializer/markdown`): a continuous, one-way Yjs to disk projection with free serialization (custom `filename`, `toMarkdown`, per-table `dir`). It exposes a single `markdown_rebuild` mutation for a destructive full re-export (orphan cleanup after a filename or layout change); there is no import path.
+Markdown comes from one seam, `attachMarkdownExport` (in `@epicenter/workspace/document/materializer/markdown`): a continuous, one-way Yjs to disk projection with free serialization (custom `filename`, `toMarkdown`, per-table `dir`). It exposes a single `rebuild()` method for a destructive full re-export (orphan cleanup after a filename or layout change); there is no import path.
 
-The projection is read-only on purpose. The materialized `.md` is never read back into Yjs, so it carries no round-trip obligation and can shape the output however a human-readable export or a published site wants. App data mutates through validated actions (`epicenter run <action>`, `connectDaemonActions`, or TanStack AI tools created by `actionsToAiTools`), never by editing the materialized files. If an app needs Markdown as the authoring format, that parser/editor belongs in an app action or UI surface that writes Yjs. This export is not that path. The SQLite materializer is the read-only sibling for a relational projection.
+The projection is read-only on purpose. The materialized `.md` is never read back into Yjs, so it carries no round-trip obligation and can shape the output however a human-readable export or a published site wants. App data mutates through validated in-process actions, never by editing the materialized files. If an app needs Markdown as the authoring format, that parser/editor belongs in an app action or UI surface that writes Yjs. This export is not that path. The SQLite materializer is the read-only sibling for a relational projection.
 
 ```typescript
 import { field } from '@epicenter/field';
@@ -986,7 +985,7 @@ void openNotes;
 
 The SQLite materializer is exported from `@epicenter/workspace/document/materializer/sqlite`. It mirrors every table in the workspace bundle into queryable SQLite tables with optional FTS5 full-text search. Pass the workspace directly; use the keyed `fts` slot to opt specific columns into FTS5.
 
-Treat the mirror as a read-only SQL projection. Scripts open it with `openSqliteReader`, which sets `PRAGMA query_only = ON`; app writes go through the daemon action path (`connectDaemonActions` or `epicenter run`) so the live Y.Doc stays authoritative and the mirror catches up from the same source as every other projection.
+Treat the mirror as a read-only SQL projection. Scripts open it with `openSqliteReader`, which sets `PRAGMA query_only = ON`; app writes go through an in-process action or app-specific command so the live Y.Doc stays authoritative and the mirror catches up from the same source as every other projection.
 
 ```typescript
 import { field } from '@epicenter/field';
@@ -1018,12 +1017,12 @@ function openBlog() {
 }
 
 // After mirror.whenFlushed:
-// blog.mirror.actions.sqlite_search({ table: 'posts', query: 'hello' });
-// blog.mirror.actions.sqlite_rebuild({ table: 'posts' });
+// blog.mirror.search('posts', 'hello');
+// blog.mirror.rebuild('posts');
 void openBlog;
 ```
 
-The Bun SQLite materializer owns the daemon's queryable SQLite mirror file. When you pass `fts: {...}`, the returned `actions` registry includes `sqlite_search`; omit `fts` and the search action is absent.
+The Bun SQLite materializer owns the daemon's queryable SQLite mirror file. When you pass `fts: {...}`, the result exposes `search(...)`; omit `fts` and `search` is undefined.
 
 ## Workspace Dependencies
 
@@ -1251,7 +1250,7 @@ Every action exposes:
 
 And the action itself is callable. There is no separate `.handler` property on the returned object.
 
-### Type guards and iteration
+### Action iteration
 
 ```typescript
 import Type from 'typebox';
@@ -1259,7 +1258,6 @@ import {
 	defineActions,
 	defineMutation,
 	defineQuery,
-	isAction,
 } from '@epicenter/workspace';
 
 const actions = defineActions({
@@ -1271,9 +1269,7 @@ const actions = defineActions({
 });
 
 for (const [key, action] of Object.entries(actions)) {
-	if (isAction(action)) {
-		console.log(key, action.type);
-	}
+	console.log(key, action.type);
 }
 
 const listAction = actions.posts_list;
@@ -1297,7 +1293,7 @@ browser-safe entry point.
 | Import path | What it exports | Public today |
 | --- | --- | --- |
 | `@epicenter/workspace` | `createDisposableCache`, `defineTable`, `defineKv`, browser-safe `attach*` (tables, kv, indexeddb, broadcast-channel, rich-text, plain-text, timeline), `openCollaboration`, `roomWsUrl`, action helpers, `onLocalUpdate`, `docGuid`, ids, dates, types | Yes |
-| `@epicenter/workspace/node` | Bun/Node `attach*` and `open*` (`attachYjsLog`, `attachYjsLogReader`, `openSqliteReader`, `openWorkspaceSqlite`), daemon clients (`connectDaemonActions`, `findEpicenterRoot`), workspace paths | Yes |
+| `@epicenter/workspace/node` | Bun/Node `attach*` and `open*` (`attachYjsLog`, `attachYjsLogReader`, `openSqliteReader`, `openWorkspaceSqlite`), Epicenter root discovery (`findEpicenterRoot`), workspace paths | Yes |
 | `@epicenter/workspace/document/materializer/markdown` | `attachMarkdownExport`, `attachGitAutosave`, `MarkdownShape` | Yes |
 | `@epicenter/workspace/document/materializer/sqlite` | `attachBunSqliteMaterializer`, `generateDdl`, types | Yes |
 
@@ -1363,7 +1359,7 @@ Yjs transactions do not roll back on throw. They batch notifications; they are n
 | API | What it means |
 | --- | --- |
 | `bundle.storage.whenLoaded` (or `bundle.sqlite.whenLoaded`) | Direct subsystem readiness; the default form |
-| `bundle.whenReady` | Optional aggregate: only when the bundle composes 2+ subsystem signals into `Promise.all([...])` |
+| `bundle.whenReady` | Optional: an aggregate of 2+ subsystem signals via `Promise.all([...])`, or an app singleton's product-level readiness contract |
 | `bundle.storage.clearLocal()` (or `bundle.sqlite.clearLocal()`) | Wipes persisted local state for that attachment |
 | `bundle[Symbol.dispose]()` | Singleton teardown: your builder calls `ydoc.destroy()` |
 | `handle[Symbol.dispose]()` | Cache handle: decrements refcount; last dispose arms `gcTime` |
@@ -1412,9 +1408,9 @@ What the package does give you is the raw material a server adapter needs:
 
 - `bundle.actions` (the typed `ActionRegistry` owned by the workspace bundle)
 - `defineActions(actions)` to author a flat snake_case registry
-- `toActionMeta(action)` to project an action to its wire-safe metadata
+- action metadata fields (`type`, `title`, `description`, and `input`) for
+  adapters that need a discovery surface
 - iterate with `Object.entries(actions)`
-- action metadata (`type`, `title`, `input`, `description`)
 - direct access to `bundle.tables`, `bundle.kv`, `bundle.collaboration.peers`, and per-row content factories
 
 If you want HTTP, CLI, or MCP on top, build or import an adapter around those primitives.
@@ -1442,7 +1438,7 @@ import { createDisposableCache } from '@epicenter/workspace';
 returned, so `ydoc`, `content`, `idb`, and any composed `whenReady` are all
 things you explicitly put in the bundle.
 
-For singleton apps, call your builder function once at module scope. For Node
+For singleton apps, connect once at module scope. For Node
 one-shot operations and daemon row projections, call the child builder directly
 inside `using`. Use the cache when browser components have a real same-process
 reuse invariant.
@@ -1459,7 +1455,7 @@ Everything below is a *convention*: the builder is free to expose more or less. 
 - `collaboration` (from `openCollaboration`)
 - `actions`
 - `batch(fn)`
-- `whenReady` (only when composed from 2+ subsystem signals; otherwise consumers await `storage.whenLoaded` directly)
+- `whenReady` (an aggregate of 2+ subsystem signals, or an app singleton's product-level readiness contract; runtime bundles otherwise leave consumers on `storage.whenLoaded`)
 - `[Symbol.dispose]()`
 
 ### Document content attachments
@@ -1492,8 +1488,6 @@ import {
 	defineActions,
 	defineMutation,
 	defineQuery,
-	isAction,
-	toActionMeta,
 	type Action,
 	type ActionRegistry,
 } from '@epicenter/workspace';
@@ -1562,14 +1556,7 @@ import {
 
 ### Introspection
 
-```typescript
-import {
-	isAction,
-	toActionMeta,
-} from '@epicenter/workspace';
-```
-
-`Object.entries(actions)` lets you iterate the flat registry. Combined with each action's `type`, `title`, `description`, and `input` schema, that is enough to build HTTP, CLI, or MCP adapters without coupling the core package to a transport. `toActionMeta(action)` projects a single action to its wire-safe metadata if you need to ship it across a transport.
+`Object.entries(actions)` lets you iterate the flat registry. Combined with each action's `type`, `title`, `description`, and `input` schema, that is enough to build HTTP, CLI, or MCP adapters without coupling the core package to a transport.
 
 ### IDs and dates
 
@@ -1603,13 +1590,11 @@ The core package does not export an MCP server or own every adapter. What it doe
 
 - actions with `type`, `title`, `description`, and `input`
 - `Object.entries(actions)` to iterate the flat registry
-- `isAction` type guard; narrow on `action.type === 'query' | 'mutation'` for the variant
-- `toActionMeta(action)` to project an action to its wire-safe shape
-- `@epicenter/workspace`: `actionsToAiTools(...)` for TanStack AI tool bindings
+- `@epicenter/workspace/agent`: `createLocalToolCatalog(...)` for local action tools
 
 That is enough to expose workspace actions over HTTP, CLI, TanStack AI, or MCP without coupling the core package to one transport.
 
-For AI editing, expose workspace mutations as tools. `actionsToAiTools(...)` does not teach the model to patch the materialized Markdown folder. It wires tool calls to the same action handlers the UI and CLI use. Query tools can read data; mutation tools write Yjs and are marked `needsApproval: true` by default.
+For AI editing, expose workspace mutations as tools. `createLocalToolCatalog(...)` does not teach the model to patch the materialized Markdown folder. It wires tool calls to the same action handlers the UI uses. Query tools can read data; mutation tools write Yjs. The agent loop runs queries unattended by default, asks before mutations, and denies gated mutations when no approval prompt is wired.
 
 ### Setup
 

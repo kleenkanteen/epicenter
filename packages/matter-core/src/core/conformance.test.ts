@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { expectOk } from 'wellcrafted/testing';
 import { classifyRow, classifyRows } from './conformance';
 import { validateContract } from './contract';
 import type { Row } from './parse';
@@ -7,9 +8,7 @@ function fields(
 	defs: Record<string, Record<string, unknown>>,
 	optional?: string[],
 ) {
-	const { data, error } = validateContract({ fields: defs, optional });
-	if (error) throw new Error(error.message);
-	return data.fields;
+	return expectOk(validateContract({ fields: defs, optional })).fields;
 }
 
 describe('classifyRow (per-cell conformance)', () => {

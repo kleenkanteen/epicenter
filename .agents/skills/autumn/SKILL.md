@@ -22,16 +22,6 @@ Skip DeepWiki for hosted-only Epicenter billing boundaries already documented in
 
 ---
 
-## When to Apply This Skill
-
-Use this when you need to:
-
-- Define or modify features, credit systems, or plans in `autumn.config.ts`.
-- Add credit checks or usage tracking via the `autumn-js` SDK.
-- Gate API endpoints behind billing (free tier limits, paid plan access).
-- Push/pull billing config with the `atmn` CLI.
-- Debug billing issues (insufficient credits, customer sync, refunds).
-
 ## Domain Model Checks
 
 - Use Autumn's current nouns precisely: Feature, Entitlement, Product, ProductItem, Price, Customer, and CustomerProduct.

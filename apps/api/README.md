@@ -28,7 +28,7 @@ Durable Objects are the hosted backend, not the only one. The sync logic is the 
 
 That extraction already happened (ADR-0066), and the self-host story landed on top of it as its own deployable: `apps/self-host` is the single-partition instance, a Bun binary or a Cloudflare Worker that composes no Better Auth and no Postgres (ADR-0075, ADR-0076), so the whole box is one bearer token and a room directory. `apps/api/server.ts` here is this hosted cloud on Bun (local dev and the runtime-parity smoke), booting the same Worker composition against plain Postgres, local `bun:sqlite` room logs, and any S3 endpoint with no Cloudflare account.
 
-Better Auth handles identity. Google OAuth is the only wired sign-in (email/password is disabled in `base-config.ts`; GitHub turns on only when a deployment configures its credentials), plus an OAuth provider plugin that turns the hub into a standards-compliant OAuth server. Desktop and mobile clients authenticate via OAuth/PKCE flows, get a token, and use it for all subsequent API calls and WebSocket connections.
+Better Auth handles identity. Hosted Epicenter requires Google, GitHub, and Apple social sign-in (email/password is disabled in `base-config.ts`), plus an OAuth provider plugin that turns the hub into a standards-compliant OAuth server. Desktop and mobile clients authenticate via OAuth/PKCE flows, get a token, and use it for all subsequent API calls and WebSocket connections.
 
 ## Trust model
 
@@ -123,10 +123,16 @@ There are three layers, each with a different URL source:
 
 ```bash
 bun dev              # Local dev server (uses local Postgres)
+bun run smoke:local  # Runtime-parity smoke with dev auth and fake local env
 bun deploy           # Deploy to Cloudflare Workers
 bun run typecheck    # Type check
 bun test             # Run tests
 ```
+
+`smoke:local` is the no-Infisical verification path. It starts `server.dev.ts`,
+runs `apps/api/scripts/smoke.ts`, keeps its server log and room directory under a
+temporary directory, and skips the blob leg unless `BLOBS_S3_*` points at a
+local S3-compatible store.
 
 ### Local blob storage
 

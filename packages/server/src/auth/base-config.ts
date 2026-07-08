@@ -1,13 +1,66 @@
 import type { BetterAuthOptions } from 'better-auth';
+import {
+	APIError,
+	createAuthMiddleware,
+	getSessionFromCtx,
+} from 'better-auth/api';
 
 export const AUTH_BASE_PATH = '/auth';
+
+/**
+ * Better Auth paths that ADD or REMOVE a way to sign in. Adding one is at least
+ * as sensitive as removing one (a new door is a new attack surface), but
+ * upstream guards them asymmetrically: `/unlink-account` and passkey
+ * registration already demand a FRESH session, while `/link-social` and
+ * `/passkey/delete-passkey` accept any active one (up to the 7-day session
+ * lifetime). This set is the paths we lift to the same freshness bar.
+ */
+const FRESH_SESSION_REQUIRED_PATHS = new Set([
+	'/link-social',
+	'/passkey/delete-passkey',
+]);
+
+/**
+ * A global `before` hook that holds the {@link FRESH_SESSION_REQUIRED_PATHS} to
+ * the same freshness Better Auth's own `freshSessionMiddleware` enforces
+ * (`session.freshAge`, default 24h), mirroring its check exactly. It runs as a
+ * hook rather than route middleware because those endpoints' middleware is
+ * baked into the plugin and cannot be swapped.
+ *
+ * Why it matters: `account.accountLinking.allowDifferentEmails` (below) lets a
+ * signed-in user attach a provider whose email differs from their account's, so
+ * the account page can plant an entirely new login identity. Without this gate,
+ * a transiently-borrowed already-signed-in browser could add a permanent
+ * backdoor login without re-proving the human. A stale session is refused with
+ * the same `SESSION_NOT_FRESH` code the client already handles for passkey
+ * registration; the remedy is identical (sign in again).
+ */
+const requireFreshSessionForLoginChanges = createAuthMiddleware(async (ctx) => {
+	if (!FRESH_SESSION_REQUIRED_PATHS.has(ctx.path)) return;
+	const session = await getSessionFromCtx(ctx);
+	if (!session?.session) {
+		throw APIError.from('UNAUTHORIZED', {
+			message: 'Unauthorized',
+			code: 'UNAUTHORIZED',
+		});
+	}
+	const { freshAge } = ctx.context.sessionConfig;
+	if (freshAge === 0) return;
+	const createdAt = new Date(session.session.createdAt).getTime();
+	if (Date.now() - createdAt >= freshAge * 1000) {
+		throw APIError.from('FORBIDDEN', {
+			message: 'Sign in again to change your login methods.',
+			code: 'SESSION_NOT_FRESH',
+		});
+	}
+});
 
 /** Shared Better Auth config used by both the runtime and the CLI schema tool. */
 export const BASE_AUTH_CONFIG = {
 	basePath: AUTH_BASE_PATH,
 	// Email/password is intentionally disabled. The social IdPs are the only
 	// sign-in methods and assert verified emails; no mail sender is wired up,
-	// so a local account could never verify. better-auth 1.6.18's
+	// so a local account could never verify. better-auth 1.6.23's
 	// `requireLocalEmailVerified` linking gate (default true) closes the old
 	// pre-registered-unverified-account takeover path, but an unverifiable
 	// credential flow is still not one we serve. Do not re-enable without first
@@ -16,7 +69,7 @@ export const BASE_AUTH_CONFIG = {
 	emailAndPassword: { enabled: false },
 	account: {
 		// Only Google is a trusted linking provider. A trusted provider bypasses
-		// the incoming `emailVerified` check (better-auth 1.6.18 `link-account`
+		// the incoming `emailVerified` check (better-auth 1.6.23 `link-account`
 		// gate: `!isTrustedProvider && !userInfo.emailVerified`, plus a
 		// `requireLocalEmailVerified` check on the existing user), so the set must
 		// contain only IdPs that always assert a verified email. Google does;
@@ -28,8 +81,23 @@ export const BASE_AUTH_CONFIG = {
 		accountLinking: {
 			enabled: true,
 			trustedProviders: ['google'],
+			// Let a signed-in user link a provider whose email differs from their
+			// account email (a work Google, a personal GitHub, an Apple private
+			// relay), so one human keeps one Epicenter identity and one workspace
+			// partition instead of fragmenting into separate, unmergeable users.
+			// This ONLY relaxes the explicit `/link-social` flow, which runs a full
+			// OAuth ceremony proving the user controls the provider; it does NOT
+			// enable different-email IMPLICIT linking during sign-in, which is
+			// structurally impossible (implicit linking keys on the email match).
+			// The upstream takeover warning is the stale-session backdoor, which
+			// `requireFreshSessionForLoginChanges` above closes: linking requires a
+			// fresh session, and the account page names the current account email
+			// and asks for confirmation before it runs.
+			allowDifferentEmails: true,
 		},
 	},
+	// Hold add/remove-login mutations to a fresh session (see the hook above).
+	hooks: { before: requireFreshSessionForLoginChanges },
 } satisfies BetterAuthOptions;
 
 /**

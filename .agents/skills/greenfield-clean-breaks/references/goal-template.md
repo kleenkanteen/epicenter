@@ -1,9 +1,10 @@
-# Thin Goal Template
+# Goal Template
 
 A `/goal` that invokes this skill should stay short. The skill carries the
-compatibility-refusal review; the goal carries only what varies per pass.
+compatibility-refusal and clean-break review; the goal carries only what varies
+per pass.
 
-## Minimal template
+## Minimal Template
 
 ```txt
 /goal Run a greenfield clean-break pass on <target>.
@@ -17,37 +18,37 @@ compatibility-refusal review; the goal carries only what varies per pass.
   Begin.
 ```
 
-## Worked examples
+## Worked Examples
 
-### Proposal-only pass
+### Proposal-Only Pass
 
 ```txt
-/goal Run a greenfield clean-break pass on Fuji's browser/session/workspace boundary.
+/goal Run a greenfield clean-break pass on Honeycrisp's browser/session/workspace boundary.
 
   Load skill: greenfield-clean-breaks.
-  Target: apps/fuji/src/lib/browser.ts, apps/fuji/src/lib/session.ts, apps/fuji/src/lib/workspace.ts
+  Target: apps/honeycrisp/src/lib/workspace/browser.ts, apps/honeycrisp/src/lib/session.ts
   Compatibility stance: assume no users except durable workspace/storage shapes.
   Stop condition: proposal only; report before/after shape and wait for OK before editing.
-  Starting target: apps/fuji/src/lib/browser.ts
+  Starting target: apps/honeycrisp/src/lib/workspace/browser.ts
 
   Begin.
 ```
 
-### Implementation pass
+### Implementation Pass
 
 ```txt
-/goal Run a greenfield clean-break pass on the tab manager playground daemon.
+/goal Run a greenfield clean-break pass on the tab manager mount boundary.
 
   Load skill: greenfield-clean-breaks.
-  Target: playground/tab-manager-e2e/workspaces/tabManager/daemon.ts
+  Target: apps/tab-manager/mount.ts and apps/tab-manager/src/lib/workspace
   Compatibility stance: assume no users; preserve only documented durable workspace schema.
   Stop condition: 4 approved checkpoints or when remaining findings need product input.
-  Starting target: playground/tab-manager-e2e/workspaces/tabManager/daemon.ts
+  Starting target: apps/tab-manager/mount.ts
 
   Begin.
 ```
 
-### Broader boundary pass
+### Broader Boundary Pass
 
 ```txt
 /goal Run a greenfield clean-break pass on the workspace runtime storage boundary.
@@ -61,16 +62,17 @@ compatibility-refusal review; the goal carries only what varies per pass.
   Begin.
 ```
 
-## What does NOT belong in the goal
+## What Does Not Belong In The Goal
 
 The skill already owns:
 
 - The product-sentence rule
 - The ownership pass
 - The compatibility contract list
-- The smell catalog for greenfield mode
-- The review loop
+- The greenfield smell catalog
+- The clean-break mechanics
 - The finding format
 - The earned-trigger test
 
-If a future goal needs more ritual than this, update the skill or a reference file instead of copying the ritual into the goal.
+If a future goal needs more ritual than this, update the skill or a reference
+file instead of copying the ritual into the goal.

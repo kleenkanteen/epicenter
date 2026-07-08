@@ -109,18 +109,3 @@ export const ProfileResponseSchema = Type.Object({
 	historyId: Type.String({ minLength: 1 }),
 	emailAddress: Type.Optional(Type.String({ minLength: 1 })),
 });
-
-/** Pull a header value by name (case-insensitive, per RFC 5322). Gmail nests
- * headers as an array, not a dotted path, so this can't be a SQL generated
- * column and is computed once at ingest instead. */
-export function headerValue(
-	message: GmailMessage,
-	name: string,
-): string | null {
-	const headers = message.payload?.headers ?? [];
-	const lower = name.toLowerCase();
-	for (const h of headers) {
-		if (h.name.toLowerCase() === lower) return h.value;
-	}
-	return null;
-}

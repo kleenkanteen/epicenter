@@ -140,7 +140,7 @@ exist; ignore any that do not:
 
 - `code-audit` (smell catalog with calibrated recipes)
 - `radical-options` (rethink the shape before coding)
-- `greenfield-clean-breaks` (refuse compat shims)
+- `greenfield-clean-breaks` (refuse compat shims and execute clean breaks)
 - `cohesion-over-testability` (collapse code split only for test reach)
 - `collapse-pass` (continuous indirection reduction)
 - `refactoring` (per-change mechanics)

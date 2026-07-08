@@ -6,12 +6,10 @@
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import LayersIcon from '@lucide/svelte/icons/layers';
 	import TerminalIcon from '@lucide/svelte/icons/terminal';
-	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
 		resolveVaultSurface,
 		routes,
-		SWITCH_NAV,
 		TABLE_PARAM,
 		type VaultPanel,
 	} from '$lib/routes';
@@ -19,6 +17,7 @@
 	import DatabaseTab from './DatabaseTab.svelte';
 	import IntegrityPanel from './IntegrityPanel.svelte';
 	import SqlConsole from './SqlConsole.svelte';
+	import SurfacePill from './SurfacePill.svelte';
 	import TablePane from './TablePane.svelte';
 
 	let { root }: { root: string } = $props();
@@ -104,61 +103,34 @@
 			<div class="flex min-h-10 items-center gap-1 border-b px-2 py-1">
 				<div class="flex flex-1 items-center gap-1 overflow-x-auto">
 					{#each vault.tables as table (table.folderName)}
-						{@const active =
-							activeSurface.kind !== 'panel' &&
-							activeTable?.folderName === table.folderName}
-						<button
-							type="button"
-							aria-current={active ? 'true' : undefined}
-							onclick={() => goto(routes.table(table.folderName), SWITCH_NAV)}
-							class={[
-								'shrink-0 rounded-md px-2.5 py-1 text-sm transition',
-								active
-									? 'bg-muted font-medium text-foreground'
-									: 'text-muted-foreground hover:bg-muted/50',
-							]}
+						<SurfacePill
+							active={activeSurface.kind !== 'panel' &&
+								activeTable?.folderName === table.folderName}
+							to={routes.table(table.folderName)}
 						>
 							{table.folderName}
-						</button>
+						</SurfacePill>
 					{/each}
 				</div>
 				<!-- The two vault-wide views, set off from the per-table tabs: SQL is the query face, the
 				     Database panel is the "this is a SQLite database" face. -->
 				<div class="flex shrink-0 items-center gap-1 border-l pl-1">
-					<button
-						type="button"
-						aria-current={activeSurface.kind === 'panel' &&
-						activeSurface.panel === 'sql'
-							? 'true'
-							: undefined}
-						onclick={() => goto(panelHref('sql'), SWITCH_NAV)}
-						class={[
-							'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition',
-							activeSurface.kind === 'panel' && activeSurface.panel === 'sql'
-								? 'bg-muted font-medium text-foreground'
-								: 'text-muted-foreground hover:bg-muted/50',
-						]}
+					<SurfacePill
+						active={activeSurface.kind === 'panel' &&
+							activeSurface.panel === 'sql'}
+						to={panelHref('sql')}
 					>
 						<TerminalIcon class="size-4" />
 						SQL
-					</button>
-					<button
-						type="button"
-						aria-current={activeSurface.kind === 'panel' &&
-						activeSurface.panel === 'db'
-							? 'true'
-							: undefined}
-						onclick={() => goto(panelHref('db'), SWITCH_NAV)}
-						class={[
-							'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition',
-							activeSurface.kind === 'panel' && activeSurface.panel === 'db'
-								? 'bg-muted font-medium text-foreground'
-								: 'text-muted-foreground hover:bg-muted/50',
-						]}
+					</SurfacePill>
+					<SurfacePill
+						active={activeSurface.kind === 'panel' &&
+							activeSurface.panel === 'db'}
+						to={panelHref('db')}
 					>
 						<DatabaseIcon class="size-4" />
 						Database
-					</button>
+					</SurfacePill>
 				</div>
 			</div>
 			{#if activeSurface.kind === 'panel' && activeSurface.panel === 'sql'}

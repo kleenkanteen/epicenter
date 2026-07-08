@@ -15,9 +15,9 @@ import { defineConfig, js, repository } from 'jsrepo';
  *
  * `workspace.ts` (schema + actions) and `daemon-route.ts` (the long-lived
  * writer) ship for every app. Scripts are not recipes: a script is a
- * user-owned Bun file that reads the local SQLite materializer and writes
- * through `connectDaemonActions`. See `docs/scripting.md` for the canonical
- * three-import example.
+ * user-owned Bun file that reads the local SQLite materializer. There is no
+ * daemon write path; writes go through an app or an in-process tool surface
+ * (ADR-0112). See `docs/scripting.md`.
  */
 
 const BLOCKS = {

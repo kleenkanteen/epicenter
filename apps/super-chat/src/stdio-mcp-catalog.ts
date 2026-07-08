@@ -23,7 +23,8 @@ import type {
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
-import type { JsonValue } from 'wellcrafted/json';
+
+type JsonValue = AgentToolCall['input'];
 
 export type StdioMcpCatalogOptions = {
 	/** The executable that starts the MCP server (e.g. `bun`). */

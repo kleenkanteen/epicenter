@@ -1,6 +1,6 @@
 # Apps
 
-Each app under `apps/` owns its hosted UI plus, when needed, one reusable daemon mount.
+Each app under `apps/` owns its hosted UI plus, when needed, one reusable headless mount.
 
 The current center is:
 
@@ -22,7 +22,7 @@ satisfiesWorkspace()
 
 ```
 apps/<app>/
-├── mount.ts         optional `<app>()` daemon mount factory
+├── mount.ts         optional `<app>()` headless mount factory
 ├── workspace.ts     shared schema, branded IDs, workspace definition, actions
 ├── src/             SvelteKit app
 └── package.json     "exports": { ".": "./workspace.ts", "./mount": "./mount.ts" }
@@ -37,9 +37,9 @@ boundary is the same: shared model in the workspace file, runtime wiring in
 
 `workspace.ts` is the sync contract. It defines table shapes, KV schemas, branded IDs, actions, child-doc layouts, and the app's `defineWorkspace(...)` value. Forking that file means forking sync compatibility.
 
-`mount.ts` is the reusable mount factory. It opens the shared workspace with Node-only attachments: Yjs persistence, collaboration, SQLite and Markdown materializers, and daemon-exposed actions.
+`mount.ts` is the reusable mount factory. It opens the shared workspace with Node-only attachments: Yjs persistence, collaboration, SQLite and Markdown materializers, and app-owned background work.
 
-Browser and desktop code open the same definition with runtime-specific composition. Scripts usually skip Yjs entirely: they read materialized files or SQLite and call daemon actions through `connectDaemonActions`.
+Browser and desktop code open the same definition with runtime-specific composition. Scripts usually skip Yjs entirely: they read materialized files or SQLite. Generic off-process daemon action calls are not part of the app contract.
 
 ## Adding a Daemon Mount
 
@@ -48,4 +48,4 @@ Browser and desktop code open the same definition with runtime-specific composit
 3. Add an exported `defineWorkspace({ id, tables, kv, actions })` value. Declare row child docs with `table.docs(...)`.
 4. Add `apps/<app>/mount.ts` exporting `<app>(opts?)`, a factory that returns `defineSessionMount({ name, open })` (or `defineMount` for a mount that can run signed out).
 5. Point `package.json` `exports["./mount"]` at `./mount.ts`.
-6. Run `epicenter daemon up -C <epicenter-root>` and confirm the mount appears in `epicenter list`.
+6. Run `epicenter up -C <epicenter-root>` and confirm the watcher starts, syncs, and materializes the expected files.

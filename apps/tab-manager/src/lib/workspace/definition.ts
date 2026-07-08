@@ -151,10 +151,10 @@ const toolTrustTable = defineTable({
 /**
  * The Tab Manager workspace definition, shared by the extension and the daemon.
  *
- * No daemon actions live here: the extension layers browser-only tab/bookmark
- * actions in `tab-manager/extension.ts`, and the daemon serves only its
- * materializer actions. The browser composes the root via `.create()`; the
- * daemon mounts it via `.mount()`.
+ * No headless tab/bookmark actions live here: the extension layers browser-only
+ * actions in `tab-manager/extension.ts`, and the daemon only keeps sync and
+ * materializers alive. The browser composes the root via `.create()`; the daemon
+ * mounts it via `.mount()`.
  */
 export const tabManagerWorkspace = defineWorkspace({
 	id: 'epicenter-tab-manager',

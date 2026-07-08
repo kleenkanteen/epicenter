@@ -1,11 +1,9 @@
 ---
 name: content-distribution
-description: Turn one real idea, Fuji markdown entry, article, photo, screenshot, code diff, spec excerpt, or diagram into platform-native content for LinkedIn, X, Reddit, TikTok, Instagram Reels, YouTube Shorts, Medium, Substack, or The Ark publishing workflows.
+description: Turn one real idea, vault page, article, photo, screenshot, code diff, spec excerpt, or diagram into platform-native content for LinkedIn, X, Reddit, TikTok, Instagram Reels, YouTube Shorts, Medium, Substack, or a personal-site article. Use when creating or editing files in variants/, choosing a channel or platform for a page, republishing or updating content that already shipped, or figuring out what's currently live for a given page.
 ---
 
 # Content Distribution
-
-Use this skill when the user wants to make one piece of thinking travel farther across platforms without becoming a full-time creator.
 
 Follow [writing-voice](../writing-voice/SKILL.md) for tone. Use [social-media](../social-media/SKILL.md) when drafting final LinkedIn, X, or Reddit post copy.
 
@@ -17,15 +15,16 @@ Use one markdown source. Use real artifacts. AI adapts, packages, resizes, rewri
 
 ```txt
 real idea
-  -> Fuji markdown source
-  -> platform-native renderings
+  -> pages/<slug>.md (the private draft)
+  -> variants/<slug>-<channel>-<format>-<version>.md (the shaped artifact)
+       placements: [{platform, published_at, url, caption}] (shipped facts)
   -> performance notes
   -> next ideas from replies
 ```
 
 ## Default Workflow
 
-1. Identify the source artifact: Fuji entry, article draft, photo, screenshot, code diff, ASCII diagram, spec excerpt, voice note, or product decision.
+1. Identify the source artifact: a `pages/` note, article draft, photo, screenshot, code diff, ASCII diagram, spec excerpt, voice note, or product decision.
 2. Distill one content atom: thesis, tension, proof, visual, audience, and desired reaction.
 3. Choose renderers by platform, not by rewriting the idea from scratch.
 4. Preserve the human thesis and concrete examples. Let AI adapt structure and phrasing.
@@ -59,9 +58,6 @@ Desired reaction:
 ## Renderer Decision Tree
 
 ```txt
-Is there one clear source article?
-  -> Use references/fuji-source-format.md.
-
 Does the user need platform versions?
   -> Use references/platform-renderers.md.
 
@@ -113,20 +109,34 @@ Reddit:
 
 ## Source Of Truth
 
-Prefer a Fuji markdown source when possible:
+`pages/<slug>.md` is the source. `channel` is the content identity (`bradencodes`, `braden-essays`, `epicenter`, ...). In the sibling vault repo, channel promises live at `../vault/specs/20260609T010000-channel-promise-approval-ledger.md`; read that file before picking a channel for a page for the first time because each channel's "what belongs" and "what does not belong" sections are normative. `format` is `article | social-post | short-video`. A `social-post` body is one or more short written segments separated by `---`: one segment is a one-shot post, several are a thread. `platform` is the distribution surface, and each format ships only to its platform class (the lint enforces this matrix):
 
 ```txt
-apps/fuji/content/YYYY-MM-DD-slug.md
-  -> article
-  -> LinkedIn
-  -> X thread
-  -> Reddit variants
-  -> Marp carousel
-  -> Remotion short video
-  -> Medium/Substack
+article      → personal-blog | medium | substack | newsletter
+social-post  → x | linkedin | reddit
+short-video  → instagram | tiktok | youtube
 ```
 
-If Fuji storage is not implemented for file-backed content yet, use the same markdown shape in the nearest working content folder and keep the format compatible with Fuji.
+A variant's filename is `<page>-<channel>-<format>-<version>` where `version` is the `YYYY-MM-DD` checkpoint the variant was cut from the page:
+
+```txt
+pages/2026-06-15-my-page.md
+  -> variants/2026-06-15-my-page-bradencodes-social-post-2026-06-20.md
+       placements: [{platform: x, published_at, url}]
+  -> variants/2026-06-15-my-page-braden-essays-article-2026-06-20.md
+       placements: [{platform: personal-blog, published_at, url}]
+```
+
+### Freeze-on-supersede
+
+The **latest** variant for a `(page, channel, format)` lineage is living: edit it in place to track the page. Cutting a new version freezes its predecessor — never touch a superseded variant again; it is the curated record of what shipped.
+
+- Content changed enough to preserve the old checkpoint? Cut a **new variant** with today's date as its `version`; the old one freezes.
+- Shipping the living variant somewhere (first ship, update, or repost)? Append a **placement** to its `placements[]` — one object per platform shipment.
+
+**What's currently live** is derived, not stored: for a given platform, the current placement is the one with the latest `published_at` on the latest variant that carries that platform. Older variants and placements are history, not stale data to clean up.
+
+Current vault schema: `pages/matter.json` requires `title`, `date`, `timezone`, and `status`; `variants/matter.json` requires `page`, `version`, `channel`, and `format`, with optional `subtitle` (a channel-specific dek; the page's own `title` stays private and canonical). `placements[]` is validated by `bun run publishing-lint`, not Matter: each object has `platform` plus optional `published_at`, `url`, and `caption`. Leave `published_at` off until content is actually live.
 
 ## Do Not
 
@@ -136,7 +146,8 @@ If Fuji storage is not implemented for file-backed content yet, use the same mar
 - Do not add fake vulnerability, fake lessons, fake metrics, or invented personal stories.
 - Do not let platform advice override the source thesis.
 
-## Related Specs
+## Vault References
 
-- `specs/20260525T130000-creative-os-composition-map.md`
-- `specs/20260518T160639-theark-marp-shortform-content-engine.md`
+- `../vault/specs/20260609T010000-channel-promise-approval-ledger.md`: channel promises and what belongs on each channel.
+- `../vault/specs/20260611T230004-channel-routing-cheat-sheet.md`: quick channel routing decisions.
+- `../vault/specs/20260613T181206-channel-routing-test-batch.md`: examples that test the routing rules against real pages.

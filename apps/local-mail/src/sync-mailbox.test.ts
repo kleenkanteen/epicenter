@@ -71,6 +71,16 @@ function createFakeGmailClient(seed: {
 			if (!found) return GmailApiError.Http({ status: 404, body: 'not found' });
 			return { data: found, error: null };
 		},
+		async trashMessage(id) {
+			const found = seed.mailbox.get(id);
+			if (!found) return GmailApiError.Http({ status: 404, body: 'not found' });
+			return { data: found, error: null };
+		},
+		async untrashMessage(id) {
+			const found = seed.mailbox.get(id);
+			if (!found) return GmailApiError.Http({ status: 404, body: 'not found' });
+			return { data: found, error: null };
+		},
 		async listHistory() {
 			const page = seed.historyPages[historyCallCount];
 			historyCallCount += 1;

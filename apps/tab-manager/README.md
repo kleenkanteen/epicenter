@@ -18,7 +18,7 @@ Part of the [Epicenter](https://github.com/EpicenterHQ/epicenter) monorepo. AGPL
 │  state       │  bookmarks, chat, tool trust)     │
 │  (ephemeral) │  @epicenter/workspace + sync      │
 ├──────────────┴───────────────────────────────────┤
-│  @epicenter/workspace actionsToAiTools (bridge)  │
+│  @epicenter/workspace/agent tool catalog         │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -65,7 +65,7 @@ Conversation messages live in the per-row `conversations.messages` child doc, no
 
 ## AI chat
 
-The `AiDrawer` component supports multiple conversations. Chat inference needs a signed-in remote connection, but the drawer and its local conversation metadata do not gate the extension shell. Workspace actions are converted to AI tools via `@epicenter/workspace`'s `actionsToAiTools`, so the AI can read and write workspace data directly.
+The `AiDrawer` component supports multiple conversations. Chat inference needs a signed-in remote connection, but the drawer and its local conversation metadata do not gate the extension shell. Workspace actions are exposed to AI through `createLocalToolCatalog` from `@epicenter/workspace/agent`, so the AI can read and write workspace data directly.
 
 Destructive tool calls require inline approval before they execute. Each tool can also be set to "always allow," and that preference is stored in the `toolTrust` table, so it syncs across all your devices like any other workspace data.
 
@@ -79,18 +79,18 @@ Prerequisites: [Bun](https://bun.sh).
 git clone https://github.com/EpicenterHQ/epicenter.git
 cd epicenter
 bun install
-bun dev
+bun dev:tab-manager
 ```
 
-From the repo root, `bun dev` starts the local API and the WXT extension dev server. To work on only the extension UI, run:
+From the repo root, `bun dev:tab-manager` starts the local API and the WXT extension dev server. Bare `bun dev` currently aliases this default workflow. To work on only the extension UI, run:
 
 ```bash
-bun run dev:tab-manager:ui
+bun dev:tab-manager:ui
 ```
 
 To load the extension in Chrome: open `chrome://extensions`, enable Developer Mode, click "Load unpacked," and select the `apps/tab-manager/.output/chrome-mv3-dev` directory.
 
-From inside `apps/tab-manager`, `bun dev` starts WXT only. Use that when `bun run dev:api` is already running from the repo root, or when you are intentionally testing UI-only behavior.
+The package-local `bun dev` still starts WXT only, but the root commands are the preferred dev entrypoints.
 
 
 Firefox:
@@ -119,7 +119,7 @@ Auth uses Google OAuth via `browser.identity`. The workspace always mounts: sign
 - [virtua](https://github.com/inokawa/virtua): virtualized tab list
 - [Tailwind CSS](https://tailwindcss.com): styling
 - `@epicenter/workspace`: CRDT-backed tables, sync, persistence
-- `@epicenter/workspace` `actionsToAiTools` - workspace-to-LLM tool bridge
+- `@epicenter/workspace/agent` `createLocalToolCatalog` - workspace-to-agent tool bridge
 - `@epicenter/svelte`: auth integration
 - `@epicenter/ui`: shadcn-svelte component library
 

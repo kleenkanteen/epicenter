@@ -59,13 +59,14 @@ vocab.browser.ts            # openVocabBrowser runtime wiring
 - The live answer streams in component `$state`, not the synced doc (ADR-0046): vocab is capability-free, so re-asking is free and only finished messages need to sync. Each finished message is one LWW JSON blob keyed by message id, written the moment a normal app would POST the row.
 - The cloud never writes the doc: it is a blind relay plus a stateless metered inference stream (ADR-0033).
 - SSR is disabled; the app is CSR-only.
-- The system prompt forbids readings (pinyin, romaji, transliteration) in AI responses so the client controls annotation rendering and toggle visibility, and the stored message stays clean for reuse as conversation memory and verbatim terms (ADR-0102, ADR-0105).
+- The system prompt forbids readings (pinyin, romaji, transliteration) in AI responses so the client controls annotation rendering and toggle visibility, and the stored message stays clean for reuse as conversation memory and verbatim entries (ADR-0102, ADR-0105).
 
 ## Scripts
 
 ```sh
-bun run dev        # Start dev server
-bun run build      # Production build
-bun run preview    # Preview production build
-bun run typecheck  # svelte-check
+bun dev:vocab      # Start the local API and Vocab UI from the repo root
+bun dev:vocab:ui   # Start only the Vocab UI
+bun run build      # Production build, from apps/vocab
+bun run preview    # Preview production build, from apps/vocab
+bun run typecheck  # svelte-check, from apps/vocab
 ```

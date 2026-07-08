@@ -16,11 +16,9 @@
  */
 
 import type { Database, SQLQueryBindings } from 'bun:sqlite';
-import Type from 'typebox';
 import { defineErrors, extractErrorMessage } from 'wellcrafted/error';
 import { createLogger, type Logger } from 'wellcrafted/logger';
 import type * as Y from 'yjs';
-import { defineActions, defineMutation } from '../../../shared/actions.js';
 import { debounce } from '../../../shared/debounce.js';
 import type { BaseRow, Table } from '../../table.js';
 import { type AnyTable, settledWithin, type TablesRecord } from '../shared.js';
@@ -115,8 +113,8 @@ export function attachSqliteMaterializerCore<
 		/**
 		 * Optional FTS5 configuration. Keyed by the same names as `tables`,
 		 * with values listing the columns to include in the FTS index. When
-		 * provided, the `actions` registry gains a `sqlite_search` action; when
-		 * omitted, only `sqlite_rebuild` is present.
+		 * provided, the materializer exposes `search(...)`; when omitted,
+		 * `search` is undefined.
 		 */
 		fts?: TFts;
 		debounceMs?: number;
@@ -390,32 +388,6 @@ export function attachSqliteMaterializerCore<
 
 	const whenFlushed = initialize();
 
-	// Every wire-exposed operation lives in one `actions` registry, mirroring
-	// the markdown materializer so a mount spreads `...sqlite.actions`.
-	// `sqlite_rebuild` is always present; `sqlite_search` only when an FTS index
-	// was configured. Two literal branches keep each registry key required
-	// (an optional key would not satisfy the ActionRegistry constraint).
-	const rebuildAction = defineMutation({
-		title: 'Rebuild SQLite mirror',
-		description:
-			'Drop and rebuild the materialized SQLite tables from the Yjs source. Optionally limit to one table.',
-		input: Type.Object({
-			table: Type.Optional(
-				Type.String({
-					description: 'Limit rebuild to one table; omit for all tables.',
-				}),
-			),
-		}),
-		handler: ({ table: tableName }) => rebuild(tableName),
-	});
-
-	const actions = ftsLayer
-		? defineActions({
-				sqlite_rebuild: rebuildAction,
-				sqlite_search: ftsLayer.search,
-			})
-		: defineActions({ sqlite_rebuild: rebuildAction });
-
 	return {
 		whenFlushed,
 		/**
@@ -426,7 +398,16 @@ export function attachSqliteMaterializerCore<
 		 * writes mid-flight.
 		 */
 		whenDisposed,
-		actions,
+		/**
+		 * Drop and rebuild the materialized SQLite tables from the Yjs source.
+		 * Pass a table name to limit the rebuild to one table.
+		 */
+		rebuild,
+		/**
+		 * FTS5 search across one materialized table's rows. Present only when
+		 * an FTS index was configured via the `fts` option.
+		 */
+		search: ftsLayer?.search,
 	};
 }
 

@@ -2,13 +2,13 @@
  * `defineMount`: the entry contract for an app mount inside the daemon.
  *
  * `epicenter.config.ts` default-exports one `Mount`. The mount carries its own
- * canonical `name`, which `epicenter list` prints as the header label and which
- * is propagated into the mount context so handlers can use it for logging.
+ * canonical `name`, which is propagated into the mount context so handlers can
+ * use it for logging.
  *
- * The host calls `open(ctx)` once on `epicenter daemon up`. A mount can do one
+ * The host calls `open(ctx)` once on `epicenter up`. A mount can do one
  * of two things:
  *
- *   - return a `DaemonRuntime` (`actions`, optionally `collaboration`), or
+ *   - return a `DaemonRuntime` (async dispose, optionally `collaboration`), or
  *   - return `inactive(reason)` to say "I cannot run right now," typically
  *     because it needs a signed-in `session` and there is none.
  *
@@ -105,10 +105,9 @@ export function isInactive(
  * `inactive(reason)`.
  *
  * Factories like `notes()` return a `Mount`. `name` is a display label only: it
- * heads the `epicenter list` output and prefixes the mount's loggers and its
- * "Sign in to enable <name>." message. Daemon actions are addressed by bare
- * key, so the name never namespaces them and renaming an Epicenter folder never
- * changes how an action is called.
+ * prefixes the mount's loggers and its "Sign in to enable <name>." message. It
+ * never feeds identity, storage, or action namespaces, so renaming an Epicenter
+ * folder never changes workspace identity.
  */
 export type Mount = {
 	name: string;

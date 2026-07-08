@@ -108,12 +108,12 @@
 <div class="flex flex-col gap-3">
 	<div class="space-y-1">
 		<p class="text-sm font-medium">
-			{selfHosted ? `Connect to ${host}` : 'Sign in'}
+			{selfHosted ? `Connect to ${host}` : 'Sync across devices'}
 		</p>
-		<p class="text-xs text-muted-foreground">
+		<p class="text-xs leading-relaxed text-muted-foreground">
 			{selfHosted
 				? 'Sign in to your self-hosted instance.'
-				: `Sign in to sync your ${syncNoun} across devices.`}
+				: `Your ${syncNoun} live on this device. Sign in to sync them to your other devices.`}
 		</p>
 	</div>
 	{#if disabledReason}
@@ -138,14 +138,20 @@
 			Sign in with Epicenter
 		{/if}
 	</Button>
-	<!-- Self-host is a real mode, so it gets a real button; Cloud vs Server names the two modes. -->
-	<Button
-		variant="outline"
-		class="w-full"
-		disabled={accountLocked}
-		onclick={onConfigure}
-	>
-		<Server class="size-4" />
-		{selfHosted ? 'Change instance' : 'Connect to a self-hosted instance'}
-	</Button>
+	<!-- Self-host is a real mode (Cloud vs Server names the deployments), but
+	     hosted sign-in is the common path, so the instance action reads like
+	     the signed-in panel's utility rows instead of competing as a peer
+	     button. -->
+	<div class="border-t pt-3">
+		<Button
+			variant="ghost"
+			size="sm"
+			class="w-full justify-start text-muted-foreground hover:text-foreground"
+			disabled={accountLocked}
+			onclick={onConfigure}
+		>
+			<Server class="size-3.5" />
+			{selfHosted ? 'Change instance' : 'Use a self-hosted instance'}
+		</Button>
+	</div>
 </div>
