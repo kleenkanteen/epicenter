@@ -13,12 +13,13 @@
  *   mask only their own id, and `reconcileAfterWrite` keeps a write pending
  *   until the messages refetch lands, so a settled write cannot flash back.
  */
+
+import { describe, expect, test } from 'bun:test';
 import {
 	MutationObserver,
 	QueryClient,
 	QueryObserver,
 } from '@tanstack/svelte-query';
-import { describe, expect, test } from 'bun:test';
 import {
 	applyLabelDelta,
 	applyLabelDeltas,
@@ -68,13 +69,12 @@ function summary(id: string, labelIds: string[]): MessageSummary {
 
 describe('applyLabelDelta', () => {
 	test('removes, adds, and dedupes while preserving order', () => {
-		expect(applyLabelDelta(['INBOX', 'UNREAD'], { add: [], remove: ['UNREAD'] })).toEqual(
-			['INBOX'],
-		);
-		expect(applyLabelDelta(['INBOX'], { add: ['STARRED'], remove: [] })).toEqual([
-			'INBOX',
-			'STARRED',
-		]);
+		expect(
+			applyLabelDelta(['INBOX', 'UNREAD'], { add: [], remove: ['UNREAD'] }),
+		).toEqual(['INBOX']);
+		expect(
+			applyLabelDelta(['INBOX'], { add: ['STARRED'], remove: [] }),
+		).toEqual(['INBOX', 'STARRED']);
 		expect(applyLabelDelta(['INBOX'], { add: ['INBOX'], remove: [] })).toEqual([
 			'INBOX',
 		]);
@@ -85,17 +85,20 @@ describe('applyLabelDelta', () => {
 			'INBOX',
 			'TRASH',
 		]);
-		expect(applyLabelDelta(['INBOX', 'TRASH'], deltaForTrashed(false))).toEqual([
-			'INBOX',
-		]);
+		expect(applyLabelDelta(['INBOX', 'TRASH'], deltaForTrashed(false))).toEqual(
+			['INBOX'],
+		);
 	});
 
 	test('multiple deltas compose in order for the same pending row', () => {
 		expect(
-			applyLabelDeltas(['INBOX', 'UNREAD'], [
-				{ add: [], remove: ['INBOX'] },
-				{ add: ['STARRED'], remove: [] },
-			]),
+			applyLabelDeltas(
+				['INBOX', 'UNREAD'],
+				[
+					{ add: [], remove: ['INBOX'] },
+					{ add: ['STARRED'], remove: [] },
+				],
+			),
 		).toEqual(['UNREAD', 'STARRED']);
 	});
 });
@@ -156,9 +159,11 @@ describe('projectMessageList', () => {
 		const rows = [summary('a', ['INBOX']), summary('b', ['INBOX'])];
 
 		expect(
-			projectMessageList(rows, [{ id: 'a', delta: deltaForTrashed(true) }], 'INBOX').map(
-				(m) => m.id,
-			),
+			projectMessageList(
+				rows,
+				[{ id: 'a', delta: deltaForTrashed(true) }],
+				'INBOX',
+			).map((m) => m.id),
 		).toEqual(['b']);
 		expect(projectMessageList(rows, [], 'INBOX').map((m) => m.id)).toEqual([
 			'a',
