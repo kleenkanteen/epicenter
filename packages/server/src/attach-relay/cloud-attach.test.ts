@@ -17,8 +17,8 @@
  * runtime seam: resolver output -> authenticated mount -> coordinator partition.
  */
 
-import { Principal } from '@epicenter/auth';
 import { describe, expect, test } from 'bun:test';
+import { Principal } from '@epicenter/auth';
 import { Hono } from 'hono';
 import { Ok } from 'wellcrafted/result';
 import { OAuthError } from '../auth/oauth-errors.js';
@@ -194,10 +194,7 @@ function openClient(
 	);
 }
 
-function frameMatches(
-	frame: string,
-	fields: Record<string, unknown>,
-): boolean {
+function frameMatches(frame: string, fields: Record<string, unknown>): boolean {
 	let value: unknown;
 	try {
 		value = JSON.parse(frame);
@@ -209,12 +206,14 @@ function frameMatches(
 	return Object.entries(fields).every(([key, want]) => record[key] === want);
 }
 
-const attachFrame = (deviceId = 'phone') => (frame: string) =>
-	frameMatches(frame, {
-		deviceId,
-		attachId: 'attach-1',
-		event: 'attach',
-	});
+const attachFrame =
+	(deviceId = 'phone') =>
+	(frame: string) =>
+		frameMatches(frame, {
+			deviceId,
+			attachId: 'attach-1',
+			event: 'attach',
+		});
 
 describe('AttachRelay: account-mediated hosted attach', () => {
 	test('phone A attaches to desktop A and exchanges live session bytes', async () => {
