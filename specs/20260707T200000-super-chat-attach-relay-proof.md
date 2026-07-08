@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Date:** 2026-07-07
 - **Relates:** ADR-0115 (the decision this proves), ADR-0080, ADR-0079, ADR-0113, ADR-0086, trust-model.md
-- **Nature:** Execution scaffolding for ADR-0115. Proof waves only; waves 1 and 2 have landed. When the remaining waves land, harvest any durable refinement into ADR-0115 and delete this spec (two-state lifecycle).
+- **Nature:** Execution scaffolding for ADR-0115. Proof waves only; waves 1-4 have landed. When the remaining waves land, harvest any durable refinement into ADR-0115 and delete this spec (two-state lifecycle).
 
 This spec sequences the smallest proofs that the AttachRelay is endpoint-addressed, content-blind, and not the deleted relay floor. Each wave has one verification target. The waves are ordered so the plane separation and the anti-resurrection guard land before any network or crypto risk.
 
