@@ -64,7 +64,11 @@ export type RelayClientSocket = {
 };
 
 export type AttachRelayClient = {
-	/** Resolves once the attach socket has opened. */
+	/**
+	 * Resolves once this client can send: on socket open when unsealed, or after
+	 * the seal handshake completes when sealing is on. A caller that awaits it may
+	 * send at once.
+	 */
 	ready: Promise<void>;
 	/** Send one host command as opaque bytes to the shared session. */
 	send(command: SuperChatClientCommand): void;
