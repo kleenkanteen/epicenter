@@ -1,6 +1,6 @@
 ---
 name: epicenter-ui
-description: Epicenter UI component selection and composition patterns for Svelte apps using @epicenter/ui. Use when choosing or reviewing local UI components, loading or empty states, skeletons, spinners, command empty states, action pending UI, table/list no-row states, button or link tooltips, modal/dialog/sheet/drawer surfaces, package import boundaries, wrapper minimization, or replacing ad hoc UI such as Loading... text, custom loading dots, raw animate-pulse placeholders, raw tooltip wrappers, or one-off centered status markup.
+description: Epicenter UI component selection and composition patterns for Svelte apps using @epicenter/ui. Use when the user mentions @epicenter/ui, packages/ui, "packages slash ui", local UI primitives, shadcn-svelte wrappers, Loading, Empty, Spinner, Skeleton, Button, Tooltip, Modal, Dialog, Sheet, Drawer, Command, package import boundaries, or replacing ad hoc UI such as Loading... text, custom loading dots, raw animate-pulse placeholders, raw tooltip wrappers, or one-off centered status markup.
 metadata:
   author: epicenter
   version: '2.0'
