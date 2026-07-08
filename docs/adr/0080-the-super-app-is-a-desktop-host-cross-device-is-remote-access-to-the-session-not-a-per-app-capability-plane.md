@@ -1,6 +1,6 @@
 # 0080. The super app is a desktop host; cross-device is remote access to the session, not a per-app capability plane
 
-- **Status:** Accepted (the desktop-host decision is settled; whether Epicenter operates a hosted session broker for turnkey mobile remote is the open product question in [Trigger to revisit](#trigger-to-revisit))
+- **Status:** Accepted (the desktop-host decision is settled; the [Trigger to revisit](#trigger-to-revisit) is resolved by [ADR-0115](0115-super-chat-remote-attach-rides-an-endpoint-addressed-content-blind-relay.md): Epicenter operates an endpoint-addressed, content-blind AttachRelay)
 - **Date:** 2026-06-30
 - **Relates:** [ADR-0079](0079-cross-device-is-two-planes-epicenter-syncs-the-crdt-the-box-is-reached-directly.md) (this refines its capability plane: the super app does not consume it), [ADR-0047](0047-the-agent-loop-runs-in-the-client-and-tools-are-dispatched-actions.md) (the agent loop runs in the client), [ADR-0021](0021-actions-are-the-only-surface-that-crosses-a-process-boundary.md) (actions cross process boundaries), [ADR-0072](0072-local-books-ships-as-a-standalone-cli-the-daemon-surface-is-deferred.md) (Local Books is off the mesh, a local MCP verb facade), [ADR-0073](0073-tools-speak-mcp-natively-epicenter-owns-only-the-transport-mcp-lacks.md) (tools speak MCP), [ADR-0078](0078-inference-is-a-url-addressed-connection-the-relay-floor-carries-only-tools.md) (inference is a URL connection), [ADR-0004](0004-trust-the-relay-reject-zero-knowledge.md) (the relay reads plaintext)
 
@@ -36,6 +36,10 @@ ADR-0079 answered "reach a tool on your box from your phone" with a per-app capa
 ## Trigger to revisit
 
 Is mass-market remote access to the super app a committed product goal, that is, a phone user with no desktop, or one-tap remote without the user configuring an overlay? If yes, the only confidential build is a content-blind, end-to-end-encrypted session relay (not a plain broker, which would read the books and mail in the tool-result stream), or a turnkey overlay; reopen whether a thin per-tool reach beats a full session at that point. If no, the bring-your-own-Tailscale-to-desktop answer stands and Epicenter operates nothing for the super app.
+
+### Update 2026-07-07: resolved toward the AttachRelay (ADR-0115)
+
+The trigger fired yes: turnkey phone attach after Epicenter sign-in is a committed direction. It is delivered by the endpoint-addressed, content-blind AttachRelay (ADR-0115), which is the confidential session relay this ADR named, not a plain broker. The relay forwards sealed bytes between two of the principal's endpoints, addressed by `principalId`, `hostId`, `deviceId`, and `attachId`, and reads no frames; on Cloud attach frames are always sealed (key agreement authenticated to the device grant, so the relay cannot man-in-the-middle), and on self-host plaintext is a fail-closed opt-out because the operator is the user. This is not a per-app capability plane and does not resurrect the relay floor (ADR-0086). The "thin per-tool reach versus full session" question stays closed: the full host session is the one reachable surface, per this ADR's decision 2.
 
 ## Considered alternatives
 

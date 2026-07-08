@@ -8,8 +8,7 @@ metadata:
 
 # Specification Writing
 
-Follow [writing-voice](../writing-voice/SKILL.md) for prose sections.
-Follow [notebook-explanation](../notebook-explanation/SKILL.md) for mental models, ownership diagrams, flow diagrams, and compressed rules.
+Follow [writing-voice](../writing-voice/SKILL.md) for prose sections. For ownership or flow explanations inside a spec, compose with [notebook-explanation](../notebook-explanation/SKILL.md), then keep only the diagrams and prose the spec needs.
 
 A specification gives an agent or maintainer the context they need to implement a feature autonomously. The goal is not to describe everything exhaustively. The goal is to show enough evidence that the direction is credible and give the implementer a concrete launch point.
 

@@ -160,7 +160,7 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0081](0081-per-upstream-oauth-concurrency-decides-mirror-topology.md) | Per-upstream OAuth concurrency decides whether a materialized mirror is box-owned (Local Books) or device-local (Gmail), not a property of "cloud-upstream apps" as a category | Proposed |
 | [0082](0082-local-mail-mirror-is-push-free-polling-collapsing-hosted-vs-self-host-to-one-oauth-client-id.md) | Local Mail's mirror is push-free CDC polling; hosted vs self-host collapses to one OAuth Client ID | Proposed |
 | [0083](0083-apps-email-is-refused-local-mail-is-the-only-gmail-client.md) | `apps/email` is refused; Local Mail is the only Gmail client | Accepted |
-| [0084](0084-super-chat-shell-is-a-bun-hosted-local-server-not-a-bundled-spa.md) | Super Chat's shell is a Bun-hosted local server, not a bundled SPA | Proposed |
+| [0084](0084-super-chat-shell-is-a-bun-hosted-local-server-not-a-bundled-spa.md) | Super Chat's shell is a Bun-hosted local server, not a bundled SPA | Accepted |
 | [0085](0085-a-box-is-a-role-an-addressable-endpoint-plays-not-a-node-type.md) | A box is a role an addressable endpoint plays, not a distinct node type | Accepted |
 | [0086](0086-no-live-consumer-for-network-reachable-capability-reach-opensidian-is-superseded-not-migrated.md) | There is no live consumer for network-reachable capability reach; opensidian's cross-device tools are superseded by the super app, not migrated | Accepted |
 | [0087](0087-honeycrisp-is-the-maintained-notes-product-from-one-isomorphic-workspace-surface.md) | Honeycrisp is the maintained notes product from one isomorphic workspace surface | Proposed |
@@ -189,6 +189,8 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0110](0110-edit-write-timing-follows-the-value-owner-there-is-no-debounce-tier.md) | Edit write timing follows the value owner; there is no debounce tier | Accepted |
 | [0111](0111-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md) | Super Chat v1 exposes built-in Epicenter apps and defers extension surfaces | Accepted |
 | [0112](0112-the-cli-watcher-is-not-a-callable-action-server.md) | The CLI watcher is not a callable action server | Accepted |
-| [0113](0113-hosted-auth-surfaces-are-plain-tool-logins-not-marketing-pages.md) | Hosted auth surfaces are plain tool logins, not marketing pages | Accepted |
+| [0113](0113-super-chat-session-commands-are-host-owned-transports-only-frame-them.md) | Super Chat session commands are host-owned; transports only frame them | Accepted |
+| [0114](0114-hosted-auth-surfaces-are-plain-tool-logins-not-marketing-pages.md) | Hosted auth surfaces are plain tool logins, not marketing pages | Accepted |
+| [0115](0115-super-chat-remote-attach-rides-an-endpoint-addressed-content-blind-relay.md) | Super Chat remote attach rides an endpoint-addressed, content-blind AttachRelay; one consumer, not the deleted route-addressed relay floor | Accepted (design; relay not implemented) |
 
 When you add an ADR, add its row here.

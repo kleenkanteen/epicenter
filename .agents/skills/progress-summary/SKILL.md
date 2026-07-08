@@ -10,8 +10,6 @@ metadata:
 
 Generate conversational summaries of work in progress, using the same style as well-crafted PR descriptions.
 
-For newcomer-friendly architecture explanations, use [notebook-explanation](../notebook-explanation/SKILL.md) as the format: short working notes, tiny definitions, ASCII diagrams, concrete examples, and compressed rules.
-
 ## Core Principles
 
 ### Motivation First
@@ -81,9 +79,7 @@ and update the migration guide.
 
 ### Architecture Overview (explaining a complex change)
 
-For "explain what's happening here" on larger work, use [notebook-explanation](../notebook-explanation/SKILL.md). It owns the mental model and diagram grammar: ownership, boundaries, flows, good/bad examples, durable rules, and the diagram-shape taxonomy.
-
-`progress-summary` still frames the recap around it: what changed, why it changed, and what is still open.
+For "explain what's happening here" on larger work, keep the recap shape: what changed, why it changed, and what is still open. When the recap needs to explain a system, borrow [notebook-explanation](../notebook-explanation/SKILL.md)'s posture: lead with the useful model, ground it lightly, and use diagrams only when they reduce load.
 
 ## What to Avoid
 

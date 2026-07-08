@@ -5,6 +5,8 @@ description: Create, revise, audit, evaluate, and validate Vercel-backed Agent S
 
 # Skill Creator
 
+Skill Creator owns creation and maintenance of project-local skills under `.agents/skills`.
+
 The Vercel `skills` CLI is the source of truth for format and discovery. Do not maintain a separate local validator unless the user explicitly asks for one.
 
 Skills should encode repeatable project expertise: real conventions, recurring failure modes, fragile workflows, and corrections the agent would otherwise miss. Do not turn one-off advice into a skill.
@@ -148,7 +150,21 @@ Use this split:
 - `scripts/`: repeated deterministic helpers the agent would otherwise recreate.
 - `assets/`: templates, images, boilerplate, or other files used in generated output.
 
-Every reference link needs a concrete load condition, for example: "Read `references/api-errors.md` when the API returns a non-200 status."
+Keep routing at the right layer:
+
+```txt
+description   external routing: "Use when..."
+SKILL.md      ownership and workflow after the skill is loaded
+references/   scoped detail after SKILL.md chose the reference
+```
+
+Avoid opening `SKILL.md` or references with self-routing boilerplate such as
+"Use this skill..." or "Use this reference...". Prefer ownership language in
+`SKILL.md` ("Workspace API owns...") and scope language in references ("This
+reference covers...").
+
+Every reference link needs a concrete load condition in `SKILL.md`, for example:
+"Read `references/api-errors.md` when the API returns a non-200 status."
 
 Use `scripts/` only for repeated, deterministic, fragile, or error-prone work. Scripts should be documented in `SKILL.md`, non-interactive, retry-friendly, clear about prerequisites, structured on stdout, diagnostics on stderr, and bounded in output.
 

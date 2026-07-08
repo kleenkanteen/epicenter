@@ -16,13 +16,17 @@
 >
 > **Regenerate (deterministic per ref set, lossless):** `bun scripts/generate-spec-history.ts`. The totals track the refs this clone can see; `--all` is deliberate so the timeline recovers specs that only lived on unmerged or deleted branches.
 
-**1364 specs ever** (550 still in tree, 814 removed).
+**1368 specs ever** (553 still in tree, 815 removed).
 
 
 ## 2026
 
 | Date | Spec | State | Path |
 |------|------|-------|------|
+| 2026-07-06 | cross-device-coordination-vision | in tree | specs/20260706T220000-cross-device-coordination-vision.md |
+| 2026-07-06 | encrypted-job-envelope-strategy | in tree | specs/20260706T233000-encrypted-job-envelope-strategy.md |
+| 2026-07-06 | super-chat-direct-command-forms | in tree | specs/super-chat-direct-command-forms.md |
+| 2026-07-06 | cli-watcher-ipc-collapse | in tree | specs/20260706T183000-cli-watcher-ipc-collapse.md |
 | 2026-07-03 | transcription-selector-post-gguf-reconciliation | removed | apps/whispering/specs/20260703T170000-transcription-selector-post-gguf-reconciliation.md |
 | 2026-07-02 | local-models-huggingface-transcribe-cpp | in tree | apps/whispering/specs/20260702T120000-local-models-huggingface-transcribe-cpp.md |
 | 2026-07-02 | local-mail-phase-3-write-through | in tree | specs/20260702T211500-local-mail-phase-3-write-through.md |
@@ -646,7 +650,7 @@
 | 2026-03-14 | bare-uint8array-encrypted-blob | removed | specs/20260314T230000-bare-uint8array-encrypted-blob.md |
 | 2026-03-14 | migration-flow-cleanup | removed | specs/20260314T232643-migration-flow-cleanup.md |
 | 2026-03-14 | encryption-hygiene | removed | specs/20260314T234500-encryption-hygiene.md |
-| 2026-03-13 | workspace-architecture-decisions | in tree | specs/20260313T063000-workspace-architecture-decisions.md |
+| 2026-03-13 | workspace-architecture-decisions | removed | specs/20260313T063000-workspace-architecture-decisions.md |
 | 2026-03-13 | opensidian-sqlite-index-extension | in tree | specs/20260313T143000-opensidian-sqlite-index-extension.md |
 | 2026-03-13 | opensidian-feature-additions | in tree | specs/20260313T143300-opensidian-feature-additions.md |
 | 2026-03-13 | unify-document-content-model | in tree | specs/20260313T224500-unify-document-content-model.md |

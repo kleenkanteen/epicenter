@@ -14,19 +14,26 @@
 		"typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json"
 	},
 	"dependencies": {
+		"@epicenter/chat": "workspace:*",
 		"@epicenter/client": "workspace:*",
 		"@epicenter/honeycrisp": "workspace:*",
+		"@epicenter/server": "workspace:*",
 		"@epicenter/todos": "workspace:*",
+		"@epicenter/ui": "workspace:*",
 		"@epicenter/workspace": "workspace:*",
 		"@modelcontextprotocol/sdk": "catalog:",
+		"@noble/ciphers": "^2.1.1",
+		"@noble/hashes": "^2.0.1",
 		"hono": "catalog:",
 		"yjs": "catalog:"
 	},
 	"devDependencies": {
 		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@tailwindcss/vite": "catalog:",
 		"@types/bun": "catalog:",
 		"svelte": "catalog:",
 		"svelte-check": "catalog:",
+		"tailwindcss": "catalog:",
 		"typescript": "catalog:",
 		"vite": "catalog:",
 		"vite-plugin-singlefile": "catalog:"

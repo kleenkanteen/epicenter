@@ -14,6 +14,17 @@
  * applicable). See `apps/api/worker/index.ts` for the cloud composition.
  */
 
+// The AttachRelay wire contract (ADR-0115): the endpoint-addressed connect route
+// and the frame the relay delivers to a host, the shared addressing vocabulary
+// any transport or client speaks. The content-blind coordinator and its Bun
+// transport are package-internal (the Bun transport lives in the `/bun` barrel);
+// a Durable Object backend is a later wave. The relay forwards opaque bytes for
+// one consumer, Super Chat attach (clause 4); it is never a routing product.
+export {
+	RELAY_CLOSE,
+	type RelayToHostFrame,
+} from './attach-relay/contracts.js';
+export { ATTACH_RELAY_ROUTE } from './attach-relay/route.js';
 // The single-partition instance's bearer resolver (self-host; ADR-0075). The
 // deployment injects `createEnvTokenResolver(secret)` as its `ResolveBearerPrincipal`.
 // The pure generator + boot entropy gate (`generateInstanceToken`

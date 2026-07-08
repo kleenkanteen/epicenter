@@ -72,15 +72,15 @@ When you have multiple independent reasons for something, write them as regular 
 
 ## Architecture Article Composition
 
-For articles about ownership, routing, auth, billing, sync, tenancy, API shape, or deployment boundaries, compose skills in this order:
+For articles about ownership, routing, auth, billing, sync, tenancy, API shape, or deployment boundaries, build the private model with [notebook-explanation](../notebook-explanation/SKILL.md) before drafting the public argument.
 
 1. Use [notebook-explanation](../notebook-explanation/SKILL.md) to build the private model: ownership, boundaries, flow, good/bad examples, and durable rules.
 2. Turn that model into a public argument here: title, opening, section claims, rhythm, code, diagrams, and closing.
 3. Use [writing-voice](../writing-voice/SKILL.md) throughout as the house voice and final punctuation pass.
 
-Do not publish the notebook scaffold unchanged unless the article is intentionally notebook-style. The notebook is the thinking format; the article is the reader format.
+Do not publish the private model unchanged unless the article is intentionally notebook-style. The model is the thinking format; the article is the reader format.
 
-The private model for an architecture article answers four questions: the old model, the tell that broke it, the new model, and the rule to remember. Build that model with [notebook-explanation](../notebook-explanation/SKILL.md), then turn it into the public argument here.
+The private model for an architecture article answers four questions: the old model, the tell that broke it, the new model, and the rule to remember.
 
 ## Rhythm and Pacing
 

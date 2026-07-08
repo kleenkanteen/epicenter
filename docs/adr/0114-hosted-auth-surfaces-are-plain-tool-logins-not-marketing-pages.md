@@ -1,4 +1,4 @@
-# 0113. Hosted auth surfaces are plain tool logins, not marketing pages
+# 0114. Hosted auth surfaces are plain tool logins, not marketing pages
 
 - **Status:** Accepted
 - **Date:** 2026-07-07

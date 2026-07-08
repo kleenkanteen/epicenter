@@ -87,3 +87,7 @@ Invariant 5 is reframed above (uniform transport, deployment-driven privacy). In
 ### Update (2026-07-02): the relay-floor capability layer is deleted
 
 ADR-0079 split cross-device into two planes, and ADR-0086 resolved the trigger: there is no live consumer for network-reachable capability reach. The relay-floor channel layer described above is now historical, not live. Deleted: the 4-frame channel protocol, channel router, account room, relay acceptor, route table, MCP gateway catalog, presence `exposedRoutes`, and the CLI `tools`/`call`/`--relay-expose` surface. The surviving MCP story is local stdio or a future direct URL-addressed box surface, not Epicenter routing MCP over the sync relay.
+
+### Update (2026-07-07): the AttachRelay is not the relay floor
+
+[ADR-0115](0115-super-chat-remote-attach-rides-an-endpoint-addressed-content-blind-relay.md) adds a hosted relay for Super Chat remote attach, and it is a historical-guardrail reminder that the organs above stay deleted. The AttachRelay is endpoint-addressed (`principalId`, `hostId`, `deviceId`, `attachId`), forwards sealed bytes it never parses, and exposes no route name, no route table, no MCP-over-relay platform surface, no `exposedRoutes`, and no CLI capability verbs. It does not resurrect the channel layer; it carries one live session between two of the principal's endpoints. The reserved "project any `defineActions` to an in-process MCP server" seam (the `kind` discriminant on the gateway `Route`) stays unbuilt.

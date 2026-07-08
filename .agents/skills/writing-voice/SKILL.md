@@ -16,6 +16,15 @@ This skill owns house voice, punctuation judgment, and anti-AI prose. Other writ
 
 Use the artifact skill for artifact-specific best practices: [technical-articles](../technical-articles/SKILL.md), [pull-request](../pull-request/SKILL.md), [documentation](../documentation/SKILL.md), [github-issues](../github-issues/SKILL.md), or [notebook-explanation](../notebook-explanation/SKILL.md). Use [references/discord-voice.md](references/discord-voice.md) for casual team chat.
 
+| Skill | Owns |
+| --- | --- |
+| [notebook-explanation](../notebook-explanation/SKILL.md) | Live-understanding explanation posture for complicated code and systems. |
+| [technical-articles](../technical-articles/SKILL.md) | Public article shape: title as argument, opening, rhythm between prose and code, section claims, closing. |
+| [pull-request](../pull-request/SKILL.md) | PR title, PR body, changelog, issue links, merge strategy, durable reviewer context. |
+| [documentation](../documentation/SKILL.md) | Folder READMEs, JSDoc, and comments that explain why rather than restating code. |
+| [github-issues](../github-issues/SKILL.md) | Public issue and PR-thread replies with maintainer context. |
+| [references/discord-voice.md](references/discord-voice.md) | Casual team chat and Discord messages. |
+
 For PRs and commits, keep the prose clear and direct. Product and personal-voice guidance belongs to public writing, not reviewer-facing PRs or commits.
 
 ## Voice Pass
@@ -72,5 +81,9 @@ Use these mechanical substitutions:
 ## Technical Explanations
 
 Show the mechanism, not the marketing. Lead with what happens, then why.
+
+Good:
+
+> Yjs with LWW timestamps gave us the best conflict resolution. We tried CRDTs without timestamps, operational transforms, and manual merge strategies; none matched it for correctness with this little code.
 
 For architecture, auth, APIs, ownership, or design trade-offs, use [notebook-explanation](../notebook-explanation/SKILL.md) for shape. Read [references/technical-explanation.md](references/technical-explanation.md) for longer explanations, tutorials, architecture notes, or conceptual docs.
