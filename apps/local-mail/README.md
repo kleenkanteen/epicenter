@@ -23,6 +23,10 @@ Gmail, not a local-only table.
 - `messages.body_text` is decoded at ingest from `text/plain` MIME parts, with
   stripped `text/html` as a fallback. That makes SQL and MCP useful for body
   questions without adding FTS yet.
+- The app detail pane can render formatted email from the raw Gmail payload, but
+  only behind the SPA sanitizer boundary. DOMPurify strips executable markup and
+  remote assets before the single `{@html}` sink renders the body on a light
+  email canvas; plain text stays available as the fallback view.
 
 ## Commands
 
@@ -177,9 +181,9 @@ stdio subprocess for the agent-facing protocol surface.
 
 ## Not built yet
 
-- HTML mail-body rendering. The detail pane shows the pre-extracted plain-text
-  body; rich HTML rendering (the sanitizer + sandboxed srcdoc + CSP + show-images
-  proxy) is deferred, which is why the SPA has no mail-body iframe yet.
+- Remote image loading and Gmail-perfect HTML fidelity. Formatted bodies render
+  as sanitized inline HTML on a light canvas; remote assets stay stripped, and
+  there is no show-images proxy yet.
 - Compile-embed distribution (`bun build --compile`) and the Tauri wrapper. `app`
   serves `ui/dist` from disk; the route table is the seam the distribution wave
   swaps for embedded assets later.

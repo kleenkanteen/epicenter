@@ -5,7 +5,7 @@ description: Svelte 5 component and state-module patterns for Epicenter apps. Us
 
 # Svelte Guidelines
 
-Use this skill for Svelte 5 components and Svelte state modules in Epicenter apps. Keep the first pass focused on Svelte runes, component lifecycle, workspace-backed state, TanStack Query usage, and local UI composition.
+Keep the first pass focused on Svelte runes, component lifecycle, workspace-backed state, TanStack Query usage, and local UI composition.
 
 ## Reference Repositories
 
@@ -34,18 +34,6 @@ Skip DeepWiki for stable basics and repo-local patterns already documented here 
 - `error-handling`: `$lib/report`, `extractErrorMessage`, and component error handling
 - `styling`: CSS and Tailwind conventions, including the flex column scroll trap
 - `epicenter-ui`: loading, empty, pending, tooltip, and component selection patterns
-
-## When To Apply This Skill
-
-Use this skill when you need to:
-
-- Build or refactor Svelte 5 components using runes.
-- Choose between `$state`, `$derived`, `$effect`, snippets, and keyed blocks.
-- Wire TanStack Query mutations from `.svelte` or `.ts` files.
-- Convert workspace table or KV data into reactive Svelte state.
-- Refactor shallow aliases, repetitive markup, or unstable reactive data sources.
-- Follow shadcn-svelte import and composition patterns.
-- Fix template gotchas such as unicode escapes in HTML context.
 
 ## Svelte 5 Baseline
 

@@ -5,8 +5,6 @@ description: Draft and review durable GitHub pull request titles and bodies for 
 
 # Pull Request Guidelines
 
-Use this skill for PR titles, PR bodies, changelog entries, issue closing language, GitHub username verification, reviewer guidance, and merge strategy.
-
 If the task is only staging, splitting, or committing local changes, use [git](../git/SKILL.md). If the task is issue triage or public issue replies, use [github-issues](../github-issues/SKILL.md). The [writing-voice](../writing-voice/SKILL.md) rules govern the prose in any body you write.
 
 ## Default Standard

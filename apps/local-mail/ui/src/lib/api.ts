@@ -6,8 +6,9 @@ import { hc } from 'hono/client';
 // and response shapes are inferred from the Hono routes in
 // `apps/local-mail/src/http/api.ts`, so the wire contract cannot drift from the
 // server. The bearer lives in sessionStorage: it survives F5 within the tab,
-// dies with the tab, and is unreadable by any sandboxed mail-body frame. In
-// production the SPA earns the bearer once by exchanging the single-use
+// dies with the tab, and is never exposed to raw mail HTML because formatted
+// bodies render only after the sanitizer boundary. In production the SPA earns
+// the bearer once by exchanging the single-use
 // bootstrap token carried in the URL fragment; in dev the Vite proxy injects a
 // fixed bearer, so no exchange runs and no credential touches the browser.
 
@@ -127,6 +128,11 @@ export const api = {
 		removeLabels?: string[];
 	}) => {
 		const res = await client.api.messages.modify.$post({ json: input });
+		if (!res.ok) throw await toError(res);
+		return res.json();
+	},
+	setTrashed: async (input: { ids: string[]; trashed: boolean }) => {
+		const res = await client.api.messages.trash.$post({ json: input });
 		if (!res.ok) throw await toError(res);
 		return res.json();
 	},

@@ -9,7 +9,7 @@ Browser route
   -> Hono and Better Auth keep owning auth policy and auth semantics
 ```
 
-Auth pages live here because they are user-facing UI, not auth-server machinery. Hono still owns redirects, route ordering, session checks, provider bootstrap, OAuth metadata, and the Better Auth catch-all. Better Auth still owns sessions, social sign-in, OAuth consent, cookies, and token issuing.
+Auth pages live here because they are user-facing UI, not auth-server machinery. Hono still owns redirects, route ordering, session checks, OAuth metadata, and the Better Auth catch-all. Better Auth still owns sessions, social sign-in, OAuth consent, cookies, and token issuing.
 
 The dashboard remains a pure API consumer. It has no workspace, CRDT, local sync layer, or local billing truth; it reads billing state from the hosted API and writes plan changes through the server.
 
@@ -24,7 +24,7 @@ bun install
 bun dev:api-dashboard
 ```
 
-This starts the hosted API Worker on port 8787 and the dashboard UI on port 5178. The Vite dev server proxies `/api`, `/auth`, and `/sign-in/context` to the local Worker. `bun dev:api-dashboard:ui` runs the UI without the Worker when you already have the API running.
+This starts the hosted API Worker on port 8787 and the dashboard UI on port 5178. The Vite dev server proxies `/api` and `/auth` to the local Worker. `bun dev:api-dashboard:ui` runs the UI without the Worker when you already have the API running.
 
 ```bash
 bun run build

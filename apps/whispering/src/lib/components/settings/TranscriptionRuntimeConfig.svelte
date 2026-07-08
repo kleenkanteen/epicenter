@@ -11,7 +11,7 @@
 	import { Textarea } from '@epicenter/ui/textarea';
 	import { cn } from '@epicenter/ui/utils';
 	import { createMutation } from '@tanstack/svelte-query';
-	import { mutationOptions } from 'wellcrafted/query';
+	import { resultMutationOptions } from 'wellcrafted/query';
 	import CopyablePre from '$lib/components/copyable/CopyablePre.svelte';
 	import {
 		SUPPORTED_LANGUAGES_OPTIONS,
@@ -125,7 +125,7 @@
 	const isSignedIn = $derived(auth.state.status === 'signed-in');
 	const accountLocked = $derived(recordingActive.current);
 	const startSignIn = createMutation(() =>
-		mutationOptions({
+		resultMutationOptions({
 			mutationKey: ['transcription-setup', 'startSignIn'],
 			mutationFn: () => auth.startSignIn(),
 		}),

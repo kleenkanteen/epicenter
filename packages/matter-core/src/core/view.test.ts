@@ -17,25 +17,27 @@
  */
 
 import { describe, expect, test } from 'bun:test';
+import { expectOk } from 'wellcrafted/testing';
 import { validateContract } from './contract';
 import type { Row } from './parse';
 import { groupRowsByField, parseViews } from './view';
 
 /** One contract with a field of every view-relevant kind, compiled once for all tests. */
 function setup() {
-	const built = validateContract({
-		fields: {
-			title: { type: 'string' },
-			status: { enum: ['idea', 'drafting', 'posted'] },
-			platform: { type: 'string' },
-			page: { type: 'string', 'x-ref': 'pages' },
-			publish_at: { type: 'string', format: 'date-time' },
-			rating: { type: 'integer' },
-		},
-		optional: ['platform', 'page', 'publish_at', 'rating'],
-	});
-	if (built.error) throw new Error(built.error.message);
-	return { fields: built.data.fields };
+	const built = expectOk(
+		validateContract({
+			fields: {
+				title: { type: 'string' },
+				status: { enum: ['idea', 'drafting', 'posted'] },
+				platform: { type: 'string' },
+				page: { type: 'string', 'x-ref': 'pages' },
+				publish_at: { type: 'string', format: 'date-time' },
+				rating: { type: 'integer' },
+			},
+			optional: ['platform', 'page', 'publish_at', 'rating'],
+		}),
+	);
+	return { fields: built.fields };
 }
 
 function row(fileName: string, frontmatter: Record<string, unknown>): Row {

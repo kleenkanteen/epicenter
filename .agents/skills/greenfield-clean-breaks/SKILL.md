@@ -5,12 +5,7 @@ description: "Greenfield clean-break review and execution for starting from an u
 
 # Greenfield Clean Breaks
 
-Use this skill as an operating mode, not a cleanup checklist. Start with the
-uncompromised greenfield vision, then work backward to the deletion waves,
-owner changes, and verification needed to make that vision real. The current
-software is evidence, not a constraint. Previously resolved decisions can be
-reopened when they make the final system harder to explain, own, test, or
-delete.
+Use this skill as an operating mode, not a cleanup checklist. Start with the uncompromised greenfield vision, then work backward to the deletion waves, owner changes, and verification needed to make that vision real. The current software is evidence, not a constraint. Previously resolved decisions can be reopened when they make the final system harder to explain, own, test, or delete.
 
 Two pillars:
 
@@ -50,9 +45,7 @@ Load on demand:
 
 ## Operating Stance
 
-Be direct about weak architecture. Do not preserve a shape because it already
-exists, because tests encode it, because a helper hides it, or because a prior
-spec once chose it.
+Be direct about weak architecture. Do not preserve a shape because it already exists, because tests encode it, because a helper hides it, or because a prior spec once chose it.
 
 Treat ADRs, specs, docs, and existing code as context with different weights:
 
@@ -64,17 +57,13 @@ spec                  in-flight scaffold, not current truth
 helper abstraction    a hypothesis about ownership, not a fact
 ```
 
-If the greenfield answer conflicts with an ADR or public promise, surface that
-as a decision to amend, not as a reason to stop thinking.
+If the greenfield answer conflicts with an ADR or public promise, surface that as a decision to amend, not as a reason to stop thinking.
 
-Uncompromising does not mean careless. Hold the ideal shape steady while you
-work backward through reality. If a durable public or data promise appears,
-stop and ask instead of quietly designing around the old shape.
+Uncompromising does not mean careless. Hold the ideal shape steady while you work backward through reality. If a durable public or data promise appears, stop and ask instead of quietly designing around the old shape.
 
 ## Context Gathering
 
-Before proposing a clean break, gather enough context to make the refusal
-defensible.
+Before proposing a clean break, gather enough context to make the refusal defensible.
 
 Run this before editing:
 
@@ -95,18 +84,13 @@ Run this before editing:
    question, read only the needed files, and report the evidence.
 ```
 
-Evidence should name files or symbols. "Seems internal" is not evidence; caller
-counts, exports, routes, schema files, docs, tests, and persisted or wire shapes
-are evidence.
+Evidence should name files or symbols. "Seems internal" is not evidence; caller counts, exports, routes, schema files, docs, tests, and persisted or wire shapes are evidence.
 
-Do not let context gathering become permission seeking. The goal is to find
-where to break cleanly, not to rationalize every existing branch.
+Do not let context gathering become permission seeking. The goal is to find where to break cleanly, not to rationalize every existing branch.
 
 ## Greenfield Vision First
 
-Do not begin by patching the current shape. First describe the system you would
-build if the old API, files, tests, names, and migration paths did not exist.
-That vision is the anchor; implementation planning works backward from it.
+Do not begin by patching the current shape. First describe the system you would build if the old API, files, tests, names, and migration paths did not exist. That vision is the anchor; implementation planning works backward from it.
 
 Write the ideal sentence first:
 
@@ -139,8 +123,7 @@ Deletion prize:
   What code disappears if this model wins?
 ```
 
-If the sentence needs "or", "also", "legacy", "fallback", "compat", "unless",
-or "for old callers", the design is probably keeping two systems alive.
+If the sentence needs "or", "also", "legacy", "fallback", "compat", "unless", or "for old callers", the design is probably keeping two systems alive.
 
 ## Trace And Inline Pass
 
@@ -163,9 +146,7 @@ local helper -> exported function -> package API -> app route/component ->
 user-visible workflow -> product boundary
 ```
 
-Stop early only when the owner is obvious and the deletion is local. Otherwise,
-keep walking. The cleanest break is often one level above the file that first
-looked wrong.
+Stop early only when the owner is obvious and the deletion is local. Otherwise, keep walking. The cleanest break is often one level above the file that first looked wrong.
 
 ## Asymmetric Wins Pass
 
@@ -204,8 +185,7 @@ Why this is asymmetric:
   small product loss, large implementation collapse
 ```
 
-Load [asymmetric-wins](../asymmetric-wins/SKILL.md) when the refusal becomes
-the center of the decision.
+Load [asymmetric-wins](../asymmetric-wins/SKILL.md) when the refusal becomes the center of the decision.
 
 ## Smell Catalog
 
@@ -232,8 +212,7 @@ docs that explain two paths where one path should exist
 tests that require fake lifecycle because production ownership is split
 ```
 
-These are not automatically wrong. Keep one only when you can name the concrete
-product behavior it owns in the final shape.
+These are not automatically wrong. Keep one only when you can name the concrete product behavior it owns in the final shape.
 
 ## Ownership Pass
 
@@ -249,14 +228,11 @@ runtime actor      live coordination
 sync engine        protocol bytes
 ```
 
-Treat a value as important when it is persisted, exported, user-visible,
-security-sensitive, cross-process, generated, or shared by multiple layers.
+Treat a value as important when it is persisted, exported, user-visible, security-sensitive, cross-process, generated, or shared by multiple layers.
 
-If two layers can create, repair, reinterpret, or cache the same value, choose
-one owner and delete the other path.
+If two layers can create, repair, reinterpret, or cache the same value, choose one owner and delete the other path.
 
-Ownership decisions should be boring after the pass. A new caller should not
-need to know history to find the right place.
+Ownership decisions should be boring after the pass. A new caller should not need to know history to find the right place.
 
 ## Execution Loop
 
@@ -276,17 +252,14 @@ When editing, keep the break clean:
 10. Re-run rg for stale names, imports, and compatibility terms.
 ```
 
-Read [references/wave-ordering.md](references/wave-ordering.md) for any
-multi-wave replacement.
+Read [references/wave-ordering.md](references/wave-ordering.md) for any multi-wave replacement.
 
 ## Related Moves
 
 - Use [asymmetric-wins](../asymmetric-wins/SKILL.md) when one small refusal may delete a large code family.
 - Use [radical-options](../radical-options/SKILL.md) when the local fix is trapped inside a bad abstraction.
 - Use [refactoring](../refactoring/SKILL.md) for caller counts, inlining mechanics, and straggler sweeps.
-- Use [typescript](../typescript/SKILL.md) "Go-to-Definition Awareness" when
-  the clean break changes TypeScript exports, aliases, wrappers, or public
-  navigation across packages.
+- Use [typescript](../typescript/SKILL.md) "Go-to-Definition Awareness" when the clean break changes TypeScript exports, aliases, wrappers, or public navigation across packages.
 
 ## Finding Format
 
@@ -352,9 +325,7 @@ deleting behavior from a published package or deployed endpoint with plausible u
 deleting behavior when clean-break scope or blast radius is ambiguous
 ```
 
-Greenfield pressure does not authorize silent data loss, security changes, or
-breaking published surfaces when scope is ambiguous. Stop and ask; do not build
-a hidden compatibility layer.
+Greenfield pressure does not authorize silent data loss, security changes, or breaking published surfaces when scope is ambiguous. Stop and ask; do not build a hidden compatibility layer.
 
 ## Final Check
 

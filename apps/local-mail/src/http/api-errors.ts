@@ -47,7 +47,8 @@ export const ApiError = defineErrors({
 		message: 'Message not found.',
 		status: 404 as const,
 	}),
-	/** A label modify was refused before Gmail (read-only mode, unknown label). */
+	/** A message write (label modify or trash/untrash) was refused before Gmail
+	 * (read-only mode, unknown label) or failed systemically. */
 	ModifyFailed: ({ message }: { message: string }) => ({
 		message,
 		status: 400 as const,

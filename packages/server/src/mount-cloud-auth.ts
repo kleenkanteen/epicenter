@@ -48,9 +48,9 @@ export function mountCloudAuth(
 	// `c.var.auth` and `c.var.authSecrets`. First-party OAuth client rows are
 	// seeded at deploy time (apps/api `oauth:seed:*`), so this path only reads.
 	app.use('*', async (c, next) => {
-		// Resolve the cloud-only secrets once and stamp them on the context, so both
-		// readers (this Better Auth construction and the `authApp` sign-in page) take
-		// them from one resolved value rather than the raw `c.env` bag (ADR-0076).
+		// Resolve the cloud-only secrets once and stamp them on the context, so
+		// Better Auth construction reads one validated value rather than the raw
+		// `c.env` bag (ADR-0076).
 		const authSecrets = opts.resolveAuthSecrets(c);
 		c.set('authSecrets', authSecrets);
 		c.set('authUiShell', opts.serveAuthUiShell);

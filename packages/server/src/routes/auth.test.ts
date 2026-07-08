@@ -44,32 +44,6 @@ function createAuthRouteApp({
 	return app;
 }
 
-test('GET /sign-in/context returns session and enabled providers from env', async () => {
-	const app = createAuthRouteApp({
-		session: { user: { name: 'Ada Lovelace', email: 'ada@example.com' } },
-		authSecrets: {
-			BETTER_AUTH_SECRET: 'test-secret',
-			GOOGLE_CLIENT_ID: 'google-client',
-			GOOGLE_CLIENT_SECRET: 'google-secret',
-			GITHUB_CLIENT_ID: 'github-client',
-			MICROSOFT_CLIENT_ID: 'microsoft-client',
-			MICROSOFT_CLIENT_SECRET: 'microsoft-secret',
-			APPLE_CLIENT_ID: 'apple-client',
-			APPLE_TEAM_ID: 'apple-team',
-			APPLE_KEY_ID: 'apple-key',
-		},
-	});
-
-	const response = await app.request('/sign-in/context');
-
-	expect(response.status).toBe(200);
-	const body = (await response.json()) as unknown;
-	expect(body).toEqual({
-		providers: ['google', 'microsoft'],
-		session: { name: 'Ada Lovelace', email: 'ada@example.com' },
-	});
-});
-
 test('GET /sign-in with a session and signed OAuth query redirects to authorize', async () => {
 	const app = createAuthRouteApp({
 		session: { user: { name: 'Ada', email: 'ada@example.com' } },

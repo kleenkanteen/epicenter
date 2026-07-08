@@ -22,17 +22,6 @@ The query/RPC layer is the reactive bridge between UI components and the service
 
 > **Related Skills**: See `services-layer` for the service layer these queries consume. See `svelte` for Svelte-specific TanStack Query patterns. See `error-handling` for toast/report patterns after Results reach the UI boundary.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Create queries or mutations that consume services
-- Define canonical query and mutation keys with `defineKeys`
-- Decide whether work belongs in `$lib/rpc`, `$lib/operations`, or `$lib/services`
-- Implement runtime service selection based on user settings
-- Add optimistic cache updates for instant UI feedback
-- Understand hook-local adapters and reusable query definitions
-
 ## Core Architecture
 
 ```

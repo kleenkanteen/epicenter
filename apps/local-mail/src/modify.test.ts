@@ -24,6 +24,7 @@ import {
 	modifyMessageLabels,
 	resolveAndModifyMessageLabels,
 	resolveLabelIds,
+	setMessagesTrashed,
 } from './modify.ts';
 import type { GmailLabel, GmailMessage, HistoryPage } from './schema.ts';
 
@@ -94,6 +95,8 @@ function createFakeGmailClient(
 		addLabelIds: string[];
 		removeLabelIds: string[];
 	}[];
+	trashCalls: string[];
+	untrashCalls: string[];
 	listLabelsCalls: number;
 } {
 	const modifyCalls: {
@@ -101,20 +104,34 @@ function createFakeGmailClient(
 		addLabelIds: string[];
 		removeLabelIds: string[];
 	}[] = [];
+	const trashCalls: string[] = [];
+	const untrashCalls: string[] = [];
 	let listLabelsCalls = 0;
+	const lookup = (id: string) => {
+		const result = results.get(id);
+		if (!result) return GmailApiError.Http({ status: 404, body: 'not found' });
+		return result.error
+			? { data: null, error: result.error }
+			: { data: result.data, error: null };
+	};
 	return {
 		modifyCalls,
+		trashCalls,
+		untrashCalls,
 		get listLabelsCalls() {
 			return listLabelsCalls;
 		},
 		async modifyMessage(id, body) {
 			modifyCalls.push({ id, ...body });
-			const result = results.get(id);
-			if (!result)
-				return GmailApiError.Http({ status: 404, body: 'not found' });
-			return result.error
-				? { data: null, error: result.error }
-				: { data: result.data, error: null };
+			return lookup(id);
+		},
+		async trashMessage(id) {
+			trashCalls.push(id);
+			return lookup(id);
+		},
+		async untrashMessage(id) {
+			untrashCalls.push(id);
+			return lookup(id);
 		},
 		async listMessageIds() {
 			return { data: { ids: [] }, error: null };
@@ -601,6 +618,132 @@ describe('modifyMessageLabels', () => {
 			'INBOX',
 			'Label_work',
 		]);
+		cleanup();
+	});
+});
+
+describe('setMessagesTrashed', () => {
+	test('readOnly true refuses before any Gmail client call', async () => {
+		const { db, cleanup } = tempDb();
+		const client = createFakeGmailClient(
+			new Map([['m1', { data: message('m1', { labelIds: ['TRASH'] }) }]]),
+		);
+
+		const result = await setMessagesTrashed({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			ids: ['m1'],
+			trashed: true,
+			readOnly: true,
+		});
+
+		expect(result.error?.name).toBe('ReadOnly');
+		expect(client.trashCalls).toHaveLength(0);
+		cleanup();
+	});
+
+	test('empty ids refuse before any Gmail client call', async () => {
+		const { db, cleanup } = tempDb();
+		const client = createFakeGmailClient(new Map());
+
+		const result = await setMessagesTrashed({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			ids: [],
+			trashed: true,
+			readOnly: false,
+		});
+
+		expect(result.error?.name).toBe('NoMessageIds');
+		expect(client.trashCalls).toHaveLength(0);
+		cleanup();
+	});
+
+	test('trash calls messages.trash and folds the returned labelIds', async () => {
+		const { db, cleanup } = tempDb();
+		db.ingestFullPullPage(
+			[message('m1', { labelIds: ['INBOX', 'UNREAD'] })],
+			's1',
+		);
+		const client = createFakeGmailClient(
+			new Map([['m1', { data: message('m1', { labelIds: ['TRASH'] }) }]]),
+		);
+
+		const result = await setMessagesTrashed({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			ids: ['m1'],
+			trashed: true,
+			readOnly: false,
+		});
+
+		const outcome = expectOk(result);
+		expect(outcome.results[0]).toEqual({
+			id: 'm1',
+			labelIds: ['TRASH'],
+			folded: true,
+			error: null,
+		});
+		expect(client.trashCalls).toEqual(['m1']);
+		expect(client.untrashCalls).toEqual([]);
+		expect(JSON.parse(messageRaw(db, 'm1') ?? '{}').labelIds).toEqual([
+			'TRASH',
+		]);
+		cleanup();
+	});
+
+	test('untrash calls messages.untrash and folds the restored labelIds', async () => {
+		const { db, cleanup } = tempDb();
+		db.ingestFullPullPage([message('m1', { labelIds: ['TRASH'] })], 's1');
+		const client = createFakeGmailClient(
+			new Map([['m1', { data: message('m1', { labelIds: ['INBOX'] }) }]]),
+		);
+
+		const result = await setMessagesTrashed({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			ids: ['m1'],
+			trashed: false,
+			readOnly: false,
+		});
+
+		const outcome = expectOk(result);
+		expect(outcome.results[0]).toEqual({
+			id: 'm1',
+			labelIds: ['INBOX'],
+			folded: true,
+			error: null,
+		});
+		expect(client.untrashCalls).toEqual(['m1']);
+		expect(client.trashCalls).toEqual([]);
+		expect(JSON.parse(messageRaw(db, 'm1') ?? '{}').labelIds).toEqual([
+			'INBOX',
+		]);
+		cleanup();
+	});
+
+	test('a per-id 404 is recorded without aborting, like the label core', async () => {
+		const { db, cleanup } = tempDb();
+		const client = createFakeGmailClient(
+			new Map([
+				['ok', { data: message('ok', { labelIds: ['TRASH'] }) }],
+				[
+					'missing',
+					{
+						error: GmailApiError.Http({ status: 404, body: 'not found' }).error,
+					},
+				],
+			]),
+		);
+
+		const result = await setMessagesTrashed({
+			deps: { client, db, now: () => Date.parse('2026-07-03T00:00:00.000Z') },
+			ids: ['ok', 'missing'],
+			trashed: true,
+			readOnly: false,
+		});
+
+		const outcome = expectOk(result);
+		expect(outcome.aborted).toBeNull();
+		expect(outcome.results.map((row) => row.id)).toEqual(['ok', 'missing']);
+		expect(outcome.results[1]?.error?.name).toBe('Http');
+		expect(client.trashCalls).toEqual(['ok', 'missing']);
 		cleanup();
 	});
 });

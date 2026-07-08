@@ -51,6 +51,26 @@ process.env.DATABASE_URL ??=
 process.env.BETTER_AUTH_SECRET ??= 'smoke-local-not-a-real-secret';
 process.env.GOOGLE_CLIENT_ID ??= 'smoke-local-not-a-real-client-id';
 process.env.GOOGLE_CLIENT_SECRET ??= 'smoke-local-not-a-real-client-secret';
+process.env.GITHUB_CLIENT_ID ??= 'smoke-local-not-a-real-github-client-id';
+process.env.GITHUB_CLIENT_SECRET ??= 'smoke-local-not-a-real-github-secret';
+process.env.APPLE_CLIENT_ID ??= 'smoke-local-not-a-real-apple-client-id';
+process.env.APPLE_TEAM_ID ??= 'smoke-local-not-a-real-apple-team-id';
+process.env.APPLE_KEY_ID ??= 'smoke-local-not-a-real-apple-key-id';
+process.env.APPLE_PRIVATE_KEY ??= await generateSmokeApplePrivateKey();
+
+async function generateSmokeApplePrivateKey(): Promise<string> {
+	const keyPair = await crypto.subtle.generateKey(
+		{ name: 'ECDSA', namedCurve: 'P-256' },
+		true,
+		['sign', 'verify'],
+	);
+	const pkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
+	const body = Buffer.from(pkcs8)
+		.toString('base64')
+		.match(/.{1,64}/g)
+		?.join('\n');
+	return `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----`;
+}
 
 const dataRoot = mkdtempSync(join(tmpdir(), 'epicenter-smoke-'));
 process.env.DATA_DIR = join(dataRoot, 'rooms');

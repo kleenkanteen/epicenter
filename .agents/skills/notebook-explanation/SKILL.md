@@ -8,7 +8,7 @@ metadata:
 
 # Notebook Explanation
 
-Use this when the user wants to understand a system, not receive a polished artifact.
+Use this when the user wants to understand a system, not receive a polished artifact. Write like private working notes from someone trying to make the system obvious to themself.
 
 "Notebook" means working-note clarity, not a visible template. Do not force labeled sections like `Question`, `Model`, `Flow`, or `Rule` unless that shape is genuinely the clearest answer.
 

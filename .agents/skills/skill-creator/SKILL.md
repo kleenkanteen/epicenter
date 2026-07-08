@@ -115,6 +115,8 @@ Before drafting body content:
 
 The description is always loaded and drives selection. It must carry the trigger logic because the body is loaded only after the skill is selected.
 
+Do not add body sections like `When to apply this skill`, `When to load`, `Trigger phrases`, or `Use this skill when...`. By the time the body is read, routing already happened. Put routing in the frontmatter description; use the body for workflow, guardrails, examples, and final checks.
+
 Include:
 
 1. What the skill does.

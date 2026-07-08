@@ -29,6 +29,13 @@
 			"when": 1783290659326,
 			"tag": "0003_fantastic_doomsday",
 			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1783480626422,
+			"tag": "0004_first_norrin_radd",
+			"breakpoints": true
 		}
 	]
 }

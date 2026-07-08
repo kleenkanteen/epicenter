@@ -5,7 +5,7 @@ description: "Use when a task seems trapped inside the current abstraction, an a
 
 # Radical Options
 
-Use this skill when the local fix might be honoring a bad shape.
+The local fix might be honoring a bad shape.
 
 The move is simple: step out of the current abstraction before improving it.
 Sometimes the correct answer is not a cleaner wrapper, a narrower helper, or one
@@ -20,28 +20,6 @@ name the system before auditing it. Use
 delete-a-code-family decision. Use
 [approachability-audit](../approachability-audit/SKILL.md) when the problem is
 mostly first-read clarity.
-
-## Trigger Phrases
-
-Use this skill when the user says or implies:
-
-- "think bigger"
-- "higher level"
-- "redesign from scratch"
-- "mental inlining"
-- "this abstraction feels wrong"
-- "radical options"
-- "what would we do if we were not preserving the old shape?"
-- "why are we fighting this so hard?"
-
-Also use it when implementation gives these signals:
-
-- the direct fix touches unrelated layers
-- a helper needs a second helper to explain it
-- an option exists only to preserve an old mental model
-- code keeps checking an invariant after construction
-- the obvious call site is blocked by the current file tree
-- a type or wrapper is named like a concept but only hides plumbing
 
 ## The Ritual
 

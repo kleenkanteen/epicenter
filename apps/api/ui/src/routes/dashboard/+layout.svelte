@@ -3,14 +3,14 @@
 	import * as Card from '@epicenter/ui/card';
 	import { Spinner } from '@epicenter/ui/spinner';
 	import { createMutation } from '@tanstack/svelte-query';
-	import { mutationOptions } from 'wellcrafted/query';
+	import { resultMutationOptions } from 'wellcrafted/query';
 	import UserMenu from '$lib/components/UserMenu.svelte';
 	import { auth } from '$lib/platform/auth';
 
 	let { children } = $props();
 
 	const startSignIn = createMutation(() =>
-		mutationOptions({
+		resultMutationOptions({
 			mutationKey: ['auth', 'startSignIn'],
 			mutationFn: () => auth.startSignIn(),
 		}),
