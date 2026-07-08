@@ -29,3 +29,8 @@ export function resolveDataDir(): string {
 export function credentialsFilePath(dataDir: string): string {
 	return join(dataDir, 'credentials.json');
 }
+
+/** The 0600 machine-level provider-credentials file, sibling to credentials.json. */
+export function providerFilePath(dataDir: string): string {
+	return join(dataDir, 'provider.json');
+}

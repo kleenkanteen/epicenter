@@ -29,7 +29,7 @@ test('resolveGmailCredentials reads the BYO Gmail keyset', () => {
 
 test('resolveGmailCredentials names missing variables', () => {
 	expect(() => resolveGmailCredentials(readFrom({}))).toThrow(
-		'GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET',
+		'GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET',
 	);
 	expect(() =>
 		resolveGmailCredentials(readFrom({ GMAIL_CLIENT_ID: 'client-id' })),
