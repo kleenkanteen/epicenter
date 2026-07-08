@@ -4,7 +4,6 @@
  * Mounts every URL the auth flows live behind:
  *
  *   /sign-in          hosted auth UI shell after redirect policy
- *   /sign-in/context  JSON bootstrap for the hosted sign-in UI
  *   /consent          hosted consent UI shell after session policy
  *   /cli-callback     CLI OOB landing page shell
  *   /auth/.well-known/openid-configuration   OIDC discovery
@@ -27,10 +26,6 @@ import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { describeRoute } from 'hono-openapi';
 import {
-	type CloudAuthBindings,
-	configuredProviders,
-} from '../auth/create-auth.js';
-import {
 	createOAuthIssuerURL,
 	OAUTH_AUTHORIZATION_SERVER_METADATA_PATH,
 	OAUTH_METADATA_CACHE_CONTROL,
@@ -39,60 +34,12 @@ import {
 } from '../auth/oauth-metadata.js';
 import type { CloudEnv } from '../types.js';
 
-export type SocialProvider = 'google' | 'github' | 'microsoft' | 'apple';
-
-export type SignInContext = {
-	providers: SocialProvider[];
-	session: { name: string; email: string } | null;
-};
-
-const SOCIAL_PROVIDER_ORDER = [
-	'google',
-	'github',
-	'microsoft',
-	'apple',
-] as const satisfies readonly SocialProvider[];
-
-/**
- * Buttons come from the same presence value that registers providers in
- * `createAuth`, so the page can never offer a provider the server refuses.
- */
-function getSignInProviders(
-	authSecrets: CloudAuthBindings,
-): SignInContext['providers'] {
-	const providers = configuredProviders(authSecrets);
-	return SOCIAL_PROVIDER_ORDER.filter(
-		(provider) => providers[provider] !== null,
-	);
-}
-
 /**
  * Auth sub-app. Registration order matters: OAuth discovery routes must
  * register before the `/auth/*` Better Auth catch-all, or the catch-all
  * swallows discovery requests.
  */
 export const authApp = new Hono<CloudEnv>()
-	.get(
-		'/sign-in/context',
-		describeRoute({
-			description: 'Hosted sign-in UI bootstrap',
-			tags: ['auth'],
-		}),
-		async (c) => {
-			const session = await c.var.auth.api.getSession({
-				headers: c.req.raw.headers,
-			});
-			return c.json({
-				providers: getSignInProviders(c.var.authSecrets),
-				session: session
-					? {
-							name: session.user.name,
-							email: session.user.email,
-						}
-					: null,
-			} satisfies SignInContext);
-		},
-	)
 	// Hosted sign-in UI. Re-entry into OAuth happens when the caller arrives
 	// with `?sig=` (signed authorize params); safe callback URLs are resolved
 	// before the browser shell renders.
