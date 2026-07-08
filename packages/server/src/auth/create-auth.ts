@@ -38,6 +38,8 @@ export const CloudAuthBindings = type({
 	'GOOGLE_CLIENT_SECRET?': 'string',
 	'GITHUB_CLIENT_ID?': 'string',
 	'GITHUB_CLIENT_SECRET?': 'string',
+	'MICROSOFT_CLIENT_ID?': 'string',
+	'MICROSOFT_CLIENT_SECRET?': 'string',
 	// Apple is register-when-present like the others, but "present" means all
 	// four parts of the signing material: the Services ID plus the Team ID, Key
 	// ID, and .p8 private key the client-secret JWT is minted from (there is no
@@ -72,6 +74,13 @@ export function configuredProviders(env: CloudAuthBindings) {
 						clientSecret: env.GITHUB_CLIENT_SECRET,
 					}
 				: null,
+		microsoft:
+			env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET
+				? {
+						clientId: env.MICROSOFT_CLIENT_ID,
+						clientSecret: env.MICROSOFT_CLIENT_SECRET,
+					}
+				: null,
 		apple:
 			env.APPLE_CLIENT_ID &&
 			env.APPLE_TEAM_ID &&
@@ -96,8 +105,8 @@ export function configuredProviders(env: CloudAuthBindings) {
  *
  * Wires up:
  * - Drizzle adapter (portable Postgres wire; Hyperdrive on Workers, a pool on Node)
- * - Google OAuth, plus GitHub and Apple when their credentials are configured
- *   (email/password is disabled; see {@link BASE_AUTH_CONFIG})
+ * - Google OAuth, plus GitHub, Microsoft, and Apple when their credentials are
+ *   configured (email/password is disabled; see {@link BASE_AUTH_CONFIG})
  * - Plugins: JWT (ES256), OAuth provider (PKCE), passkey (WebAuthn)
  *
  * `/api/session` is the single Epicenter session surface; this builder no longer
@@ -130,7 +139,7 @@ export function createAuth({
 			'BETTER_AUTH_SECRET is not set: refusing to construct Better Auth with an empty signing secret, which would fall back to a public default and sign forgeable sessions.',
 		);
 	}
-	// One presence predicate for all three providers (see configuredProviders).
+	// One presence predicate for all four providers (see configuredProviders).
 	// `apple` is bound to a local so its narrowing survives into the async
 	// client-secret factory below; the same value gates the trusted-origin
 	// addition (Apple posts its callback from appleid.apple.com).
@@ -157,7 +166,7 @@ export function createAuth({
 		// on restores that login-CSRF / session-fixation defense.
 		//
 		// Each provider is registered only when its credentials are configured.
-		// The hosted apps/api deployable requires the three providers its static UI
+		// The hosted apps/api deployable requires the four providers its static UI
 		// shows, while this shared builder keeps the lower-level register-when-present
 		// behavior. The single-partition instance offers none: it composes no Better
 		// Auth at all (this builder is cloud-only, reached only through
@@ -170,10 +179,18 @@ export function createAuth({
 		socialProviders: {
 			...(providers.google ? { google: providers.google } : {}),
 			...(providers.github ? { github: providers.github } : {}),
+			// Microsoft (Entra / personal MSA), register-when-present like GitHub.
+			// tenantId defaults to 'common' so both work/school and personal
+			// accounts can sign in. Like GitHub, Microsoft is deliberately NOT a
+			// trusted linking provider (see BASE_AUTH_CONFIG): a personal MSA email
+			// is not a guaranteed-verified assertion, so an untrusted Microsoft
+			// identity only links to an existing same-email account when Microsoft
+			// itself reports the email verified.
+			...(providers.microsoft ? { microsoft: providers.microsoft } : {}),
 			// Apple's clientSecret is a per-request-minted ES256 JWT, so this is
 			// an async factory rather than a static pair over the configured
-			// signing material. Like GitHub, Apple is NOT a trusted linking
-			// provider: it can issue a private-relay email, so an
+			// signing material. Like GitHub and Microsoft, Apple is NOT a trusted
+			// linking provider: it can issue a private-relay email, so an
 			// untrusted Apple identity only links to an existing same-email
 			// account when Apple reports the email verified.
 			...(apple
