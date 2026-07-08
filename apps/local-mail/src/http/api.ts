@@ -4,7 +4,10 @@ import { sValidator } from '@hono/standard-validator';
 import { type } from 'arktype';
 import { Hono } from 'hono';
 import type { MailDb } from '../db.ts';
-import { resolveAndModifyMessageLabels, setMessagesTrashed } from '../modify.ts';
+import {
+	resolveAndModifyMessageLabels,
+	setMessagesTrashed,
+} from '../modify.ts';
 import type { LocalMailRuntime } from '../runtime.ts';
 import { readMailStatus } from '../status.ts';
 import { type SyncDeps, syncMailbox } from '../sync.ts';

@@ -50,33 +50,40 @@ const DISCOVERY_URL = 'https://gmail.googleapis.com/$discovery/rest?version=v1';
  * request paths as string templates, so there is no schema to walk; adding a
  * method is a deliberate, rare, visible act.
  */
-const RELIED_ON_METHODS: { id: string; httpMethod: string; consumer: string }[] =
-	[
-		{ id: 'gmail.users.getProfile', httpMethod: 'GET', consumer: 'getProfile' },
-		{
-			id: 'gmail.users.messages.list',
-			httpMethod: 'GET',
-			consumer: 'listMessageIds',
-		},
-		{ id: 'gmail.users.messages.get', httpMethod: 'GET', consumer: 'getMessage' },
-		{
-			id: 'gmail.users.messages.modify',
-			httpMethod: 'POST',
-			consumer: 'modifyMessage',
-		},
-		{
-			id: 'gmail.users.messages.trash',
-			httpMethod: 'POST',
-			consumer: 'trashMessage',
-		},
-		{
-			id: 'gmail.users.messages.untrash',
-			httpMethod: 'POST',
-			consumer: 'untrashMessage',
-		},
-		{ id: 'gmail.users.history.list', httpMethod: 'GET', consumer: 'listHistory' },
-		{ id: 'gmail.users.labels.list', httpMethod: 'GET', consumer: 'listLabels' },
-	];
+const RELIED_ON_METHODS: {
+	id: string;
+	httpMethod: string;
+	consumer: string;
+}[] = [
+	{ id: 'gmail.users.getProfile', httpMethod: 'GET', consumer: 'getProfile' },
+	{
+		id: 'gmail.users.messages.list',
+		httpMethod: 'GET',
+		consumer: 'listMessageIds',
+	},
+	{ id: 'gmail.users.messages.get', httpMethod: 'GET', consumer: 'getMessage' },
+	{
+		id: 'gmail.users.messages.modify',
+		httpMethod: 'POST',
+		consumer: 'modifyMessage',
+	},
+	{
+		id: 'gmail.users.messages.trash',
+		httpMethod: 'POST',
+		consumer: 'trashMessage',
+	},
+	{
+		id: 'gmail.users.messages.untrash',
+		httpMethod: 'POST',
+		consumer: 'untrashMessage',
+	},
+	{
+		id: 'gmail.users.history.list',
+		httpMethod: 'GET',
+		consumer: 'listHistory',
+	},
+	{ id: 'gmail.users.labels.list', httpMethod: 'GET', consumer: 'listLabels' },
+];
 
 /**
  * Each response schema `gmail-client.ts` validates, paired with the Discovery
@@ -87,7 +94,11 @@ const RELIED_ON_METHODS: { id: string; httpMethod: string; consumer: string }[] 
  */
 const SCHEMA_ROOTS: { schema: TSchema; discovery: string; consumer: string }[] =
 	[
-		{ schema: GmailMessageSchema, discovery: 'Message', consumer: 'getMessage' },
+		{
+			schema: GmailMessageSchema,
+			discovery: 'Message',
+			consumer: 'getMessage',
+		},
 		{
 			schema: ListMessageIdsResponseSchema,
 			discovery: 'ListMessagesResponse',
@@ -109,7 +120,11 @@ const SCHEMA_ROOTS: { schema: TSchema; discovery: string; consumer: string }[] =
 			discovery: 'History',
 			consumer: 'listHistory',
 		},
-		{ schema: ProfileResponseSchema, discovery: 'Profile', consumer: 'getProfile' },
+		{
+			schema: ProfileResponseSchema,
+			discovery: 'Profile',
+			consumer: 'getProfile',
+		},
 	];
 
 type DiscoveryMethod = { id?: string; httpMethod?: string; path?: string };
@@ -187,7 +202,14 @@ function walkSchema(
 			return;
 		}
 		for (const [key, child] of Object.entries(node.properties)) {
-			walkSchema(child, disc.properties[key], `${path}.${key}`, schemas, seen, drift);
+			walkSchema(
+				child,
+				disc.properties[key],
+				`${path}.${key}`,
+				schemas,
+				seen,
+				drift,
+			);
 		}
 		return;
 	}
@@ -201,7 +223,11 @@ function walkSchema(
 	}
 	// A primitive (Type.String/Number/...). Type.Any() has no `type`, so there is
 	// nothing to assert (e.g. `payload.parts`, which we store but never read into).
-	if (typeof node.type === 'string' && disc.type !== undefined && disc.type !== node.type) {
+	if (
+		typeof node.type === 'string' &&
+		disc.type !== undefined &&
+		disc.type !== node.type
+	) {
 		drift.push(`${path} is now ${disc.type}, we expect ${node.type}`);
 	}
 }
