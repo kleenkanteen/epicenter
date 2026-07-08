@@ -72,8 +72,8 @@ import { buildEpicenterTrustedOrigins } from './worker/trusted-origins.js';
  *
  * `CloudAuthBindings` already requires `BETTER_AUTH_SECRET` and leaves each OAuth
  * provider optional (register-when-present, ADR-0071). This hosted hub is
- * stricter: its sign-in UI always offers Google, GitHub, and Apple, so the Bun
- * host requires all three provider credential sets at boot instead of
+ * stricter: its sign-in UI always offers Google, GitHub, Microsoft, and Apple,
+ * so the Bun host requires all four provider credential sets at boot instead of
  * letting a shown provider fail later. Unlike the Cloudflare edge (whose bindings
  * are deploy-gated and `wrangler types`-typed), `process.env` is unchecked, so
  * boot is the place to validate it. The validated env is also what feeds
@@ -89,6 +89,8 @@ const ApiBunBindings = ServerBindings.merge(CloudAuthBindings).merge({
 	GOOGLE_CLIENT_SECRET: 'string',
 	GITHUB_CLIENT_ID: 'string',
 	GITHUB_CLIENT_SECRET: 'string',
+	MICROSOFT_CLIENT_ID: 'string',
+	MICROSOFT_CLIENT_SECRET: 'string',
 	APPLE_CLIENT_ID: 'string',
 	APPLE_TEAM_ID: 'string',
 	APPLE_KEY_ID: 'string',

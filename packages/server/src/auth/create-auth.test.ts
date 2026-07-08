@@ -5,9 +5,8 @@
  * provider registration.
  *
  * Key behaviors:
- * - Google, GitHub, and Apple register when their full credential set is present
+ * - Google, GitHub, Microsoft, and Apple register when their full credential set is present
  * - Partially configured providers are omitted
- * - No other social provider is part of the hosted provider registry
  */
 
 import { expect, test } from 'bun:test';
@@ -17,13 +16,15 @@ const BASE_ENV = {
 	BETTER_AUTH_SECRET: 'test-secret',
 } satisfies CloudAuthBindings;
 
-test('configuredProviders registers Google, GitHub, and Apple when credentials are present', () => {
+test('configuredProviders registers Google, GitHub, Microsoft, and Apple when credentials are present', () => {
 	const providers = configuredProviders({
 		...BASE_ENV,
 		GOOGLE_CLIENT_ID: 'google-id',
 		GOOGLE_CLIENT_SECRET: 'google-secret',
 		GITHUB_CLIENT_ID: 'github-id',
 		GITHUB_CLIENT_SECRET: 'github-secret',
+		MICROSOFT_CLIENT_ID: 'microsoft-id',
+		MICROSOFT_CLIENT_SECRET: 'microsoft-secret',
 		APPLE_CLIENT_ID: 'apple-id',
 		APPLE_TEAM_ID: 'apple-team-id',
 		APPLE_KEY_ID: 'apple-key-id',
@@ -33,6 +34,10 @@ test('configuredProviders registers Google, GitHub, and Apple when credentials a
 	expect(providers).toEqual({
 		google: { clientId: 'google-id', clientSecret: 'google-secret' },
 		github: { clientId: 'github-id', clientSecret: 'github-secret' },
+		microsoft: {
+			clientId: 'microsoft-id',
+			clientSecret: 'microsoft-secret',
+		},
 		apple: {
 			clientId: 'apple-id',
 			teamId: 'apple-team-id',
@@ -40,7 +45,12 @@ test('configuredProviders registers Google, GitHub, and Apple when credentials a
 			privateKey: 'apple-private-key',
 		},
 	});
-	expect(Object.keys(providers)).toEqual(['google', 'github', 'apple']);
+	expect(Object.keys(providers)).toEqual([
+		'google',
+		'github',
+		'microsoft',
+		'apple',
+	]);
 });
 
 test('configuredProviders omits providers with incomplete credentials', () => {
@@ -48,6 +58,7 @@ test('configuredProviders omits providers with incomplete credentials', () => {
 		...BASE_ENV,
 		GOOGLE_CLIENT_ID: 'google-id',
 		GITHUB_CLIENT_SECRET: 'github-secret',
+		MICROSOFT_CLIENT_ID: 'microsoft-id',
 		APPLE_CLIENT_ID: 'apple-id',
 		APPLE_TEAM_ID: 'apple-team-id',
 		APPLE_KEY_ID: 'apple-key-id',
@@ -56,6 +67,7 @@ test('configuredProviders omits providers with incomplete credentials', () => {
 	expect(providers).toEqual({
 		google: null,
 		github: null,
+		microsoft: null,
 		apple: null,
 	});
 });

@@ -5,7 +5,7 @@
  * ordered list derive from it, so adding a provider is a single line here.
  *
  * This is a static list, not a server-driven one: Epicenter's hosted cloud
- * always configures all three, and this UI only ever runs in that hosted cloud
+ * always configures all four, and this UI only ever runs in that hosted cloud
  * (a self-hosted instance uses operator-bearer auth and composes no social
  * sign-in at all). The server is still the real guard, `createAuth` registers
  * only the providers it has secrets for, so Better Auth rejects a sign-in for
@@ -17,6 +17,7 @@
 export const PROVIDER_LABELS = {
 	google: 'Google',
 	github: 'GitHub',
+	microsoft: 'Microsoft',
 	apple: 'Apple',
 } as const;
 
