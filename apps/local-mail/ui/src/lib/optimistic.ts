@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/svelte-query';
 import type { MessageSummary } from './types';
 
 /** Shared key for label/trash/read/star writes. Projection optimism reads
@@ -36,14 +37,14 @@ export function applyLabelDeltas(labelIds: string[], deltas: LabelDelta[]): stri
 
 /**
  * Whether a row with these labels belongs in a list filtered by `queryLabel`
- * (undefined = all/any view). This mirrors the one read-model rule optimism is
- * allowed to reproduce: a label filter requires that label, and `TRASH` is
- * hidden from every view except Trash. Search, counts, and ordering stay owned
- * by the reconciling server refetch.
+ * (`null` = the all-mail view, matching the page's selection state). This
+ * mirrors the one read-model rule optimism is allowed to reproduce: a label
+ * filter requires that label, and `TRASH` is hidden from every view except
+ * Trash. Search, counts, and ordering stay owned by the reconciling refetch.
  */
 export function rowMatchesLabelFilter(
 	labelIds: string[],
-	queryLabel: string | undefined,
+	queryLabel: string | null,
 ): boolean {
 	if (queryLabel && !labelIds.includes(queryLabel)) return false;
 	if (queryLabel !== 'TRASH' && labelIds.includes('TRASH')) return false;
@@ -56,7 +57,7 @@ export function rowMatchesLabelFilter(
 export function projectMessageList(
 	messages: MessageSummary[],
 	pendingWrites: PendingMessageWrite[],
-	queryLabel: string | undefined,
+	queryLabel: string | null,
 ): MessageSummary[] {
 	return messages
 		.map((message) => {
@@ -67,4 +68,51 @@ export function projectMessageList(
 			return { ...message, labelIds: applyLabelDeltas(message.labelIds, deltas) };
 		})
 		.filter((message) => rowMatchesLabelFilter(message.labelIds, queryLabel));
+}
+
+// --- TanStack seam ---------------------------------------------------------
+// The rest of this module is pure algebra; the two functions below are the only
+// part that touches TanStack. They live here, beside the projection they feed
+// and out of the Svelte component, so the mutation-cache read and the settle
+// reconcile are both unit-testable against a real QueryClient.
+
+/**
+ * The pending message writes to project, read straight from TanStack's mutation
+ * cache. The pending mutation *is* the write intent, so there is no second
+ * store to keep in sync. The mutation key guarantees every match is a
+ * `modify`/`setTrashed` write whose variables extend `PendingMessageWrite`, so
+ * the cast is honest: `state.variables` is `unknown` only because the cache is
+ * shared across mutation shapes.
+ *
+ * Read by hand rather than via `useMutationState`: that helper (svelte-query
+ * 6.x) updates its result with `Object.assign`, which never shrinks the array,
+ * so a settled write would keep masking its row. Callers mirror this into a
+ * `$state.raw` cell that is replaced wholesale on every mutation-cache change.
+ */
+export function readPendingWrites(
+	queryClient: QueryClient,
+): PendingMessageWrite[] {
+	return queryClient
+		.getMutationCache()
+		.findAll({ mutationKey: MESSAGE_WRITE_MUTATION_KEY, status: 'pending' })
+		.map((mutation) => mutation.state.variables as PendingMessageWrite);
+}
+
+/**
+ * Reconcile confirmed truth after a write, and crucially do not resolve until
+ * the messages refetch has landed. A mutation awaits its `onSettled`, so
+ * returning this promise there keeps the write `pending` (and its delta
+ * projected) across the refetch: the delta stops masking the row only once the
+ * cache already holds post-write truth, so the row cannot flash back from the
+ * stale pre-write cache.
+ */
+export async function reconcileAfterWrite(
+	queryClient: QueryClient,
+	id: string,
+): Promise<void> {
+	await Promise.all([
+		queryClient.invalidateQueries({ queryKey: ['messages'] }),
+		queryClient.invalidateQueries({ queryKey: ['status'] }),
+		queryClient.invalidateQueries({ queryKey: ['message', id] }),
+	]);
 }

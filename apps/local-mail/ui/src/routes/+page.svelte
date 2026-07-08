@@ -3,6 +3,7 @@
 	import { Kbd } from '@epicenter/ui/kbd';
 	import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { onDestroy } from 'svelte';
+	import { createSubscriber } from 'svelte/reactivity';
 	import { toast } from 'svelte-sonner';
 	import {
 		invert,
@@ -20,6 +21,8 @@
 		deltaForTrashed,
 		MESSAGE_WRITE_MUTATION_KEY,
 		projectMessageList,
+		readPendingWrites,
+		reconcileAfterWrite,
 		type PendingMessageWrite,
 	} from '$lib/optimistic';
 
@@ -96,17 +99,6 @@
 		if (outcome.results.some((r) => !r.folded)) flashCatchingUp();
 	}
 
-	// Reconcile confirmed state before TanStack marks the mutation settled. The
-	// awaited invalidation keeps the pending delta projected until active reads
-	// have refetched, so a row cannot flash back from the stale pre-write cache.
-	async function reconcileAfterWrite(id: string): Promise<void> {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: ['messages'] }),
-			queryClient.invalidateQueries({ queryKey: ['status'] }),
-			queryClient.invalidateQueries({ queryKey: ['message', id] }),
-		]);
-	}
-
 	// The label write path. Both the toolbar (via `onDispatch`) and the keyboard
 	// call this; the read-only gate and the undo toast live here alone. `id` is
 	// explicit so Undo targets the original message even after the selection has
@@ -132,7 +124,7 @@
 			);
 		},
 		onError: (error: Error) => toast.error(error.message),
-		onSettled: (_data, _error, v) => reconcileAfterWrite(v.id),
+		onSettled: (_data, _error, v) => reconcileAfterWrite(queryClient, v.id),
 	}));
 
 	// Trash is its own Gmail endpoint, not a label delta, so it is a separate
@@ -151,7 +143,7 @@
 			);
 		},
 		onError: (error: Error) => toast.error(error.message),
-		onSettled: (_data, _error, v) => reconcileAfterWrite(v.id),
+		onSettled: (_data, _error, v) => reconcileAfterWrite(queryClient, v.id),
 	}));
 
 	function restoreFromTrash(id: string): void {
@@ -177,32 +169,23 @@
 		runOn(selectedId, action, true);
 	}
 
-	// The mutation key guarantees every match is a `modify`/`setTrashed` write,
-	// whose variables extend `PendingMessageWrite`, so this cast is the honest
-	// boundary: `state.variables` is `unknown` only because the cache is shared.
-	function readPendingWrites(): PendingMessageWrite[] {
-		return queryClient
-			.getMutationCache()
-			.findAll({ mutationKey: MESSAGE_WRITE_MUTATION_KEY, status: 'pending' })
-			.map((mutation) => mutation.state.variables as PendingMessageWrite);
-	}
-	// Subscribed by hand rather than via `useMutationState`: that helper mutates
-	// its result array with `Object.assign`, which never shrinks it, so a settled
-	// write would keep masking its row. `$state.raw` replaces the array wholesale.
-	let pendingWrites = $state.raw<PendingMessageWrite[]>(readPendingWrites());
-	$effect(() =>
-		queryClient.getMutationCache().subscribe(() => {
-			pendingWrites = readPendingWrites();
-		}),
+	// The pending-write set lives in TanStack's mutation cache. Bridge it into
+	// reactivity with `createSubscriber` (the repo's standard external-store
+	// bridge, cf. `fromKv`/`fromTable`) so `pendingWrites` is a plain `$derived`
+	// that re-reads whenever a write starts or settles. `useMutationState` is
+	// avoided deliberately: its result array is grown in place and never shrinks,
+	// so a settled write would keep masking its row (see `readPendingWrites`).
+	const subscribeMutations = createSubscriber((update) =>
+		queryClient.getMutationCache().subscribe(update),
 	);
+	const pendingWrites = $derived.by(() => {
+		subscribeMutations();
+		return readPendingWrites(queryClient);
+	});
 
 	const labelList = $derived(labels.data?.labels ?? []);
 	const messageList = $derived(
-		projectMessageList(
-			messages.data?.messages ?? [],
-			pendingWrites,
-			selectedLabel ?? undefined,
-		),
+		projectMessageList(messages.data?.messages ?? [], pendingWrites, selectedLabel),
 	);
 	const selectedPendingDeltas = $derived(
 		pendingWrites
