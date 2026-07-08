@@ -122,22 +122,17 @@
 	}));
 
 	// Trash is its own Gmail endpoint, not a label delta, so it is a separate
-	// write. Undo untrashes (the distinct inverse endpoint), not a label swap,
-	// and fires silently like the label undo.
-	const trash = createMutation(() => ({
-		mutationFn: (v: { id: string }) => api.trash({ ids: [v.id] }),
+	// write; `trashed` carries the direction, matching the core. Undo restores
+	// (untrash) by firing the same mutation the other way, and fires silently.
+	const setTrashed = createMutation(() => ({
+		mutationFn: (v: { id: string; trashed: boolean }) =>
+			api.setTrashed({ ids: [v.id], trashed: v.trashed }),
 		onSuccess: (outcome, v) => {
-			reportOutcome(outcome, 'Moved to trash', () =>
-				untrash.mutate({ id: v.id }),
+			reportOutcome(
+				outcome,
+				v.trashed ? 'Moved to trash' : 'Restored from trash',
+				v.trashed ? () => setTrashed.mutate({ id: v.id, trashed: false }) : null,
 			);
-			invalidateAfterWrite(v.id);
-		},
-		onError: (error: Error) => toast.error(error.message),
-	}));
-	const untrash = createMutation(() => ({
-		mutationFn: (v: { id: string }) => api.untrash({ ids: [v.id] }),
-		onSuccess: (outcome, v) => {
-			reportOutcome(outcome, 'Restored from trash', null);
 			invalidateAfterWrite(v.id);
 		},
 		onError: (error: Error) => toast.error(error.message),
@@ -149,7 +144,7 @@
 	}
 	function trashSelected(): void {
 		if (readOnly || !selectedId) return;
-		trash.mutate({ id: selectedId });
+		setTrashed.mutate({ id: selectedId, trashed: true });
 	}
 	/** Dispatch a planned action against the current selection. */
 	function dispatch(action: TriageAction): void {
@@ -310,7 +305,7 @@
 				id={selectedId}
 				{readOnly}
 				labels={labelList}
-				busy={modify.isPending || trash.isPending || untrash.isPending}
+				busy={modify.isPending || setTrashed.isPending}
 				{labelsOpen}
 				onDispatch={dispatch}
 				onTrash={trashSelected}

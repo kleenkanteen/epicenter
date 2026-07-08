@@ -4,18 +4,31 @@ import type { MailDb } from './db.ts';
 import type { GmailClient, GmailClientError } from './gmail-client.ts';
 import type { GmailMessage } from './schema.ts';
 
-export const ModifyMessageLabelsError = defineErrors({
+/**
+ * The refusals shared by every serial per-id message write (label modify,
+ * trash, untrash): read-only mode blocks it, the id list must be non-empty, and
+ * Gmail runs each id as its own request so the batch is capped. Trash and label
+ * modify are different verbs but these preconditions are identical, so they get
+ * one owner instead of a copy per verb. See `checkMessageWriteAllowed`.
+ */
+export const MessageWriteError = defineErrors({
 	ReadOnly: () => ({
 		message:
-			'Refusing to write: read-only mode is set (LOCAL_MAIL_READ_ONLY), so Gmail label mutations are disabled. query, status, and sync stay available.',
+			'Refusing to write: read-only mode is set (LOCAL_MAIL_READ_ONLY), so Gmail writes are disabled. query, status, and sync stay available.',
 	}),
 	NoMessageIds: () => ({
 		message: 'At least one Gmail message id is required.',
 	}),
 	TooManyMessageIds: ({ count }: { count: number }) => ({
-		message: `Gmail messages.modify is run serially by id; pass at most 100 ids, got ${count}.`,
+		message: `Gmail message writes run serially by id; pass at most 100 ids, got ${count}.`,
 		count,
 	}),
+});
+export type MessageWriteError = InferErrors<typeof MessageWriteError>;
+
+/** The one refusal specific to label modify: unlike trash, a label mutation
+ * must actually add or remove something. */
+export const ModifyMessageLabelsError = defineErrors({
 	EmptyLabelMutation: () => ({
 		message: 'At least one label id must be added or removed.',
 	}),
@@ -37,15 +50,15 @@ type ErrorSummary = {
 	message: string;
 };
 
-export type ModifyMessageLabelsResult = {
+export type MessageWriteResult = {
 	id: string;
 	labelIds: string[] | null;
 	folded: boolean;
 	error: ErrorSummary | null;
 };
 
-export type ModifyMessageLabelsOutcome = {
-	results: ModifyMessageLabelsResult[];
+export type MessageWriteOutcome = {
+	results: MessageWriteResult[];
 	aborted: ErrorSummary | null;
 };
 
@@ -54,6 +67,27 @@ type ModifyDeps = {
 	db: MailDb;
 	now: () => number;
 };
+
+/**
+ * The refusals every serial per-id message write shares. Returns the `Err` to
+ * return as-is, or `null` when the write may proceed. Kept as a guard rather
+ * than folded into `foldMessageMutations` so each verb can order its own extra
+ * checks (label modify still refuses an empty mutation) after read-only wins.
+ */
+function checkMessageWriteAllowed({
+	readOnly,
+	ids,
+}: {
+	readOnly: boolean;
+	ids: string[];
+}): Result<never, MessageWriteError> | null {
+	if (readOnly) return MessageWriteError.ReadOnly();
+	if (ids.length === 0) return MessageWriteError.NoMessageIds();
+	if (ids.length > 100) {
+		return MessageWriteError.TooManyMessageIds({ count: ids.length });
+	}
+	return null;
+}
 
 export type ModifyMessageLabelsInput = {
 	ids: string[];
@@ -101,8 +135,8 @@ async function foldMessageMutations({
 	deps: ModifyDeps;
 	ids: string[];
 	mutate: (id: string) => Promise<Result<GmailMessage, GmailClientError>>;
-}): Promise<ModifyMessageLabelsOutcome> {
-	const results: ModifyMessageLabelsResult[] = [];
+}): Promise<MessageWriteOutcome> {
+	const results: MessageWriteResult[] = [];
 	for (const id of ids) {
 		const { data: message, error } = await mutate(id);
 		if (error) {
@@ -171,14 +205,11 @@ export async function modifyMessageLabels({
 	 * allowed. The core owns this invariant, not the CLI or MCP surface.
 	 */
 	readOnly: boolean;
-}): Promise<Result<ModifyMessageLabelsOutcome, ModifyMessageLabelsError>> {
-	if (readOnly) return ModifyMessageLabelsError.ReadOnly();
-	if (input.ids.length === 0) return ModifyMessageLabelsError.NoMessageIds();
-	if (input.ids.length > 100) {
-		return ModifyMessageLabelsError.TooManyMessageIds({
-			count: input.ids.length,
-		});
-	}
+}): Promise<
+	Result<MessageWriteOutcome, MessageWriteError | ModifyMessageLabelsError>
+> {
+	const denied = checkMessageWriteAllowed({ readOnly, ids: input.ids });
+	if (denied) return denied;
 	if (input.addLabelIds.length === 0 && input.removeLabelIds.length === 0) {
 		return ModifyMessageLabelsError.EmptyLabelMutation();
 	}
@@ -195,21 +226,6 @@ export async function modifyMessageLabels({
 		}),
 	);
 }
-
-export const TrashMessagesError = defineErrors({
-	ReadOnly: () => ({
-		message:
-			'Refusing to write: read-only mode is set (LOCAL_MAIL_READ_ONLY), so Gmail trash is disabled. query, status, and sync stay available.',
-	}),
-	NoMessageIds: () => ({
-		message: 'At least one Gmail message id is required.',
-	}),
-	TooManyMessageIds: ({ count }: { count: number }) => ({
-		message: `Gmail messages.trash is run serially by id; pass at most 100 ids, got ${count}.`,
-		count,
-	}),
-});
-export type TrashMessagesError = InferErrors<typeof TrashMessagesError>;
 
 /**
  * Move messages to Gmail's Trash, or restore them: the write behind the UI's
@@ -234,12 +250,9 @@ export async function setMessagesTrashed({
 	 * (`messages.untrash`). The two endpoints share this one fold spine. */
 	trashed: boolean;
 	readOnly: boolean;
-}): Promise<Result<ModifyMessageLabelsOutcome, TrashMessagesError>> {
-	if (readOnly) return TrashMessagesError.ReadOnly();
-	if (ids.length === 0) return TrashMessagesError.NoMessageIds();
-	if (ids.length > 100) {
-		return TrashMessagesError.TooManyMessageIds({ count: ids.length });
-	}
+}): Promise<Result<MessageWriteOutcome, MessageWriteError>> {
+	const denied = checkMessageWriteAllowed({ readOnly, ids });
+	if (denied) return denied;
 
 	return Ok(
 		await foldMessageMutations({
@@ -271,8 +284,11 @@ export async function resolveAndModifyMessageLabels({
 	readOnly: boolean;
 }): Promise<
 	Result<
-		ModifyMessageLabelsOutcome,
-		ModifyMessageLabelsError | ResolveLabelIdsError | GmailClientError
+		MessageWriteOutcome,
+		| MessageWriteError
+		| ModifyMessageLabelsError
+		| ResolveLabelIdsError
+		| GmailClientError
 	>
 > {
 	if (readOnly) {
