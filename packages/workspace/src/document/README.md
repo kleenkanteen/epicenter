@@ -6,7 +6,7 @@ A typed interface over Y.js for apps that need to evolve their data schema over 
 
 This is a wrapper around Y.js that handles schema versioning. Local-first apps can't run migration scripts, so data has to evolve gracefully. Old data coexists with new. The Workspace API bakes that into the design: define your schemas once with versions, write a migration function, and everything else is typed.
 
-The pattern: `defineWorkspace({ id, tables, kv, actions })` declares the shared isomorphic model. `definition.create()` builds the unconnected root doc for daemon composition. `definition.connect(connection | null)` creates the runtime with local storage, optional sync, wipe, and table child-doc openers. `definition.connect(connection, compose)` or `definition.connect(connection, { persistence, compose })` lets a runtime add extras and expose its final action registry on the workspace bundle. `createWorkspace({ id, tables, kv })` and `satisfiesWorkspace(...)` remain lower-level primitives for internals, tests, and ports that have not moved to definitions yet.
+The pattern: `defineWorkspace({ id, tables, kv, actions })` declares the shared isomorphic model. `definition.create()` builds the unconnected root doc for daemon composition. `definition.connect(connection | null)` creates the runtime with local storage, optional sync, wipe, and table child-doc openers. `definition.connect(connection, compose)` lets a runtime add extras and expose its final action registry on the workspace bundle; `definition.connect(null, { persistence, compose })` additionally injects a non-browser local persistence environment (the options object is only accepted on the local arm). `createWorkspace({ id, tables, kv })` and `satisfiesWorkspace(...)` remain lower-level primitives for internals, tests, and ports that have not moved to definitions yet.
 
 ```
 +----------------------------------------------------------------+
@@ -50,6 +50,7 @@ const postsTable = defineTable({
 
 const blogWorkspace = defineWorkspace({
   id: 'blog',
+  name: 'Blog',
   tables: { posts: postsTable },
   kv: {},
 });
