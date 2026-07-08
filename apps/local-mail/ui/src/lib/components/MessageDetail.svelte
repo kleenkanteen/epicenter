@@ -18,6 +18,7 @@
 	import { api } from '$lib/api';
 	import { fullDate, labelDisplayName } from '$lib/format';
 	import type { MailLabel } from '$lib/types';
+	import MessageBody from './MessageBody.svelte';
 
 	let {
 		id,
@@ -195,15 +196,12 @@
 			{@render actionButton('Move to trash', Trash2Icon, onTrash)}
 		</div>
 
-		<!-- Body: the pre-extracted plain text; raw HTML is never rendered. -->
-		<div class="flex-1 min-h-0 overflow-y-auto px-5 py-4">
-			{#if detail.bodyText}
-				<pre class="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground/90">{detail.bodyText}</pre>
-			{:else}
-				<p class="text-sm italic text-muted-foreground">
-					No text body extracted for this message.
-				</p>
-			{/if}
-		</div>
+		<!-- Body: formatted (sanitized HTML) or plain text, chosen per message.
+		     MessageBody owns the only {@html} sink and the DOMPurify pass; raw
+		     HTML never renders here. Keyed by id so the view resets to each
+		     message's natural default when a different message is opened. -->
+		{#key detail.id}
+			<MessageBody unsafeHtml={detail.unsafeBodyHtml} text={detail.bodyText} />
+		{/key}
 	{/if}
 </section>

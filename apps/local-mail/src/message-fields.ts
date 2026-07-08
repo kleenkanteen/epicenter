@@ -4,9 +4,12 @@ import type { GmailMessage } from './schema.ts';
 /**
  * Projects a Gmail message wire object into the flat scalar fields the mirror
  * stores and the read surface serves: header values (`Subject`/`From`/`To`/
- * `Date`) and the extracted plain-text body. Pure functions over `GmailMessage`,
- * so `db.ts` calls them once at ingest and the SQLite file never re-derives
- * them. Kept out of `schema.ts` (which stays only the TypeBox wire shapes) and
+ * `Date`) and the extracted bodies. Two body projections live here because they
+ * serve two purposes: `bodyText` is the searchable plain text stored at ingest,
+ * and `bodyHtml` is the raw `text/html` the detail read derives from `raw` for
+ * rich rendering (unsanitized: see its own doc). Pure functions over
+ * `GmailMessage`, so `db.ts` calls them once at ingest and the SQLite file never
+ * re-derives them. Kept out of `schema.ts` (which stays only the TypeBox wire shapes) and
  * out of the `db.ts` closure (which owns the open handle and its prepared
  * statements): this is email-format decoding, not wire validation and not
  * SQLite lifecycle, so it has one home of its own.
@@ -93,6 +96,29 @@ export function bodyText(message: GmailMessage): string | null {
 		if (!html?.body?.data) return null;
 		const decoded = decodeBase64Url(html.body.data);
 		return decoded === null ? null : stripHtmlTags(decoded);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Extract a message's HTML body: the decoded `text/html` part, returned
+ * unsanitized. It is named `unsafe` at every boundary it crosses (the read
+ * model's and the API's `unsafeBodyHtml`) because email HTML is hostile input:
+ * the single UI caller that renders it MUST run it through the sanitizer first.
+ * `stripHtmlTags` in `bodyText` is text extraction, not sanitization, so it is
+ * no substitute. Returns null when no `text/html` part is present or decoding
+ * fails, so the detail pane falls back to `bodyText`.
+ */
+export function bodyHtml(message: GmailMessage): string | null {
+	try {
+		// Same loose Gmail wire boundary (`payload.parts` is `Type.Any()`) the
+		// `bodyText` traversal reads; this is the one cast that reads into it.
+		const parts = flattenParts(message.payload as GmailMessagePart | undefined);
+		const html = parts.find(
+			(part) => part.mimeType?.toLowerCase() === 'text/html' && part.body?.data,
+		);
+		return html?.body?.data ? decodeBase64Url(html.body.data) : null;
 	} catch {
 		return null;
 	}
