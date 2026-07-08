@@ -17,8 +17,6 @@
 	} from '@tanstack/svelte-query';
 	import { extractErrorMessage } from 'wellcrafted/error';
 	import { resultMutationOptions, resultQueryOptions } from 'wellcrafted/query';
-	import CreditBalance from '../credit-balance/credit-balance.svelte';
-	import { fetchCreditOverview } from '../credit-balance/credit-balance.js';
 	import InstanceSettingsModal from './instance-settings-modal.svelte';
 	import SignInPanel from './sign-in-panel.svelte';
 
@@ -121,8 +119,7 @@
 		auth.state.status === 'signed-out' ? null : auth.state.principalId,
 	);
 	// Which star this account lives on: a self-hosted deployment names the box,
-	// and the host IS the identity there (the instance session's email is a
-	// canned placeholder, not an account).
+	// and the host IS the identity there. The instance principal has no email.
 	const selfHostHost = $derived(
 		auth.deployment.kind === 'self-hosted'
 			? new URL(auth.deployment.baseURL).host
@@ -158,27 +155,7 @@
 	const accountLabel = $derived(
 		profile.data?.email ?? (profile.error ? 'Offline' : 'Loading...'),
 	);
-	// Hosted AI credits for the signed-in account. Enabled only on a hosted star
-	// (a self-hosted instance never mounts `/api/billing`, so its 404 would just
-	// resolve to a null snapshot anyway) and only while signed in. `fetchCreditOverview`
-	// returns null for any non-200, so the display self-hides when there is nothing
-	// to show. Keyed by account so switching identity refetches.
-	const credits = createQuery(
-		() =>
-			resultQueryOptions({
-				queryKey: ['account-credits', accountCacheKey],
-				queryFn: () => fetchCreditOverview(auth.fetch, auth.deployment.baseURL),
-				enabled: auth.state.status === 'signed-in' && !selfHostHost,
-				staleTime: 60_000,
-			}),
-		() => accountProfileQueryClient,
-	);
-	// The hosted dashboard is where a user tops up; only shown on a hosted star.
-	const dashboardUrl = $derived(
-		selfHostHost
-			? undefined
-			: new URL('/dashboard', auth.deployment.baseURL).toString(),
-	);
+
 	const signOut = createMutation(
 		() =>
 			resultMutationOptions({
@@ -334,9 +311,6 @@
 						<p class="text-sm font-medium">{accountLabel}</p>
 					{/if}
 				</div>
-				{#if credits.data}
-					<CreditBalance snapshot={credits.data} {dashboardUrl} />
-				{/if}
 				{#if disabledReason}
 					<p class="text-xs text-muted-foreground">{disabledReason}</p>
 				{/if}
