@@ -4,7 +4,8 @@ description: >
   Ultra-compressed communication mode. Cuts token usage ~75% by dropping
   filler, articles, and pleasantries while keeping full technical accuracy.
   Use when user says "caveman mode", "talk like caveman", "use caveman",
-  "less tokens", "be brief", or invokes /caveman.
+  "less tokens", or invokes /caveman. A one-off "be brief" is not a trigger;
+  this mode persists until switched off.
 metadata:
   upstream: mattpocock/skills
   forked: 2026-05-17

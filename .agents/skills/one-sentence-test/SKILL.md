@@ -1,6 +1,6 @@
 ---
 name: one-sentence-test
-description: "Force one concrete sentence to find orphaned surfaces, duplicate verbs, inert abstractions. Use for \"what does X do\", \"in one sentence\", \"too many options\"."
+description: "Force one concrete sentence to find orphaned surfaces, duplicate verbs, inert abstractions. Use for \"what does X actually do\", \"in one sentence\", \"too many options\", or auditing whether a surface or abstraction is coherent. For a plain code-comprehension question, answer directly instead."
 metadata:
   author: epicenter
   version: '2.0'
@@ -100,7 +100,7 @@ Signals:
 - Before recommending wrapping, extending, or composing an existing utility: do the reduction first
 - When reviewing your own just-written abstraction before sending it
 - When code and docs seem to disagree, or docs describe capabilities you can't locate in the body
-- User asks "what does X do" or "is this useful": don't paraphrase docs, do the reduction
+- User asks "what does X actually do" or "is this useful": don't paraphrase docs, do the reduction. A plain comprehension question gets a direct answer, not this pass.
 
 Three reductions in order. Don't skip.
 
