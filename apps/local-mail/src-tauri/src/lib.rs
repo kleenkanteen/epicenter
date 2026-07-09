@@ -85,7 +85,9 @@ pub fn run() {
                     eprintln!(
                         "[local-mail shell] failed to spawn the mail engine (`bun src/bin.ts app`): {err}. Is `bun` on PATH?"
                     );
-                    return Ok(());
+                    // Fail the launch rather than run on as an invisible,
+                    // windowless app: there is no engine to point a webview at.
+                    return Err(err.into());
                 }
             };
 
@@ -113,8 +115,15 @@ pub fn run() {
                     let _ = handle.clone().run_on_main_thread(move || {
                         open_window(&handle, &origin);
                     });
-                    break;
+                    return;
                 }
+                // stdout closed before any origin line: the engine died or never
+                // came up. Exit rather than linger as an invisible windowless
+                // app; the exit runs kill_engine, so nothing is left behind.
+                eprintln!(
+                    "[local-mail shell] the mail engine exited before reporting an origin; shutting down."
+                );
+                handle.exit(1);
             });
 
             Ok(())
@@ -138,6 +147,7 @@ fn open_window(handle: &tauri::AppHandle, origin: &str) {
         Ok(url) => url,
         Err(err) => {
             eprintln!("[local-mail shell] engine printed an unparseable origin {origin:?}: {err}");
+            handle.exit(1);
             return;
         }
     };
@@ -157,6 +167,7 @@ fn open_window(handle: &tauri::AppHandle, origin: &str) {
         }
         Err(err) => {
             eprintln!("[local-mail shell] failed to open the window at {origin}: {err}");
+            handle.exit(1);
         }
     }
 }
