@@ -12,7 +12,8 @@
 		"email"
 	],
 	"exports": {
-		"./http/api": "./src/http/api.ts"
+		"./http/api": "./src/http/api.ts",
+		"./presence": "./src/presence.ts"
 	},
 	"scripts": {
 		"connect": "bun run src/bin.ts connect",

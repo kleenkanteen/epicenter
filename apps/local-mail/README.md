@@ -108,24 +108,36 @@ Serve the triage UI and its API from one loopback process:
 bun run src/bin.ts app
 ```
 
-`app` runs the sync loop and serves the triage SPA (`ui/`) plus a same-origin
-`/api` on `127.0.0.1`, then prints `http://127.0.0.1:PORT/#token=...` and opens
-it. The tab is the app. Security is the loopback shell spec's: a single-use bootstrap
-token rides in the URL fragment and is exchanged once at `POST /api/session`
-for a per-launch session bearer (kept in sessionStorage); every request is
-Host-checked first; the write route is the one `POST /api/messages/modify`
-(`{ ids, addLabels, removeLabels }` -> `ModifyMessageLabelsOutcome`) over the
-same core the CLI verbs and MCP tool use, so archive/read/label all desugar to
-add/remove sets client-side. `LOCAL_MAIL_READ_ONLY` disables writes end to end;
-`--no-open` prints the URL without launching a browser. `--port <n>` pins the
-server port. `LOCAL_MAIL_NO_OPEN=1` and `LOCAL_MAIL_PORT` remain env fallbacks.
+`app` is the desktop runtime host: it runs the sync loop and serves the triage
+SPA (`ui/`) plus a same-origin `/api` on `127.0.0.1`, then prints the origin to
+open (`http://127.0.0.1:PORT`). It launches no browser; opening the window is the
+host's job (a terminal today, Tauri later), not the engine's. Security: every
+request is Host-checked first (the DNS-rebinding kill switch); the web UI carries
+a per-launch local API bearer that the host injects into the served HTML as
+`window.__LOCAL_MAIL__ = { origin, bearer }` before the SPA boots (no URL
+fragment, no session-exchange endpoint, no sessionStorage), and that HTML is
+served `no-store` and frame-denied so a rotated bearer is never cached and a
+cross-origin page cannot frame the auto-authenticated SPA. The bearer is a
+loopback credential, never a Gmail token. The one write route is
+`POST /api/messages/modify` (`{ ids, addLabels, removeLabels }` ->
+`ModifyMessageLabelsOutcome`) over the same core the CLI verbs and MCP tool use,
+so archive/read/label all desugar to add/remove sets client-side.
+`LOCAL_MAIL_READ_ONLY` disables writes end to end; `--port <n>` pins the server
+port (`LOCAL_MAIL_PORT` is the env fallback).
 
 Develop the UI against a running `app`:
 
 ```sh
-LOCAL_MAIL_DEV=1 LOCAL_MAIL_TOKEN=devtoken LOCAL_MAIL_PORT=4177 bun run src/bin.ts app
-LOCAL_MAIL_TOKEN=devtoken bun run --cwd ui dev   # same token: Vite proxies /api to app, injecting this bearer
+LOCAL_MAIL_PORT=4177 bun run src/bin.ts app   # serves /api + writes the presence file
+bun run --cwd ui dev                          # Vite proxies /api to the host and injects its bearer from the presence file
 ```
+
+The dev server reads the host's `0600` presence file (`runtime.json`) for the
+per-launch bearer and injects it on each proxied `/api` request (SvelteKit's dev
+HTML pipeline bypasses Vite's HTML transform, so the prod `window.__LOCAL_MAIL__`
+injection is a proxy-side header in dev). No token is typed by a human. Start the
+host first; a host restart rotates the bearer, so restart the dev server to pick
+it up. Pin `LOCAL_MAIL_PORT` if the host uses an ephemeral port.
 
 Serve tools to an MCP host:
 
@@ -160,11 +172,8 @@ Tools:
 - `LOCAL_MAIL_GMAIL_API_BASE`: test plumbing only; points the Gmail client at
   a mock server in the MCP subprocess test.
 - `LOCAL_MAIL_PORT`: fallback for pinning the `app` server port; prefer
-  `--port <n>` for normal use.
-- `LOCAL_MAIL_DEV` / `LOCAL_MAIL_TOKEN`: dev-mode `app`; the Vite proxy injects
-  the fixed bearer. The bearer gate is never disabled in any mode.
-- `LOCAL_MAIL_NO_OPEN`: fallback for making `app` print the launch URL without
-  opening a browser; prefer `--no-open` for normal use.
+  `--port <n>` for normal use. Also names the port the Vite dev proxy targets
+  when the host uses an ephemeral port.
 
 ## Testing
 

@@ -1,5 +1,4 @@
 import { randomBytes } from 'node:crypto';
-import { API_ROUTES } from '@epicenter/constants/api-routes';
 import { sValidator } from '@hono/standard-validator';
 import { type } from 'arktype';
 import { Hono } from 'hono';
@@ -20,11 +19,15 @@ import { ApiError } from './api-errors.ts';
  * serving: `/api/*` falls through to this Hono app, `/*` serves `ui/dist`.
  *
  * The app is built by a factory so its per-launch dependencies (the writer db,
- * the sync gate, the valid-bearer set) are injected rather than captured at
+ * the sync gate, the per-launch bearer) are injected rather than captured at
  * module load, while `export type ApiApp = ReturnType<typeof createApiApp>`
  * still hands the SPA a precise end-to-end typed `hc` client. Every handler
  * returns `c.json(...)`, so the client's response types are inferred from the
  * exact shapes the server returns: the wire contract cannot silently drift.
+ *
+ * Auth is one per-launch bearer, minted by the host and handed to the SPA out of
+ * band (an injected `window.__LOCAL_MAIL__` global, never the URL). Every `/api`
+ * request must present it; there is no bootstrap-token exchange endpoint.
  *
  * Label writes go through the same core the CLI and MCP use
  * (`resolveAndModifyMessageLabels`); the archive/read/label intents desugar into
@@ -34,20 +37,15 @@ import { ApiError } from './api-errors.ts';
  * `trashed` boolean, the same shape the core (`setMessagesTrashed`) already owns.
  */
 
-/** Bound online guessing by another local user against the exchange endpoint. */
-const MAX_FAILED_EXCHANGES = 25;
-
-/** 256 bits of CSPRNG, base64url: well past the spec's 128-bit floor. */
-export function mintToken(): string {
+/** The per-launch local API bearer: 256 bits of CSPRNG, base64url. Minted once
+ * by the host, never a Gmail token, never carried in a URL. */
+export function mintBearer(): string {
 	return randomBytes(32).toString('base64url');
 }
 
 // Request schemas are arktype, the repo's HTTP-boundary validator (paired with
 // `@hono/standard-validator`, as in `packages/server`). typebox stays for the
 // Gmail wire shapes in `schema.ts`; these are two different boundaries.
-
-/** `POST /api/session` body: the single-use bootstrap token being exchanged. */
-const SessionBody = type({ token: 'string >= 1' });
 
 /** `POST /api/messages/modify` body: ids plus the add/remove label sets the UI
  * desugars its archive/read/label intents into. */
@@ -78,63 +76,30 @@ type ApiDeps = {
 	/** The one in-process serialize gate: the background loop and `POST /api/sync`
 	 * both enqueue here, so at most one pass touches the mirror at a time. */
 	gate: <T>(fn: () => Promise<T>) => Promise<T>;
-	/** The valid-bearer set, owned by the launcher so dev can pre-seed the fixed
-	 * proxy token. Prod fills it only through the bootstrap exchange below. */
-	sessionBearers: Set<string>;
-	/** The single-use bootstrap token, or `null` in dev (the Vite proxy carries
-	 * the bearer, so no exchange runs). Consumed at first successful exchange. */
-	bootstrapToken: string | null;
+	/** The per-launch local API bearer every `/api` request must present. The
+	 * host mints it (`mintBearer`) and hands it to the SPA out of band (an
+	 * injected `window.__LOCAL_MAIL__` global), never a Gmail token. */
+	bearer: string;
 };
 
 export function createApiApp(deps: ApiDeps) {
-	const { rt, syncDeps, readOnly, gate, sessionBearers } = deps;
+	const { rt, syncDeps, readOnly, gate, bearer } = deps;
 	const db: MailDb = syncDeps.db;
 
-	// Per-launch auth state, mutated in place across requests.
-	let bootstrapToken = deps.bootstrapToken;
-	let failedExchanges = 0;
-
 	const app = new Hono()
-		// The bearer gate on every `/api` route except the one public exchange.
-		// The skip is an explicit path check, not a registration-order trick, so
-		// it stays correct wherever this middleware sits in the chain.
+		// The bearer gate on every `/api` route: present the one per-launch bearer
+		// or get 401. There is no unauthenticated route (the bootstrap exchange is
+		// gone; the SPA already holds the bearer via the injected global).
 		.use('/api/*', async (c, next) => {
-			if (
-				c.req.path === API_ROUTES.session.pattern &&
-				c.req.method === 'POST'
-			) {
-				return next();
-			}
 			const header = c.req.header('authorization');
-			const bearer = header?.startsWith('Bearer ')
+			const provided = header?.startsWith('Bearer ')
 				? header.slice('Bearer '.length)
 				: null;
-			if (!bearer || !sessionBearers.has(bearer)) {
+			if (!provided || provided !== bearer) {
 				const err = ApiError.Unauthorized();
 				return c.json(err, err.error.status);
 			}
 			return next();
-		})
-		// The one unauthenticated mutation: exchange the bootstrap for a bearer.
-		.post(API_ROUTES.session.pattern, sValidator('json', SessionBody), (c) => {
-			if (bootstrapToken === null) {
-				const err = ApiError.NoBootstrapToken();
-				return c.json(err, err.error.status);
-			}
-			if (failedExchanges >= MAX_FAILED_EXCHANGES) {
-				const err = ApiError.TooManyExchanges();
-				return c.json(err, err.error.status);
-			}
-			const { token } = c.req.valid('json');
-			if (token !== bootstrapToken) {
-				failedExchanges += 1;
-				const err = ApiError.InvalidBootstrapToken();
-				return c.json(err, err.error.status);
-			}
-			const bearer = mintToken();
-			sessionBearers.add(bearer);
-			bootstrapToken = null; // single use: invalidate at exchange
-			return c.json({ token: bearer });
 		})
 		.get('/api/status', async (c) => {
 			const status = await readMailStatus(rt);

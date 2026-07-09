@@ -22,24 +22,11 @@ import { defineErrors, type InferErrors } from 'wellcrafted/error';
  * ```
  */
 export const ApiError = defineErrors({
-	/** Missing or unknown bearer on a gated `/api` route. */
+	/** Missing or stale bearer on a gated `/api` route. A stale bearer means the
+	 * host rotated it (a restart), so reloading the page re-reads the current
+	 * injected bearer. */
 	Unauthorized: () => ({
-		message: 'Unauthorized. Restart local-mail app.',
-		status: 401 as const,
-	}),
-	/** A bootstrap exchange arrived after the single-use token was consumed. */
-	NoBootstrapToken: () => ({
-		message: 'No bootstrap token is outstanding.',
-		status: 401 as const,
-	}),
-	/** Exchange attempts exceeded the online-guessing bound. */
-	TooManyExchanges: () => ({
-		message: 'Too many exchange attempts.',
-		status: 429 as const,
-	}),
-	/** The exchanged token did not match the outstanding bootstrap token. */
-	InvalidBootstrapToken: () => ({
-		message: 'Invalid bootstrap token.',
+		message: 'Unauthorized. Reload the page to re-authenticate.',
 		status: 401 as const,
 	}),
 	/** No mirror row for the requested message id. */
