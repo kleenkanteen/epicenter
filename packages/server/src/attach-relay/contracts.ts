@@ -1,23 +1,19 @@
 /**
- * Vocabulary for the AttachRelay (ADR-0115): Epicenter forwards sealed bytes
- * between two authenticated endpoints of one principal, a signed-in client and
- * a desktop Super Chat host. The relay is endpoint-addressed, never
+ * Vocabulary for the AttachRelay (ADR-0115): Epicenter forwards live Super Chat
+ * bytes between two authenticated endpoints of one principal, a signed-in client
+ * and a desktop Super Chat host. The relay is endpoint-addressed, never
  * route-addressed: it routes by the quadruple `principalId`, `hostId`,
  * `deviceId`, `attachId`, and by nothing else. There is no route name, no route
  * registry, no capability field. Those are the relay-floor organs deleted in
  * PR #2277, and endpoint addressing is what keeps them from having anywhere to
  * live (ADR-0115 clause 1).
  *
- * ## What the relay may know, and what it must not
+ * ## What the relay owns
  *
- * The relay reads the envelope only: which host endpoint, which client
- * endpoint, and the byte length and timing of a frame. It never parses the
- * `payload`: the Super Chat command types, prompt text, tool results, and
- * approval answers are opaque to it (ADR-0115 clause 2). Super Chat seals the
- * payload in its own adapters, above this transport (ADR-0115 clause 4); the
- * relay's blindness does not depend on that, because it never looks inside the
- * payload whether it carries sealed ciphertext or the self-host plaintext
- * opt-out.
+ * The relay owns the endpoint envelope and socket fan-out. It does not own Super
+ * Chat command semantics, host snapshots, tool names, or local-source reach. The
+ * payload is trusted transport data: hosted Cloud may observe it, but the relay
+ * still stores no frames and exposes no route or capability surface.
  *
  * @see `attach-relay/core.ts` for the coordinator that consumes these types.
  */
@@ -65,13 +61,97 @@ export type RelayToHostFrame =
 	| (ClientEndpoint & { payload: string });
 
 /**
- * A frame the host sends the relay: opaque bytes addressed to exactly one
- * client endpoint. There is no broadcast frame: the host addresses each client
- * endpoint on its own, which is what lets Super Chat seal per endpoint so the
- * relay only ever forwards per-endpoint ciphertext (ADR-0115 clause 5). Fan-out
- * to N clients is N of these, never one frame the relay expands.
+ * A frame the host sends the relay: bytes addressed to exactly one client
+ * endpoint. There is no broadcast frame: the host addresses each client endpoint
+ * on its own. Fan-out to N clients is N of these, never one frame the relay
+ * expands.
  */
 export type HostToRelayFrame = ClientEndpoint & { payload: string };
+
+/**
+ * The identity and request a relay backend needs to accept one authenticated
+ * attach upgrade. `principalId` is the authenticated principal stamped
+ * server-side by the mount (the instance principal on self-host, the OAuth
+ * subject on Cloud), never a query value. The endpoint ids come from the connect
+ * query; the backend validates their presence for the given `role` through
+ * {@link parseAttachEndpoint}.
+ */
+export type AttachUpgrade = {
+	request: Request;
+	principalId: string;
+	role: string | undefined;
+	hostId: string | undefined;
+	deviceId: string | undefined;
+	attachId: string | undefined;
+	/**
+	 * A host endpoint's human label for the directory ("Braden's Mac"), read off
+	 * the connect query by the mount and recorded in the host directory
+	 * (ADR-0115 clause 3: a directory field, not a route/capability). It never
+	 * reaches the coordinator, which stays label-blind; only a `role=host`
+	 * connect carries it, and a client connect ignores it.
+	 */
+	label?: string;
+};
+
+/**
+ * The relay backend seam the mount drives: it accepts one authenticated
+ * upgrade and returns the HTTP response the route returns verbatim. The Bun
+ * backend ({@link import('./bun-server.js')}) returns a synchronous `Response`;
+ * the Cloudflare backend ({@link import('./cloudflare-do.js')}) forwards to a
+ * Durable Object stub and returns a `Promise<Response>`. Both satisfy this one
+ * seam, so the mount is backend-blind (the same move {@link ResolvedRoom} makes
+ * for rooms).
+ */
+export type AttachRelayUpgradeHandler = {
+	handleUpgrade(upgrade: AttachUpgrade): Response | Promise<Response>;
+};
+
+/**
+ * A validated attach endpoint: the server-stamped `principalId` plus the
+ * connect query's `role` and its role-specific ids. A host registers under
+ * `(principalId, hostId)`; a client attaches under the full quadruple. This is
+ * the one addressing shape both transports accept, and it names no route,
+ * channel, or capability field (ADR-0115 clause 1).
+ */
+export type AttachEndpoint =
+	| { role: 'host'; principalId: string; hostId: string; label?: string }
+	| {
+			role: 'client';
+			principalId: string;
+			hostId: string;
+			deviceId: string;
+			attachId: string;
+	  };
+
+/**
+ * Shape a validated {@link AttachEndpoint} from the server-stamped `principalId`
+ * and the connect query's ids, or `undefined` if the shape is incomplete for the
+ * `role`. Both backends (Bun `bun-server`, Cloudflare `cloudflare-do`) run this
+ * one validator, so the relay's addressing shape is enforced identically: it
+ * accepts only the endpoint quadruple, never a route, channel, or capability
+ * field, so there is nowhere for one to enter (ADR-0115 clause 1).
+ */
+export function parseAttachEndpoint(params: {
+	principalId: string | undefined;
+	role: string | undefined;
+	hostId: string | undefined;
+	deviceId: string | undefined;
+	attachId: string | undefined;
+	label?: string | undefined;
+}): AttachEndpoint | undefined {
+	const { principalId, role, hostId, deviceId, attachId, label } = params;
+	if (!principalId || !hostId) return undefined;
+	if (role === 'host') {
+		// `label` is optional directory metadata; a host with no label is valid and
+		// the directory falls back to its `hostId`.
+		return { role: 'host', principalId, hostId, ...(label ? { label } : {}) };
+	}
+	if (role === 'client') {
+		if (!deviceId || !attachId) return undefined;
+		return { role: 'client', principalId, hostId, deviceId, attachId };
+	}
+	return undefined;
+}
 
 /** Application close codes the relay uses on the client and host wires. */
 export const RELAY_CLOSE = {

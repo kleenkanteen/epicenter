@@ -9,6 +9,7 @@
 	},
 	"scripts": {
 		"start": "bun run src/main.ts",
+		"remote:dev": "bun run scripts/remote-dev-smoke.ts",
 		"build": "vite build",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json"
@@ -22,8 +23,6 @@
 		"@epicenter/ui": "workspace:*",
 		"@epicenter/workspace": "workspace:*",
 		"@modelcontextprotocol/sdk": "catalog:",
-		"@noble/ciphers": "^2.1.1",
-		"@noble/hashes": "^2.0.1",
 		"hono": "catalog:",
 		"yjs": "catalog:"
 	},

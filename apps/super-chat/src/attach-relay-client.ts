@@ -2,8 +2,8 @@
  * A client endpoint of the AttachRelay (ADR-0115): the "phone" or second
  * browser that attaches to one desktop's Super Chat host and shares its live
  * session. It sends host-owned commands (ADR-0113) as opaque bytes and renders
- * from the host snapshots the relay forwards back; the relay reads neither, only
- * the endpoint envelope it routes by.
+ * from the host snapshots the relay forwards back; the relay routes by endpoint
+ * envelope and does not own command semantics.
  *
  * This is the same session command surface the direct loopback client speaks
  * (`ui/session.svelte.ts`, `session-client.ts`); only the transport differs. It
@@ -12,11 +12,6 @@
  */
 
 import { ATTACH_RELAY_ROUTE } from '@epicenter/server/bun';
-import {
-	type ClientSealSession,
-	createClientSealSession,
-	type SealPsk,
-} from './attach-relay-seal.ts';
 import type { SuperChatClientCommand } from './host.ts';
 import type { SuperChatServerEvent } from './server.ts';
 
@@ -32,25 +27,13 @@ export type AttachRelayClientOptions = {
 	/** This attach session's id, unique per attach on the device. */
 	attachId: string;
 	/**
-	 * This device's attach grant (ADR-0115): the operator pairs the device
-	 * once and hands over the minted grant (a QR or a paste), and it rides the
-	 * `bearer.<token>` WebSocket subprotocol, the one channel a browser upgrade has.
-	 * Every attach is authenticated, so this is required; a revoked or never-minted
-	 * grant fails the handshake, so an unpaired device cannot attach.
+	 * This device's attach credential. On self-host this is a per-device grant; on
+	 * Cloud it is the signed-in session bearer. The relay authenticates the socket
+	 * before any attach reaches the coordinator.
 	 */
 	bearer: string;
 	/** Inject the socket opener in tests; defaults to the global `WebSocket`. */
 	openSocket?: (url: string, protocols?: string[]) => RelayClientSocket;
-	/**
-	 * Seal this attach (ADR-0115). When present, the client runs an
-	 * authenticated ECDH handshake with the host before any command or snapshot
-	 * crosses the relay, so the relay forwards only ciphertext. `psk` is this
-	 * pairing's pre-shared key (the QR/paste secret, distinct from the relay
-	 * grant); with sealing on, `ready` resolves only after the handshake completes,
-	 * so a caller that awaits `ready` may send at once. Omit sealing for the
-	 * self-host plaintext opt-out (ADR-0115 clause 5).
-	 */
-	sealing?: { psk: SealPsk };
 };
 
 /** The minimal client-socket surface this adapter drives. */
@@ -64,11 +47,7 @@ export type RelayClientSocket = {
 };
 
 export type AttachRelayClient = {
-	/**
-	 * Resolves once this client can send: on socket open when unsealed, or after
-	 * the seal handshake completes when sealing is on. A caller that awaits it may
-	 * send at once.
-	 */
+	/** Resolves once the socket is open and this client can send. */
 	ready: Promise<void>;
 	/** Send one host command as opaque bytes to the shared session. */
 	send(command: SuperChatClientCommand): void;
@@ -101,7 +80,6 @@ export function createAttachRelayClient(
 		resolveReady = resolve;
 	});
 
-	// Deliver one plaintext server event (sealed or not) to every subscriber.
 	const deliver = (data: string): void => {
 		const parsed = parseServerEvent(data);
 		if (!parsed) return;
@@ -109,35 +87,9 @@ export function createAttachRelayClient(
 		for (const listener of listeners) listener(parsed);
 	};
 
-	// Commands sent before the handshake completes are held, then flushed sealed
-	// once the session is ready, so a caller need not await readiness per send.
-	const pending: SuperChatClientCommand[] = [];
-	const seal: ClientSealSession | undefined = options.sealing
-		? createClientSealSession({
-				psk: options.sealing.psk,
-				send: (payload) => socket.send(payload),
-				onReady: () => {
-					resolveReady();
-					for (const command of pending.splice(0)) {
-						const sealed = seal?.seal(JSON.stringify(command));
-						if (sealed !== undefined) socket.send(sealed);
-					}
-				},
-			})
-		: undefined;
-
-	socket.onopen = () => {
-		// Plaintext attaches are ready on open; sealed ones wait for the handshake.
-		if (!seal) resolveReady();
-	};
+	socket.onopen = () => resolveReady();
 	socket.onmessage = (event) => {
 		if (typeof event.data !== 'string') return;
-		if (seal) {
-			void seal.handleInbound(event.data).then((result) => {
-				if (result.type === 'snapshot') deliver(result.plaintext);
-			});
-			return;
-		}
 		deliver(event.data);
 	};
 
@@ -145,14 +97,8 @@ export function createAttachRelayClient(
 		ready,
 		send(command) {
 			if (socket.readyState !== 1 /* OPEN */) return;
-			if (seal) {
-				// Seal before the relay ever sees the bytes; hold until ready.
-				const sealed = seal.seal(JSON.stringify(command));
-				if (sealed === undefined) pending.push(command);
-				else socket.send(sealed);
-				return;
-			}
-			// The command is the opaque payload; the relay never decodes it.
+			// The command is the opaque payload; the relay forwards it without owning
+			// or interpreting Super Chat command semantics.
 			socket.send(JSON.stringify(command));
 		},
 		latest() {

@@ -38,14 +38,10 @@ import { OAuthError } from '../auth/oauth-errors.js';
 import { createOAuthUnauthorizedResourceResponse } from '../auth/oauth-resource.js';
 import { isWebSocketUpgrade } from '../is-websocket-upgrade.js';
 import { setPrincipalOrReject } from '../middleware/require-auth.js';
+import type { ServerBindings } from '../server-bindings.js';
 import type { Env, ResolveBearerPrincipal } from '../types.js';
-import type { AttachUpgrade } from './bun-server.js';
+import type { AttachRelayUpgradeHandler } from './contracts.js';
 import { ATTACH_RELAY_ROUTE } from './route.js';
-
-/** The relay backend seam the mount drives: it accepts one authenticated upgrade. */
-type AttachRelayUpgradeHandler = {
-	handleUpgrade(upgrade: AttachUpgrade): Response;
-};
 
 /**
  * Bearer auth for the attach surface. Mirrors the rooms upgrade guard: it owns
@@ -80,8 +76,15 @@ function requireAttachBearer<E extends Env>(
  * upstream by {@link mountAttachRelayApp}; by the time this runs, `principal` is
  * set. Reads only `role`, `hostId`, `deviceId`, and `attachId` from the query;
  * the principal is stamped from auth, never the query.
+ *
+ * The backend is resolved per request from `c.env`, the one genuinely
+ * runtime-specific concern (a Bun singleton coordinator, or a Cloudflare Durable
+ * Object namespace bound only at request time), exactly as {@link createServerApp}
+ * resolves the rooms registry.
  */
-function createAttachRelayApp(relay: AttachRelayUpgradeHandler): Hono<Env> {
+function createAttachRelayApp(
+	resolveRelay: (env: ServerBindings) => AttachRelayUpgradeHandler,
+): Hono<Env> {
 	return new Hono<Env>().get(
 		ATTACH_RELAY_ROUTE.pattern,
 		describeRoute({
@@ -109,7 +112,7 @@ function createAttachRelayApp(relay: AttachRelayUpgradeHandler): Hono<Env> {
 				);
 			}
 
-			return relay.handleUpgrade({
+			return resolveRelay(c.env).handleUpgrade({
 				request: c.req.raw,
 				// Server-side principal: never the query's. On self-host this is the
 				// literal instance principal the operator bearer resolves to.
@@ -118,6 +121,9 @@ function createAttachRelayApp(relay: AttachRelayUpgradeHandler): Hono<Env> {
 				hostId: c.req.query('hostId'),
 				deviceId: c.req.query('deviceId'),
 				attachId: c.req.query('attachId'),
+				// Directory metadata for a `role=host` connect; the backend records
+				// it in the host directory and never hands it to the coordinator.
+				label: c.req.query('label'),
 			});
 		},
 	);
@@ -130,17 +136,23 @@ function createAttachRelayApp(relay: AttachRelayUpgradeHandler): Hono<Env> {
  * only `role`, `hostId`, `deviceId`, and `attachId` from the query; the
  * authenticated principal is stamped from `c.var.principal.id`, never the query,
  * so this surface cannot be pointed at another partition.
+ *
+ * `resolveRelay` binds this runtime's relay backend from the per-request env,
+ * the same shape {@link createServerApp}'s `resolveRooms` takes: a Bun host
+ * closes over its one coordinator (`() => attachRelay`); the Cloud Worker builds
+ * a Durable Object registry over its bound namespace
+ * (`(env) => createDurableObjectAttachRelay((env as Cloudflare.Env).ATTACH_RELAY)`).
  */
 export function mountAttachRelayApp<E extends Env = Env>(
 	app: Hono<E>,
 	opts: {
 		resolveBearerPrincipal: ResolveBearerPrincipal<E>;
-		relay: AttachRelayUpgradeHandler;
+		resolveRelay: (env: ServerBindings) => AttachRelayUpgradeHandler;
 	},
 ): void {
 	app.use(
 		ATTACH_RELAY_ROUTE.pattern,
 		requireAttachBearer(opts.resolveBearerPrincipal),
 	);
-	app.route('/', createAttachRelayApp(opts.relay));
+	app.route('/', createAttachRelayApp(opts.resolveRelay));
 }

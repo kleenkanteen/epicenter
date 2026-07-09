@@ -28,10 +28,20 @@
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import { sanitizeUpgradeSubprotocols } from '../sanitize-upgrade-subprotocols.js';
 import {
+	type AttachEndpoint,
+	type AttachUpgrade,
+	parseAttachEndpoint,
+} from './contracts.js';
+import {
 	type ClientConnection,
 	createAttachRelay,
 	type HostConnection,
 } from './core.js';
+import {
+	type AttachHostDirectoryEntry,
+	createHostDirectory,
+	type HostDirectoryReader,
+} from './host-directory.js';
 
 /**
  * Per-connection identity Bun carries on `ws.data`, set at `server.upgrade` and
@@ -41,32 +51,7 @@ import {
  * route this socket to the attach relay when it shares one `Bun.serve` with the
  * rooms backend; it is a server-side dispatch discriminant, never a wire field.
  */
-export type AttachRelaySocketData = { surface: 'attach' } & (
-	| { role: 'host'; principalId: string; hostId: string }
-	| {
-			role: 'client';
-			principalId: string;
-			hostId: string;
-			deviceId: string;
-			attachId: string;
-	  }
-);
-
-/**
- * The identity and request the Bun backend needs to accept one authenticated
- * attach upgrade. `principalId` is the authenticated principal stamped
- * server-side (the instance principal on self-host), never a query value. The
- * endpoint ids come from the connect query; the backend validates their
- * presence for the given `role`.
- */
-export type AttachUpgrade = {
-	request: Request;
-	principalId: string;
-	role: string | undefined;
-	hostId: string | undefined;
-	deviceId: string | undefined;
-	attachId: string | undefined;
-};
+export type AttachRelaySocketData = { surface: 'attach' } & AttachEndpoint;
 
 export type AttachRelayBunServer = {
 	/**
@@ -77,6 +62,13 @@ export type AttachRelayBunServer = {
 	/** Hand back the `Server` once `Bun.serve` returns, so `handleUpgrade` can upgrade. */
 	bindServer(server: Server<AttachRelaySocketData>): void;
 	websocket: WebSocketHandler<AttachRelaySocketData>;
+	/**
+	 * This process's host directory (ADR-0115 clause 3): the retained
+	 * membership+label of every host that has connected, joined at read time with
+	 * the coordinator's live host set. A self-host deployment hands this to
+	 * `mountHostDirectoryApp` so a signed-in client can `GET /attach/hosts`.
+	 */
+	hostDirectory: HostDirectoryReader;
 };
 
 /**
@@ -87,6 +79,9 @@ export type AttachRelayBunServer = {
  */
 export function createAttachRelayBunServer(): AttachRelayBunServer {
 	const relay = createAttachRelay();
+	// The retained membership+label half of the directory; the live half is
+	// `relay.liveHostIds`. The exposed `hostDirectory` joins the two at read time.
+	const directory = createHostDirectory();
 	const connections = new WeakMap<
 		ServerWebSocket<AttachRelaySocketData>,
 		HostConnection | ClientConnection
@@ -94,7 +89,15 @@ export function createAttachRelayBunServer(): AttachRelayBunServer {
 	let server: Server<AttachRelaySocketData> | null = null;
 
 	return {
-		handleUpgrade({ request, principalId, role, hostId, deviceId, attachId }) {
+		handleUpgrade({
+			request,
+			principalId,
+			role,
+			hostId,
+			deviceId,
+			attachId,
+			label,
+		}) {
 			if (!server) {
 				return new Response('attach relay server not bound', { status: 500 });
 			}
@@ -104,6 +107,7 @@ export function createAttachRelayBunServer(): AttachRelayBunServer {
 				hostId,
 				deviceId,
 				attachId,
+				label,
 			});
 			if (!data) {
 				return new Response('Bad attach request', { status: 400 });
@@ -123,8 +127,26 @@ export function createAttachRelayBunServer(): AttachRelayBunServer {
 			server = boundServer;
 		},
 
+		hostDirectory: {
+			list(principalId): AttachHostDirectoryEntry[] {
+				const live = new Set(relay.liveHostIds(principalId));
+				return directory.entries(principalId).map(({ hostId, label }) => ({
+					hostId,
+					label,
+					status: live.has(hostId) ? 'online' : 'offline',
+				}));
+			},
+		},
+
 		websocket: {
 			open(ws) {
+				if (ws.data.role === 'host') {
+					// Publish membership by the act of connecting as a host; a client
+					// never reaches this branch, so it is structurally absent from the
+					// directory. Liveness is not stored here: it is read from the
+					// coordinator at `hostDirectory.list` time.
+					directory.record(ws.data.principalId, ws.data.hostId, ws.data.label);
+				}
 				const connection =
 					ws.data.role === 'host'
 						? relay.registerHost({ ...ws.data, socket: ws })
@@ -145,10 +167,11 @@ export function createAttachRelayBunServer(): AttachRelayBunServer {
 /**
  * Shape a validated {@link AttachRelaySocketData} from the server-stamped
  * `principalId` plus the connect query's endpoint ids, or `undefined` if the
- * shape is incomplete for the `role`. This is the one place the relay's
- * addressing shape is enforced: it accepts only the endpoint quadruple, never a
- * route, channel, or capability field, so there is nowhere for one to enter
- * (ADR-0115 clause 1).
+ * shape is incomplete for the `role`. Delegates to the shared
+ * {@link parseAttachEndpoint} (the one addressing-shape gate both backends run)
+ * and tags the result with the Bun-only `surface` discriminant the merged
+ * `Bun.serve` handler routes by. A Cloudflare DO needs no `surface` tag: it is
+ * a dedicated actor, not a multiplexed handler.
  */
 function buildSocketData(params: {
 	principalId: string | undefined;
@@ -156,22 +179,8 @@ function buildSocketData(params: {
 	hostId: string | undefined;
 	deviceId: string | undefined;
 	attachId: string | undefined;
+	label: string | undefined;
 }): AttachRelaySocketData | undefined {
-	const { principalId, role, hostId, deviceId, attachId } = params;
-	if (!principalId || !hostId) return undefined;
-	if (role === 'host') {
-		return { surface: 'attach', role: 'host', principalId, hostId };
-	}
-	if (role === 'client') {
-		if (!deviceId || !attachId) return undefined;
-		return {
-			surface: 'attach',
-			role: 'client',
-			principalId,
-			hostId,
-			deviceId,
-			attachId,
-		};
-	}
-	return undefined;
+	const endpoint = parseAttachEndpoint(params);
+	return endpoint && { surface: 'attach', ...endpoint };
 }

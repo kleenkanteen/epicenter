@@ -26,12 +26,12 @@ export {
 } from './attach-relay/bun-server.js';
 // The AttachRelay (ADR-0115): the Bun WebSocket transport a desktop or
 // self-hosted instance serves, plus the wire type its adapters speak. A
-// self-hosted instance mounts it behind per-device grants (`mountAttachRelayApp`);
-// Super Chat seals its frames above this unchanged relay (`apps/super-chat`), so
-// the relay forwards opaque bytes and never learns a seal exists. The coordinator
-// itself (`createAttachRelay`) stays package-internal, the way the room
-// coordinator does; only its transport and mounts are public. Cloud attach is
-// not built.
+// self-hosted instance mounts it behind per-device grants (`mountAttachRelayApp`).
+// The coordinator itself (`createAttachRelay`) stays package-internal, the way
+// the room coordinator does; only its transport and mounts are public. The Cloud
+// Durable Object transport (`createDurableObjectAttachRelay`, `AttachRelay`)
+// lives in the main barrel instead: its module imports `cloudflare:workers` and
+// cannot load in a Bun process.
 export {
 	RELAY_CLOSE,
 	type RelayToHostFrame,
@@ -49,12 +49,22 @@ export {
 // deployment's bearer gate, with the principal stamped server-side. On self-host
 // the bearer is a per-device grant.
 export { mountAttachGrantsApp } from './attach-relay/grants-app.js';
-// The attach host's three-valued liveness (ADR-0115): the `online` / `offline` /
-// `unreachable` status a Super Chat client reads to decide whether a new
-// local-source question may start. The closed directory-entry schema that wraps
-// it (`AttachHostDirectoryEntry`) stays package-internal: no deployable dials a
-// directory yet, so its only consumer is its own guard test.
-export { AttachHostStatus } from './attach-relay/host-directory.js';
+// The attach host directory (ADR-0115 clause 3): the closed
+// `{ hostId, label, status }` entry a client discovers a host by, its
+// three-valued liveness (`online`/`offline`/`unreachable`), and the read seam a
+// discovery mount drives (`HostDirectoryReader`, satisfied by a Bun server's
+// `.hostDirectory`). The entry schema stays closed so the directory can never
+// grow into a capability registry.
+export {
+	type AttachHostDirectoryEntry,
+	AttachHostStatus,
+	type HostDirectoryReader,
+} from './attach-relay/host-directory.js';
+// The client's host-discovery mount (ADR-0115 clause 3): `GET /attach/hosts`
+// behind the deployment's attach bearer, backend bound through
+// `resolveHostDirectory`. Read-only and closed; a host publishes itself by
+// connecting, never by a write route.
+export { mountHostDirectoryApp } from './attach-relay/host-directory-app.js';
 export { mountAttachRelayApp } from './attach-relay/mount.js';
 export { ATTACH_RELAY_ROUTE } from './attach-relay/route.js';
 // The single-partition instance's bearer resolver (self-host; ADR-0075): the

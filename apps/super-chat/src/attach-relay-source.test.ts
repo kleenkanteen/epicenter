@@ -3,18 +3,17 @@
  *
  * The wave's product sentence: a phone attached to the desktop Super Chat
  * session can ask a question that uses a desktop-local read-only source, receive
- * the streamed answer over the sealed relay, and later see the finished
+ * the streamed answer over the trusted relay, and later see the finished
  * transcript even when the desktop is offline; it cannot start a new local-source
  * question while the desktop is unreachable.
  *
- * These run on the same authenticated, sealed self-host mount as waves 3-4. What
- * they pin:
+ * These run on the same authenticated self-host mount as wave 3. What they pin:
  *
- * - A remote sealed client drives a turn that reads a host-local read-only source
+ * - A remote client drives a turn that reads a host-local read-only source
  *   (`imessage__search`), the answer streams back, and the source content really
- *   flowed through the session (it appears in a tool-result of the settled
- *   transcript), yet no source content ever crosses the relay in plaintext: the
- *   relay forwards only sealed and handshake frames (ADR-0080 decision 2/5).
+ *   flowed through the session. The trusted relay may see live frame payloads;
+ *   the important boundary is that it still routes only endpoint-addressed
+ *   frames and never exposes a source route or capability.
  * - The finished transcript is durable in the host's own workspace and reads from
  *   a fresh replica after the desktop process is gone: this models the phone
  *   reading synced history while the desktop is offline. The real cross-device
@@ -117,14 +116,9 @@ function sourceReadingEngine(): AgentEngine {
 	]);
 }
 
-function makePsk(): Uint8Array {
-	return crypto.getRandomValues(new Uint8Array(32));
-}
-
 /**
- * Stand up the authenticated, sealed self-host relay (the wave-3/4 wiring).
- * Sealing lives in the adapters, so the mount is untouched; the store is returned
- * so a test can mint the device grants the connect needs.
+ * Stand up the authenticated self-host relay. The store is returned so a test
+ * can mint the device grants the connect needs.
  */
 function serveSelfHostRelay(): {
 	server: ReturnType<typeof Bun.serve>;
@@ -143,7 +137,7 @@ function serveSelfHostRelay(): {
 	});
 	mountAttachRelayApp(app, {
 		resolveBearerPrincipal: grants.resolveBearerPrincipal,
-		relay: attachRelay,
+		resolveRelay: () => attachRelay,
 	});
 	const server = Bun.serve({
 		hostname: '127.0.0.1',
@@ -289,13 +283,12 @@ const toolResults = (messages: AgentMessage[]) =>
 	);
 
 describe('AttachRelay source plane (ADR-0115 wave 6)', () => {
-	test('a sealed remote ask reads a host local source; the answer streams and no source content crosses the relay in plaintext', async () => {
+	test('a remote ask reads a host local source over endpoint-addressed relay frames', async () => {
 		await using host: SuperChatHost = await createSourceHost(
 			testDataDir(),
 			sourceReadingEngine(),
 		);
 		const { server, origin, grants } = serveSelfHostRelay();
-		const psk = makePsk();
 		const hostWireFrames: string[] = [];
 		const relayHost = attachHostToRelay({
 			host,
@@ -303,7 +296,6 @@ describe('AttachRelay source plane (ADR-0115 wave 6)', () => {
 			principalId: 'ignored',
 			hostId: HOST_ID,
 			bearer: await grantFor(grants, 'host-mac'),
-			sealing: { resolvePsk: () => psk },
 			openSocket: capturingHostSocket(hostWireFrames),
 		});
 		await relayHost.ready;
@@ -315,14 +307,13 @@ describe('AttachRelay source plane (ADR-0115 wave 6)', () => {
 			deviceId: 'phone',
 			attachId: 'attach-1',
 			bearer: await grantFor(grants, 'phone'),
-			sealing: { psk },
 		});
 		await client.ready;
 		try {
 			const settled = nextClientSnapshot(
 				client,
 				settledWith('Alex has it.'),
-				'the sealed source answer settling',
+				'the source answer settling',
 			);
 			const question = 'what gate code did Alex send?';
 			client.send({ type: 'send', content: question });
@@ -335,31 +326,38 @@ describe('AttachRelay source plane (ADR-0115 wave 6)', () => {
 				results.some((result) => result.content.includes(SOURCE_SECRET)),
 			).toBe(true);
 
-			// Yet the relay saw only sealed and handshake frames: the source content
-			// and the question never crossed it in plaintext.
+			// The trusted relay sees live frame payloads, but the wire shape remains
+			// endpoint-addressed: no route, source, capability, or tool surface enters
+			// the relay envelope.
 			expect(hostWireFrames.length).toBeGreaterThan(0);
-			let sealedFrameCount = 0;
+			expect(hostWireFrames.some((frame) => frame.includes(question))).toBe(
+				true,
+			);
+			expect(
+				hostWireFrames.some((frame) => frame.includes(SOURCE_SECRET)),
+			).toBe(true);
 			const allowedWireKeys = new Set([
 				'deviceId',
 				'attachId',
 				'event',
 				'payload',
 			]);
+			const forbidden = [
+				'route',
+				'channel',
+				'capability',
+				'source',
+				'toolName',
+			];
 			for (const frame of hostWireFrames) {
-				expect(frame).not.toContain(SOURCE_SECRET);
-				expect(frame).not.toContain(question);
 				const envelope = JSON.parse(frame) as Record<string, unknown>;
 				for (const key of Object.keys(envelope)) {
 					expect(allowedWireKeys.has(key)).toBe(true);
 				}
-				const payload = envelope.payload;
-				if (typeof payload !== 'string') continue;
-				const inner = JSON.parse(payload) as Record<string, unknown>;
-				expect(inner.type).toBeUndefined(); // not a SuperChatServerEvent
-				expect(inner.k === 'seal' || inner.k === 'hs').toBe(true);
-				if (inner.k === 'seal') sealedFrameCount += 1;
+				for (const key of forbidden) {
+					expect(Object.keys(envelope)).not.toContain(key);
+				}
 			}
-			expect(sealedFrameCount).toBeGreaterThan(0);
 		} finally {
 			client.close();
 			relayHost.close();
@@ -382,14 +380,12 @@ describe('AttachRelay source plane (ADR-0115 wave 6)', () => {
 			sourceReadingEngine(),
 		);
 		const { server, origin, grants } = serveSelfHostRelay();
-		const psk = makePsk();
 		const relayHost = attachHostToRelay({
 			host,
 			relayOrigin: origin,
 			principalId: 'ignored',
 			hostId: HOST_ID,
 			bearer: await grantFor(grants, 'host-mac'),
-			sealing: { resolvePsk: () => psk },
 		});
 		await relayHost.ready;
 
@@ -400,7 +396,6 @@ describe('AttachRelay source plane (ADR-0115 wave 6)', () => {
 			deviceId: 'phone',
 			attachId: 'attach-1',
 			bearer: await grantFor(grants, 'phone'),
-			sealing: { psk },
 		});
 		await client.ready;
 		try {
