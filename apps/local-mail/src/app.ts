@@ -1,7 +1,7 @@
-import { Database } from 'bun:sqlite';
 import { existsSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { createApiApp, mintToken } from './http/api.ts';
+import { acquireSyncLock } from './lock.ts';
 import { openLocalMailRuntime, openSyncSession } from './runtime.ts';
 import { syncMailbox } from './sync.ts';
 
@@ -29,36 +29,6 @@ import { syncMailbox } from './sync.ts';
 
 const DEV = process.env.LOCAL_MAIL_DEV === '1';
 const SYNC_INTERVAL_MS = 30_000;
-
-type LockHandle = { db: Database; release(): void };
-
-/**
- * A dedicated `lock.db` held with `BEGIN EXCLUSIVE` for the process lifetime,
- * so a second `app` for the same account is refused instantly. `flock` has no
- * Bun API and an `O_EXCL` lockfile is stale-on-crash; the fcntl lock a live
- * SQLite transaction holds is released by the kernel on `kill -9`.
- */
-function acquireAccountLock(dir: string): LockHandle | null {
-	const db = new Database(join(dir, 'lock.db'), { create: true });
-	db.run('PRAGMA busy_timeout = 0;');
-	try {
-		db.run('BEGIN EXCLUSIVE;');
-	} catch {
-		db.close();
-		return null;
-	}
-	return {
-		db,
-		release() {
-			try {
-				db.run('ROLLBACK;');
-			} catch {
-				// The process is exiting; the kernel drops the lock regardless.
-			}
-			db.close();
-		},
-	};
-}
 
 /**
  * One in-process promise chain: the background loop and a "refresh now" request
@@ -121,11 +91,13 @@ export async function runApp(options: {
 		return 1;
 	}
 
-	const accountDir = join(runtime.config.dataDir, runtime.accountEmail);
-	const lock = acquireAccountLock(accountDir);
+	const lock = acquireSyncLock({
+		dataDir: runtime.config.dataDir,
+		accountEmail: runtime.accountEmail,
+	});
 	if (!lock) {
 		console.error(
-			`local-mail app is already running for ${runtime.accountEmail}. Stop it first, or open the URL it printed.`,
+			`Another Local Mail sync owner is already active for ${runtime.accountEmail} (an app or a "local-mail sync"). Stop it first.`,
 		);
 		return 1;
 	}
