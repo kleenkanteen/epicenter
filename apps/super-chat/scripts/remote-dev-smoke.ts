@@ -32,7 +32,11 @@ const HOST_ID = 'dev-mac';
 const PHONE_DEVICE_ID = 'phone';
 const PHONE_ATTACH_ID = 'dev-phone-attach';
 
-function createSmokeEngine(): { engine: AgentEngine; model: string; label: string } {
+function createSmokeEngine(): {
+	engine: AgentEngine;
+	model: string;
+	label: string;
+} {
 	const baseURL = process.env.SUPER_CHAT_INFERENCE_URL;
 	const model = process.env.SUPER_CHAT_MODEL;
 	const apiKey = process.env.SUPER_CHAT_API_KEY;
@@ -64,7 +68,8 @@ function createSmokeEngine(): { engine: AgentEngine; model: string; label: strin
 
 	return {
 		model: 'remote-dev-echo',
-		label: 'echo engine (set SUPER_CHAT_INFERENCE_URL and SUPER_CHAT_MODEL for a real model)',
+		label:
+			'echo engine (set SUPER_CHAT_INFERENCE_URL and SUPER_CHAT_MODEL for a real model)',
 		engine: async function* (): AsyncGenerator<EngineChunk> {
 			yield {
 				type: 'text-delta',

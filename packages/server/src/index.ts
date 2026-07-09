@@ -14,6 +14,10 @@
  * applicable). See `apps/api/worker/index.ts` for the cloud composition.
  */
 
+export {
+	AttachRelay,
+	createDurableObjectAttachRelay,
+} from './attach-relay/cloudflare-do.js';
 // The AttachRelay (ADR-0115): the endpoint-addressed relay that forwards live
 // Super Chat bytes between two authenticated endpoints of one principal. The
 // wire contract (the connect route and the frame delivered to a host) is the
@@ -29,10 +33,6 @@ export {
 	RELAY_CLOSE,
 	type RelayToHostFrame,
 } from './attach-relay/contracts.js';
-export {
-	AttachRelay,
-	createDurableObjectAttachRelay,
-} from './attach-relay/cloudflare-do.js';
 export { mountAttachRelayApp } from './attach-relay/mount.js';
 export { ATTACH_RELAY_ROUTE } from './attach-relay/route.js';
 // The single-partition instance's bearer resolver (self-host; ADR-0075). The
