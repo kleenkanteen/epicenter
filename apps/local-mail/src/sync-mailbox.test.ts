@@ -574,6 +574,89 @@ describe('syncMailbox: INCREMENTAL', () => {
 		cleanup();
 	});
 
+	test('an idempotent history echo of already-current labels reports labelsPatched 0', async () => {
+		const { db, cleanup } = seededDb();
+		// The seeded row already carries exactly ['INBOX']; a labelsAdded echo of
+		// the same set (the shape a write-through fold produces, then Gmail replays
+		// through history) touches the row but changes nothing material.
+		const client = createFakeGmailClient({
+			mailbox: new Map(),
+			historyPages: [
+				{
+					historyId: '502',
+					history: [
+						{
+							id: 'h1',
+							labelsAdded: [
+								{
+									message: {
+										id: 'existing',
+										threadId: 't-existing',
+										labelIds: ['INBOX'],
+									},
+									labelIds: ['INBOX'],
+								},
+							],
+						},
+					],
+				},
+			],
+			profileHistoryId: '999',
+		});
+
+		const outcome = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-06-30T01:00:00.000Z') },
+			{ forceFull: false },
+		);
+
+		expect(outcome.failure).toBeNull();
+		expect(outcome.cursorAfter).toBe('502');
+		expect(outcome.labelsPatched).toBe(0);
+		cleanup();
+	});
+
+	test('a labels echo in a different order is not counted as a material change', async () => {
+		const { db, cleanup } = tempDb();
+		db.ingestFullPullPage(
+			[message('existing', { labelIds: ['INBOX', 'IMPORTANT'] })],
+			'2026-06-30T00:00:00.000Z',
+		);
+		db.finishFullPull('500', '2026-06-30T00:00:00.000Z');
+		const client = createFakeGmailClient({
+			mailbox: new Map(),
+			historyPages: [
+				{
+					historyId: '502',
+					history: [
+						{
+							id: 'h1',
+							labelsAdded: [
+								{
+									message: {
+										id: 'existing',
+										threadId: 't-existing',
+										labelIds: ['IMPORTANT', 'INBOX'],
+									},
+									labelIds: ['IMPORTANT'],
+								},
+							],
+						},
+					],
+				},
+			],
+			profileHistoryId: '999',
+		});
+
+		const outcome = await syncMailbox(
+			{ db, client, config, now: () => Date.parse('2026-06-30T01:00:00.000Z') },
+			{ forceFull: false },
+		);
+
+		expect(outcome.failure).toBeNull();
+		expect(outcome.labelsPatched).toBe(0);
+		cleanup();
+	});
+
 	test('labelsRemoved for an unmirrored message refetches it (untrash after a full-pull sweep)', async () => {
 		const { db, cleanup } = seededDb();
 		const mailbox = new Map([
