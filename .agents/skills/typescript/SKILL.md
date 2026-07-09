@@ -20,6 +20,7 @@ Project-wide TypeScript conventions compose with narrower skills such as `arktyp
 - Treat acronyms as normal words in camelCase: `parseUrl`, `defineKv`, `readJson`, `customerId`.
 - Use `.js` extensions in relative imports. Do not use extensionless or `.ts` relative imports.
 - Export symbols at their declarations. Reserve `export { ... } from ...` for barrel files.
+- In React/TSX, prefer named function components with explicit props parameters over `React.FC`/`FunctionComponent`; only type component values when you are storing them in a registry or passing them as data.
 - Prefer factory functions over classes. Let closure position communicate private vs public API.
 - Use descriptive generic names with a `T` prefix, such as `TSchema`, `TDefs`, and `TKey`.
 - Destructure options in the function signature when the object is a configuration bag. Keep a named value only when it is the domain object being transformed or forwarded.

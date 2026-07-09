@@ -8,18 +8,7 @@ metadata:
 
 # Script Commands
 
-## Reference Repositories
-
-- [jsrepo](https://github.com/jsrepojs/jsrepo) : Package distribution for monorepos
-- [WXT](https://github.com/wxt-dev/wxt) : Browser extension framework (used by tab-manager app)
-
-## Upstream Grounding
-
-When jsrepo configuration, publish behavior, block layout, or package distribution affects correctness, use source-backed grounding before relying on memory. If DeepWiki MCP is available, ask a narrow question against `jsrepojs/jsrepo`; for browser-extension build behavior, prefer the `wxt` skill, or ask against `wxt-dev/wxt` if this skill owns the script or package boundary. If DeepWiki is unavailable or the repo is not indexed, use upstream source or official docs directly. Treat DeepWiki as orientation, then verify decisive details against local package scripts, config files, installed types, generated output, or official docs before changing code.
-
-Skip DeepWiki for repo-local Bun script conventions already documented below.
-
-The monorepo uses consistent script naming conventions:
+The monorepo uses consistent script naming conventions.
 
 ## Commands
 
@@ -76,16 +65,17 @@ scripts and `deploy`, never through a development server.
 
 ## CLI (`epicenter`)
 
-From the monorepo root, `bun epicenter` runs the local CLI against `localhost:8787`:
+From the monorepo root, target the local API with `bun run cli:local` (it sets
+`EPICENTER_API_URL=http://localhost:8787`); `bun run cli` runs from source
+against the default hosted target.
 
 ```bash
-bun epicenter start playground/opensidian-e2e --verbose
-bun epicenter list files -C playground/opensidian-e2e
+bun run cli:local auth login
+bun run cli:local up -C playground/opensidian-e2e
 ```
 
-The bare `epicenter` command (global install) defaults to `api.epicenter.so`.
-Config files read `process.env.EPICENTER_SERVER` with a prod fallback:the root
-script sets it automatically.
+The full targeting matrix (prod, published binary, per-target token storage)
+lives in `packages/cli/README.md`. Keep it there so this section cannot drift.
 
 ## After Completing Code Changes
 
