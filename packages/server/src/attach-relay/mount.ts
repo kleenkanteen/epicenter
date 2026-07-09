@@ -121,6 +121,9 @@ function createAttachRelayApp(
 				hostId: c.req.query('hostId'),
 				deviceId: c.req.query('deviceId'),
 				attachId: c.req.query('attachId'),
+				// Directory metadata for a `role=host` connect; the backend records
+				// it in the host directory and never hands it to the coordinator.
+				label: c.req.query('label'),
 			});
 		},
 	);

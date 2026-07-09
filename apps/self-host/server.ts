@@ -58,6 +58,7 @@ import {
 	mountAttachGrantsApp,
 	mountAttachRelayApp,
 	mountBlobsApp,
+	mountHostDirectoryApp,
 	mountInferenceApp,
 	mountRoomsApp,
 	mountSessionApp,
@@ -188,6 +189,17 @@ export function startSelfHostServer(): void {
 	// device off. This is where "the desktop approves a device" lives on an
 	// instance (ADR-0115 clause 3); minting the secret here is the pairing step.
 	mountAttachGrantsApp(app, { auth, grants: attachGrants });
+	// The client's host-discovery read (`GET /attach/hosts`, ADR-0115 clause 3),
+	// gated by a per-device grant (the same credential a client attaches with, NOT
+	// the operator token): a paired phone lists this instance's desktop hosts and
+	// their `online`/`offline` liveness, then attaches to one. The directory is the
+	// relay's own retained membership joined with its live host set; the principal
+	// is stamped server-side, so a client only ever reads the instance principal's
+	// hosts. No write route: a host publishes itself by connecting as a host.
+	mountHostDirectoryApp(app, {
+		resolveBearerPrincipal: attachGrants.resolveBearerPrincipal,
+		resolveHostDirectory: () => attachRelay.hostDirectory,
+	});
 	// Inference spends the operator's house key on every request. Cap the burn
 	// rate so a leaked or overused bearer cannot run the provider bill up
 	// unbounded between invoices. This is the in-process backstop; the real

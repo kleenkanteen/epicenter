@@ -43,6 +43,13 @@ export type AttachRelayHostOptions = {
 	/** This desktop's stable host id, the endpoint clients attach to. */
 	hostId: string;
 	/**
+	 * This desktop's human label for the host directory ("Braden's Mac"), what a
+	 * client sees before it attaches (ADR-0115 clause 3). Directory metadata only:
+	 * the mount records it beside the relay, never handing it to the coordinator.
+	 * Omitted, the directory lists this host under its `hostId`.
+	 */
+	label?: string;
+	/**
 	 * This host's attach credential. On self-host this is a per-device grant; on
 	 * Cloud it is the signed-in session bearer. Revoking the credential cuts the
 	 * host off on its next connect.
@@ -81,10 +88,14 @@ export type AttachRelayHost = {
 export function attachHostToRelay(
 	options: AttachRelayHostOptions,
 ): AttachRelayHost {
-	const { host, relayOrigin, principalId, hostId, bearer } = options;
+	const { host, relayOrigin, principalId, hostId, label, bearer } = options;
 	const open = options.openSocket ?? defaultOpenSocket;
 
-	const url = ATTACH_RELAY_ROUTE.hostUrl(relayOrigin, { principalId, hostId });
+	const url = ATTACH_RELAY_ROUTE.hostUrl(relayOrigin, {
+		principalId,
+		hostId,
+		label,
+	});
 	const socket = open(url, ATTACH_RELAY_ROUTE.subprotocols(bearer));
 
 	// The client endpoints currently attached to this host, keyed by

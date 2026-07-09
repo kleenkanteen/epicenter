@@ -23,17 +23,30 @@
  * the relay, beside the device grants (`device-grants.ts`), never inside the
  * relay coordinator (`core.ts`), which stays byte-, frame-, key-, and
  * directory-blind: it forwards opaque bytes addressed by `principalId`,
- * `hostId`, `deviceId`, `attachId`, and never learns a directory exists. No
- * runtime mount consumes this yet, so it is a schema plus its guard tests, not a
- * live product directory.
+ * `hostId`, `deviceId`, `attachId`, and never learns a directory exists.
  *
- * ## Deliberately not built here (smallest model, ADR-0115)
+ * ## How membership and liveness split (the two facts a status is)
  *
- * - There is no directory store, route, or presence feed: a host does not
- *   publish an entry anywhere yet. The wire and mount for discovery are a later
- *   refinement; this pins the shape the guard protects. The `unreachable` status
- *   has a consumer (Super Chat's ask-gate), but the live publish/discover wire
- *   stays deferred.
+ * A directory entry is a join of two facts that live in different owners:
+ * - **membership + label** ("this principal's known desktops and their names")
+ *   is what {@link createHostDirectory} retains. A host publishes itself by the
+ *   act of connecting as a host (`role=host`, the mount records `hostId`+`label`
+ *   here); a client never performs that act, so it is structurally absent. There
+ *   is no host/client discriminator to store or filter: membership IS the trace
+ *   of the host-register act. Membership is retained after disconnect, so an
+ *   asleep desktop still lists as `offline` rather than vanishing.
+ * - **liveness** ("is a host socket live right now") belongs to the coordinator
+ *   (`core.ts` `liveHostIds`), the single conflict-correct source. A
+ *   {@link HostDirectoryReader} joins the two at read time, so a crashed host is
+ *   never a stale `online`: the coordinator drops it, and the retained
+ *   membership renders `offline`.
+ *
+ * The store is in-memory and per-process (a restart forgets membership, exactly
+ * as the grant store and coordinator do); persisting it is deferred until a real
+ * need earns it. The `unreachable` status is emitted only by a store that can
+ * hold "claimed online but the socket is dead" (the Cloud per-principal index,
+ * deferred); the Bun self-host reader here emits only `online`/`offline`, and
+ * the client's ask-gate treats `offline` and `unreachable` identically.
  */
 
 import { type } from 'arktype';
@@ -72,3 +85,60 @@ export const AttachHostDirectoryEntry = type({
 	status: AttachHostStatus,
 }).onUndeclaredKey('reject');
 export type AttachHostDirectoryEntry = typeof AttachHostDirectoryEntry.infer;
+
+/**
+ * The read seam a discovery mount drives: given the server-stamped principal,
+ * return that principal's host directory entries. One deployment binds one
+ * backend behind it (the Bun self-host reader below; a Cloud per-principal index
+ * later), exactly the `resolveRelay`/`resolveRooms` shape, so the mount stays
+ * backend-blind. Async so a Durable-Object-backed index can satisfy it.
+ */
+export type HostDirectoryReader = {
+	list(
+		principalId: string,
+	): AttachHostDirectoryEntry[] | Promise<AttachHostDirectoryEntry[]>;
+};
+
+/** One retained host membership record: the id to dial and its human label. */
+type HostMembership = { hostId: string; label: string };
+
+/**
+ * The retained membership+label half of the directory (the liveness half is the
+ * coordinator's `liveHostIds`). A host is recorded by the act of connecting as a
+ * host and is kept after it disconnects, so an asleep desktop still lists. This
+ * holds no host/client discriminator and no status: status is computed at read
+ * time by joining with the coordinator, so this store can never drift into a
+ * stale `online`.
+ */
+export type HostDirectory = {
+	/**
+	 * Record (or refresh the label of) a host under a principal. Called by the
+	 * mount when a `role=host` endpoint connects; idempotent, so a reconnect or a
+	 * refused conflicting registration only upserts the same membership.
+	 */
+	record(principalId: string, hostId: string, label: string | undefined): void;
+	/** Every retained host membership under a principal, in insertion order. */
+	entries(principalId: string): HostMembership[];
+};
+
+/** Build one in-memory host directory. A Bun deployment holds one per process. */
+export function createHostDirectory(): HostDirectory {
+	/** principalId -> (hostId -> label). Partitioned by principal, never merged. */
+	const byPrincipal = new Map<string, Map<string, string>>();
+
+	return {
+		record(principalId, hostId, label) {
+			if (!hostId) return;
+			const hosts = byPrincipal.get(principalId) ?? new Map<string, string>();
+			// A blank label falls back to the hostId, so an entry always has a
+			// non-empty `label` the closed schema accepts.
+			hosts.set(hostId, label && label.length > 0 ? label : hostId);
+			byPrincipal.set(principalId, hosts);
+		},
+		entries(principalId) {
+			const hosts = byPrincipal.get(principalId);
+			if (!hosts) return [];
+			return Array.from(hosts, ([hostId, label]) => ({ hostId, label }));
+		},
+	};
+}

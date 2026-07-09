@@ -96,10 +96,30 @@ export function createAttachRelay(): {
 		attachId: string;
 		socket: RelaySocket;
 	}): ClientConnection;
+	liveHostIds(principalId: string): string[];
 } {
 	const hosts = new Map<string, HostEntry>();
 
 	return {
+		/**
+		 * The `hostId`s currently registered under `principalId`, the single source
+		 * of truth for a host's `online` liveness (the host directory joins this
+		 * with its retained membership+label). This reads the coordinator's own
+		 * host set, so it is conflict-correct: a refused second registration
+		 * (HOST_CONFLICT) never owned the entry, so it never appears here, and the
+		 * incumbent stays listed. It exposes only host ids the coordinator already
+		 * tracks; it reads no `payload` and no `label`, so the coordinator stays
+		 * frame- and directory-blind (ADR-0115 clause 1).
+		 */
+		liveHostIds(principalId) {
+			const prefix = `${principalId}${SEPARATOR}`;
+			const ids: string[] = [];
+			for (const key of hosts.keys()) {
+				if (key.startsWith(prefix)) ids.push(key.slice(prefix.length));
+			}
+			return ids;
+		},
+
 		registerHost({ principalId, hostId, socket }) {
 			const key = hostKey(principalId, hostId);
 			if (hosts.has(key)) {
