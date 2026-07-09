@@ -12,9 +12,10 @@
  * `ResolveBearerPrincipal` contract and proves `mountAttachRelayApp` stamps that
  * resolved principal server-side before the coordinator routes the socket.
  *
- * The transport is the existing Bun attach backend because a Workers/Durable
- * Object attach backend is not built yet. The property under test is above that
- * runtime seam: resolver output -> authenticated mount -> coordinator partition.
+ * The transport here is the Bun attach backend because the property under test
+ * lives above the runtime seam: resolver output -> authenticated mount ->
+ * coordinator partition. The Cloudflare Durable Object backend that carries the
+ * same invariants on hosted Cloud has its own proof in `cloudflare-do.test.ts`.
  */
 
 import { Principal } from '@epicenter/auth';
@@ -82,7 +83,7 @@ function serveCloudRelay(): {
 	const app = new Hono<Env>();
 	mountAttachRelayApp(app, {
 		resolveBearerPrincipal: resolver.resolveBearerPrincipal,
-		relay: attachRelay,
+		resolveRelay: () => attachRelay,
 	});
 
 	const server = Bun.serve({

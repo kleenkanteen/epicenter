@@ -28,6 +28,11 @@
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import { sanitizeUpgradeSubprotocols } from '../sanitize-upgrade-subprotocols.js';
 import {
+	type AttachEndpoint,
+	type AttachUpgrade,
+	parseAttachEndpoint,
+} from './contracts.js';
+import {
 	type ClientConnection,
 	createAttachRelay,
 	type HostConnection,
@@ -41,32 +46,7 @@ import {
  * route this socket to the attach relay when it shares one `Bun.serve` with the
  * rooms backend; it is a server-side dispatch discriminant, never a wire field.
  */
-export type AttachRelaySocketData = { surface: 'attach' } & (
-	| { role: 'host'; principalId: string; hostId: string }
-	| {
-			role: 'client';
-			principalId: string;
-			hostId: string;
-			deviceId: string;
-			attachId: string;
-	  }
-);
-
-/**
- * The identity and request the Bun backend needs to accept one authenticated
- * attach upgrade. `principalId` is the authenticated principal stamped
- * server-side (the instance principal on self-host), never a query value. The
- * endpoint ids come from the connect query; the backend validates their
- * presence for the given `role`.
- */
-export type AttachUpgrade = {
-	request: Request;
-	principalId: string;
-	role: string | undefined;
-	hostId: string | undefined;
-	deviceId: string | undefined;
-	attachId: string | undefined;
-};
+export type AttachRelaySocketData = { surface: 'attach' } & AttachEndpoint;
 
 export type AttachRelayBunServer = {
 	/**
@@ -145,10 +125,11 @@ export function createAttachRelayBunServer(): AttachRelayBunServer {
 /**
  * Shape a validated {@link AttachRelaySocketData} from the server-stamped
  * `principalId` plus the connect query's endpoint ids, or `undefined` if the
- * shape is incomplete for the `role`. This is the one place the relay's
- * addressing shape is enforced: it accepts only the endpoint quadruple, never a
- * route, channel, or capability field, so there is nowhere for one to enter
- * (ADR-0115 clause 1).
+ * shape is incomplete for the `role`. Delegates to the shared
+ * {@link parseAttachEndpoint} (the one addressing-shape gate both backends run)
+ * and tags the result with the Bun-only `surface` discriminant the merged
+ * `Bun.serve` handler routes by. A Cloudflare DO needs no `surface` tag: it is
+ * a dedicated actor, not a multiplexed handler.
  */
 function buildSocketData(params: {
 	principalId: string | undefined;
@@ -157,21 +138,6 @@ function buildSocketData(params: {
 	deviceId: string | undefined;
 	attachId: string | undefined;
 }): AttachRelaySocketData | undefined {
-	const { principalId, role, hostId, deviceId, attachId } = params;
-	if (!principalId || !hostId) return undefined;
-	if (role === 'host') {
-		return { surface: 'attach', role: 'host', principalId, hostId };
-	}
-	if (role === 'client') {
-		if (!deviceId || !attachId) return undefined;
-		return {
-			surface: 'attach',
-			role: 'client',
-			principalId,
-			hostId,
-			deviceId,
-			attachId,
-		};
-	}
-	return undefined;
+	const endpoint = parseAttachEndpoint(params);
+	return endpoint && { surface: 'attach', ...endpoint };
 }

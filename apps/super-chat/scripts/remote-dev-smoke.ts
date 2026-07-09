@@ -102,7 +102,7 @@ async function main(): Promise<void> {
 	});
 	mountAttachRelayApp(app, {
 		resolveBearerPrincipal: grants.resolveBearerPrincipal,
-		relay: attachRelay,
+		resolveRelay: () => attachRelay,
 	});
 	app.get('/', (c) => c.redirect(phonePath(phoneGrant.token)));
 	app.get('/remote-dev', (c) => {

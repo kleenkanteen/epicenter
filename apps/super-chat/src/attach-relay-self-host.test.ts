@@ -105,7 +105,7 @@ function serveSelfHostRelay(operatorToken: string): {
 	});
 	mountAttachRelayApp(app, {
 		resolveBearerPrincipal: grants.resolveBearerPrincipal,
-		relay: attachRelay,
+		resolveRelay: () => attachRelay,
 	});
 	mountAttachGrantsApp(app, {
 		auth: requireBearerPrincipal(createEnvTokenResolver(operatorToken)),

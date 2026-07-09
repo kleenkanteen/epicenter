@@ -177,7 +177,10 @@ export function startSelfHostServer(): void {
 	// not built.
 	mountAttachRelayApp(app, {
 		resolveBearerPrincipal: attachGrants.resolveBearerPrincipal,
-		relay: attachRelay,
+		// One in-process coordinator for this instance; the env is unused (Bun
+		// binds its backend at boot, not per request). The Cloud Worker instead
+		// returns a Durable Object registry keyed on its bound namespace.
+		resolveRelay: () => attachRelay,
 	});
 	// The operator's device-grant admin surface (`/attach/grants`), gated by the
 	// operator token, NOT a grant: the operator mints a grant per device (the
