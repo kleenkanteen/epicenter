@@ -83,6 +83,14 @@ export type AttachUpgrade = {
 	hostId: string | undefined;
 	deviceId: string | undefined;
 	attachId: string | undefined;
+	/**
+	 * A host endpoint's human label for the directory ("Braden's Mac"), read off
+	 * the connect query by the mount and recorded in the host directory
+	 * (ADR-0115 clause 3: a directory field, not a route/capability). It never
+	 * reaches the coordinator, which stays label-blind; only a `role=host`
+	 * connect carries it, and a client connect ignores it.
+	 */
+	label?: string;
 };
 
 /**
@@ -106,7 +114,7 @@ export type AttachRelayUpgradeHandler = {
  * channel, or capability field (ADR-0115 clause 1).
  */
 export type AttachEndpoint =
-	| { role: 'host'; principalId: string; hostId: string }
+	| { role: 'host'; principalId: string; hostId: string; label?: string }
 	| {
 			role: 'client';
 			principalId: string;
@@ -129,11 +137,14 @@ export function parseAttachEndpoint(params: {
 	hostId: string | undefined;
 	deviceId: string | undefined;
 	attachId: string | undefined;
+	label?: string | undefined;
 }): AttachEndpoint | undefined {
-	const { principalId, role, hostId, deviceId, attachId } = params;
+	const { principalId, role, hostId, deviceId, attachId, label } = params;
 	if (!principalId || !hostId) return undefined;
 	if (role === 'host') {
-		return { role: 'host', principalId, hostId };
+		// `label` is optional directory metadata; a host with no label is valid and
+		// the directory falls back to its `hostId`.
+		return { role: 'host', principalId, hostId, ...(label ? { label } : {}) };
 	}
 	if (role === 'client') {
 		if (!deviceId || !attachId) return undefined;

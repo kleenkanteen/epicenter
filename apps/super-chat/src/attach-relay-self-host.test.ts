@@ -43,6 +43,7 @@ import {
 	mergeBunWebSocketHandlers,
 	mountAttachGrantsApp,
 	mountAttachRelayApp,
+	mountHostDirectoryApp,
 	requireBearerPrincipal,
 } from '@epicenter/server/bun';
 import type { AgentEngine, EngineChunk } from '@epicenter/workspace/agent';
@@ -110,6 +111,11 @@ function serveSelfHostRelay(operatorToken: string): {
 	mountAttachGrantsApp(app, {
 		auth: requireBearerPrincipal(createEnvTokenResolver(operatorToken)),
 		grants,
+	});
+	// The client's host-discovery read, gated by a device grant (as on self-host).
+	mountHostDirectoryApp(app, {
+		resolveBearerPrincipal: grants.resolveBearerPrincipal,
+		resolveHostDirectory: () => attachRelay.hostDirectory,
 	});
 
 	const server = Bun.serve({
@@ -608,6 +614,71 @@ describe('AttachRelay: attach behind per-device grants', () => {
 			phone.close();
 			cli.close();
 			relayHost.close();
+			await server.stop(true);
+		}
+	});
+
+	test('a paired client discovers the host over GET /attach/hosts, online then offline', async () => {
+		await using host: SuperChatHost = await createTestHost(
+			scriptedEngine([[{ type: 'text-delta', delta: 'Discoverable.' }]]),
+		);
+		const { server, origin, httpOrigin, grants } =
+			serveSelfHostRelay(OPERATOR_TOKEN);
+		const phoneBearer = await pairDevice(grants, 'phone');
+		const listHosts = async () => {
+			const response = await fetch(`${httpOrigin}/attach/hosts`, {
+				headers: { authorization: `Bearer ${phoneBearer}` },
+			});
+			expect(response.status).toBe(200);
+			return (await response.json()) as {
+				hosts: { hostId: string; label: string; status: string }[];
+			};
+		};
+
+		try {
+			// Before any host connects, the directory is empty.
+			expect((await listHosts()).hosts).toEqual([]);
+
+			const relayHost = attachHostToRelay({
+				host,
+				relayOrigin: origin,
+				principalId: 'ignored-by-server',
+				hostId: HOST_ID,
+				label: "Braden's Mac",
+				bearer: await pairDevice(grants, 'host-mac'),
+			});
+			await relayHost.ready;
+
+			// The phone discovers exactly the closed entry: id, label, live status.
+			expect((await listHosts()).hosts).toEqual([
+				{ hostId: HOST_ID, label: "Braden's Mac", status: 'online' },
+			]);
+
+			// The desktop goes offline; the host is retained and lists offline, so the
+			// phone can still show it (and read synced history), never asking.
+			relayHost.close();
+			await Bun.sleep(50);
+			expect((await listHosts()).hosts).toEqual([
+				{ hostId: HOST_ID, label: "Braden's Mac", status: 'offline' },
+			]);
+		} finally {
+			await server.stop(true);
+		}
+	});
+
+	test('discovery is refused without a device grant', async () => {
+		const { server, httpOrigin } = serveSelfHostRelay(OPERATOR_TOKEN);
+		try {
+			const unauthenticated = await fetch(`${httpOrigin}/attach/hosts`);
+			expect(unauthenticated.status).toBe(401);
+
+			// The operator token administers grants but is not itself a device grant,
+			// so it does not resolve on the attach-credential-gated discovery read.
+			const withOperatorToken = await fetch(`${httpOrigin}/attach/hosts`, {
+				headers: { authorization: `Bearer ${OPERATOR_TOKEN}` },
+			});
+			expect(withOperatorToken.status).toBe(401);
+		} finally {
 			await server.stop(true);
 		}
 	});

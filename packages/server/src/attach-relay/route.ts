@@ -33,15 +33,21 @@ export const ATTACH_RELAY_ROUTE = {
 	subprotocols(bearer: string): string[] {
 		return [MAIN_SUBPROTOCOL, `${BEARER_SUBPROTOCOL_PREFIX}${bearer}`];
 	},
-	/** The host endpoint's connect URL: it registers under `(principalId, hostId)`. */
+	/**
+	 * The host endpoint's connect URL: it registers under `(principalId, hostId)`.
+	 * An optional `label` is directory metadata (ADR-0115 clause 3) the mount
+	 * records for the host directory; it never reaches the coordinator, which
+	 * stays label-blind. A host with no label lists under its `hostId`.
+	 */
 	hostUrl(
 		baseURL: string,
-		params: { principalId: string; hostId: string },
+		params: { principalId: string; hostId: string; label?: string },
 	): string {
 		const url = new URL(`${stripTrailing(baseURL)}/attach`);
 		url.searchParams.set('role', 'host');
 		url.searchParams.set('principalId', params.principalId);
 		url.searchParams.set('hostId', params.hostId);
+		if (params.label) url.searchParams.set('label', params.label);
 		return url.toString();
 	},
 	/** A client endpoint's connect URL: it attaches under the full quadruple. */

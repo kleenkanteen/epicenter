@@ -134,6 +134,7 @@ async function main(): Promise<void> {
 		relayOrigin,
 		principalId: 'instance',
 		hostId: HOST_ID,
+		label: 'Desktop (dev smoke)',
 		bearer: hostGrant.token,
 	});
 	await relayHost.ready;
