@@ -59,19 +59,32 @@ type MessageQuery = {
 	offset?: number;
 };
 
+// Every read/write is account-scoped: the host serves all connected mailboxes
+// under one origin (`/api/accounts/:account/*`), and the caller (the page's
+// account switcher) passes which one. `accounts()` lists the connected set.
 export const api = {
-	status: async () => {
-		const res = await client.api.status.$get();
+	accounts: async () => {
+		const res = await client.api.accounts.$get();
 		if (!res.ok) throw await toError(res);
 		return res.json();
 	},
-	labels: async () => {
-		const res = await client.api.labels.$get();
+	status: async (account: string) => {
+		const res = await client.api.accounts[':account'].status.$get({
+			param: { account },
+		});
 		if (!res.ok) throw await toError(res);
 		return res.json();
 	},
-	messages: async (query: MessageQuery = {}) => {
-		const res = await client.api.messages.$get({
+	labels: async (account: string) => {
+		const res = await client.api.accounts[':account'].labels.$get({
+			param: { account },
+		});
+		if (!res.ok) throw await toError(res);
+		return res.json();
+	},
+	messages: async (account: string, query: MessageQuery = {}) => {
+		const res = await client.api.accounts[':account'].messages.$get({
+			param: { account },
 			query: {
 				...(query.label ? { label: query.label } : {}),
 				...(query.search ? { q: query.search } : {}),
@@ -82,27 +95,43 @@ export const api = {
 		if (!res.ok) throw await toError(res);
 		return res.json();
 	},
-	message: async (id: string) => {
-		const res = await client.api.messages[':id'].$get({ param: { id } });
+	message: async (account: string, id: string) => {
+		const res = await client.api.accounts[':account'].messages[':id'].$get({
+			param: { account, id },
+		});
 		if (!res.ok) throw await toError(res);
 		return res.json();
 	},
-	sync: async () => {
-		const res = await client.api.sync.$post();
+	sync: async (account: string) => {
+		const res = await client.api.accounts[':account'].sync.$post({
+			param: { account },
+		});
 		if (!res.ok) throw await toError(res);
 		return res.json();
 	},
-	modify: async (input: {
-		ids: string[];
-		addLabels?: string[];
-		removeLabels?: string[];
-	}) => {
-		const res = await client.api.messages.modify.$post({ json: input });
+	modify: async (
+		account: string,
+		input: {
+			ids: string[];
+			addLabels?: string[];
+			removeLabels?: string[];
+		},
+	) => {
+		const res = await client.api.accounts[':account'].messages.modify.$post({
+			param: { account },
+			json: input,
+		});
 		if (!res.ok) throw await toError(res);
 		return res.json();
 	},
-	setTrashed: async (input: { ids: string[]; trashed: boolean }) => {
-		const res = await client.api.messages.trash.$post({ json: input });
+	setTrashed: async (
+		account: string,
+		input: { ids: string[]; trashed: boolean },
+	) => {
+		const res = await client.api.accounts[':account'].messages.trash.$post({
+			param: { account },
+			json: input,
+		});
 		if (!res.ok) throw await toError(res);
 		return res.json();
 	},

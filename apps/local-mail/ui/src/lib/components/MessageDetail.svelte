@@ -23,6 +23,7 @@
 
 	let {
 		id,
+		account,
 		readOnly,
 		labels,
 		pendingDeltas,
@@ -33,6 +34,9 @@
 		onLabelsOpenChange,
 	}: {
 		id: string | null;
+		/** The account whose mirror this message is read from; the detail fetch is
+		 * scoped to it. Null only before the account list has loaded. */
+		account: string | null;
 		readOnly: boolean;
 		labels: MailLabel[];
 		/** Pending page-owned label projections for this message. */
@@ -51,10 +55,16 @@
 		onLabelsOpenChange: (open: boolean) => void;
 	} = $props();
 
+	// Keyed by id AND account, with `account` trailing `id` so `['message', id]`
+	// stays a prefix and `reconcileAfterWrite`'s `['message', id]` invalidation
+	// still matches. The account belongs in the key because switching accounts
+	// changes it even for the one render before the selection `$effect` re-resolves
+	// `id`: that render then reads a fresh (empty) cache entry and shows Loading,
+	// rather than the previous account's cached message flashing through.
 	const message = createQuery(() => ({
-		queryKey: ['message', id ?? ''],
-		queryFn: () => api.message(id as string),
-		enabled: id !== null,
+		queryKey: ['message', id ?? '', account ?? ''],
+		queryFn: () => api.message(account as string, id as string),
+		enabled: id !== null && account !== null,
 	}));
 
 	const detail = $derived(

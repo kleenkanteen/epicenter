@@ -35,13 +35,37 @@
 	let shortcutsOpen = $state(false);
 
 	const queryClient = useQueryClient();
+
+	// The connected accounts the host serves under this one origin. The switcher
+	// picks one; every read and write below is scoped to it and keyed by it.
+	const accountsQuery = createQuery(() => ({
+		queryKey: ['accounts'],
+		queryFn: () => api.accounts(),
+	}));
+	let selectedAccount = $state<string | null>(null);
+	// Default to the first account once loaded, and re-resolve if the current
+	// selection disappears (an account list can only change across a restart, but
+	// this keeps the selection valid without special-casing the first load).
+	$effect(() => {
+		const list = accountsQuery.data?.accounts ?? [];
+		if (list.length === 0) {
+			selectedAccount = null;
+			return;
+		}
+		if (!selectedAccount || !list.includes(selectedAccount)) {
+			selectedAccount = list[0] ?? null;
+		}
+	});
+
 	const status = createQuery(() => ({
-		queryKey: ['status'],
-		queryFn: () => api.status(),
+		queryKey: ['status', selectedAccount],
+		queryFn: () => api.status(selectedAccount as string),
+		enabled: selectedAccount !== null,
 	}));
 	const labels = createQuery(() => ({
-		queryKey: ['labels'],
-		queryFn: () => api.labels(),
+		queryKey: ['labels', selectedAccount],
+		queryFn: () => api.labels(selectedAccount as string),
+		enabled: selectedAccount !== null,
 	}));
 	const messages = createQuery(() => {
 		const query = {
@@ -49,12 +73,23 @@
 			search: search.trim() || undefined,
 			limit: 100,
 		};
-		return { queryKey: ['messages', query], queryFn: () => api.messages(query) };
+		return {
+			queryKey: ['messages', selectedAccount, query],
+			queryFn: () => api.messages(selectedAccount as string, query),
+			enabled: selectedAccount !== null,
+		};
 	});
 
 	const sync = createMutation(() => ({
-		mutationFn: () => api.sync(),
+		mutationFn: () => api.sync(selectedAccount as string),
 		onSuccess: (outcome) => {
+			// The host yields busy when another owner holds this account's sync loop
+			// (a headless `sync`); it keeps the mirror fresh, so this is a note, not
+			// a failure, and there is nothing new to invalidate.
+			if ('synced' in outcome) {
+				toast.info(outcome.message);
+				return;
+			}
 			if (outcome.failure) {
 				toast.error(`Sync failed: ${outcome.failure.message}`);
 			} else {
@@ -109,7 +144,7 @@
 	const modify = createMutation(() => ({
 		mutationKey: MESSAGE_WRITE_MUTATION_KEY,
 		mutationFn: (v: ModifyVars) =>
-			api.modify({
+			api.modify(selectedAccount as string, {
 				ids: [v.id],
 				addLabels: v.action.addLabels,
 				removeLabels: v.action.removeLabels,
@@ -134,7 +169,10 @@
 	const setTrashed = createMutation(() => ({
 		mutationKey: MESSAGE_WRITE_MUTATION_KEY,
 		mutationFn: (v: TrashVars) =>
-			api.setTrashed({ ids: [v.id], trashed: v.trashed }),
+			api.setTrashed(selectedAccount as string, {
+				ids: [v.id],
+				trashed: v.trashed,
+			}),
 		onSuccess: (outcome, v) => {
 			reportOutcome(
 				outcome,
@@ -198,7 +236,10 @@
 	// state the list shows: "run sync" vs "no match".
 	const mirrorEmpty = $derived((status.data?.rows.messages ?? 0) === 0);
 	const syncError = $derived(
-		sync.error?.message ?? sync.data?.failure?.message ?? null,
+		sync.error?.message ??
+			(sync.data && 'failure' in sync.data
+				? (sync.data.failure?.message ?? null)
+				: null),
 	);
 
 	// A brief "catching up" flash on the mirror chip after a sync-lagging write.
@@ -313,10 +354,19 @@
 <div class="flex h-full flex-col">
 	<StatusBar
 		status={status.data}
+		accounts={accountsQuery.data?.accounts ?? []}
+		{selectedAccount}
+		onSelectAccount={(account) => {
+			selectedAccount = account;
+			selectedId = null;
+			labelsOpen = false;
+		}}
 		syncing={sync.isPending}
 		{syncError}
 		{catchingUp}
-		onRefresh={() => sync.mutate()}
+		onRefresh={() => {
+			if (selectedAccount) sync.mutate();
+		}}
 	/>
 
 	<div class="flex min-h-0 flex-1">
@@ -341,6 +391,7 @@
 		{#key selectedId}
 			<MessageDetail
 				id={selectedId}
+				account={selectedAccount}
 				{readOnly}
 				labels={labelList}
 				pendingDeltas={selectedPendingDeltas}

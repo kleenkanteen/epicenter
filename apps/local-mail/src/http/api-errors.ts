@@ -29,6 +29,13 @@ export const ApiError = defineErrors({
 		message: 'Unauthorized. Reload the page to re-authenticate.',
 		status: 401 as const,
 	}),
+	/** The `:account` path segment names no account the host loaded at launch.
+	 * The app enumerates connected accounts once at start, so an account
+	 * connected after launch is unknown until the next restart. */
+	AccountNotFound: () => ({
+		message: 'Unknown account. Reload after connecting it.',
+		status: 404 as const,
+	}),
 	/** No mirror row for the requested message id. */
 	MessageNotFound: () => ({
 		message: 'Message not found.',

@@ -118,12 +118,14 @@ a per-launch local API bearer that the host injects into the served HTML as
 fragment, no session-exchange endpoint, no sessionStorage), and that HTML is
 served `no-store` and frame-denied so a rotated bearer is never cached and a
 cross-origin page cannot frame the auto-authenticated SPA. The bearer is a
-loopback credential, never a Gmail token. The one write route is
-`POST /api/messages/modify` (`{ ids, addLabels, removeLabels }` ->
-`ModifyMessageLabelsOutcome`) over the same core the CLI verbs and MCP tool use,
-so archive/read/label all desugar to add/remove sets client-side.
-`LOCAL_MAIL_READ_ONLY` disables writes end to end; `--port <n>` pins the server
-port (`LOCAL_MAIL_PORT` is the env fallback).
+loopback credential, never a Gmail token. In app mode the host loads every
+connected account and serves them under one origin: `GET /api/accounts` lists
+the loaded accounts, and reads/writes live under `/api/accounts/:account/*`.
+The label write route is `POST /api/accounts/:account/messages/modify`
+(`{ ids, addLabels, removeLabels }` -> `ModifyMessageLabelsOutcome`) over the
+same core the CLI verbs and MCP tool use, so archive/read/label all desugar to
+add/remove sets client-side. `LOCAL_MAIL_READ_ONLY` disables writes end to end;
+`--port <n>` pins the server port (`LOCAL_MAIL_PORT` is the env fallback).
 
 Develop the UI against a running `app`:
 
@@ -145,8 +147,9 @@ Serve tools to an MCP host:
 bun run src/bin.ts mcp
 ```
 
-When more than one account is connected, set `LOCAL_MAIL_ACCOUNT` to choose
-which mirror `sync`, `query`, and `mcp` should use.
+When more than one account is connected, `local-mail app` serves all of them
+under one origin with an account switcher. Set `LOCAL_MAIL_ACCOUNT` only for
+headless `sync`, `query`, and `mcp`, which operate on one account per process.
 
 Tools:
 
