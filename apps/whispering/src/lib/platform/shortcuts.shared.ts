@@ -14,7 +14,7 @@ export type ShortcutEntry = {
  * Per-platform binding adapter. Both shortcut backends now speak the same
  * physical `KeyBinding`; they differ only in where a binding is stored (browser
  * in-app KV vs desktop device-config) and how it is pushed to the runtime
- * (browser keydown matcher vs rdev/plugin). Everything around that (sync
+ * (browser keydown matcher vs the global-shortcut plugin). Everything around that (sync
  * orchestration, reset, label dispatch) is identical and lives in
  * {@link createShortcuts}, so each backend supplies just these primitives.
  */

@@ -7,11 +7,13 @@
  * shadowing something the OS or foreground app owns:
  * - A short list of common OS/app chords (reload, clipboard, undo/redo, close,
  *   quit, app switch, screenshots, system search) is refused outright.
- * - A gesture must carry a modifier, so it cannot fire on an ordinary keypress.
+ * - A gesture must be a registrable plugin chord (one key plus a non-Fn
+ *   modifier); a bare key, an Fn hold, and a modifier-only hold are refused
+ *   (ADR-0117).
  */
 
 import type { Modifier } from '$lib/tauri/commands';
-import type { BindingLike } from '$lib/utils/key-binding';
+import { type BindingLike, isRegistrableChord } from '$lib/utils/key-binding';
 
 /**
  * `primary` stands for the platform's command modifier: Command on macOS,
@@ -115,8 +117,14 @@ export function validateGlobalBinding(binding: BindingLike): string | null {
 		}
 	}
 
-	if (binding.modifiers.length === 0) {
-		return 'Add a modifier so the gesture cannot fire on an ordinary keypress.';
+	// A global shortcut must be a registrable plugin chord. Refuse a bare key, an
+	// Fn hold, or a modifier-only hold rather than store a gesture that silently
+	// never registers (ADR-0117).
+	if (!isRegistrableChord(binding)) {
+		if (binding.modifiers.length === 0) {
+			return 'Add a modifier so the gesture cannot fire on an ordinary keypress.';
+		}
+		return 'Only a chord works as a global shortcut: one key with a modifier. Fn and modifier-only holds are not supported.';
 	}
 
 	return null;

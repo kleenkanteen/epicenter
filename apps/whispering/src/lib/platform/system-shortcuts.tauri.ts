@@ -10,6 +10,7 @@ import { type ChordRegistration, tauriOnly } from '$lib/tauri.tauri';
 import {
 	bindingsOverlap,
 	isEmptyBinding,
+	isRegistrableChord,
 	resolveBinding,
 } from '$lib/utils/key-binding';
 import { validateGlobalBinding } from '$lib/utils/reserved-shortcuts';
@@ -32,11 +33,18 @@ const globalKey = (id: Command['id']) => `shortcuts.global.${id}` as const;
 
 /**
  * The stored shape's `keys` are plain `string[]` (validated structurally in
- * device-config and by name in Rust), so the read crosses into the IPC
- * `KeyBinding` (`keys: Key[]`) with one documented cast at this boundary.
+ * device-config), so the read crosses into the IPC `KeyBinding` (`keys: Key[]`)
+ * with one documented cast at this boundary.
+ *
+ * A stale persisted binding that is not a registrable plugin chord (a
+ * pre-ADR-0117 Fn or modifier-only hold) is sanitized to `null`: it no longer
+ * registers, so it reads as unset instead of surfacing "Works everywhere" for a
+ * dead gesture or being silently skipped at push time.
  */
 function readBinding(id: Command['id']): KeyBinding | null {
-	return (deviceConfig.get(globalKey(id)) as KeyBinding | null) ?? null;
+	const stored = (deviceConfig.get(globalKey(id)) as KeyBinding | null) ?? null;
+	if (stored === null || isEmptyBinding(stored)) return null;
+	return isRegistrableChord(stored) ? stored : null;
 }
 
 export const systemShortcuts: Shortcuts | null = createShortcuts({

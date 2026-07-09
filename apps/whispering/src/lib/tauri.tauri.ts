@@ -369,7 +369,7 @@ const tray = {
 
 const keyboard = {
 	/**
-	 * Register the Tier-0 chord backend (`tauri-plugin-global-shortcut`). Replaces
+	 * Register the chord backend (`tauri-plugin-global-shortcut`). Replaces
 	 * the whole set: unregister everything, then register each resolved chord
 	 * under its accelerator. The plugin's own callback delivers Pressed/Released,
 	 * which we dispatch into the command layer (the convergence point the browser

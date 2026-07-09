@@ -15,7 +15,6 @@
 		isEmptyBinding,
 		keyBindingToLabel,
 		type Reach,
-		type ReachWithGrant,
 	} from '$lib/utils/key-binding';
 	import { createChordRecorder } from './create-chord-recorder';
 	import { describeShortcutConflict } from './describe-conflict';
@@ -41,8 +40,8 @@
 	// ADR-0052 read-only reach text: where the shortcut fires, plus whether it syncs
 	// (focused shortcuts live in the synced workspace; global ones are per-device).
 	// One string feeds the glyph tooltip, the live preview, and the success toast.
-	function reachLabel(realized: ReachWithGrant): string {
-		if (realized.reach === 'focused')
+	function reachLabel(reach: Reach): string {
+		if (reach === 'focused')
 			return 'Works in Whispering, synced across your devices';
 		return 'Works everywhere on this computer';
 	}
@@ -123,23 +122,23 @@
 	}
 </script>
 
-{#snippet reachGlyph(realized: ReachWithGrant)}
+{#snippet reachGlyph(reach: Reach)}
 	<span
 		class="inline-flex items-center text-muted-foreground"
-		title={reachLabel(realized)}
+		title={reachLabel(reach)}
 	>
-		{#if realized.reach === 'focused'}
+		{#if reach === 'focused'}
 			<AppWindow class="size-3.5" />
 		{:else}
 			<Globe class="size-3.5" />
 		{/if}
-		<span class="sr-only">{reachLabel(realized)}</span>
+		<span class="sr-only">{reachLabel(reach)}</span>
 	</span>
 {/snippet}
 
-{#snippet keyChip(binding: KeyBinding, realized: ReachWithGrant)}
+{#snippet keyChip(binding: KeyBinding, reach: Reach)}
 	<Kbd.Root>{keyBindingToLabel(binding, os.isApple)}</Kbd.Root>
-	{@render reachGlyph(realized)}
+	{@render reachGlyph(reach)}
 {/snippet}
 
 <div class="flex flex-wrap items-center justify-end gap-2">
