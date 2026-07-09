@@ -46,25 +46,66 @@ Only `bun` is called: no port is pinned, so this never collides with a separate
 `local-mail app` you already have open (that instance keeps the sync lock; this
 one serves reads, both under their own ephemeral origins).
 
-## Not wired yet (the packaging wave)
+## Build a desktop bundle
 
-This shell is proven via `tauri dev`. A distributable `.app`/`.exe` is the
-deferred packaging wave, blocked on:
+```sh
+bun run desktop:build      # == tauri build, targets the macOS .app
+```
 
-- **Compiled sidecar.** A packaged app cannot spawn `bun src/bin.ts` from a
-  source dir (`CARGO_MANIFEST_DIR` is a build-machine path, and `bun` may not be
-  on the end user's PATH). The engine must ship as a `bun build --compile`
-  binary registered as a Tauri sidecar (`bundle.externalBin`), and `spawn_engine`
-  must switch from `bun src/bin.ts app` to the resolved sidecar path in release
-  builds. The compile-embed of the SPA into that binary is the engine-side half
-  (see the `up` spec's distribution wave; embedded-manifest codegen is proven).
-- **Icons + `bundle.active: true`.** `bundle.active` is `false` here; packaging
-  needs the icon set and signing/notarization config (see `apps/honeycrisp`).
+`beforeBuildCommand` runs `bun run build:desktop` first, which builds the SPA
+(`ui/dist`) and compiles the engine sidecar
+(`src-tauri/binaries/local-mail-engine-<target-triple>`, a `bun build --compile`
+binary, ~60MB). Tauri then bundles both into
+`src-tauri/target/release/bundle/macos/Local Mail.app`.
+
+How the packaged app differs from `tauri dev`:
+
+- **The engine is a compiled sidecar, not `bun src/bin.ts`.** A packaged app has
+  no repo beside it and `bun` may be absent from the user's PATH (ADR-0116 keeps
+  the whole mail engine in Bun, so it ships as one binary). `bundle.externalBin`
+  registers `binaries/local-mail-engine`; Tauri strips the target-triple suffix
+  and copies it into `Contents/MacOS/local-mail-engine`. `engine_command` branches
+  on `cfg!(debug_assertions)`: dev spawns `bun src/bin.ts app`; release resolves
+  `current_exe().parent()/local-mail-engine`.
+- **The SPA is a bundled resource, not a source sibling.** A `bun build --compile`
+  binary's `import.meta.dir` is a virtual path with no `ui/dist` beside it, so
+  the SPA ships via `bundle.resources` (`../ui/dist` -> `Contents/Resources/ui-dist`)
+  and the shell passes `LOCAL_MAIL_UI_DIST` (resolved from `resource_dir()`) when
+  it spawns the sidecar. The engine's serving code is identical to dev; only the
+  root path differs. Same `app` entrypoint, same loopback contract.
+
+Rust still owns only the window and the child's lifetime. The sidecar is the
+same Bun engine; no Gmail token, sync, mirror, or bearer transits Rust
+(ADR-0116).
+
+## Signing and notarization (the one deferred item)
+
+The produced `.app` is **unsigned** (ad-hoc). That is fine for a locally built
+app run on the same machine: it is not quarantined, so Gatekeeper does not block
+it. It is not distributable as-is; a downloaded copy would be quarantined and
+refused without a right-click-open.
+
+To sign and notarize, no code changes are needed, only credentials and config:
+
+1. An Apple Developer ID Application certificate in the login keychain.
+2. `bundle.macOS.signingIdentity` set (or the `APPLE_SIGNING_IDENTITY` env var),
+   plus `bundle.macOS.hardenedRuntime: true` and an entitlements file if any
+   hardened-runtime exceptions are needed.
+3. Notarization credentials (`APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`) so
+   `tauri build` can staple the notarization ticket.
+
+Blocker, not a design gap: this machine has no Apple Developer credentials
+configured, so the wave ships an unsigned local bundle and leaves the signing
+config to whoever holds the certificate. Crib `apps/honeycrisp` for the
+hardened-runtime block.
+
+## Deferred niceties (not correctness gates)
+
 - **Graceful engine shutdown.** Exit kills the engine with SIGKILL, which is
   safe by design (the sync lock is a kernel-released fcntl lock; presence is
   stale-safe). A SIGINT/SIGTERM path (so the engine clears its presence file and
-  releases the lock cleanly) is a nice-to-have, not a correctness gate.
-- **Orphan on hard kill.** If `tauri dev` itself is SIGKILLed, the engine is
-  reparented and keeps running (holding the sync lock). Harmless and self-healing
-  (the lock is crash-safe; the next launch or a manual `kill` clears it), but
-  worth a parent-death watchdog if it ever bites.
+  releases the lock cleanly) is a nice-to-have.
+- **Orphan on hard kill.** If the app is SIGKILLed, the engine is reparented and
+  keeps running (holding the sync lock). Harmless and self-healing (the lock is
+  crash-safe; the next launch or a manual `kill` clears it), but worth a
+  parent-death watchdog if it ever bites.

@@ -196,15 +196,13 @@ stdio subprocess for the agent-facing protocol surface.
 - Remote image loading and Gmail-perfect HTML fidelity. Formatted bodies render
   as sanitized inline HTML on a light canvas; remote assets stay stripped, and
   there is no show-images proxy yet.
-- Compile-embed distribution (`bun build --compile`) and a packaged Tauri
-  bundle. The Tauri desktop shell exists as a dev wrapper (`src-tauri/`, run with
-  `bun run app:desktop`): it spawns this engine, reads the origin it prints, and
+- Signed distribution. The Tauri desktop shell (`src-tauri/`, run with
+  `bun run app:desktop`) spawns this engine, reads the origin it prints, and
   opens a `WebviewUrl::External` window at it, owning only the window and the
   engine's lifetime (Rust never touches Gmail tokens, mail data, or the bearer).
-  A distributable `.app` still needs the compiled sidecar, icons, and signing;
-  the blockers are listed in `src-tauri/README.md`. `app` serves `ui/dist` from
-  disk; the route table is the seam the distribution wave swaps for embedded
-  assets later.
+  `bun run desktop:build` produces a local unsigned macOS `.app` with the compiled
+  Bun sidecar and bundled SPA resources; signing and notarization still need
+  Apple Developer credentials and config, as described in `src-tauri/README.md`.
 - Send, reply, compose, drafts, trash, untrash, and permanent delete.
 - Thread-level modify and `messages.batchModify`. Triage is message-level.
 - FTS5. `LIKE` over `body_text` is enough for the current mirror size.
