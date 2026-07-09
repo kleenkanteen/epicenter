@@ -5,19 +5,16 @@
  * ordered list derive from it, so adding a provider is a single line here.
  *
  * This is a static list, not a server-driven one: Epicenter's hosted cloud
- * always configures all three, and this UI only ever runs in that hosted cloud
- * (a self-hosted instance uses operator-bearer auth and composes no social
- * sign-in at all). The server is still the real guard, `createAuth` registers
- * only the providers it has secrets for, so Better Auth rejects a sign-in for
- * an unconfigured provider at the call. Hiding a button would only be UX polish,
- * and it cost a bespoke `/sign-in/context` endpoint plus a hand-mirrored wire
- * type; both are gone. A hosted env missing a provider's secrets (e.g. Apple in
- * local dev) shows a button that errors on click instead.
+ * requires the credentials for every provider shown here, and this UI only ever
+ * runs in that hosted cloud (a self-hosted instance uses operator-bearer auth and
+ * composes no social sign-in at all). The server is still the real guard,
+ * `createAuth` registers only the providers it has secrets for, so Better Auth
+ * rejects a sign-in for an unconfigured provider at the call.
  */
 export const PROVIDER_LABELS = {
 	google: 'Google',
 	github: 'GitHub',
-	apple: 'Apple',
+	microsoft: 'Microsoft',
 } as const;
 
 export type SocialProvider = keyof typeof PROVIDER_LABELS;

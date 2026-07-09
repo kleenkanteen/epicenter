@@ -1,8 +1,8 @@
 <!--
 	One "Continue with <provider>" action. Owns the brand icon and label per
 	provider id so the sign-in page can render enabled providers from a loop.
-	Brand icons stay inline SVG: Google uses fixed brand colors, while GitHub
-	and Apple inherit the button text color via currentColor.
+	Brand icons stay inline SVG: Google and Microsoft use fixed brand colors,
+	GitHub inherits the button text color via currentColor.
 -->
 <script lang="ts">
 	import { Button } from '@epicenter/ui/button';
@@ -55,17 +55,12 @@
 				d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"
 			/>
 		</svg>
-	{:else if provider === 'apple'}
-		<svg
-			width="16"
-			height="16"
-			viewBox="0 0 24 24"
-			aria-hidden="true"
-			fill="currentColor"
-		>
-			<path
-				d="M17.05 12.53c-.02-2.02 1.65-2.99 1.72-3.04-.94-1.37-2.4-1.56-2.92-1.58-1.24-.13-2.42.73-3.05.73-.63 0-1.6-.71-2.63-.69-1.35.02-2.6.79-3.3 2-1.4 2.44-.36 6.05 1 8.03.67.97 1.47 2.06 2.5 2.02 1-.04 1.38-.65 2.6-.65 1.2 0 1.55.65 2.6.63 1.08-.02 1.76-.99 2.42-1.96.76-1.12 1.07-2.2 1.09-2.26-.02-.01-2.09-.8-2.11-3.18zM15.1 6.3c.55-.67.92-1.6.82-2.53-.79.03-1.76.53-2.33 1.19-.51.59-.96 1.54-.84 2.44.88.07 1.79-.44 2.35-1.1z"
-			/>
+	{:else if provider === 'microsoft'}
+		<svg width="16" height="16" viewBox="0 0 23 23" aria-hidden="true">
+			<path fill="#F25022" d="M1 1h10v10H1z" />
+			<path fill="#7FBA00" d="M12 1h10v10H12z" />
+			<path fill="#00A4EF" d="M1 12h10v10H1z" />
+			<path fill="#FFB900" d="M12 12h10v10H12z" />
 		</svg>
 	{/if}
 	{label ?? `Continue with ${PROVIDER_LABELS[provider]}`}
