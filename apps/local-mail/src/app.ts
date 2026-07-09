@@ -18,9 +18,10 @@ import { createFileTokenStore, type TokenStore } from './token-store.ts';
  * `local-mail app`: the desktop runtime host. One Bun process serves the triage
  * SPA and its `/api` over `127.0.0.1`, and the same process keeps the mirror
  * fresh through the sync loop, holding the per-account sync lock for its
- * lifetime (the single loop owner). Before Tauri exists this is a loopback web
- * host; Tauri later owns the window and injects the bearer via
- * `initialization_script`, replacing the HTML injection below.
+ * lifetime (the single loop owner). This is a loopback web host; the Tauri
+ * desktop shell points a `WebviewUrl::External` window at this origin and owns
+ * nothing else. The bearer stays injected into the HTML this engine serves and
+ * never transits Rust (ADR-0116).
  *
  * The security model, condensed:
  *
@@ -239,7 +240,14 @@ export async function runApp(options: { port?: number }): Promise<number> {
 
 	const readOnly = config.readOnly;
 	const bearer = mintBearer();
-	const uiDist = join(import.meta.dir, '..', 'ui', 'dist');
+	// Where the built SPA lives. In dev (and headless `bun src/bin.ts app`) it
+	// sits beside the source at `../ui/dist`. A packaged desktop build ships the
+	// engine as a compiled sidecar whose `import.meta.dir` is a virtual path with
+	// no `ui/dist` sibling, so the Tauri shell points `LOCAL_MAIL_UI_DIST` at the
+	// SPA it bundled as a resource. Same serving code either way; only the root
+	// differs (ADR-0116: one engine entrypoint, one loopback contract).
+	const uiDist =
+		process.env.LOCAL_MAIL_UI_DIST ?? join(import.meta.dir, '..', 'ui', 'dist');
 
 	const api = createApiApp({ accounts, readOnly, bearer });
 

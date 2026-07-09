@@ -39,11 +39,9 @@ use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 struct EngineProcess(Mutex<Option<Child>>);
 
 /// The Local Mail package directory (the parent of `src-tauri`), resolved at
-/// compile time so the spawned `bun src/bin.ts app` runs from the engine's
-/// package root and finds `ui/dist` on disk. This is the dev/source launch
-/// path. A distributable bundle must ship the engine as a compiled sidecar and
-/// spawn that instead (see `src-tauri/README.md`); that is the packaging wave,
-/// not wired here.
+/// compile time so the dev-mode `bun src/bin.ts app` runs from the engine's
+/// package root and finds `ui/dist` on disk. Used only on the dev launch path
+/// (`env!(...)` is a build-machine path, absent from a distributed bundle).
 fn engine_package_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -51,16 +49,50 @@ fn engine_package_dir() -> PathBuf {
         .to_path_buf()
 }
 
-/// Spawn the Bun mail engine with its stdout piped (so the shell can read the
-/// printed origin) and its stderr inherited (so the engine's sync/gmail logs
-/// stay visible in the terminal running `tauri dev`).
-fn spawn_engine() -> std::io::Result<Child> {
-    Command::new("bun")
-        .args(["src/bin.ts", "app"])
-        .current_dir(engine_package_dir())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
+/// Build the command that launches the Bun mail engine, resolving it one way
+/// for a dev run and another for a packaged bundle. Either way the shell owns
+/// only the window and the child's lifetime; the engine is the same Bun
+/// process, the same `app` entrypoint, the same loopback contract (ADR-0116).
+///
+/// - **Dev (`tauri dev`, a debug build):** run `bun src/bin.ts app` from the
+///   engine's source package dir, so iteration needs no compile step and the
+///   engine serves `ui/dist` from beside the source. `bun` is on PATH.
+/// - **Packaged (a release bundle):** there is no repo beside the app and `bun`
+///   may be absent, so spawn the compiled engine sidecar Tauri placed next to
+///   this executable (`bundle.externalBin`, `Contents/MacOS/local-mail-engine`)
+///   and point it at the SPA Tauri bundled as a resource, via
+///   `LOCAL_MAIL_UI_DIST` (the compiled binary's `import.meta.dir` is a virtual
+///   path with no `ui/dist` sibling, so it must be told where the SPA lives).
+fn engine_command(app: &tauri::AppHandle) -> std::io::Result<Command> {
+    let mut command = if cfg!(debug_assertions) {
+        let mut command = Command::new("bun");
+        command
+            .args(["src/bin.ts", "app"])
+            .current_dir(engine_package_dir());
+        command
+    } else {
+        let sidecar = std::env::current_exe()?
+            .parent()
+            .expect("the app executable always has a parent dir")
+            .join("local-mail-engine");
+        let ui_dist = app
+            .path()
+            .resource_dir()
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::NotFound, err))?
+            .join("ui-dist");
+        let mut command = Command::new(sidecar);
+        command.arg("app").env("LOCAL_MAIL_UI_DIST", ui_dist);
+        command
+    };
+    // stdout piped so the shell can read the printed origin; stderr inherited so
+    // the engine's sync/gmail logs stay visible in the launching terminal.
+    command.stdout(Stdio::piped()).stderr(Stdio::inherit());
+    Ok(command)
+}
+
+/// Spawn the Bun mail engine (see [`engine_command`] for how it is resolved).
+fn spawn_engine(app: &tauri::AppHandle) -> std::io::Result<Child> {
+    engine_command(app)?.spawn()
 }
 
 /// Kill the engine if it is still held. SIGKILL is safe by the engine's design:
@@ -79,11 +111,11 @@ pub fn run() {
     tauri::Builder::default()
         .manage(EngineProcess(Mutex::new(None)))
         .setup(|app| {
-            let mut child = match spawn_engine() {
+            let mut child = match spawn_engine(app.handle()) {
                 Ok(child) => child,
                 Err(err) => {
                     eprintln!(
-                        "[local-mail shell] failed to spawn the mail engine (`bun src/bin.ts app`): {err}. Is `bun` on PATH?"
+                        "[local-mail shell] failed to spawn the mail engine: {err}. In dev, is `bun` on PATH?"
                     );
                     // Fail the launch rather than run on as an invisible,
                     // windowless app: there is no engine to point a webview at.
