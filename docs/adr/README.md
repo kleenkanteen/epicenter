@@ -191,6 +191,6 @@ Each option and the one reason it lost. Terse. This is not the spec.
 | [0112](0112-the-cli-watcher-is-not-a-callable-action-server.md) | The CLI watcher is not a callable action server | Accepted |
 | [0113](0113-super-chat-session-commands-are-host-owned-transports-only-frame-them.md) | Super Chat session commands are host-owned; transports only frame them | Accepted |
 | [0114](0114-hosted-auth-surfaces-are-plain-tool-logins-not-marketing-pages.md) | Hosted auth surfaces are plain tool logins, not marketing pages | Accepted |
-| [0115](0115-super-chat-remote-attach-rides-an-endpoint-addressed-content-blind-relay.md) | Super Chat remote attach rides an endpoint-addressed, content-blind AttachRelay; one consumer, not the deleted route-addressed relay floor | Accepted (design; relay not implemented) |
+| [0115](0115-super-chat-remote-attach-rides-an-endpoint-addressed-trusted-relay.md) | Super Chat remote attach rides an endpoint-addressed trusted AttachRelay; one consumer, not the deleted route-addressed relay floor | Accepted |
 
 When you add an ADR, add its row here.

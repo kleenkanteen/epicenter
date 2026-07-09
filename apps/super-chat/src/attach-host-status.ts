@@ -10,7 +10,7 @@
  *   It needs no live host, so it is never gated on status: an `offline` or
  *   `unreachable` desktop still lets the phone read the finished transcript.
  * - Asking a new local-source question needs the live host session over the
- *   sealed relay. It is gated: only an `online` host can run a fresh turn.
+ *   relay. It is gated: only an `online` host can run a fresh turn.
  *
  * `offline` and `unreachable` both deny a new question, but they are distinct so
  * a client renders the right recovery ("wake your desktop" versus

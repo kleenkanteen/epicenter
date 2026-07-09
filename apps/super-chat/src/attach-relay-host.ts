@@ -12,27 +12,15 @@
  *
  * The host addresses each attached client endpoint on its own wire frame, never
  * a broadcast: on any host change it sends each client its own snapshot, and on
- * a client's command bytes it drives `handleCommand`. Addressing each client
- * separately is what lets the host seal per endpoint: with sealing configured it
- * forwards only per-endpoint ciphertext (ADR-0115 clause 5); without it (the
- * self-host plaintext opt-out) it sends the same snapshot to each, still per
- * endpoint.
- *
- * The relay reads none of this: the snapshot and the command bytes are the
- * opaque `payload`; only the endpoint envelope (`deviceId`, `attachId`) is the
- * relay's to route.
+ * a client's command bytes it drives `handleCommand`. The relay routes by the
+ * endpoint envelope (`deviceId`, `attachId`) and does not own the Super Chat
+ * command or snapshot semantics.
  */
 
 import {
 	ATTACH_RELAY_ROUTE,
 	type RelayToHostFrame,
 } from '@epicenter/server/bun';
-import {
-	type HostSealSession,
-	type SealEndpoint,
-	type SealPsk,
-	startHostSealSession,
-} from './attach-relay-seal.ts';
 import {
 	parseSuperChatCommand,
 	type SuperChatClientCommand,
@@ -46,21 +34,18 @@ export type AttachRelayHostOptions = {
 	/** The relay's origin, e.g. `ws://127.0.0.1:<port>` on loopback. */
 	relayOrigin: string;
 	/**
-	 * The principal that owns both ends. The authenticated relay ignores this and
-	 * stamps the principal from the device grant (the instance principal on
-	 * self-host, ADR-0115), so it is carried only to complete the connect
-	 * URL's addressing quadruple and can never point the attach at another
-	 * partition.
+	 * The principal that owns both ends. An authenticated relay may stamp the
+	 * principal server-side, so this is carried only to complete the connect URL's
+	 * addressing quadruple and can never authorize cross-partition attach by
+	 * itself.
 	 */
 	principalId: string;
 	/** This desktop's stable host id, the endpoint clients attach to. */
 	hostId: string;
 	/**
-	 * This host's device grant for the relay (ADR-0115): the operator mints
-	 * one grant per device, the desktop host's own included, and it rides the
-	 * `bearer.<token>` WebSocket subprotocol, the one channel a browser upgrade has.
-	 * Every attach is authenticated, so this is required; revoking the grant cuts
-	 * this host off on its next connect.
+	 * This host's attach credential. On self-host this is a per-device grant; on
+	 * Cloud it is the signed-in session bearer. Revoking the credential cuts the
+	 * host off on its next connect.
 	 */
 	bearer: string;
 	/**
@@ -69,17 +54,6 @@ export type AttachRelayHostOptions = {
 	 * `send`, `close`, and the three event hooks the adapter drives.
 	 */
 	openSocket?: (url: string, protocols?: string[]) => RelayHostSocket;
-	/**
-	 * Seal every attached client's frames (ADR-0115). When present, each
-	 * client endpoint runs an authenticated ECDH handshake before any snapshot is
-	 * sent, so the relay forwards only ciphertext: prompts, tool results, and
-	 * approvals never cross it in the clear. `resolvePsk` returns the pairing
-	 * pre-shared key for one endpoint (the QR/paste secret, distinct from the
-	 * relay grant); an endpoint with no PSK is refused a sealed session and gets
-	 * no snapshots (fail-closed). Omit sealing entirely for the self-host plaintext
-	 * opt-out, where the operator is the user (ADR-0115 clause 5).
-	 */
-	sealing?: { resolvePsk: (endpoint: SealEndpoint) => SealPsk | undefined };
 };
 
 /** The minimal outbound-socket surface the host adapter drives. */
@@ -107,7 +81,7 @@ export type AttachRelayHost = {
 export function attachHostToRelay(
 	options: AttachRelayHostOptions,
 ): AttachRelayHost {
-	const { host, relayOrigin, principalId, hostId, bearer, sealing } = options;
+	const { host, relayOrigin, principalId, hostId, bearer } = options;
 	const open = options.openSocket ?? defaultOpenSocket;
 
 	const url = ATTACH_RELAY_ROUTE.hostUrl(relayOrigin, { principalId, hostId });
@@ -115,20 +89,14 @@ export function attachHostToRelay(
 
 	// The client endpoints currently attached to this host, keyed by
 	// `deviceId`/`attachId`. The host re-sends each its own snapshot on change.
-	// When sealing is on, each endpoint carries its seal session; a client with a
-	// pending or refused handshake has no session yet, so it receives no snapshot.
 	type Client = {
 		deviceId: string;
 		attachId: string;
-		seal?: HostSealSession;
 	};
 	const clients = new Map<string, Client>();
 	const clientKey = (deviceId: string, attachId: string): string =>
 		`${deviceId} ${attachId}`;
 
-	// Address one client endpoint on its own wire frame, sealing the payload when
-	// the endpoint runs a ready session. The relay routes by the envelope and
-	// never sees inside `payload`.
 	const sendToClient = (client: Client, payload: string): void => {
 		if (socket.readyState !== 1 /* OPEN */) return;
 		socket.send(
@@ -145,16 +113,7 @@ export function attachHostToRelay(
 			type: 'snapshot',
 			snapshot: host.snapshot(),
 		};
-		const plaintext = JSON.stringify(event);
-		if (sealing) {
-			// Sealed: skip until the handshake completes, then send ciphertext. The
-			// session becomes ready on the client's authenticated accept, and it is
-			// sent the current snapshot at that point, so nothing is lost.
-			const sealed = client.seal?.seal(plaintext);
-			if (sealed !== undefined) sendToClient(client, sealed);
-			return;
-		}
-		sendToClient(client, plaintext);
+		sendToClient(client, JSON.stringify(event));
 	};
 
 	// One host subscription for the whole relay transport: on any session change,
@@ -188,42 +147,13 @@ export function attachHostToRelay(
 					deviceId: frame.deviceId,
 					attachId: frame.attachId,
 				};
-				if (sealing) {
-					// Seal this endpoint: run the authenticated handshake, then push the
-					// first snapshot on ready. An endpoint with no PSK is refused a
-					// session and gets no snapshots (fail-closed).
-					const psk = sealing.resolvePsk({
-						deviceId: client.deviceId,
-						attachId: client.attachId,
-					});
-					if (psk !== undefined) {
-						client.seal = startHostSealSession({
-							psk,
-							send: (payload) => sendToClient(client, payload),
-							onReady: () => sendSnapshot(client),
-						});
-					}
-				}
 				clients.set(key, client);
-				// Without sealing, a freshly attached client gets the current state at
-				// once, so a passive watcher renders before anyone acts. With sealing,
-				// the first snapshot waits for the handshake (see `onReady` above).
-				if (!sealing) sendSnapshot(client);
+				sendSnapshot(client);
 			} else {
 				clients.delete(key);
 			}
 			return;
 		}
-		// A client's opaque bytes. Sealed: hand to its session, which decrypts a
-		// command or absorbs a handshake frame. Plaintext: parse and apply directly.
-		const client = clients.get(clientKey(frame.deviceId, frame.attachId));
-		if (client?.seal) {
-			void client.seal.handleInbound(frame.payload).then((result) => {
-				if (result.type === 'command') applyCommandPayload(result.plaintext);
-			});
-			return;
-		}
-		if (sealing) return; // Sealing on but no session: drop unsealed bytes.
 		applyCommandPayload(frame.payload);
 	};
 	socket.onclose = () => {

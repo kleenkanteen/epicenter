@@ -26,12 +26,10 @@ export {
 } from './attach-relay/bun-server.js';
 // The AttachRelay (ADR-0115): the Bun WebSocket transport a desktop or
 // self-hosted instance serves, plus the wire type its adapters speak. A
-// self-hosted instance mounts it behind per-device grants (`mountAttachRelayApp`);
-// Super Chat seals its frames above this unchanged relay (`apps/super-chat`), so
-// the relay forwards opaque bytes and never learns a seal exists. The coordinator
-// itself (`createAttachRelay`) stays package-internal, the way the room
-// coordinator does; only its transport and mounts are public. Cloud attach is
-// not built.
+// self-hosted instance mounts it behind per-device grants (`mountAttachRelayApp`).
+// The coordinator itself (`createAttachRelay`) stays package-internal, the way
+// the room coordinator does; only its transport and mounts are public. Cloud
+// attach is not built.
 export {
 	RELAY_CLOSE,
 	type RelayToHostFrame,
