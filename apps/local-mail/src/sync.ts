@@ -100,6 +100,9 @@ export type SyncOutcome = {
 	cursorAfter: string | null;
 	messagesUpserted: number;
 	messagesDeleted: number;
+	/** Mirrored rows whose label set materially changed this pass. An idempotent
+	 * history echo of labels the write-through fold already applied counts 0, so
+	 * this reads as "what the sync actually changed", like its sibling counts. */
 	labelsPatched: number;
 	failure: SyncFailure | null;
 };
@@ -316,7 +319,7 @@ async function incrementalPoll(
 		db.ingestLabels(labels.data, syncedAt);
 	}
 
-	db.applyHistoryBatch({
+	const { labelsChanged } = db.applyHistoryBatch({
 		messagesToUpsert,
 		messagesToDelete,
 		labelPatches,
@@ -331,7 +334,7 @@ async function incrementalPoll(
 		cursorAfter: newHistoryId,
 		messagesUpserted: messagesToUpsert.length,
 		messagesDeleted: messagesToDelete.length,
-		labelsPatched: labelPatches.length,
+		labelsPatched: labelsChanged,
 		failure: null,
 	};
 }
