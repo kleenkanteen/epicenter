@@ -26,10 +26,9 @@ import type { Reach } from '$lib/utils/key-binding';
 
 /**
  * The keyboard event state passed to callbacks: a trigger backend reports
- * either the press or the release edge. Both the desktop global shortcut backend
- * (which emits the generated `TriggerState`) and the browser keydown backend
- * speak this exact pair, so the command layer is the single point where they
- * converge.
+ * either the press or the release edge. Both the desktop plugin backend (whose
+ * `ShortcutEvent.state` is this pair) and the browser keydown backend speak it,
+ * so the command layer is the single point where they converge.
  */
 export type ShortcutEventState = 'Pressed' | 'Released';
 
