@@ -137,7 +137,7 @@ function serveSelfHostRelay(): {
 	});
 	mountAttachRelayApp(app, {
 		resolveBearerPrincipal: grants.resolveBearerPrincipal,
-		relay: attachRelay,
+		resolveRelay: () => attachRelay,
 	});
 	const server = Bun.serve({
 		hostname: '127.0.0.1',

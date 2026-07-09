@@ -68,6 +68,80 @@ export type RelayToHostFrame =
  */
 export type HostToRelayFrame = ClientEndpoint & { payload: string };
 
+/**
+ * The identity and request a relay backend needs to accept one authenticated
+ * attach upgrade. `principalId` is the authenticated principal stamped
+ * server-side by the mount (the instance principal on self-host, the OAuth
+ * subject on Cloud), never a query value. The endpoint ids come from the connect
+ * query; the backend validates their presence for the given `role` through
+ * {@link parseAttachEndpoint}.
+ */
+export type AttachUpgrade = {
+	request: Request;
+	principalId: string;
+	role: string | undefined;
+	hostId: string | undefined;
+	deviceId: string | undefined;
+	attachId: string | undefined;
+};
+
+/**
+ * The relay backend seam the mount drives: it accepts one authenticated
+ * upgrade and returns the HTTP response the route returns verbatim. The Bun
+ * backend ({@link import('./bun-server.js')}) returns a synchronous `Response`;
+ * the Cloudflare backend ({@link import('./cloudflare-do.js')}) forwards to a
+ * Durable Object stub and returns a `Promise<Response>`. Both satisfy this one
+ * seam, so the mount is backend-blind (the same move {@link ResolvedRoom} makes
+ * for rooms).
+ */
+export type AttachRelayUpgradeHandler = {
+	handleUpgrade(upgrade: AttachUpgrade): Response | Promise<Response>;
+};
+
+/**
+ * A validated attach endpoint: the server-stamped `principalId` plus the
+ * connect query's `role` and its role-specific ids. A host registers under
+ * `(principalId, hostId)`; a client attaches under the full quadruple. This is
+ * the one addressing shape both transports accept, and it names no route,
+ * channel, or capability field (ADR-0115 clause 1).
+ */
+export type AttachEndpoint =
+	| { role: 'host'; principalId: string; hostId: string }
+	| {
+			role: 'client';
+			principalId: string;
+			hostId: string;
+			deviceId: string;
+			attachId: string;
+	  };
+
+/**
+ * Shape a validated {@link AttachEndpoint} from the server-stamped `principalId`
+ * and the connect query's ids, or `undefined` if the shape is incomplete for the
+ * `role`. Both backends (Bun `bun-server`, Cloudflare `cloudflare-do`) run this
+ * one validator, so the relay's addressing shape is enforced identically: it
+ * accepts only the endpoint quadruple, never a route, channel, or capability
+ * field, so there is nowhere for one to enter (ADR-0115 clause 1).
+ */
+export function parseAttachEndpoint(params: {
+	principalId: string | undefined;
+	role: string | undefined;
+	hostId: string | undefined;
+	deviceId: string | undefined;
+	attachId: string | undefined;
+}): AttachEndpoint | undefined {
+	const { principalId, role, hostId, deviceId, attachId } = params;
+	if (!principalId || !hostId) return undefined;
+	if (role === 'host') {
+		return { role: 'host', principalId, hostId };
+	}
+	if (role === 'client') {
+		if (!deviceId || !attachId) return undefined;
+		return { role: 'client', principalId, hostId, deviceId, attachId };
+	}
+	return undefined;
+}
+
 /** Application close codes the relay uses on the client and host wires. */
 export const RELAY_CLOSE = {
 	/** A client attached to a `(principalId, hostId)` with no live host. */

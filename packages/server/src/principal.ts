@@ -26,6 +26,16 @@ import type { PrincipalId } from '@epicenter/identity';
 export type RoomDoName = `principals/${string}/rooms/${string}`;
 
 /**
+ * Durable Object name template for one AttachRelay pair (ADR-0115). One DO per
+ * `(principalId, hostId)`: the host and every client of that pair route to the
+ * same actor, which is the invariant the in-DO {@link createAttachRelay}
+ * coordinator needs to see both sockets. The `principalId` segment is the
+ * partition, so a client that guesses another principal's `hostId` still lands
+ * in its OWN partition's DO (an empty one) and pairs with no host.
+ */
+export type AttachHostDoName = `principals/${string}/attach-hosts/${string}`;
+
+/**
  * R2 object key template for a content-addressed blob, single form. The id
  * segment is a sha256 hex digest, so the key IS the content address: R2 is
  * the index, with no separate database row. See
@@ -39,6 +49,14 @@ export type BlobPrincipalPrefix = `principals/${string}/blobs/`;
 /** Durable name of a room's Cloudflare Durable Object. */
 export function doName(principalId: PrincipalId, roomId: string): RoomDoName {
 	return `principals/${principalId}/rooms/${roomId}`;
+}
+
+/** Durable name of one AttachRelay pair's Cloudflare Durable Object. */
+export function attachHostDoName(
+	principalId: PrincipalId,
+	hostId: string,
+): AttachHostDoName {
+	return `principals/${principalId}/attach-hosts/${hostId}`;
 }
 
 /** Durable key of a content-addressed blob's R2 object (id = sha256 hex). */

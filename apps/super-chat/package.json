@@ -9,6 +9,7 @@
 	},
 	"scripts": {
 		"start": "bun run src/main.ts",
+		"remote:dev": "bun run scripts/remote-dev-smoke.ts",
 		"build": "vite build",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json"
