@@ -4,16 +4,12 @@
 	import * as Popover from '@epicenter/ui/popover';
 	import AppWindow from '@lucide/svelte/icons/app-window';
 	import Globe from '@lucide/svelte/icons/globe';
-	import Lock from '@lucide/svelte/icons/lock';
 	import Plus from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { accessibilityGuide } from '$lib/components/MacosAccessibilityGuideDialog.svelte';
 	import type { Command } from '$lib/commands';
 	import { os } from '#platform/os';
-	import { tauri } from '#platform/tauri';
 	import { shortcuts } from '$lib/platform/shortcuts';
 	import { report } from '$lib/report';
-	import { dictationCapability } from '$lib/state/dictation-capability.svelte';
 	import type { KeyBinding } from '$lib/tauri/commands';
 	import {
 		isEmptyBinding,
@@ -22,15 +18,13 @@
 		type ReachWithGrant,
 	} from '$lib/utils/key-binding';
 	import { createChordRecorder } from './create-chord-recorder';
-	import { createTapRecorder } from './create-tap-recorder';
 	import { describeShortcutConflict } from './describe-conflict';
 
 	// The one router-driven recorder (ADR-0052): the user picks a key, never a
 	// store. A command's two slots (focused, global) render as reach-glyphed chips,
 	// and one "Add" popover captures a key while previewing, live, how far that key
 	// will reach. The router (`shortcuts`) routes the write by realized reach; the
-	// recorder never names a store. `tauri` is the platform seam (null on web); the
-	// native tap capture path is gated on it.
+	// recorder never names a store.
 	const { command }: { command: Command } = $props();
 
 	// At most one focused and one global binding per command, so up to two chips.
@@ -47,12 +41,10 @@
 	// ADR-0052 read-only reach text: where the shortcut fires, plus whether it syncs
 	// (focused shortcuts live in the synced workspace; global ones are per-device).
 	// One string feeds the glyph tooltip, the live preview, and the success toast.
-	function reachLabel({ reach, needsAccessibility }: ReachWithGrant): string {
-		if (reach === 'focused')
+	function reachLabel(realized: ReachWithGrant): string {
+		if (realized.reach === 'focused')
 			return 'Works in Whispering, synced across your devices';
-		return needsAccessibility
-			? 'Works everywhere on this computer, needs Accessibility'
-			: 'Works everywhere on this computer';
+		return 'Works everywhere on this computer';
 	}
 
 	// The popover's open state is the whole session: open means listening. The two
@@ -70,43 +62,19 @@
 		};
 	});
 
-	// Desktop with Accessibility granted: the native tap sees Fn and modifier-only
-	// holds the webview cannot. Otherwise (web, or no grant) the webview keydown
-	// recorder captures bare keys and chords; Fn and holds wait on the grant.
-	const useTapCapture = $derived(!!tauri && dictationCapability.isActive);
-
-	// The desktop keyboard handle, resolved once (the platform seam never changes).
-	// `null` on web, where there is no native tap and no capture supervisor.
-	const keyboard = tauri?.keyboard ?? null;
-
-	// Two capture brains, one interface. The owner picks one by trust and never
-	// touches accumulation; each calls back with the held combo (onProgress) and
-	// the committed gesture (onCapture).
+	// One capture brain: the webview recorder captures bare keys for focused
+	// shortcuts and chords for global shortcuts.
 	const onCapture = (next: KeyBinding) => void commitCandidate(next);
 	const onProgress = (partial: KeyBinding) => {
 		previewBinding = partial;
 	};
 	const chordRecorder = createChordRecorder({ onCapture, onProgress });
-	const tapRecorder = keyboard
-		? createTapRecorder({ keyboard, onCapture, onProgress })
-		: null;
 
-	// On desktop, tell the supervisor we are capturing for the session's lifetime,
-	// so the tap engages the moment Accessibility is granted. The cleanup runs on
-	// close and on unmount, so capture can never strand on.
-	$effect(() => {
-		if (!open || !keyboard) return;
-		void keyboard.setCapturing(true);
-		return () => void keyboard.setCapturing(false);
-	});
-
-	// Exactly one brain runs while open, chosen by trust. If trust flips mid-session
-	// (the user grants Accessibility), this swaps brains with no reopen.
+	// The recorder runs while the popover is open. Closing or unmounting stops it.
 	$effect(() => {
 		if (!open) return;
-		const recorder = useTapCapture && tapRecorder ? tapRecorder : chordRecorder;
-		recorder.start();
-		return () => recorder.stop();
+		chordRecorder.start();
+		return () => chordRecorder.stop();
 	});
 
 	// The router checks the conflict against the store the key would route into,
@@ -128,10 +96,10 @@
 		return true;
 	}
 
-	// Persist a captured key, routed by realized reach: a bare key lands in-app, a
-	// chord goes global on desktop, a hold goes global behind Accessibility. The
-	// recorder never names a store; the key's reach decides. On a conflict it stays
-	// listening so the user can retry without reopening.
+	// Persist a captured key, routed by realized reach: a bare key lands in-app and
+	// a chord goes global on desktop. The recorder never names a store; the key's
+	// reach decides. On a conflict it stays listening so the user can retry without
+	// reopening.
 	async function commitCandidate(next: KeyBinding) {
 		// On a conflict, stay open and listening so the user can retry; each recorder
 		// has already reset its own accumulation.
@@ -162,8 +130,6 @@
 	>
 		{#if realized.reach === 'focused'}
 			<AppWindow class="size-3.5" />
-		{:else if realized.needsAccessibility}
-			<Lock class="size-3.5" />
 		{:else}
 			<Globe class="size-3.5" />
 		{/if}
@@ -236,20 +202,6 @@
 					{/if}
 				</div>
 
-				{#if tauri && dictationCapability.needsAccessibility}
-					<!-- Bare keys and chords record without permission; this is the honest
-					upgrade for the Fn and modifier-only holds the webview cannot see. -->
-					<p class="text-xs text-muted-foreground">
-						Fn and holds need
-						<button
-							type="button"
-							class="underline underline-offset-2 hover:text-foreground"
-							onclick={() => accessibilityGuide.open()}
-						>
-							Accessibility
-						</button>.
-					</p>
-				{/if}
 			</div>
 		</Popover.Content>
 	</Popover.Root>

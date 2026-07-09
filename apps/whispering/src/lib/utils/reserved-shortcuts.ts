@@ -1,14 +1,13 @@
 /**
  * Reserved-shortcut policy for desktop global gestures (the structured
- * `KeyBinding` the rdev backend matches on, in physical-key space). Pure: no
- * Tauri or DOM dependency.
+ * `KeyBinding` that resolves to tauri-plugin-global-shortcut chords, in
+ * physical-key space). Pure: no Tauri or DOM dependency.
  *
  * Desktop bindings fire system-wide, so a few rules keep a gesture from
  * shadowing something the OS or foreground app owns:
  * - A short list of common OS/app chords (reload, clipboard, undo/redo, close,
  *   quit, app switch, screenshots, system search) is refused outright.
- * - A gesture must carry a modifier or Fn, so it cannot fire on an ordinary
- *   keypress.
+ * - A gesture must carry a modifier, so it cannot fire on an ordinary keypress.
  */
 
 import type { Modifier } from '$lib/tauri/commands';
@@ -117,7 +116,7 @@ export function validateGlobalBinding(binding: BindingLike): string | null {
 	}
 
 	if (binding.modifiers.length === 0) {
-		return 'Add a modifier or Fn so the gesture cannot fire on an ordinary keypress.';
+		return 'Add a modifier so the gesture cannot fire on an ordinary keypress.';
 	}
 
 	return null;
