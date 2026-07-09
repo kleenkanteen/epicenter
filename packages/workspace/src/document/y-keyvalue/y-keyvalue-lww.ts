@@ -149,7 +149,6 @@
  * ```
  */
 import type * as Y from 'yjs';
-import { lazy } from './lazy.js';
 import type {
 	KvEntry,
 	KvStoreChange,
@@ -419,35 +418,46 @@ export class YKeyValueLww<T> implements ObservableKvStore<T>, Disposable {
 			const indicesToDelete: number[] = [];
 
 			/**
-			 * Lazy array snapshot and entry-to-index map for conflict resolution.
+			 * Once-per-observer memoized array snapshot and entry-to-index map for
+			 * conflict resolution.
 			 *
-			 * Both use the `lazy()` helper, a function that computes its value on
-			 * first call, then returns the cached result on subsequent calls. This
-			 * avoids the O(n) `toArray()` copy entirely when there are no conflicts
+			 * Each getter computes its value on first call, then returns the cached
+			 * result on later calls. Neither runs until a conflict forces it, so we
+			 * avoid the O(n) `toArray()` copy entirely when there are no conflicts
 			 * (the common case for bulk inserts of new keys).
 			 *
-			 * `getEntryIndexMap` builds on `getAllEntries`; calling it triggers the
+			 * `getEntryIndexMap` builds on `getAllEntries`: calling it triggers the
 			 * `toArray()` if it hasn't happened yet, then builds a Map<entry, index>
 			 * for O(1) index lookups. This replaces the old `.indexOf()` calls that
 			 * were O(n) each, which caused O(n²) behavior during bulk updates.
 			 *
-			 * Both caches are scoped to this single observer invocation. They're
+			 * Both caches are local to this single observer invocation. They're
 			 * garbage collected when the callback returns. No manual cleanup needed.
 			 */
-			const getAllEntries = lazy(() => yarray.toArray());
-			const getEntryIndexMap = lazy(() => {
-				const entries = getAllEntries();
-				const map = new Map<YKeyValueLwwEntry<T>, number>();
-				for (let i = 0; i < entries.length; i++) {
-					const entry = entries[i];
-					if (entry) map.set(entry, i);
+			let allEntries: YKeyValueLwwEntry<T>[] | undefined;
+			const getAllEntries = (): YKeyValueLwwEntry<T>[] =>
+				(allEntries ??= yarray.toArray());
+
+			let entryIndexMap: Map<YKeyValueLwwEntry<T>, number> | undefined;
+			const getEntryIndexMap = (): Map<YKeyValueLwwEntry<T>, number> => {
+				if (!entryIndexMap) {
+					const entries = getAllEntries();
+					entryIndexMap = new Map();
+					for (let i = 0; i < entries.length; i++) {
+						const entry = entries[i];
+						if (entry) entryIndexMap.set(entry, i);
+					}
 				}
-				return map;
-			});
+				return entryIndexMap;
+			};
+
 			const getEntryIndex = (entry: YKeyValueLwwEntry<T>): number => {
-				// For individual updates (1-4 added entries), indexOf with reference
-				// equality is faster than building a Map. The Map's O(n) build cost
-				// only amortizes over many lookups (batched updates).
+				// For small conflict batches (<= 4 added entries, typically a remote
+				// sync of a few changed keys) reference-equality indexOf beats the
+				// Map: indexOf scans only until it hits each target, while the Map
+				// build touches all N entries. Measured 26x-266x faster up to N=25K.
+				// The Map only wins once many keys conflict at once (bulk re-import
+				// over existing keys), where repeated indexOf would be O(n²).
 				if (addedEntries.length <= 4) {
 					return getAllEntries().indexOf(entry);
 				}
