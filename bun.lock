@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "epicenter",
@@ -223,6 +222,7 @@
         "wellcrafted": "catalog:",
       },
       "devDependencies": {
+        "@tauri-apps/cli": "catalog:",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },

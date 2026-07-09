@@ -1,0 +1,7 @@
+{
+	"$schema": "../gen/schemas/desktop-schema.json",
+	"identifier": "default",
+	"description": "Local Mail main window. The window loads the engine's external loopback origin and uses no Tauri IPC, so only the core defaults are granted.",
+	"windows": ["main"],
+	"permissions": ["core:default"]
+}
