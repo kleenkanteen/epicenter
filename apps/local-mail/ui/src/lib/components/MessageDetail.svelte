@@ -17,13 +17,16 @@
 	import { planLabel, planToggle, type TriageAction } from '$lib/actions';
 	import { api } from '$lib/api';
 	import { fullDate, labelDisplayName } from '$lib/format';
+	import { applyLabelDeltas, type LabelDelta } from '$lib/optimistic';
 	import type { MailLabel } from '$lib/types';
 	import MessageBody from './MessageBody.svelte';
 
 	let {
 		id,
+		account,
 		readOnly,
 		labels,
+		pendingDeltas,
 		busy,
 		labelsOpen,
 		onDispatch,
@@ -31,8 +34,13 @@
 		onLabelsOpenChange,
 	}: {
 		id: string | null;
+		/** The account whose mirror this message is read from; the detail fetch is
+		 * scoped to it. Null only before the account list has loaded. */
+		account: string | null;
 		readOnly: boolean;
 		labels: MailLabel[];
+		/** Pending page-owned label projections for this message. */
+		pendingDeltas: LabelDelta[];
 		/** True while a modify is in flight (the page owns the mutation). */
 		busy: boolean;
 		/** Page-owned open state for the Labels menu, so the `l` key can open it. */
@@ -47,13 +55,23 @@
 		onLabelsOpenChange: (open: boolean) => void;
 	} = $props();
 
+	// Keyed by id AND account, with `account` trailing `id` so `['message', id]`
+	// stays a prefix and `reconcileAfterWrite`'s `['message', id]` invalidation
+	// still matches. The account belongs in the key because switching accounts
+	// changes it even for the one render before the selection `$effect` re-resolves
+	// `id`: that render then reads a fresh (empty) cache entry and shows Loading,
+	// rather than the previous account's cached message flashing through.
 	const message = createQuery(() => ({
-		queryKey: ['message', id ?? ''],
-		queryFn: () => api.message(id as string),
-		enabled: id !== null,
+		queryKey: ['message', id ?? '', account ?? ''],
+		queryFn: () => api.message(account as string, id as string),
+		enabled: id !== null && account !== null,
 	}));
 
-	const detail = $derived(message.data);
+	const detail = $derived(
+		message.data
+			? { ...message.data, labelIds: applyLabelDeltas(message.data.labelIds, pendingDeltas) }
+			: undefined,
+	);
 	const inInbox = $derived(detail?.labelIds.includes('INBOX') ?? false);
 	const unread = $derived(detail?.labelIds.includes('UNREAD') ?? false);
 	const starred = $derived(detail?.labelIds.includes('STARRED') ?? false);

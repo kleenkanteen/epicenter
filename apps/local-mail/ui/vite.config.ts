@@ -1,38 +1,68 @@
+import { readPresence } from '@epicenter/local-mail/presence';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 
-// The SPA is same-origin with the API. In production `local-mail app` serves
-// both the built SPA and `/api` from one loopback origin. In dev, Vite serves
-// the SPA and proxies `/api` to the running app process; the proxy injects the
-// dev bearer (`LOCAL_MAIL_TOKEN`) server-side and rewrites Host via
-// `changeOrigin`, so the app server's Host check and bearer check both pass
-// without any credential ever reaching the browser (loopback shell spec, Dev mode).
+// The SPA is same-origin with the API. In production `local-mail app` serves the
+// built SPA and `/api` from one loopback origin, injecting the per-launch bearer
+// into the HTML as `window.__LOCAL_MAIL__`. In dev, Vite serves the SPA and
+// proxies `/api` to the running host; the proxy injects that host's bearer, read
+// from its `0600` presence file, on every proxied request (SvelteKit's dev HTML
+// pipeline bypasses Vite's `transformIndexHtml`, so the prod HTML-injection path
+// is not reproducible in dev; proxy-side injection is the spec's dev handoff).
+// The dev SPA carries no bearer of its own and no credential is typed by a human.
 const SPA_DEV_PORT = 5177;
 
-export default defineConfig(({ command }) => {
-	const APP_PORT = Number(process.env.LOCAL_MAIL_PORT) || 4177;
-	// The proxy must send the exact bearer `app` accepts. No default: a silent
-	// fallback that disagrees with `app` is the "Unauthorized" footgun. Both
-	// processes read the same LOCAL_MAIL_TOKEN, so require it for the dev server.
-	const DEV_TOKEN = process.env.LOCAL_MAIL_TOKEN;
-	if (command === 'serve' && !DEV_TOKEN) {
-		throw new Error(
-			'LOCAL_MAIL_TOKEN is required for the dev server so its /api proxy sends the same bearer as `local-mail app`. Start both with the same token, e.g. LOCAL_MAIL_TOKEN=devtoken.',
-		);
-	}
+/**
+ * Deny framing on every dev response, matching the prod host, so a cross-origin
+ * page cannot frame the (proxy-authenticated) dev SPA and clickjack a triage
+ * write. A `configureServer` middleware, because SvelteKit's dev page responses
+ * bypass Vite's `server.headers`.
+ */
+function denyFramingInDev(): Plugin {
 	return {
-		plugins: [sveltekit(), tailwindcss()],
+		name: 'local-mail-deny-framing',
+		apply: 'serve',
+		configureServer(server) {
+			server.middlewares.use((_req, res, next) => {
+				res.setHeader('X-Frame-Options', 'DENY');
+				res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+				next();
+			});
+		},
+	};
+}
+
+export default defineConfig(({ command }) => {
+	// Read the running host's presence once, at config load. Prefer its origin as
+	// the proxy target (so an ephemeral host port just works); fall back to
+	// LOCAL_MAIL_PORT (default 4177) when the host is not up yet. Start the host
+	// first: if presence is absent, /api calls are unauthenticated until Vite is
+	// restarted, and a host restart rotates the bearer (restart Vite to pick it up).
+	const presence = command === 'serve' ? readPresence() : null;
+	const target =
+		presence?.origin ??
+		`http://127.0.0.1:${Number(process.env.LOCAL_MAIL_PORT) || 4177}`;
+	return {
+		plugins: [sveltekit(), tailwindcss(), denyFramingInDev()],
 		server: {
 			port: SPA_DEV_PORT,
 			strictPort: true,
 			proxy: {
 				'/api': {
-					target: `http://127.0.0.1:${APP_PORT}`,
+					target,
+					// Rewrite Host to the target so the host's Host check passes, and
+					// inject the host's per-launch bearer so the dev SPA authenticates
+					// without carrying a credential itself.
 					changeOrigin: true,
 					configure: (proxy) => {
 						proxy.on('proxyReq', (proxyReq) => {
-							proxyReq.setHeader('authorization', `Bearer ${DEV_TOKEN}`);
+							if (presence?.bearer) {
+								proxyReq.setHeader(
+									'authorization',
+									`Bearer ${presence.bearer}`,
+								);
+							}
 						});
 					},
 				},

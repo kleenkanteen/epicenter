@@ -39,7 +39,23 @@ export async function openLocalMailRuntime(): Promise<
 	return Ok({ config, store, accountEmail });
 }
 
-type SyncSession = {
+/**
+ * Build a runtime for an already-known connected account, bypassing
+ * `resolveAccount`'s "which one" decision. The desktop `app` serves EVERY
+ * connected account under one origin, so it enumerates them from the store
+ * itself and holds one of these per account; there is no single account to
+ * resolve. CLI and MCP keep using `openLocalMailRuntime`, which freezes exactly
+ * one account for the whole process.
+ */
+export function runtimeForAccount(
+	config: AppConfig,
+	store: TokenStore,
+	accountEmail: string,
+): LocalMailRuntime {
+	return { config, store, accountEmail };
+}
+
+export type SyncSession = {
 	deps: SyncDeps;
 	close(): void;
 };

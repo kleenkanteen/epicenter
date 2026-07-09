@@ -1,64 +1,67 @@
-import { Database } from 'bun:sqlite';
 import { existsSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { createApiApp, mintToken } from './http/api.ts';
-import { openLocalMailRuntime, openSyncSession } from './runtime.ts';
+import { Err, Ok, type Result } from 'wellcrafted/result';
+import { type AppConfig, loadConfig } from './config.ts';
+import { type AccountApi, createApiApp, mintBearer } from './http/api.ts';
+import { acquireSyncLock, type SyncLock } from './lock.ts';
+import { clearPresence, writePresence } from './presence.ts';
+import {
+	type LocalMailRuntime,
+	openSyncSession,
+	runtimeForAccount,
+	type SyncSession,
+} from './runtime.ts';
 import { syncMailbox } from './sync.ts';
+import { createFileTokenStore, type TokenStore } from './token-store.ts';
 
 /**
- * `local-mail app`: one Bun process that serves the triage SPA and its `/api`
- * over `127.0.0.1`, while the same process keeps the mirror fresh through the
- * sync loop. The security model is the loopback shell spec's, condensed:
+ * `local-mail app`: the desktop runtime host. One Bun process serves the triage
+ * SPA and its `/api` over `127.0.0.1`, and the same process keeps the mirror
+ * fresh through the sync loop, holding the per-account sync lock for its
+ * lifetime (the single loop owner). Before Tauri exists this is a loopback web
+ * host; Tauri later owns the window and injects the bearer via
+ * `initialization_script`, replacing the HTML injection below.
  *
- * - A single-use bootstrap token rides in the URL fragment (never the query
- *   string, so it never lands in a request line or access log). The SPA reads
- *   it, strips it, and exchanges it at `POST /api/session` for a per-launch
- *   session bearer it keeps in sessionStorage. Every other `/api` call carries
- *   that bearer.
+ * The security model, condensed:
+ *
  * - Every request is Host-checked first (the DNS-rebinding kill switch): a
  *   request whose Host is not exactly `127.0.0.1:<port>` is rejected before
  *   routing.
- * - Dev mode (`LOCAL_MAIL_DEV=1`) never disables auth. The Vite proxy injects
- *   a fixed `LOCAL_MAIL_TOKEN` bearer and rewrites Host, so the same checks run
- *   against a developer's real mailbox.
+ * - The web UI authenticates with a per-launch local API bearer (a loopback
+ *   credential, never a Gmail token). The host mints it and hands it to the SPA
+ *   by injecting `window.__LOCAL_MAIL__ = { origin, bearer }` into the served
+ *   HTML before the SPA's scripts run. No URL fragment, no exchange endpoint, no
+ *   sessionStorage. Every `/api` call carries the bearer.
+ * - HTML that carries the bearer is served `no-store` (a rotated bearer is never
+ *   read from cache) and frame-denied (`frame-ancestors 'none'` +
+ *   `X-Frame-Options: DENY`), so a cross-origin page cannot frame the
+ *   auto-authenticated SPA and clickjack a triage write.
+ * - While running, the host writes a `0600` presence file (`runtime.json`:
+ *   `{ origin, bearer, pid }`) so a same-UID out-of-process reader can find this
+ *   bearer. Today that reader is the Vite dev server, whose proxy injects the
+ *   bearer on each proxied `/api` request (SvelteKit's dev HTML pipeline cannot
+ *   reproduce the prod HTML injection). Presence, not discovery-for-spawn:
+ *   nothing starts the host from it.
  *
  * Routing, the bearer gate, and request validation live in the Hono app
  * (`http/api.ts`); this module owns the loopback host primitive, static SPA
- * serving, and the process lifecycle, dispatching `/api/*` to `api.fetch`.
+ * serving with bearer injection, and the process lifecycle, dispatching
+ * `/api/*` to `api.fetch`.
  */
 
-const DEV = process.env.LOCAL_MAIL_DEV === '1';
 const SYNC_INTERVAL_MS = 30_000;
 
-type LockHandle = { db: Database; release(): void };
-
-/**
- * A dedicated `lock.db` held with `BEGIN EXCLUSIVE` for the process lifetime,
- * so a second `app` for the same account is refused instantly. `flock` has no
- * Bun API and an `O_EXCL` lockfile is stale-on-crash; the fcntl lock a live
- * SQLite transaction holds is released by the kernel on `kill -9`.
- */
-function acquireAccountLock(dir: string): LockHandle | null {
-	const db = new Database(join(dir, 'lock.db'), { create: true });
-	db.run('PRAGMA busy_timeout = 0;');
-	try {
-		db.run('BEGIN EXCLUSIVE;');
-	} catch {
-		db.close();
-		return null;
-	}
-	return {
-		db,
-		release() {
-			try {
-				db.run('ROLLBACK;');
-			} catch {
-				// The process is exiting; the kernel drops the lock regardless.
-			}
-			db.close();
-		},
-	};
-}
+/** Headers on every HTML response that carries the injected bearer. `no-store`
+ * keeps a rotated bearer out of the browser cache; the frame denials stop a
+ * cross-origin page from framing the auto-authenticated SPA and clickjacking a
+ * triage write; `referrer-policy` keeps the loopback origin out of referrers. */
+const INJECTED_HTML_HEADERS: Record<string, string> = {
+	'content-type': 'text/html; charset=utf-8',
+	'cache-control': 'no-store',
+	'referrer-policy': 'no-referrer',
+	'content-security-policy': "frame-ancestors 'none'",
+	'x-frame-options': 'DENY',
+};
 
 /**
  * One in-process promise chain: the background loop and a "refresh now" request
@@ -75,10 +78,45 @@ function createSyncGate() {
 	};
 }
 
-/** Serve the built SPA from disk, falling back to index.html for deep links. */
+/**
+ * Insert `<script>window.__LOCAL_MAIL__=...</script>` right after `<head>` so
+ * the global is defined before the SPA's deferred module scripts run. The bearer
+ * is base64url and serialized with `JSON.stringify`, so it cannot break out of
+ * the inline script string.
+ */
+function injectBearer(html: string, origin: string, bearer: string): string {
+	const script = `<script>window.__LOCAL_MAIL__=${JSON.stringify({ origin, bearer })}</script>`;
+	const marker = '<head>';
+	const at = html.indexOf(marker);
+	if (at === -1) return `${script}${html}`;
+	const cut = at + marker.length;
+	return html.slice(0, cut) + script + html.slice(cut);
+}
+
+/** Serve the SPA shell (`index.html`) with the bearer injected. Every path that
+ * yields the shell (root, `/index.html`, and the deep-link fallback) routes here,
+ * so no SPA entry boots without `window.__LOCAL_MAIL__`. */
+async function serveIndex(
+	uiDist: string,
+	origin: string,
+	bearer: string,
+): Promise<Response> {
+	const index = Bun.file(join(uiDist, 'index.html'));
+	if (!(await index.exists())) {
+		return new Response('Not found', { status: 404 });
+	}
+	const html = injectBearer(await index.text(), origin, bearer);
+	return new Response(html, { headers: INJECTED_HTML_HEADERS });
+}
+
+/** Serve the built SPA from disk. Real asset files are served as-is; the shell
+ * (root, `/index.html`, or a missing path that falls back to the SPA) is served
+ * with the bearer injected. */
 async function serveStatic(
 	uiDist: string,
 	pathname: string,
+	origin: string,
+	bearer: string,
 ): Promise<Response> {
 	const rel = pathname === '/' ? '/index.html' : pathname;
 	// Reject path traversal before touching the filesystem. `join` collapses
@@ -88,99 +126,127 @@ async function serveStatic(
 	if (target !== uiDist && !target.startsWith(uiDist + sep)) {
 		return new Response('Forbidden', { status: 403 });
 	}
+	if (rel === '/index.html') return serveIndex(uiDist, origin, bearer);
 	const file = Bun.file(target);
 	if (await file.exists()) {
 		return new Response(file, {
 			headers: { 'referrer-policy': 'no-referrer' },
 		});
 	}
-	const index = Bun.file(join(uiDist, 'index.html'));
-	if (await index.exists()) {
-		return new Response(index, {
-			headers: {
-				'content-type': 'text/html',
-				'referrer-policy': 'no-referrer',
-			},
-		});
-	}
-	return new Response('Not found', { status: 404 });
+	// Deep-link fallback: an unknown path is a client-side route, so serve the
+	// injected shell (not a bare index.html, which would boot without the bearer).
+	return serveIndex(uiDist, origin, bearer);
 }
 
-export async function runApp(options: {
-	noOpen: boolean;
-	port?: number;
-}): Promise<number> {
-	const { data: runtime, error: runtimeError } = await openLocalMailRuntime();
-	// Narrow on `runtime` itself, not just the error: the value is captured in
-	// the fetch/loop/SIGINT closures below, where only a truthiness guard on the
-	// const survives.
-	if (runtimeError || !runtime) {
-		console.error(
-			runtimeError?.message ?? 'Failed to open local-mail runtime.',
-		);
-		return 1;
+/**
+ * One account's slice of the running host: its runtime, its open sync session
+ * (writer db + Gmail client), its per-account serialize gate, and the sync-owner
+ * lock IF this host won it. `lock === null` means another owner (a headless
+ * `sync`) holds the loop for that account; the host still serves its reads and
+ * Gmail-first writes (both lock-free), it just runs no loop for it.
+ */
+type AccountEngine = {
+	runtime: LocalMailRuntime;
+	session: SyncSession;
+	gate: <T>(fn: () => Promise<T>) => Promise<T>;
+	lock: SyncLock | null;
+};
+
+/**
+ * The accounts `local-mail app` serves: every connected account by default, or
+ * only `LOCAL_MAIL_ACCOUNT` when that single-account override is set (the same
+ * escape hatch the CLI and tests use, honored here too). Enumerated once at
+ * launch from the store, so an account connected later appears on the next
+ * restart.
+ */
+async function selectAppAccounts(
+	config: AppConfig,
+	store: TokenStore,
+): Promise<Result<string[], { message: string }>> {
+	const connected = await store.listAccounts();
+	if (connected.length === 0) {
+		return Err({
+			message: 'No Gmail account connected. Run "local-mail connect" first.',
+		});
 	}
-
-	const accountDir = join(runtime.config.dataDir, runtime.accountEmail);
-	const lock = acquireAccountLock(accountDir);
-	if (!lock) {
-		console.error(
-			`local-mail app is already running for ${runtime.accountEmail}. Stop it first, or open the URL it printed.`,
-		);
-		return 1;
-	}
-
-	const { data: session, error: sessionError } = await openSyncSession(
-		runtime,
-		{
-			gmailLog: (m) => console.error(`[gmail] ${m}`),
-			syncLog: (m) => console.error(`[sync] ${m}`),
-		},
-	);
-	if (sessionError || !session) {
-		lock.release();
-		console.error(sessionError?.message ?? 'Failed to open sync session.');
-		return 1;
-	}
-
-	const readOnly = runtime.config.readOnly;
-
-	// The valid-bearer set. Dev pre-seeds the fixed proxy token; prod fills it
-	// only through the bootstrap exchange handled inside the Hono app.
-	const sessionBearers = new Set<string>();
-	let bootstrapToken: string | null = null;
-	if (DEV) {
-		const devToken = process.env.LOCAL_MAIL_TOKEN;
-		if (!devToken) {
-			lock.release();
-			session.close();
-			console.error(
-				'LOCAL_MAIL_DEV=1 requires LOCAL_MAIL_TOKEN so the Vite proxy can authenticate.',
-			);
-			return 1;
+	if (config.account) {
+		if (!connected.includes(config.account)) {
+			return Err({
+				message: `LOCAL_MAIL_ACCOUNT is set to ${config.account}, which is not a connected account (connected: ${connected.join(', ')}).`,
+			});
 		}
-		sessionBearers.add(devToken);
-	} else {
-		bootstrapToken = mintToken();
+		return Ok([config.account]);
+	}
+	return Ok(connected);
+}
+
+export async function runApp(options: { port?: number }): Promise<number> {
+	const config = loadConfig();
+	const store = createFileTokenStore(config.credentialsPath);
+
+	const { data: accountEmails, error: accountsError } = await selectAppAccounts(
+		config,
+		store,
+	);
+	if (accountsError || !accountEmails) {
+		console.error(accountsError?.message ?? 'No account to serve.');
+		return 1;
 	}
 
-	const uiDist = join(import.meta.dir, '..', 'ui', 'dist');
-	const gate = createSyncGate();
 	const controller = new AbortController();
+	// One engine per account, all under this one origin. A per-account gate keeps
+	// each mirror single-writer while letting distinct accounts sync concurrently.
+	const engines: AccountEngine[] = [];
+	for (const accountEmail of accountEmails) {
+		const runtime = runtimeForAccount(config, store, accountEmail);
+		const { data: session, error: sessionError } = await openSyncSession(
+			runtime,
+			{
+				gmailLog: (m) => console.error(`[gmail ${accountEmail}] ${m}`),
+				syncLog: (m) => console.error(`[sync ${accountEmail}] ${m}`),
+			},
+		);
+		if (sessionError || !session) {
+			// One account failing to open (e.g. its token vanished between the store
+			// listing and now) must not sink the whole host; log it and serve the rest.
+			console.error(
+				`Skipping ${accountEmail}: ${sessionError?.message ?? 'failed to open sync session.'}`,
+			);
+			continue;
+		}
+		const lock = acquireSyncLock({ dataDir: config.dataDir, accountEmail });
+		engines.push({ runtime, session, gate: createSyncGate(), lock });
+	}
 
-	const api = createApiApp({
-		rt: runtime,
-		syncDeps: session.deps,
-		readOnly,
-		gate,
-		sessionBearers,
-		bootstrapToken,
-	});
+	if (engines.length === 0) {
+		console.error(
+			'No account could be served. Run "local-mail connect" first.',
+		);
+		return 1;
+	}
+
+	const accounts = new Map<string, AccountApi>(
+		engines.map((engine) => [
+			engine.runtime.accountEmail,
+			{
+				runtime: engine.runtime,
+				syncDeps: engine.session.deps,
+				gate: engine.gate,
+				ownsLoop: engine.lock !== null,
+			},
+		]),
+	);
+
+	const readOnly = config.readOnly;
+	const bearer = mintBearer();
+	const uiDist = join(import.meta.dir, '..', 'ui', 'dist');
+
+	const api = createApiApp({ accounts, readOnly, bearer });
 
 	const server = Bun.serve({
 		hostname: '127.0.0.1',
 		port: options.port ?? (Number(process.env.LOCAL_MAIL_PORT) || 0),
-		fetch(req) {
+		fetch(req): Response | Promise<Response> {
 			const url = new URL(req.url);
 
 			// Host check first: the DNS-rebinding kill switch. Every request must
@@ -192,47 +258,65 @@ export async function runApp(options: {
 			}
 
 			if (url.pathname.startsWith('/api/')) return api.fetch(req);
-			return serveStatic(uiDist, url.pathname);
+			const origin = `http://127.0.0.1:${server.port}`;
+			return serveStatic(uiDist, url.pathname, origin, bearer);
 		},
 	});
 
-	// The background sync loop, serialized through the same gate as POST /api/sync.
-	(async () => {
-		while (!controller.signal.aborted) {
-			await gate(() => syncMailbox(session.deps, { forceFull: false })).catch(
-				(cause) => console.error(`[sync] loop pass failed: ${cause}`),
+	// One background sync loop per account this host won the lock for, each
+	// serialized through its own gate (the same gate its POST .../sync rides).
+	// An account whose loop is owned elsewhere is still served; that other owner
+	// keeps its mirror fresh.
+	for (const engine of engines) {
+		if (!engine.lock) {
+			console.error(
+				`[sync ${engine.runtime.accountEmail}] loop owned elsewhere; serving reads only.`,
 			);
-			if (controller.signal.aborted) break;
-			await Bun.sleep(SYNC_INTERVAL_MS);
+			continue;
 		}
-	})();
+		const { session, gate, runtime } = engine;
+		(async () => {
+			while (!controller.signal.aborted) {
+				await gate(() => syncMailbox(session.deps, { forceFull: false })).catch(
+					(cause) =>
+						console.error(
+							`[sync ${runtime.accountEmail}] loop pass failed: ${cause}`,
+						),
+				);
+				if (controller.signal.aborted) break;
+				await Bun.sleep(SYNC_INTERVAL_MS);
+			}
+		})();
+	}
 
 	const origin = `http://127.0.0.1:${server.port}`;
-	if (DEV) {
-		console.error(`local-mail app (dev API) listening on ${origin}`);
-		console.error('Run the SPA with: bun run --cwd apps/local-mail/ui dev');
-	} else {
-		const noOpen = options.noOpen || process.env.LOCAL_MAIL_NO_OPEN === '1';
-		const launchUrl = `${origin}/#token=${bootstrapToken}`;
-		console.log(launchUrl);
-		if (!existsSync(uiDist)) {
-			console.error(
-				`Note: ${uiDist} does not exist yet. Build the SPA with "bun run --cwd apps/local-mail/ui build".`,
-			);
-		}
-		// `--no-open` prints the URL without launching a browser; the env fallback
-		// supports headless hosts, CI, and "copy the URL into the browser I want" workflows.
-		if (!noOpen) {
-			Bun.spawn(['open', launchUrl]).exited.catch(() => {});
-		}
+	// Publish presence so the Vite dev server (and, later, a routed one-shot
+	// `sync`) can find this host's origin and bearer. Presence, not spawn.
+	writePresence({ origin, bearer, pid: process.pid }, config.dataDir);
+	// stdout carries only the origin, so a caller can capture it; the hint goes
+	// to stderr. No browser is launched: opening the window is the host's job
+	// (a terminal today, Tauri later), not the engine's.
+	console.log(origin);
+	console.error(
+		`Local Mail runtime host listening on ${origin} for ${engines.length} account(s): ${engines
+			.map((engine) => engine.runtime.accountEmail)
+			.join(', ')}. Open it in your browser.`,
+	);
+	if (!existsSync(uiDist)) {
+		console.error(
+			`Note: ${uiDist} does not exist yet. Build the SPA with "bun run --cwd apps/local-mail/ui build".`,
+		);
 	}
 
 	await new Promise<void>((resolve) => {
 		process.on('SIGINT', () => {
 			controller.abort();
 			server.stop();
-			session.close();
-			lock.release();
+			for (const engine of engines) {
+				engine.session.close();
+				engine.lock?.release();
+			}
+			clearPresence(config.dataDir);
 			resolve();
 		});
 	});

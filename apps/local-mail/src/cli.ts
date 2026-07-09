@@ -1,5 +1,10 @@
 import { loadConfig } from './config.ts';
 import {
+	acquireSyncLock,
+	syncOwnerBusy,
+	syncOwnerBusyMessage,
+} from './lock.ts';
+import {
 	type MessageWriteOutcome,
 	resolveAndModifyMessageLabels,
 } from './modify.ts';
@@ -17,7 +22,6 @@ export type ParsedArgs = {
 	full: boolean;
 	watch: boolean;
 	watchIntervalMs?: number;
-	noOpen: boolean;
 	port?: number;
 	addLabels: string[];
 	removeLabels: string[];
@@ -38,7 +42,7 @@ Usage:
   local-mail query "<sql>"
   local-mail archive|unarchive|mark-read|mark-unread <id...> [--json]
   local-mail label <id...> [--add <label>...] [--remove <label>...] [--json]
-  local-mail app [--no-open] [--port <n>]
+  local-mail app [--port <n>]
   local-mail mcp
 
 Commands:
@@ -54,7 +58,7 @@ Commands:
   mark-read    Mark messages read by removing UNREAD.
   mark-unread  Mark messages unread by adding UNREAD.
   label        Add or remove Gmail labels by exact name or id.
-  app          Open your mail: keep the mirror fresh and serve the triage UI + API on 127.0.0.1, then open it in your browser.
+  app          Run the desktop runtime host: keep the mirror fresh and serve the triage UI + API on 127.0.0.1. Prints the origin to open.
   mcp          Serve query/status/sync/modify_labels tools over stdio.
 
 Options:
@@ -62,7 +66,6 @@ Options:
   --watch [intervalMs]  Keep syncing on a loop. Default: 30000.
   --add <label>         Add a Gmail label by exact name or id. Repeatable.
   --remove <label>      Remove a Gmail label by exact name or id. Repeatable.
-  --no-open             Print the launch URL instead of opening a browser (app only).
   --port <n>            Pin the app server port (app only; default: ephemeral).
   --json                Print typed JSON instead of human text. query is
                         always JSON, so --json is a no-op there.
@@ -112,7 +115,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		positionals: [],
 		full: false,
 		watch: false,
-		noOpen: false,
 		addLabels: [],
 		removeLabels: [],
 		json: false,
@@ -156,9 +158,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
 				}
 				break;
 			}
-			case '--no-open':
-				args.noOpen = true;
-				break;
 			case '--port': {
 				const value = Number(takeValue());
 				if (!Number.isInteger(value) || value < 0) {
@@ -263,6 +262,26 @@ async function runSync(args: ParsedArgs): Promise<number> {
 		console.error(runtimeError.message);
 		return 1;
 	}
+
+	// Sync is the one operation that needs a single owner per account. If the app
+	// (or another sync) already holds the lock, yield cleanly instead of racing a
+	// second bulk pull. Reads and Gmail-first triage writes never take this lock.
+	const lock = acquireSyncLock({
+		dataDir: runtime.config.dataDir,
+		accountEmail: runtime.accountEmail,
+	});
+	if (!lock) {
+		// A busy yield is a terminal outcome, so it goes to stdout like the success
+		// and failure summaries do. --json emits the structured payload (discriminated
+		// by `synced: false`); the human form is the same one-line note.
+		console.log(
+			args.json
+				? JSON.stringify(syncOwnerBusy(runtime.accountEmail), null, 2)
+				: syncOwnerBusyMessage(runtime.accountEmail),
+		);
+		return 0;
+	}
+
 	// Progress goes to stderr so stdout carries only the outcome, keeping
 	// --json (and the human summary line) a clean single-value stream.
 	const { data: session, error: sessionError } = await openSyncSession(
@@ -273,42 +292,48 @@ async function runSync(args: ParsedArgs): Promise<number> {
 		},
 	);
 	if (sessionError) {
+		lock.release();
 		console.error(sessionError.message);
 		return 1;
 	}
 
-	if (!args.watch) {
-		const outcome = await syncMailbox(session.deps, { forceFull: args.full });
-		console.log(
-			args.json ? JSON.stringify(outcome, null, 2) : renderSyncOutcome(outcome),
-		);
-		session.close();
-		return outcome.failure ? 1 : 0;
-	}
+	try {
+		if (!args.watch) {
+			const outcome = await syncMailbox(session.deps, { forceFull: args.full });
+			console.log(
+				args.json
+					? JSON.stringify(outcome, null, 2)
+					: renderSyncOutcome(outcome),
+			);
+			return outcome.failure ? 1 : 0;
+		}
 
-	const intervalMs = args.watchIntervalMs ?? DEFAULT_WATCH_INTERVAL_MS;
-	console.error(`Watching every ${intervalMs}ms. Ctrl-C to stop.`);
-	const controller = new AbortController();
-	process.on('SIGINT', () => controller.abort());
-	// The exit code reflects the LAST pass, so a supervisor restarting on
-	// nonzero sees current health, not a transient failure hours ago.
-	let lastPassFailed = false;
-	await runSyncLoop(session.deps, {
-		forceFull: args.full,
-		intervalMs,
-		signal: controller.signal,
-		onPass: (outcome, pass) => {
-			lastPassFailed = outcome.failure !== null;
-			if (args.json) {
-				console.log(JSON.stringify(outcome));
-			} else {
-				console.log(`=== pass ${pass} ===`);
-				console.log(renderSyncOutcome(outcome));
-			}
-		},
-	});
-	session.close();
-	return lastPassFailed ? 1 : 0;
+		const intervalMs = args.watchIntervalMs ?? DEFAULT_WATCH_INTERVAL_MS;
+		console.error(`Watching every ${intervalMs}ms. Ctrl-C to stop.`);
+		const controller = new AbortController();
+		process.on('SIGINT', () => controller.abort());
+		// The exit code reflects the LAST pass, so a supervisor restarting on
+		// nonzero sees current health, not a transient failure hours ago.
+		let lastPassFailed = false;
+		await runSyncLoop(session.deps, {
+			forceFull: args.full,
+			intervalMs,
+			signal: controller.signal,
+			onPass: (outcome, pass) => {
+				lastPassFailed = outcome.failure !== null;
+				if (args.json) {
+					console.log(JSON.stringify(outcome));
+				} else {
+					console.log(`=== pass ${pass} ===`);
+					console.log(renderSyncOutcome(outcome));
+				}
+			},
+		});
+		return lastPassFailed ? 1 : 0;
+	} finally {
+		session.close();
+		lock.release();
+	}
 }
 
 /**
@@ -493,7 +518,7 @@ export async function runCli(argv: string[]): Promise<number> {
 			});
 		case 'app': {
 			const { runApp } = await import('./app.ts');
-			return runApp({ noOpen: args.noOpen, port: args.port });
+			return runApp({ port: args.port });
 		}
 		case 'mcp': {
 			const { runMcpServer } = await import('./mcp.ts');

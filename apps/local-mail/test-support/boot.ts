@@ -2,12 +2,13 @@
  * Shared boot for the Local Mail write harness. `smoke.ts` stands up the safe
  * stack through here, so the safety-critical wiring lives in one place:
  *
- *   throwaway mirror copy (forged creds)  +  mock Gmail  +  `local-mail up`
+ *   throwaway mirror copy (forged creds)  +  mock Gmail  +  `local-mail app`
  *
  * See ./README.md for the four independent safety guarantees.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { readPresence } from '../src/presence.ts';
 
 const SCRIPT_DIR = import.meta.dir;
 const APP_DIR = join(SCRIPT_DIR, '..');
@@ -72,8 +73,8 @@ export function fingerprintReal(): Promise<string> {
 export type BootedHarness = {
 	/** e.g. `http://127.0.0.1:53142` (ephemeral). */
 	appOrigin: string;
-	/** Single-use bootstrap token for the URL fragment / session exchange. */
-	bootstrapToken: string;
+	/** Per-launch local API bearer read from the runtime presence file. */
+	bearer: string;
 	/** Absolute path to the mock's modify JSONL log. */
 	mockLog: string;
 	/** Kill the mock and the app. Idempotent-ish; safe to call once. */
@@ -82,7 +83,7 @@ export type BootedHarness = {
 
 /**
  * Copy the mirror with forged creds, boot the mock (with the requested fold
- * mode) and `local-mail up` against the copy on ephemeral ports, and hand back
+ * mode) and `local-mail app` against the copy on ephemeral ports, and hand back
  * the launch coordinates. Never touches the real mirror or real Gmail.
  */
 export async function bootHarness(opts: {
@@ -117,27 +118,28 @@ export async function bootHarness(opts: {
 		await waitForLine(mock.stdout, /MOCK_READY (\d+)/, 10_000, 'mock ready')
 	)[1];
 
-	const app = Bun.spawn(['bun', 'run', join(APP_DIR, 'src', 'bin.ts'), 'up'], {
+	const app = Bun.spawn(['bun', 'run', join(APP_DIR, 'src', 'bin.ts'), 'app'], {
 		env: {
 			...process.env,
 			LOCAL_MAIL_DIR: lmTestDir,
 			LOCAL_MAIL_GMAIL_API_BASE: `http://127.0.0.1:${mockPort}`,
 			LOCAL_MAIL_PORT: '0',
-			LOCAL_MAIL_NO_OPEN: '1',
 		},
 		stdout: 'pipe',
 		stderr: 'inherit',
 	});
 	const launch = await waitForLine(
 		app.stdout,
-		/http:\/\/127\.0\.0\.1:(\d+)\/#token=([A-Za-z0-9_-]+)/,
+		/http:\/\/127\.0\.0\.1:(\d+)/,
 		15_000,
-		'app launch URL',
+		'app origin',
 	);
+	const presence = readPresence(lmTestDir);
+	if (!presence) throw new Error('local-mail app did not write runtime.json');
 
 	return {
 		appOrigin: `http://127.0.0.1:${launch[1]}`,
-		bootstrapToken: launch[2] as string,
+		bearer: presence.bearer,
 		mockLog,
 		teardown: () => {
 			mock.kill();

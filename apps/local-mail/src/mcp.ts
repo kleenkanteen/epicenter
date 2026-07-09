@@ -43,6 +43,7 @@ import {
 import { type Static, type TObject, Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { Err, Ok, type Result } from 'wellcrafted/result';
+import { acquireSyncLock, syncOwnerBusy } from './lock.ts';
 import { resolveAndModifyMessageLabels } from './modify.ts';
 import { queryMail } from './query.ts';
 import {
@@ -132,20 +133,35 @@ const TOOLS: ToolDescriptor[] = [
 		}),
 		tier: 'write',
 		async run(ctx, args) {
-			const { data: session, error } = await openSyncSession(ctx);
-			if (error) return Err(error);
+			// Sync needs a single owner per account. If the app (or another sync)
+			// holds the lock, yield with a note instead of racing a second bulk
+			// pull; nothing failed, so this is Ok, not an error. The model can just
+			// read the mirror, which is being kept fresh by whoever owns the loop.
+			const lock = acquireSyncLock({
+				dataDir: ctx.config.dataDir,
+				accountEmail: ctx.accountEmail,
+			});
+			if (!lock) {
+				return Ok(syncOwnerBusy(ctx.accountEmail));
+			}
 			try {
-				const outcome = await syncMailbox(session.deps, {
-					forceFull: args.full ?? false,
-				});
-				if (outcome.failure) {
-					return Err({
-						message: `Sync failed (${outcome.failure.name}: ${outcome.failure.message}). The cursor did not advance.`,
+				const { data: session, error } = await openSyncSession(ctx);
+				if (error) return Err(error);
+				try {
+					const outcome = await syncMailbox(session.deps, {
+						forceFull: args.full ?? false,
 					});
+					if (outcome.failure) {
+						return Err({
+							message: `Sync failed (${outcome.failure.name}: ${outcome.failure.message}). The cursor did not advance.`,
+						});
+					}
+					return Ok(outcome);
+				} finally {
+					session.close();
 				}
-				return Ok(outcome);
 			} finally {
-				session.close();
+				lock.release();
 			}
 		},
 	}),

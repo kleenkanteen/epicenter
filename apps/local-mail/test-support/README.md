@@ -39,7 +39,7 @@ Four independent guarantees keep this from touching anything real:
 
 1. **A throwaway copy, never the real mirror.** `setup-copy.sh` copies
    `~/Library/Application Support/local-mail` to `LM_TEST_DIR` (default
-   `/tmp/local-mail-harness`) and points `local-mail up` at the copy via
+   `/tmp/local-mail-harness`) and points `local-mail app` at the copy via
    `LOCAL_MAIL_DIR`.
 2. **Forged credentials, so no Google contact.** The copy's `credentials.json`
    is rewritten with a dummy access token whose expiry is the year 2099. The
@@ -106,7 +106,7 @@ button is disabled:
 ```sh
 bun run --cwd apps/local-mail/ui build
 LOCAL_MAIL_READ_ONLY=1 LOCAL_MAIL_GMAIL_API_BASE=http://127.0.0.1:9 \
-  LOCAL_MAIL_PORT=4181 LOCAL_MAIL_NO_OPEN=1 bun run apps/local-mail/src/bin.ts up
+  LOCAL_MAIL_PORT=4181 bun run apps/local-mail/src/bin.ts app
 ```
 
 ## Proving the real mirror was untouched

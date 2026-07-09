@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { Button } from '@epicenter/ui/button';
+	import * as DropdownMenu from '@epicenter/ui/dropdown-menu';
 	import { Spinner } from '@epicenter/ui/spinner';
 	import AlertTriangleIcon from '@lucide/svelte/icons/triangle-alert';
+	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import LockIcon from '@lucide/svelte/icons/lock';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { relativeTime } from '$lib/format';
@@ -9,12 +11,21 @@
 
 	let {
 		status,
+		accounts,
+		selectedAccount,
+		onSelectAccount,
 		syncing,
 		syncError,
 		catchingUp,
 		onRefresh,
 	}: {
 		status: MailboxStatus | undefined;
+		/** Every connected account the host serves. One account renders as plain
+		 * text; several render as a switcher. */
+		accounts: string[];
+		/** The account currently in view (null only before the list has loaded). */
+		selectedAccount: string | null;
+		onSelectAccount: (account: string) => void;
 		syncing: boolean;
 		syncError: string | null;
 		/** A write just landed on Gmail that the mirror has not folded yet
@@ -52,9 +63,40 @@
 >
 	<div class="flex items-center gap-3 min-w-0">
 		<span class="text-sm font-semibold tracking-tight">Local Mail</span>
-		{#if status}
+		{#if accounts.length > 1}
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							size="sm"
+							variant="ghost"
+							class="h-7 min-w-0 gap-1.5 px-2 font-mono text-xs text-muted-foreground"
+							tooltip="Switch account"
+						>
+							<span class="truncate">{selectedAccount ?? 'Select account'}</span>
+							<ChevronsUpDownIcon class="size-3.5 shrink-0" />
+						</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content align="start" class="w-64">
+					<DropdownMenu.Label>Accounts</DropdownMenu.Label>
+					<DropdownMenu.Separator />
+					<DropdownMenu.RadioGroup
+						value={selectedAccount ?? ''}
+						onValueChange={onSelectAccount}
+					>
+						{#each accounts as account (account)}
+							<DropdownMenu.RadioItem value={account}>
+								<span class="truncate font-mono text-xs">{account}</span>
+							</DropdownMenu.RadioItem>
+						{/each}
+					</DropdownMenu.RadioGroup>
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		{:else if selectedAccount}
 			<span class="truncate font-mono text-xs text-muted-foreground">
-				{status.accountEmail}
+				{selectedAccount}
 			</span>
 		{/if}
 	</div>
