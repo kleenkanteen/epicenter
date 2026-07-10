@@ -95,7 +95,7 @@ export const recordingOverlayStatus = defineWindowEvent<RecordingOverlayStatus>(
 	'recording-overlay:status',
 );
 
-/** overlay -> main: the user clicked stop or cancel. */
+/** overlay -> main: the user invoked a pill control. */
 export const recordingOverlayAction = defineWindowEvent<RecordingOverlayAction>(
 	'recording-overlay:action',
 );

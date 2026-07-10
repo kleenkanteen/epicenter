@@ -28,23 +28,33 @@
 	let level = $state(0);
 
 	const unlisteners: UnlistenFn[] = [];
+	let destroyed = false;
+	const trackUnlistener = (unlisten: UnlistenFn) => {
+		if (destroyed) unlisten();
+		else unlisteners.push(unlisten);
+	};
 
-	onMount(async () => {
-		unlisteners.push(
-			await recordingOverlayStatus.listen((event) => {
-				status = event.payload;
-			}),
-			await recordingOverlayMicLevel.listen((event) => {
-				level = foldMicLevel(level, event.payload);
-			}),
-		);
-		// Tell the main window we are ready so it re-sends the latest status.
-		// Without this handshake the status emitted right after window creation
-		// can land before our listener is attached.
-		await recordingOverlayReady.emit();
+	onMount(() => {
+		void (async () => {
+			trackUnlistener(
+				await recordingOverlayStatus.listen((event) => {
+					status = event.payload;
+				}),
+			);
+			trackUnlistener(
+				await recordingOverlayMicLevel.listen((event) => {
+					level = foldMicLevel(level, event.payload);
+				}),
+			);
+			// Tell the main window we are ready so it re-sends the latest status.
+			// Without this handshake the status emitted right after window creation
+			// can land before our listener is attached.
+			if (!destroyed) await recordingOverlayReady.emit();
+		})();
 	});
 
 	onDestroy(() => {
+		destroyed = true;
 		for (const unlisten of unlisteners) unlisten();
 	});
 
