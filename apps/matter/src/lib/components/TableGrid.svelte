@@ -33,7 +33,7 @@
 	// touch), injected by the active TablePane. The narrow getters are bound once here so the
 	// template reads `read` / `folder` / `onSave*` directly, and a table swap (switch tables in the
 	// vault) flows through these derivations.
-	// `query` is the tab's unified query (WHERE filter, full-text match, column sort). The grid renders
+	// `query` is the pane's unified query (WHERE filter, full-text match, column sort). The grid renders
 	// its controls in the header and orders rows by what the query matched; `undefined`, or no active
 	// control, means render every row in its natural order.
 	// `assessment` is THIS table's place in the vault's integrity: it carries the cross-table
