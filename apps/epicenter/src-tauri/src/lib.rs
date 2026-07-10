@@ -22,6 +22,52 @@ use tauri_plugin_dialog::{
 };
 use tauri_plugin_opener::OpenerExt;
 
+pub mod audio;
+use audio::encode_recording_for_upload;
+
+pub mod recorder;
+use recorder::commands::{
+    cancel_recording, clear_recording_artifacts, close_recording_session,
+    delete_recording_artifacts, enumerate_recording_devices, get_current_recording_id,
+    init_recording_session, start_recording, stop_recording,
+};
+use recorder::recorder::Recorder;
+
+pub mod transcription;
+use transcription::{
+    delete_model, download_model, list_models, prewarm_model, set_unload_policy,
+    transcribe_recording, ModelCache,
+};
+
+pub mod command;
+use command::{
+    get_microphone_permission, open_accessibility_settings, request_accessibility_permission,
+    request_microphone_permission,
+};
+
+pub mod download;
+use download::{cancel_download, DownloadManager};
+
+mod delivery;
+use delivery::{simulate_copy_keystroke, simulate_enter_keystroke, write_text};
+
+pub mod keyring_storage;
+use keyring_storage::{keyring_read, keyring_write};
+
+pub mod media;
+use media::{pause_playback, resume_playback};
+
+pub mod timing;
+
+#[cfg(desktop)]
+pub mod keyboard;
+
+#[cfg(target_os = "macos")]
+pub mod overlay;
+
+#[cfg(target_os = "macos")]
+pub mod clipboard;
+
 const PRODUCT_NAME: &str = "Epicenter";
 #[cfg(any(not(debug_assertions), test))]
 const PRODUCTION_PORT: u16 = 39_130;
@@ -196,6 +242,62 @@ enum FailureChoice {
     Quit,
 }
 
+/// The typed Whispering command and event contract. The raw audio response and
+/// Epicenter host-status command remain on Tauri's handwritten handler because
+/// their response shapes are outside this generated binding surface.
+fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::<tauri::Wry>::new()
+        .commands(tauri_specta::collect_commands![
+            write_text,
+            simulate_enter_keystroke,
+            simulate_copy_keystroke,
+            get_current_recording_id,
+            enumerate_recording_devices,
+            init_recording_session,
+            close_recording_session,
+            start_recording,
+            stop_recording,
+            cancel_recording,
+            delete_recording_artifacts,
+            clear_recording_artifacts,
+            transcribe_recording,
+            prewarm_model,
+            open_accessibility_settings,
+            request_accessibility_permission,
+            get_microphone_permission,
+            request_microphone_permission,
+            set_unload_policy,
+            list_models,
+            download_model,
+            delete_model,
+            cancel_download,
+            pause_playback,
+            resume_playback,
+            keyring_read,
+            keyring_write,
+            keyboard::commands::set_auto_paste_enabled,
+            keyboard::commands::get_dictation_capability,
+        ])
+        .events(tauri_specta::collect_events![
+            keyboard::DictationCapabilityEvent,
+        ])
+        .error_handling(tauri_specta::ErrorHandlingMode::Result)
+}
+
+#[cfg(test)]
+mod export_bindings {
+    #[test]
+    #[ignore = "regenerate after the Whispering SPA transplant is stable"]
+    fn export_types() {
+        super::make_specta_builder()
+            .export(
+                specta_typescript::Typescript::default(),
+                "../whispering/src/lib/tauri/bindings.gen.ts",
+            )
+            .expect("failed to export bindings");
+    }
+}
+
 #[tauri::command]
 fn get_runtime_info(state: State<'_, HostState>) -> std::result::Result<RuntimeInfo, String> {
     let port = state.port().map_err(|error| format!("{error:#}"))?;
@@ -207,19 +309,64 @@ fn get_runtime_info(state: State<'_, HostState>) -> std::result::Result<RuntimeI
 
 pub fn run() {
     let port = configured_port();
+    let specta_builder = make_specta_builder();
+    let specta_handler = tauri_specta::Builder::invoke_handler(&specta_builder);
+    let native_handler = tauri::generate_handler![get_runtime_info, encode_recording_for_upload]
+        as fn(tauri::ipc::Invoke<tauri::Wry>) -> bool;
+    let log_plugin = tauri_plugin_log::Builder::new()
+        .level(log::LevelFilter::Info)
+        .level_for("epicenter::transcription", log::LevelFilter::Debug)
+        .target(tauri_plugin_log::Target::new(
+            tauri_plugin_log::TargetKind::Stdout,
+        ))
+        .target(tauri_plugin_log::Target::new(
+            tauri_plugin_log::TargetKind::LogDir {
+                file_name: Some("epicenter-whispering".to_string()),
+            },
+        ))
+        .build();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // This must remain the first plugin: later plugins and setup must only run
         // in the process that owns the application instance.
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             open_forwarded_surfaces(app, &args);
         }))
+        .plugin(log_plugin)
+        .plugin(tauri_plugin_macos_permissions::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(HostState::new(port))
-        .invoke_handler(tauri::generate_handler![get_runtime_info])
-        .setup(|app| {
+        .manage(Mutex::new(Recorder::new()))
+        .manage(DownloadManager::default());
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_nspanel::init());
+
+    builder
+        .invoke_handler(move |invoke| {
+            if matches!(
+                invoke.message.command(),
+                "get_runtime_info" | "encode_recording_for_upload"
+            ) {
+                native_handler(invoke)
+            } else {
+                specta_handler(invoke)
+            }
+        })
+        .setup(move |app| {
+            specta_builder.mount_events(app);
+
+            let cache = ModelCache::new();
+            cache.start_idle_watcher();
+            app.manage(cache);
+
+            #[cfg(desktop)]
+            app.manage(keyboard::TapController::new(app.handle().clone()));
+
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
                 open_deep_links(&handle, &event.urls());
@@ -648,14 +795,28 @@ fn create_surfaces_on_main_thread(
     let app = app.clone();
     let token = token.to_string();
     app.clone().run_on_main_thread(move || {
-        let result = surfaces
-            .into_iter()
-            .try_for_each(|surface| show_or_create_surface(&app, surface, port, &token));
+        let result = (|| {
+            #[cfg(target_os = "macos")]
+            create_recording_overlay(&app, port, &token)?;
+
+            surfaces
+                .into_iter()
+                .try_for_each(|surface| show_or_create_surface(&app, surface, port, &token))
+        })();
         let _ = sender.send(result);
     })?;
     receiver
         .recv()
         .context("the main thread stopped before creating Epicenter surfaces")?
+}
+
+#[cfg(target_os = "macos")]
+fn create_recording_overlay(app: &DesktopAppHandle, port: u16, token: &str) -> Result<()> {
+    let origin = origin(port);
+    let url: tauri::Url = format!("{origin}/apps/whispering/recording-overlay/").parse()?;
+    let initialization_script = initialization_script(&origin, token)?;
+    overlay::create_recording_overlay(app, url, initialization_script, port)
+        .context("create the Whispering recording overlay")
 }
 
 fn show_or_create_surface(
@@ -708,6 +869,12 @@ fn invalidate_surfaces(app: &DesktopAppHandle) {
                 if window.destroy().is_err() {
                     let _ = window.hide();
                 }
+            }
+        }
+        #[cfg(target_os = "macos")]
+        if let Some(window) = app.get_webview_window(overlay::WINDOW_LABEL) {
+            if window.destroy().is_err() {
+                let _ = window.hide();
             }
         }
         let _ = sender.send(());
@@ -858,7 +1025,7 @@ fn initialization_script(origin: &str, token: &str) -> Result<String> {
     ))
 }
 
-fn is_allowed_navigation(url: &tauri::Url, port: u16) -> bool {
+pub(crate) fn is_allowed_navigation(url: &tauri::Url, port: u16) -> bool {
     url.scheme() == "http"
         && url.host_str() == Some("127.0.0.1")
         && url.port() == Some(port)
