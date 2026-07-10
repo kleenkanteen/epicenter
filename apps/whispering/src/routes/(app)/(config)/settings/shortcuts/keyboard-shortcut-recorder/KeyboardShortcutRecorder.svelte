@@ -50,8 +50,7 @@
 	// never diverge, so there is no separate `capturing` flag to keep in sync.
 	let open = $state(false);
 	// The combo held so far this session, so the popover can preview its reach
-	// before the user releases. `null` between sessions. See each recorder's
-	// `onProgress`.
+	// before the user releases. `null` between sessions.
 	let previewBinding = $state<KeyBinding | null>(null);
 	const preview = $derived.by(() => {
 		if (!previewBinding || isEmptyBinding(previewBinding)) return null;
@@ -63,11 +62,12 @@
 
 	// One capture brain: the webview recorder captures bare keys for focused
 	// shortcuts and chords for global shortcuts.
-	const onCapture = (next: KeyBinding) => void commitCandidate(next);
-	const onProgress = (partial: KeyBinding) => {
-		previewBinding = partial;
-	};
-	const chordRecorder = createChordRecorder({ onCapture, onProgress });
+	const chordRecorder = createChordRecorder({
+		onCapture: (next) => void commitCandidate(next),
+		onProgress: (partial) => {
+			previewBinding = partial;
+		},
+	});
 
 	// The recorder runs while the popover is open. Closing or unmounting stops it.
 	$effect(() => {
@@ -116,10 +116,6 @@
 		previewBinding = null;
 		open = false;
 	}
-
-	async function clear(reach: Reach) {
-		await shortcuts.clear(command.id, reach);
-	}
 </script>
 
 {#snippet reachGlyph(reach: Reach)}
@@ -152,7 +148,7 @@
 				variant="ghost"
 				size="icon"
 				class="size-6 shrink-0"
-				onclick={() => clear(chip.reach)}
+				onclick={() => void shortcuts.clear(command.id, chip.reach)}
 			>
 				<XIcon class="size-3.5" />
 				<span class="sr-only">Clear {chip.reach} shortcut</span>
