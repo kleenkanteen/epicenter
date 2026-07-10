@@ -47,7 +47,10 @@ import { defineErrors, extractErrorMessage } from 'wellcrafted/error';
 import { defineKeys } from 'wellcrafted/query';
 import { Ok, tryAsync } from 'wellcrafted/result';
 import { defineMutation, defineQuery, queryClient } from '$lib/rpc/client';
-import type { DictationCapability } from '$lib/tauri/commands';
+import type {
+	DictationCapability,
+	GlobalShortcutRegistration,
+} from '$lib/tauri/commands';
 import { commands, events } from '$lib/tauri/commands';
 
 /**
@@ -56,11 +59,6 @@ import { commands, events } from '$lib/tauri/commands';
  * `resolveBinding`, so `registerChords` registers the string instead of
  * re-deriving it.
  */
-export type ChordRegistration = {
-	commandId: string;
-	accelerator: string;
-};
-
 // fs ----------------------------------------------------------------
 const FsError = defineErrors({
 	ReadFilesFailed: ({ paths, cause }: { paths: string[]; cause: unknown }) => ({
@@ -297,7 +295,7 @@ const keyboard = {
 	 * refused upstream, so nothing reaches here but chords. Carbon's
 	 * `RegisterEventHotKey` needs no Accessibility grant.
 	 */
-	registerChords: async (chords: ChordRegistration[]) => {
+	registerChords: async (chords: GlobalShortcutRegistration[]) => {
 		if (!shortcutListenerPromise) {
 			shortcutListenerPromise = events.globalShortcutTriggered.listen(
 				async ({ payload }) => {

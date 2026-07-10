@@ -123,6 +123,7 @@ export type {
 	CatalogError,
 	DictationCapability,
 	DownloadProgress,
+	GlobalShortcutRegistration,
 	ModelInfo,
 	RecorderError as IpcRecorderError,
 	RecordingArtifact,
