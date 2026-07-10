@@ -324,12 +324,6 @@ export type DictationCapability =
 	 */
 	| 'unknown'
 	/**
-	 *  Reserved. No longer produced: the tap is macOS-only and exists solely to
-	 *  watch the paste grant (ADR-0117), so there is no "cannot tap" state to
-	 *  report. Kept in the enum so the frontend's capability vocabulary is stable.
-	 */
-	| 'unsupported'
-	/**
 	 *  Auto-paste-at-cursor is off, so nothing needs the grant: the tap is
 	 *  deliberately not running and no Accessibility is touched. Global shortcuts
 	 *  are plugin chords and work regardless.

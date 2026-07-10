@@ -61,7 +61,7 @@
 
 <SettingSwitch key={delivery.cursor} label={`Paste ${delivery.noun} at cursor`} />
 
-{#if tauri && dictationCapability.isUnavailable}
+{#if tauri && dictationCapability.needsAccessibility}
 	<!-- The toggle stays on and interactive (it records intent), but the paste
 	can't fire without the macOS Accessibility grant. Annotate the current
 	capability inline; offer the grant only when there is one to give (untrusted
@@ -84,7 +84,7 @@
 {/if}
 
 {#if tauri && settings.get(delivery.cursor)}
-	<div class:opacity-50={dictationCapability.isUnavailable}>
+	<div class:opacity-50={dictationCapability.needsAccessibility}>
 		<SettingSwitch
 			key={delivery.enter}
 			label={`Press Enter after pasting ${delivery.noun}`}
