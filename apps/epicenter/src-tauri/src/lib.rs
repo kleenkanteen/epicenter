@@ -301,7 +301,7 @@ mod export_bindings {
         super::make_specta_builder()
             .export(
                 specta_typescript::Typescript::default(),
-                "../whispering/src/lib/tauri/bindings.gen.ts",
+                "../../whispering/src/lib/tauri/bindings.gen.ts",
             )
             .expect("failed to export bindings");
     }

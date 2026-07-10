@@ -6,7 +6,7 @@
  * desktop identity.
  */
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
 	normalizeWhisperingPath,
@@ -14,11 +14,15 @@ import {
 } from '../src/lib/constants/urls';
 
 const ROOT = join(import.meta.dir, '..');
+const REPO_ROOT = join(ROOT, '..', '..');
 const read = (name: string) => readFileSync(join(ROOT, name), 'utf8');
 
 describe('Epicenter-hosted Whispering identity', () => {
 	test('the canonical package is the independently hostable SPA', () => {
 		expect(JSON.parse(read('package.json')).name).toBe('@epicenter/whispering');
+		expect(existsSync(join(ROOT, 'src-tauri'))).toBe(false);
+		expect(existsSync(join(REPO_ROOT, 'apps/epicenter/whispering'))).toBe(false);
+		expect(existsSync(join(REPO_ROOT, 'apps/epicenter/src-tauri'))).toBe(true);
 	});
 
 	test('the browser and Epicenter builds own distinct base paths and outputs', () => {
