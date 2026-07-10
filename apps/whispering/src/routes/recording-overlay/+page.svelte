@@ -7,18 +7,20 @@
 		recordingOverlayReady,
 		recordingOverlayStatus,
 		revealMainWindow,
-		type RecordingOverlayAction,
-		type RecordingOverlayStatus,
 	} from '$lib/recording-overlay/events';
-	import { foldMicLevel } from '$lib/recording-overlay/level';
-	import RecordingPill from '$lib/recording-overlay/RecordingPill.svelte';
+	import { foldMicLevel } from '$lib/recording-pill/level';
+	import type {
+		RecordingPillAction,
+		RecordingPillStatus,
+	} from '$lib/recording-pill/model';
+	import RecordingPill from '$lib/recording-pill/RecordingPill.svelte';
 
 	// Tauri adapter for the recording pill. The overlay lives in its own webview,
 	// so it cannot read the recorder state modules directly: the main window
 	// pushes the current status over a Tauri event and we render from that, and
 	// control gestures go back over Tauri events. The pill itself
 	// (`RecordingPill`) is platform-free; this route owns the IPC glue.
-	let status = $state<RecordingOverlayStatus | null>(null);
+	let status = $state<RecordingPillStatus | null>(null);
 
 	// Live, smoothed mic loudness, 0 (silent) to 1 (loud). Driven by the
 	// `mic-level` event: VAD frames in JS for voice-activated capture, the Rust
@@ -58,7 +60,7 @@
 		for (const unlisten of unlisteners) unlisten();
 	});
 
-	function sendAction(action: RecordingOverlayAction) {
+	function sendAction(action: RecordingPillAction) {
 		void recordingOverlayAction.emit(action);
 	}
 </script>

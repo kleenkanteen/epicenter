@@ -104,7 +104,7 @@ Whispering and Epicenter use different product names, bundle identifiers, data r
 
 ### Phase 3: Publish the terminal Whispering release
 
-- [ ] Create a temporary legacy release branch from the main commit immediately before PR #2441 lands.
+- [ ] Create a temporary legacy release branch from `05d9f5ffb8`, the main commit immediately before PR #2441 lands.
 - [ ] Make the legacy workflow self-contained on that branch instead of resolving deleted composite actions from `@main`.
 - [ ] Add a concise in-app transition notice and release notes that identify v7.11.1 as the final standalone desktop version.
 - [ ] Link to the stable Epicenter download URL and explain the new-install, new-permissions, and no-data-migration boundary.

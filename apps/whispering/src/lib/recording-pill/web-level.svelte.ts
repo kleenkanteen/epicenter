@@ -1,10 +1,10 @@
-import { foldMicLevel } from '$lib/recording-overlay/level';
+import { foldMicLevel } from '$lib/recording-pill/level';
 
 /**
  * Reactive mic level for the web pill. On desktop the level travels over a Tauri
  * event to the overlay webview, which smooths it there; on web the pill is an
  * in-page component, so the smoothing lives here and the host reads `level`
- * reactively. Fed by the browser `recording-overlay` seam's `reportLevel`.
+ * reactively. Fed by the browser recording mic-level seam.
  */
 function createWebPillLevel() {
 	let level = $state(0);
