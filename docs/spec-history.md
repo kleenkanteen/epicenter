@@ -16,7 +16,7 @@
 >
 > **Regenerate (deterministic per ref set, lossless):** `bun scripts/generate-spec-history.ts`. The totals track the refs this clone can see; `--all` is deliberate so the timeline recovers specs that only lived on unmerged or deleted branches.
 
-**1372 specs ever** (554 still in tree, 818 removed).
+**1372 specs ever** (553 still in tree, 819 removed).
 
 
 ## 2026
@@ -118,7 +118,7 @@
 | 2026-06-14 | landing-ecosystem-realignment | removed | specs/20260614T180000-landing-ecosystem-realignment.md |
 | 2026-06-14 | vocab-pronunciation-stt-tts-research | removed | specs/20260614T022000-vocab-pronunciation-stt-tts-research.md |
 | 2026-06-14 | vocab-two-boats-conversation-and-dictionary | removed | specs/20260614T022000-vocab-two-boats-conversation-and-dictionary.md |
-| 2026-06-13 | whispering-desktop-rdev-trigger-backend | in tree | apps/whispering/specs/20260613T094454-whispering-desktop-rdev-trigger-backend.md |
+| 2026-06-13 | whispering-desktop-rdev-trigger-backend | removed | apps/whispering/specs/20260613T094454-whispering-desktop-rdev-trigger-backend.md |
 | 2026-06-13 | epicenter-todos-first-slice | in tree | specs/20260613T224526-epicenter-todos-first-slice.md |
 | 2026-06-13 | whispering-local-model-download-rust | in tree | specs/20260613T234711-whispering-local-model-download-rust.md |
 | 2026-06-13 | vocab-acquisition-through-use | removed | specs/20260613T211000-vocab-acquisition-through-use.md |
