@@ -52,8 +52,8 @@ import {
 	attachHostToRelay,
 	type RelayHostSocket,
 } from './attach-relay-host.ts';
-import { createSuperChatHost, type SuperChatHost } from './host.ts';
-import type { SuperChatServerEvent } from './server.ts';
+import { createQueryHost, type QueryHost } from './host.ts';
+import type { QueryServerEvent } from './server.ts';
 
 /** A strong-enough operator bearer for the admin surface's constant-time compare. */
 const OPERATOR_TOKEN = 'self-host-instance-token-0123456789abcdef';
@@ -69,11 +69,11 @@ function scriptedEngine(scripts: EngineChunk[][]): AgentEngine {
 }
 
 function testDataDir(): string {
-	return mkdtempSync(join(tmpdir(), 'super-chat-relay-selfhost-'));
+	return mkdtempSync(join(tmpdir(), 'query-relay-selfhost-'));
 }
 
 function createTestHost(engine: AgentEngine) {
-	return createSuperChatHost({
+	return createQueryHost({
 		dataDir: testDataDir(),
 		model: 'test-model',
 		engine,
@@ -148,20 +148,20 @@ async function pairDevice(
 /** Resolve on the first snapshot matching `predicate`, checking the latest first. */
 function nextClientSnapshot(
 	client: {
-		latest(): SuperChatServerEvent | undefined;
-		subscribe(l: (e: SuperChatServerEvent) => void): () => void;
+		latest(): QueryServerEvent | undefined;
+		subscribe(l: (e: QueryServerEvent) => void): () => void;
 	},
-	predicate: (event: SuperChatServerEvent) => boolean,
+	predicate: (event: QueryServerEvent) => boolean,
 	description: string,
 	timeoutMs = 5000,
-): Promise<SuperChatServerEvent> {
+): Promise<QueryServerEvent> {
 	return new Promise((resolve, reject) => {
 		let unsubscribe = () => {};
 		const timer = setTimeout(() => {
 			unsubscribe();
 			reject(new Error(`timed out waiting for ${description}`));
 		}, timeoutMs);
-		const settle = (event: SuperChatServerEvent) => {
+		const settle = (event: QueryServerEvent) => {
 			if (!predicate(event)) return;
 			clearTimeout(timer);
 			unsubscribe();
@@ -176,7 +176,7 @@ function nextClientSnapshot(
 /** The turn settled and the last assistant message contains `text`. */
 const settledWith =
 	(text: string) =>
-	(event: SuperChatServerEvent): boolean => {
+	(event: QueryServerEvent): boolean => {
 		const conversation = event.snapshot.conversation;
 		const last = conversation.messages.at(-1);
 		return (
@@ -247,7 +247,7 @@ async function attachClient(
 
 describe('AttachRelay: attach behind per-device grants', () => {
 	test('a host and client, each with a device grant, share one session', async () => {
-		await using host: SuperChatHost = await createTestHost(
+		await using host: QueryHost = await createTestHost(
 			scriptedEngine([
 				[{ type: 'text-delta', delta: 'Attached through self-host.' }],
 			]),
@@ -291,7 +291,7 @@ describe('AttachRelay: attach behind per-device grants', () => {
 	});
 
 	test('the server stamps the instance principal, ignoring the query principalId', async () => {
-		await using host: SuperChatHost = await createTestHost(
+		await using host: QueryHost = await createTestHost(
 			scriptedEngine([[{ type: 'text-delta', delta: 'One partition.' }]]),
 		);
 		const { server, origin, grants } = serveSelfHostRelay(OPERATOR_TOKEN);
@@ -414,7 +414,7 @@ describe('AttachRelay: attach behind per-device grants', () => {
 	});
 
 	test('the authenticated host wire is still endpoint-addressed, never route-addressed', async () => {
-		await using host: SuperChatHost = await createTestHost(
+		await using host: QueryHost = await createTestHost(
 			scriptedEngine([[{ type: 'text-delta', delta: 'Endpoint only.' }]]),
 		);
 		const { server, origin, grants } = serveSelfHostRelay(OPERATOR_TOKEN);
@@ -474,7 +474,7 @@ describe('AttachRelay: attach behind per-device grants', () => {
 	});
 
 	test('a turn one client drives settles for both attached clients', async () => {
-		await using host: SuperChatHost = await createTestHost(
+		await using host: QueryHost = await createTestHost(
 			scriptedEngine([
 				[{ type: 'text-delta', delta: 'Shared over the relay.' }],
 			]),
@@ -535,7 +535,7 @@ describe('AttachRelay: attach behind per-device grants', () => {
 	});
 
 	test('either client can approve a mutation the other client raised', async () => {
-		await using host: SuperChatHost = await createTestHost(
+		await using host: QueryHost = await createTestHost(
 			scriptedEngine([
 				[
 					{
@@ -619,7 +619,7 @@ describe('AttachRelay: attach behind per-device grants', () => {
 	});
 
 	test('a paired client discovers the host over GET /attach/hosts, online then offline', async () => {
-		await using host: SuperChatHost = await createTestHost(
+		await using host: QueryHost = await createTestHost(
 			scriptedEngine([[{ type: 'text-delta', delta: 'Discoverable.' }]]),
 		);
 		const { server, origin, httpOrigin, grants } =

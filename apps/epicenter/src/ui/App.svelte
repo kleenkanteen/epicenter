@@ -7,7 +7,7 @@
 	import * as Item from '@epicenter/ui/item';
 	import * as Popover from '@epicenter/ui/popover';
 	import { Spinner } from '@epicenter/ui/spinner';
-	import type { SuperChatInvocation } from '../host.ts';
+	import type { QueryInvocation } from '../host.ts';
 	import Composer from './Composer.svelte';
 	import Transcript from './Transcript.svelte';
 	import { createSession } from './session.svelte.ts';
@@ -32,7 +32,7 @@
 		succeeded: { label: 'Done', variant: 'status.completed' },
 		failed: { label: 'Failed', variant: 'status.failed' },
 	} as const satisfies Record<
-		SuperChatInvocation['status'],
+		QueryInvocation['status'],
 		{ label: string; variant: BadgeVariant }
 	>;
 
@@ -62,16 +62,16 @@
 
 {#if session === null}
 	<Empty.Root class="h-full">
-		<Empty.Title>Super Chat</Empty.Title>
+		<Empty.Title>Query</Empty.Title>
 		<Empty.Description>
-			This page is missing its launch token. Relaunch Super Chat from the app;
+			This page is missing its launch token. Relaunch Query from the app;
 			opening this address by hand will not work.
 		</Empty.Description>
 	</Empty.Root>
 {:else}
 	<div class="flex h-full flex-col text-sm">
 		<header class="flex flex-none items-center gap-3 border-b px-3 py-2">
-			<span class="font-semibold">Super Chat</span>
+			<span class="font-semibold">Query</span>
 			<span
 				class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
 			>

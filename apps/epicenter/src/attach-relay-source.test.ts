@@ -1,7 +1,7 @@
 /**
  * AttachRelay source plane and desktop-offline behavior (ADR-0115 wave 6).
  *
- * The wave's product sentence: a phone attached to the desktop Super Chat
+ * The wave's product sentence: a phone attached to the desktop Query
  * session can ask a question that uses a desktop-local read-only source, receive
  * the streamed answer over the trusted relay, and later see the finished
  * transcript even when the desktop is offline; it cannot start a new local-source
@@ -57,10 +57,10 @@ import {
 	attachHostToRelay,
 	type RelayHostSocket,
 } from './attach-relay-host.ts';
-import { createSuperChatHost, type SuperChatHost } from './host.ts';
+import { createQueryHost, type QueryHost } from './host.ts';
 import type { LocalSourceMessage } from './local-source-catalog.ts';
-import type { SuperChatServerEvent } from './server.ts';
-import { superChatWorkspace } from './workspace.ts';
+import type { QueryServerEvent } from './server.ts';
+import { queryWorkspace } from './workspace.ts';
 
 const HOST_ID = 'host-mac';
 /**
@@ -85,15 +85,15 @@ function scriptedEngine(scripts: EngineChunk[][]): AgentEngine {
 }
 
 function testDataDir(): string {
-	return mkdtempSync(join(tmpdir(), 'super-chat-source-'));
+	return mkdtempSync(join(tmpdir(), 'query-source-'));
 }
 
 /** A host wired with the fixture local source over an explicit data dir. */
 function createSourceHost(
 	dataDir: string,
 	engine: AgentEngine,
-): Promise<SuperChatHost> {
-	return createSuperChatHost({
+): Promise<QueryHost> {
+	return createQueryHost({
 		dataDir,
 		model: 'test-model',
 		engine,
@@ -163,20 +163,20 @@ async function grantFor(
 /** Resolve on the first snapshot matching `predicate`, checking the latest first. */
 function nextClientSnapshot(
 	client: {
-		latest(): SuperChatServerEvent | undefined;
-		subscribe(l: (e: SuperChatServerEvent) => void): () => void;
+		latest(): QueryServerEvent | undefined;
+		subscribe(l: (e: QueryServerEvent) => void): () => void;
 	},
-	predicate: (event: SuperChatServerEvent) => boolean,
+	predicate: (event: QueryServerEvent) => boolean,
 	description: string,
 	timeoutMs = 5000,
-): Promise<SuperChatServerEvent> {
+): Promise<QueryServerEvent> {
 	return new Promise((resolve, reject) => {
 		let unsubscribe = () => {};
 		const timer = setTimeout(() => {
 			unsubscribe();
 			reject(new Error(`timed out waiting for ${description}`));
 		}, timeoutMs);
-		const settle = (event: SuperChatServerEvent) => {
+		const settle = (event: QueryServerEvent) => {
 			if (!predicate(event)) return;
 			clearTimeout(timer);
 			unsubscribe();
@@ -190,7 +190,7 @@ function nextClientSnapshot(
 
 const settledWith =
 	(text: string) =>
-	(event: SuperChatServerEvent): boolean => {
+	(event: QueryServerEvent): boolean => {
 		const conversation = event.snapshot.conversation;
 		const last = conversation.messages.at(-1);
 		return (
@@ -223,7 +223,7 @@ function capturingHostSocket(
 const wait = (ms: number): Promise<void> =>
 	new Promise((resolve) => setTimeout(resolve, ms));
 
-async function settleHost(host: SuperChatHost): Promise<void> {
+async function settleHost(host: QueryHost): Promise<void> {
 	for (let i = 0; i < 500 && host.snapshot().conversation.isGenerating; i++) {
 		await wait(5);
 	}
@@ -240,7 +240,7 @@ async function readTranscript(dataDir: string): Promise<{
 	tableNames: string[];
 	messages: AgentMessage[];
 }> {
-	const replica = superChatWorkspace.connect(null, {
+	const replica = queryWorkspace.connect(null, {
 		persistence: bunLocalPersistence({ dir: dataDir }),
 	});
 	await replica.storage.whenLoaded;
@@ -284,7 +284,7 @@ const toolResults = (messages: AgentMessage[]) =>
 
 describe('AttachRelay source plane (ADR-0115 wave 6)', () => {
 	test('a remote ask reads a host local source over endpoint-addressed relay frames', async () => {
-		await using host: SuperChatHost = await createSourceHost(
+		await using host: QueryHost = await createSourceHost(
 			testDataDir(),
 			sourceReadingEngine(),
 		);
@@ -375,7 +375,7 @@ describe('AttachRelay source plane (ADR-0115 wave 6)', () => {
 		// from the directory status, not from the client's own relay socket (the
 		// phone can be connected to the relay while the desktop is not, which is the
 		// `unreachable` state itself).
-		await using host: SuperChatHost = await createSourceHost(
+		await using host: QueryHost = await createSourceHost(
 			testDataDir(),
 			sourceReadingEngine(),
 		);

@@ -1,5 +1,5 @@
 /**
- * The browser side of the Super Chat session: one startup fetch of
+ * The browser side of the Query session: one startup fetch of
  * `/api/session`, one WebSocket to `/api/session/stream`, and a `$state`-backed
  * view the components read. The server snapshot is the only transcript state;
  * every initial payload and `snapshot` event replaces it wholesale, so the
@@ -12,13 +12,13 @@
 import type { ConversationSnapshot } from '@epicenter/workspace/agent';
 import type {
 	PendingApproval,
-	SuperChatClientCommand,
-	SuperChatInvocation,
+	QueryClientCommand,
+	QueryInvocation,
 } from '../host.ts';
 import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from '../routes.ts';
 import type {
-	SuperChatServerEvent,
-	SuperChatSessionResponse,
+	QueryServerEvent,
+	QuerySessionResponse,
 } from '../server.ts';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'closed';
@@ -34,9 +34,9 @@ export function createSession({ token }: { token: string }) {
 		error: null,
 	});
 	let pendingApprovals = $state<PendingApproval[]>([]);
-	let invocations = $state<SuperChatInvocation[]>([]);
+	let invocations = $state<QueryInvocation[]>([]);
 	let connection = $state<ConnectionStatus>('connecting');
-	let tools = $state<SuperChatSessionResponse['tools']>([]);
+	let tools = $state<QuerySessionResponse['tools']>([]);
 
 	let socket: WebSocket | undefined;
 
@@ -49,7 +49,7 @@ export function createSession({ token }: { token: string }) {
 				connection = 'closed';
 				return false;
 			}
-			const body = (await response.json()) as SuperChatSessionResponse;
+			const body = (await response.json()) as QuerySessionResponse;
 			tools = body.tools;
 			snapshot = body.snapshot.conversation;
 			pendingApprovals = body.snapshot.pendingApprovals;
@@ -77,7 +77,7 @@ export function createSession({ token }: { token: string }) {
 		};
 		ws.onmessage = (event) => {
 			if (typeof event.data !== 'string') return;
-			let parsed: SuperChatServerEvent;
+			let parsed: QueryServerEvent;
 			try {
 				parsed = JSON.parse(event.data);
 			} catch {
@@ -98,7 +98,7 @@ export function createSession({ token }: { token: string }) {
 	}
 
 	/** Returns whether the command actually went out over an open socket. */
-	function sendCommand(command: SuperChatClientCommand): boolean {
+	function sendCommand(command: QueryClientCommand): boolean {
 		if (socket?.readyState !== WebSocket.OPEN) return false;
 		socket.send(JSON.stringify(command));
 		return true;
@@ -141,7 +141,7 @@ export function createSession({ token }: { token: string }) {
 		/** Run one tool directly; the result lands in `invocations`. */
 		invoke(
 			toolName: string,
-			input: Extract<SuperChatClientCommand, { type: 'invoke' }>['input'] = {},
+			input: Extract<QueryClientCommand, { type: 'invoke' }>['input'] = {},
 		) {
 			return sendCommand({ type: 'invoke', toolName, input });
 		},

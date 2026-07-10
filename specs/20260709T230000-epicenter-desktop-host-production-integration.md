@@ -57,9 +57,9 @@ macOS sees one bundle, one process identity, one TCC identity, one updater, one 
 
 ## Current evidence
 
-### Super Chat already proves the Bun-hosted shape
+### Query already proves the Bun-hosted shape
 
-`apps/super-chat` already has the core server mechanics:
+`apps/epicenter` already has the Query server mechanics:
 
 - `src/main.ts` accepts a per-launch credential over stdin.
 - Bun binds loopback and reports readiness to its parent.
@@ -469,7 +469,7 @@ The milestone explicitly excludes:
 
 ### Wave 1: Promote Super Chat to Epicenter
 
-- [ ] Rename `apps/super-chat` to `apps/epicenter` without aliases.
+- [x] Rename `apps/super-chat` to `apps/epicenter` without aliases.
 - [ ] Add the Tauri crate and `so.epicenter.app` identity.
 - [ ] Preserve Bun SPA/API/WebSocket serving.
 - [ ] Bind production to 39130 and development to 39131 or `EPICENTER_DEV_PORT`.

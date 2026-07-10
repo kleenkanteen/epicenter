@@ -241,7 +241,7 @@ Every app starts from the repo root. `bun dev:<app>` runs every process the app 
 | `bun dev:skills` | Skills editor, standalone | vite default |
 | `bun dev:todos` | Todos, standalone | 5177 |
 
-The API needs local Postgres and Infisical; see [apps/api/README.md](apps/api/README.md). Rust is needed for the Tauri apps (Whispering, Matter, Honeycrisp). Local Books, Local Mail, and Super Chat run their own multi-process dev flows; their READMEs document them.
+The API needs local Postgres and Infisical; see [apps/api/README.md](apps/api/README.md). Rust is needed for the Tauri apps (Whispering, Matter, Honeycrisp). Local Books and Local Mail run their own multi-process dev flows; their READMEs document them.
 
 Useful checks:
 

@@ -1,5 +1,5 @@
 /**
- * The Super Chat host: one local desktop chat session; built-in apps enter
+ * The Query host: one local desktop chat session; built-in apps enter
  * through one verb catalog (ADR-0080). Built-in Yjs apps mount in-process
  * as action registries (arm A); boxed apps an upstream forces off the mesh
  * may join as local stdio MCP subprocesses (arm B, Local Books today). One
@@ -47,9 +47,9 @@ import {
 	createStdioMcpCatalog,
 	type StdioMcpCatalogOptions,
 } from './stdio-mcp-catalog.ts';
-import { superChatWorkspace } from './workspace.ts';
+import { queryWorkspace } from './workspace.ts';
 
-export type SuperChatHostOptions = {
+export type QueryHostOptions = {
 	/** The inference backend driving the loop (BYOK, local, or scripted). */
 	engine: AgentEngine;
 	/**
@@ -88,10 +88,10 @@ export type PendingApproval = {
 	requestedAt: number;
 };
 
-export type SuperChatSessionSnapshot = {
+export type QuerySessionSnapshot = {
 	conversation: ConversationSnapshot;
 	pendingApprovals: PendingApproval[];
-	invocations: SuperChatInvocation[];
+	invocations: QueryInvocation[];
 };
 
 /**
@@ -101,7 +101,7 @@ export type SuperChatSessionSnapshot = {
  * conversation transcript; the model must not see operator-plane runs as
  * chat history.
  */
-export type SuperChatInvocation = {
+export type QueryInvocation = {
 	id: string;
 	toolName: string;
 	status: 'running' | 'succeeded' | 'failed';
@@ -112,7 +112,7 @@ export type SuperChatInvocation = {
 };
 
 /** What a session client may ask of the one host-owned session. */
-export type SuperChatClientCommand =
+export type QueryClientCommand =
 	| { type: 'send'; content: string }
 	| { type: 'stop' }
 	| { type: 'retry' }
@@ -148,9 +148,9 @@ export type SuperChatClientCommand =
  * owns what a valid command is (ADR-0113); transports own only the framing
  * that produced the value.
  */
-export function parseSuperChatCommand(
+export function parseQueryCommand(
 	value: unknown,
-): SuperChatClientCommand | undefined {
+): QueryClientCommand | undefined {
 	if (value === null || typeof value !== 'object') return undefined;
 	const command = value as Record<string, unknown>;
 	if (command.type === 'send' && typeof command.content === 'string') {
@@ -193,15 +193,15 @@ export function parseSuperChatCommand(
 	return undefined;
 }
 
-export type SuperChatHost = {
+export type QueryHost = {
 	/** The model-visible tool surface, for shells that list or introspect tools. */
 	toolDefinitions(): AgentToolDefinition[];
 	/** Read the render state owned by the host session. */
-	snapshot(): SuperChatSessionSnapshot;
+	snapshot(): QuerySessionSnapshot;
 	/** Register for any conversation or approval-state change. */
 	subscribe(listener: () => void): () => void;
 	/** Apply one client command to the host-owned session. */
-	handleCommand(command: SuperChatClientCommand): boolean;
+	handleCommand(command: QueryClientCommand): boolean;
 	[Symbol.asyncDispose](): Promise<void>;
 };
 
@@ -211,9 +211,9 @@ const INVOCATION_LIMIT = 20;
  * Open the built-in apps, compose their catalogs, and start the one chat
  * session over them.
  */
-export async function createSuperChatHost(
-	options: SuperChatHostOptions,
-): Promise<SuperChatHost> {
+export async function createQueryHost(
+	options: QueryHostOptions,
+): Promise<QueryHost> {
 	// Arm A: in-process Yjs apps. Each app's namespace keeps same-named verbs
 	// distinct in the composed surface; the prefix must not contain `__`.
 	const dataDir = options.dataDir ?? defaultDataDir();
@@ -224,11 +224,11 @@ export async function createSuperChatHost(
 	const honeycrisp = honeycrispWorkspace.connect(null, { persistence });
 	const todos = todosWorkspace.connect(null, { persistence });
 	// The host's own workspace: durable transcripts, same ungated local preset.
-	const superChat = superChatWorkspace.connect(null, { persistence });
+	const query = queryWorkspace.connect(null, { persistence });
 	await Promise.all([
 		honeycrisp.storage.whenLoaded,
 		todos.storage.whenLoaded,
-		superChat.storage.whenLoaded,
+		query.storage.whenLoaded,
 	]);
 	const catalogs: ToolCatalog[] = [
 		namespaceToolCatalog(
@@ -255,7 +255,7 @@ export async function createSuperChatHost(
 		? await createStdioMcpCatalog(options.localBooks).catch((error) => {
 				honeycrisp[Symbol.dispose]();
 				todos[Symbol.dispose]();
-				superChat[Symbol.dispose]();
+				query[Symbol.dispose]();
 				throw error;
 			})
 		: undefined;
@@ -276,7 +276,7 @@ export async function createSuperChatHost(
 	// Resume the most recent session; a host with no history starts a fresh id
 	// whose row is minted lazily on the first successful send, so an idle
 	// launch leaves no empty row behind.
-	const conversations = superChat.tables.conversations;
+	const conversations = query.tables.conversations;
 	let latest: Conversation | undefined;
 	for (const row of conversations.scan().rows) {
 		if (latest === undefined || row.updatedAt > latest.updatedAt) latest = row;
@@ -339,9 +339,9 @@ export async function createSuperChatHost(
 	// after the abort rides the catalog honoring the signal, the same contract
 	// chat turns rely on; disposal never awaits invocations.
 	const invokeAbort = new AbortController();
-	const invocations: SuperChatInvocation[] = [];
+	const invocations: QueryInvocation[] = [];
 	const runInvocation = (toolName: string, input: AgentToolCall['input']) => {
-		const invocation: SuperChatInvocation = {
+		const invocation: QueryInvocation = {
 			id: generateId(),
 			toolName,
 			status: 'running',
@@ -449,11 +449,11 @@ export async function createSuperChatHost(
 			await localBooks?.[Symbol.asyncDispose]();
 			honeycrisp[Symbol.dispose]();
 			todos[Symbol.dispose]();
-			superChat[Symbol.dispose]();
+			query[Symbol.dispose]();
 			await Promise.all([
 				honeycrisp.storage.whenDisposed,
 				todos.storage.whenDisposed,
-				superChat.storage.whenDisposed,
+				query.storage.whenDisposed,
 				// Transcript flushes: the active store plus any `clear` left behind.
 				activeStore.whenDisposed,
 				...storeFlushes,
@@ -538,18 +538,18 @@ function createSessionApproval(notify: () => void) {
 }
 
 function defaultDataDir(): string {
-	if (process.env.SUPER_CHAT_DATA_DIR) return process.env.SUPER_CHAT_DATA_DIR;
+	if (process.env.EPICENTER_QUERY_DATA_DIR) return process.env.EPICENTER_QUERY_DATA_DIR;
 	if (platform() === 'darwin') {
 		return join(
 			homedir(),
 			'Library',
 			'Application Support',
-			'epicenter-super-chat',
+			'epicenter-query',
 		);
 	}
 	const xdgDataHome = process.env.XDG_DATA_HOME;
-	if (xdgDataHome) return join(xdgDataHome, 'epicenter-super-chat');
-	return join(homedir(), '.local', 'share', 'epicenter-super-chat');
+	if (xdgDataHome) return join(xdgDataHome, 'epicenter-query');
+	return join(homedir(), '.local', 'share', 'epicenter-query');
 }
 
 function fileStorage(filePath: string) {

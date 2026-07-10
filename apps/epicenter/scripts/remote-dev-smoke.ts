@@ -1,13 +1,13 @@
 /**
- * Dev-only real-device smoke for Super Chat remote attach.
+ * Dev-only real-device smoke for Query remote attach.
  *
- * Starts a self-host-shaped AttachRelay and a desktop Super Chat host in one Bun
+ * Starts a self-host-shaped AttachRelay and a desktop Query host in one Bun
  * process, attaches the host with a minted grant, then serves a tiny phone page
  * that attaches with a second grant. This is not product UI: it is the smallest
  * way to feel the live phone -> relay -> desktop host loop on a real device.
  *
  * Run from repo root:
- *   bun run --filter @epicenter/super-chat remote:dev
+ *   bun run --filter @epicenter/epicenter remote:dev
  *
  * Then open the printed phone URL on a phone on the same LAN.
  */
@@ -26,7 +26,7 @@ import {
 } from '@epicenter/server/bun';
 import type { AgentEngine, EngineChunk } from '@epicenter/workspace/agent';
 import { attachHostToRelay } from '../src/attach-relay-host.ts';
-import { createSuperChatHost, type SuperChatHost } from '../src/host.ts';
+import { createQueryHost, type QueryHost } from '../src/host.ts';
 
 const HOST_ID = 'dev-mac';
 const PHONE_DEVICE_ID = 'phone';
@@ -37,9 +37,9 @@ function createSmokeEngine(): {
 	model: string;
 	label: string;
 } {
-	const baseURL = process.env.SUPER_CHAT_INFERENCE_URL;
-	const model = process.env.SUPER_CHAT_MODEL;
-	const apiKey = process.env.SUPER_CHAT_API_KEY;
+	const baseURL = process.env.EPICENTER_QUERY_INFERENCE_URL;
+	const model = process.env.EPICENTER_QUERY_MODEL;
+	const apiKey = process.env.EPICENTER_QUERY_API_KEY;
 	if (baseURL && model) {
 		return {
 			model,
@@ -59,7 +59,7 @@ function createSmokeEngine(): {
 					baseURL,
 					model,
 					systemPrompts: [
-						'You are Super Chat, a local assistant that acts across the apps on this machine through their tools.',
+						'You are Query, a local assistant that acts across the apps on this machine through their tools.',
 					],
 				}),
 			}),
@@ -69,12 +69,12 @@ function createSmokeEngine(): {
 	return {
 		model: 'remote-dev-echo',
 		label:
-			'echo engine (set SUPER_CHAT_INFERENCE_URL and SUPER_CHAT_MODEL for a real model)',
+			'echo engine (set EPICENTER_QUERY_INFERENCE_URL and EPICENTER_QUERY_MODEL for a real model)',
 		engine: async function* (): AsyncGenerator<EngineChunk> {
 			yield {
 				type: 'text-delta',
 				delta:
-					'Remote attach is connected. Set SUPER_CHAT_INFERENCE_URL and SUPER_CHAT_MODEL to try a real model and tools.',
+					'Remote attach is connected. Set EPICENTER_QUERY_INFERENCE_URL and EPICENTER_QUERY_MODEL to try a real model and tools.',
 			};
 		},
 	};
@@ -82,7 +82,7 @@ function createSmokeEngine(): {
 
 async function main(): Promise<void> {
 	const { engine, model, label } = createSmokeEngine();
-	const host: SuperChatHost = await createSuperChatHost({ engine, model });
+	const host: QueryHost = await createQueryHost({ engine, model });
 	const grants = createDeviceGrantStore();
 	const hostGrant = await grants.mint({
 		deviceId: 'desktop-host',
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
 
 	const attachRelay = createAttachRelayBunServer();
 	const bunRooms = createBunRooms({
-		dir: mkdtempSync(join(tmpdir(), 'super-chat-remote-dev-')),
+		dir: mkdtempSync(join(tmpdir(), 'query-remote-dev-')),
 	});
 	const app = createServerApp({
 		resolveRooms: () => bunRooms.rooms,
@@ -144,7 +144,7 @@ async function main(): Promise<void> {
 		(ip) => `http://${ip}:${server.port}${phonePath(phoneGrant.token)}`,
 	);
 
-	console.log('Super Chat remote dev smoke is running.');
+	console.log('Query remote dev smoke is running.');
 	console.log(`Engine: ${label}`);
 	console.log(`Host id: ${HOST_ID}`);
 	console.log(`Local URL: ${localUrl}`);
@@ -187,7 +187,7 @@ function remoteDevPage(): string {
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Super Chat remote dev</title>
+	<title>Query remote dev</title>
 	<style>
 		:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
 		body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; background: Canvas; color: CanvasText; }
@@ -206,13 +206,13 @@ function remoteDevPage(): string {
 </head>
 <body>
 	<header>
-		<strong>Super Chat remote dev</strong>
+		<strong>Query remote dev</strong>
 		<span class="status" id="status">connecting</span>
 	</header>
 	<main id="messages"></main>
 	<section id="approvals"></section>
 	<form id="composer">
-		<textarea id="input" placeholder="Ask the desktop Super Chat host..."></textarea>
+		<textarea id="input" placeholder="Ask the desktop Query host..."></textarea>
 		<button>Send</button>
 	</form>
 	<script type="module">

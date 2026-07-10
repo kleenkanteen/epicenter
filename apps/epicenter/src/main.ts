@@ -11,15 +11,15 @@
  */
 
 import { createOpenAiAgentEngine } from '@epicenter/client';
-import { createSuperChatHost } from './host.ts';
-import { createSuperChatServer } from './server.ts';
+import { createQueryHost } from './host.ts';
+import { createQueryServer } from './server.ts';
 
-const baseURL = process.env.SUPER_CHAT_INFERENCE_URL;
-const model = process.env.SUPER_CHAT_MODEL;
-const apiKey = process.env.SUPER_CHAT_API_KEY;
+const baseURL = process.env.EPICENTER_QUERY_INFERENCE_URL;
+const model = process.env.EPICENTER_QUERY_MODEL;
+const apiKey = process.env.EPICENTER_QUERY_API_KEY;
 if (!baseURL || !model) {
 	console.error(
-		'Set SUPER_CHAT_INFERENCE_URL and SUPER_CHAT_MODEL (an OpenAI-compatible endpoint) to start Super Chat.',
+		'Set EPICENTER_QUERY_INFERENCE_URL and EPICENTER_QUERY_MODEL (an OpenAI-compatible endpoint) to start Query.',
 	);
 	process.exit(1);
 }
@@ -27,7 +27,7 @@ if (!baseURL || !model) {
 const token = (await readLine(Bun.stdin.stream())).trim();
 if (token === '') {
 	console.error(
-		'Super Chat expects the per-launch token as the first line on stdin.',
+		'Query expects the per-launch token as the first line on stdin.',
 	);
 	process.exit(1);
 }
@@ -44,23 +44,23 @@ const engine = createOpenAiAgentEngine({
 		baseURL,
 		model,
 		systemPrompts: [
-			'You are Super Chat, a local assistant that acts across the apps on this machine through their tools.',
+			'You are Query, a local assistant that acts across the apps on this machine through their tools.',
 		],
 	}),
 });
 
-const host = await createSuperChatHost({ engine, model });
+const host = await createQueryHost({ engine, model });
 
 const pageFile = Bun.file(new URL('../dist/index.html', import.meta.url));
 if (!(await pageFile.exists())) {
 	console.error(
-		'The built SPA is missing. Run `bun run --filter @epicenter/super-chat build` first.',
+		'The built SPA is missing. Run `bun run --filter @epicenter/epicenter build` first.',
 	);
 	process.exit(1);
 }
 const page = await pageFile.text();
 
-const { app, websocket } = createSuperChatServer({ host, token, page });
+const { app, websocket } = createQueryServer({ host, token, page });
 
 const server = Bun.serve({
 	// Loopback only, never a LAN-reachable interface; port 0 lets the OS pick.

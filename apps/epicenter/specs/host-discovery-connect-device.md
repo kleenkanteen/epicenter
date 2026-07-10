@@ -6,7 +6,7 @@
 
 ## The gap
 
-The relay carries live Super Chat bytes between two authenticated endpoints of one
+The relay carries live Query bytes between two authenticated endpoints of one
 principal. What is missing is the step *before* attach: a phone has no way to learn
 **which desktops it may attach to** or **whether one is live right now**.
 
@@ -140,7 +140,7 @@ already protects the entry shape and is reused verbatim.
   the attach bearer, backend bound via `resolveHostDirectory`.
 - `apps/self-host/server.ts`: wire the self-host reader. Leave `apps/api` untouched;
   Cloud discovery is PR 2, not a placebo endpoint.
-- `apps/super-chat`: let `attachHostToRelay` pass a label; the dev smoke can list the
+- `apps/query`: let `attachHostToRelay` pass a label; the dev smoke can list the
   desktop instead of hard-coding it.
 - Tests: retained membership, principal partition, client-absent behavior,
   conflict-correct liveness, E2E online -> offline over the real HTTP mount, and
@@ -153,7 +153,7 @@ already protects the entry shape and is reused verbatim.
 - Fills `resolveHostDirectory` on Cloud; the route and shape are unchanged from PR 1.
 - Load `durable-objects` skill; wrangler binding + migration like `ATTACH_RELAY`.
 
-### PR 3 — Super Chat phone connect UI.
+### PR 3 — Query phone connect UI.
 - A connect screen (a client-mode of the SPA, distinct from the loopback
   `session.svelte.ts`) that fetches `GET /attach/hosts`, renders each host with its
   status, and on "Connect" drives `createAttachRelayClient` to the chosen `hostId` when

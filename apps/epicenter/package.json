@@ -1,6 +1,6 @@
 {
-	"name": "@epicenter/super-chat",
-	"description": "One local desktop chat session composing built-in apps' verbs into one catalog, hosted by a Bun loopback server.",
+	"name": "@epicenter/epicenter",
+	"description": "One desktop application host serving trusted Epicenter SPAs and the Query session from Bun.",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",

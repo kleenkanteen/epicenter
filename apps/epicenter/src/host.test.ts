@@ -1,5 +1,5 @@
 /**
- * Super Chat Host Tests
+ * Query Host Tests
  *
  * Verifies that the host composes built-in app actions, optional Local Books
  * MCP tools, and one durable local replica set into a single conversation
@@ -24,11 +24,11 @@ import type {
 } from '@epicenter/workspace/agent';
 import { bunLocalPersistence } from '@epicenter/workspace/node';
 import {
-	createSuperChatHost,
-	parseSuperChatCommand,
-	type SuperChatHostOptions,
+	createQueryHost,
+	parseQueryCommand,
+	type QueryHostOptions,
 } from './host.ts';
-import { superChatWorkspace } from './workspace.ts';
+import { queryWorkspace } from './workspace.ts';
 
 const FIXTURE = new URL('../test-fixtures/mini-mcp-server.ts', import.meta.url)
 	.pathname;
@@ -53,15 +53,15 @@ const APPROVE_ALL: Approval = {
 };
 
 function testDataDir(): string {
-	return mkdtempSync(join(tmpdir(), 'super-chat-host-test-'));
+	return mkdtempSync(join(tmpdir(), 'query-host-test-'));
 }
 
 const TEST_MODEL = 'test-model';
 
 function createTestHost(
-	options: Omit<SuperChatHostOptions, 'dataDir' | 'model'>,
+	options: Omit<QueryHostOptions, 'dataDir' | 'model'>,
 ) {
-	return createSuperChatHost({
+	return createQueryHost({
 		dataDir: testDataDir(),
 		model: TEST_MODEL,
 		...options,
@@ -93,7 +93,7 @@ function toolResults(parts: AgentMessagePart[]) {
 
 /** Read the conversation rows a disposed host left behind in its data dir. */
 async function readConversationRows(dataDir: string) {
-	const replica = superChatWorkspace.connect(null, {
+	const replica = queryWorkspace.connect(null, {
 		persistence: bunLocalPersistence({ dir: dataDir }),
 	});
 	try {
@@ -105,7 +105,7 @@ async function readConversationRows(dataDir: string) {
 	}
 }
 
-describe('createSuperChatHost', () => {
+describe('createQueryHost', () => {
 	test('composes the in-process apps under namespaced verbs', async () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
@@ -301,7 +301,7 @@ describe('createSuperChatHost', () => {
 	test('a second host over the same data dir resumes the persisted transcript', async () => {
 		const dataDir = testDataDir();
 		{
-			await using host = await createSuperChatHost({
+			await using host = await createQueryHost({
 				dataDir,
 				model: TEST_MODEL,
 				engine: scriptedEngine([
@@ -312,7 +312,7 @@ describe('createSuperChatHost', () => {
 			await settle(host);
 		}
 
-		await using host = await createSuperChatHost({
+		await using host = await createQueryHost({
 			dataDir,
 			model: TEST_MODEL,
 			engine: scriptedEngine([[]]),
@@ -333,7 +333,7 @@ describe('createSuperChatHost', () => {
 		const dataDir = testDataDir();
 		// Boot and dispose without ever sending.
 		await (
-			await createSuperChatHost({
+			await createQueryHost({
 				dataDir,
 				model: TEST_MODEL,
 				engine: scriptedEngine([[]]),
@@ -344,7 +344,7 @@ describe('createSuperChatHost', () => {
 		const content =
 			'summarize the quarterly numbers and flag anything that looks off';
 		{
-			await using host = await createSuperChatHost({
+			await using host = await createQueryHost({
 				dataDir,
 				model: TEST_MODEL,
 				engine: scriptedEngine([[{ type: 'text-delta', delta: 'Done.' }]]),
@@ -363,7 +363,7 @@ describe('createSuperChatHost', () => {
 	test('a later send keeps the first-message title and bumps updatedAt', async () => {
 		const dataDir = testDataDir();
 		{
-			await using host = await createSuperChatHost({
+			await using host = await createQueryHost({
 				dataDir,
 				model: TEST_MODEL,
 				engine: scriptedEngine([[{ type: 'text-delta', delta: 'Sure.' }]]),
@@ -385,7 +385,7 @@ describe('createSuperChatHost', () => {
 	test('clear starts a fresh conversation and boot resumes the most recent one', async () => {
 		const dataDir = testDataDir();
 		{
-			await using host = await createSuperChatHost({
+			await using host = await createQueryHost({
 				dataDir,
 				model: TEST_MODEL,
 				engine: scriptedEngine([[{ type: 'text-delta', delta: 'Okay.' }]]),
@@ -400,7 +400,7 @@ describe('createSuperChatHost', () => {
 		}
 		expect(await readConversationRows(dataDir)).toHaveLength(2);
 
-		await using host = await createSuperChatHost({
+		await using host = await createQueryHost({
 			dataDir,
 			model: TEST_MODEL,
 			engine: scriptedEngine([[]]),
@@ -416,7 +416,7 @@ describe('createSuperChatHost', () => {
 	test('a pending approval dies with the process instead of persisting', async () => {
 		const dataDir = testDataDir();
 		{
-			await using host = await createSuperChatHost({
+			await using host = await createQueryHost({
 				dataDir,
 				model: TEST_MODEL,
 				engine: scriptedEngine([
@@ -437,7 +437,7 @@ describe('createSuperChatHost', () => {
 			);
 		}
 
-		await using host = await createSuperChatHost({
+		await using host = await createQueryHost({
 			dataDir,
 			model: TEST_MODEL,
 			engine: scriptedEngine([[]]),
@@ -669,7 +669,7 @@ describe('createSuperChatHost', () => {
 	test('a second host over the same data dir reads the first host todos through the catalog', async () => {
 		const dataDir = testDataDir();
 		{
-			await using host = await createSuperChatHost({
+			await using host = await createQueryHost({
 				dataDir,
 				engine: scriptedEngine([[]]),
 				model: TEST_MODEL,
@@ -686,7 +686,7 @@ describe('createSuperChatHost', () => {
 			);
 		}
 
-		await using host = await createSuperChatHost({
+		await using host = await createQueryHost({
 			dataDir,
 			engine: scriptedEngine([[]]),
 			model: TEST_MODEL,
@@ -706,10 +706,10 @@ describe('createSuperChatHost', () => {
 	});
 });
 
-describe('parseSuperChatCommand', () => {
+describe('parseQueryCommand', () => {
 	test('accepts an invoke frame with a tool name and an object input', () => {
 		expect(
-			parseSuperChatCommand({
+			parseQueryCommand({
 				type: 'invoke',
 				toolName: 'todos__todos_create',
 				input: { title: 'Buy milk' },
@@ -723,27 +723,27 @@ describe('parseSuperChatCommand', () => {
 
 	test('rejects invoke frames with a missing, empty, or non-string tool name', () => {
 		expect(
-			parseSuperChatCommand({ type: 'invoke', input: {} }),
+			parseQueryCommand({ type: 'invoke', input: {} }),
 		).toBeUndefined();
 		expect(
-			parseSuperChatCommand({ type: 'invoke', toolName: '', input: {} }),
+			parseQueryCommand({ type: 'invoke', toolName: '', input: {} }),
 		).toBeUndefined();
 		expect(
-			parseSuperChatCommand({ type: 'invoke', toolName: 42, input: {} }),
+			parseQueryCommand({ type: 'invoke', toolName: 42, input: {} }),
 		).toBeUndefined();
 	});
 
 	test('rejects invoke frames whose input is not a plain object', () => {
 		const toolName = 'todos__todos_list';
-		expect(parseSuperChatCommand({ type: 'invoke', toolName })).toBeUndefined();
+		expect(parseQueryCommand({ type: 'invoke', toolName })).toBeUndefined();
 		expect(
-			parseSuperChatCommand({ type: 'invoke', toolName, input: null }),
+			parseQueryCommand({ type: 'invoke', toolName, input: null }),
 		).toBeUndefined();
 		expect(
-			parseSuperChatCommand({ type: 'invoke', toolName, input: 'title' }),
+			parseQueryCommand({ type: 'invoke', toolName, input: 'title' }),
 		).toBeUndefined();
 		expect(
-			parseSuperChatCommand({ type: 'invoke', toolName, input: [1, 2] }),
+			parseQueryCommand({ type: 'invoke', toolName, input: [1, 2] }),
 		).toBeUndefined();
 	});
 });

@@ -1,5 +1,5 @@
 /**
- * The Super Chat shell's own loopback HTTP routes.
+ * The Query shell's own loopback HTTP routes.
  *
  * `/api/session` returns the tool catalog plus the current conversation
  * snapshot; `/api/session/stream` upgrades to the chat WebSocket (ADR-0084).

@@ -432,8 +432,8 @@
         "yjs": "catalog:",
       },
     },
-    "apps/super-chat": {
-      "name": "@epicenter/super-chat",
+    "apps/epicenter": {
+      "name": "@epicenter/epicenter",
       "version": "0.0.1",
       "dependencies": {
         "@epicenter/chat": "workspace:*",
@@ -1474,7 +1474,7 @@
 
     "@epicenter/skills": ["@epicenter/skills@workspace:packages/skills"],
 
-    "@epicenter/super-chat": ["@epicenter/super-chat@workspace:apps/super-chat"],
+    "@epicenter/epicenter": ["@epicenter/epicenter@workspace:apps/epicenter"],
 
     "@epicenter/svelte": ["@epicenter/svelte@workspace:packages/svelte-utils"],
 

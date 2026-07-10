@@ -12,12 +12,12 @@
  * Tailscale proxy onto the loopback port), carrying the same per-launch token
  * every local request carries.
  *
- * Run: bun run apps/super-chat/src/session-client.ts ws://127.0.0.1:<port> <token>
+ * Run: bun run apps/query/src/session-client.ts ws://127.0.0.1:<port> <token>
  */
 
 import type { AgentMessage } from '@epicenter/workspace/agent';
 import { SESSION_STREAM_ROUTE } from './routes.ts';
-import type { SuperChatServerEvent } from './server.ts';
+import type { QueryServerEvent } from './server.ts';
 
 const [, , origin, token] = process.argv;
 if (!origin || !token) {
@@ -48,7 +48,7 @@ socket.addEventListener('open', () => {
 });
 
 socket.addEventListener('message', (event) => {
-	const frame = JSON.parse(String(event.data)) as SuperChatServerEvent;
+	const frame = JSON.parse(String(event.data)) as QueryServerEvent;
 	// Print only messages not shown yet; the server pushes the whole snapshot on
 	// every change, this client just diffs by count. A message renders once it
 	// settles into `messages` (never from `streaming`): a real UI keys one

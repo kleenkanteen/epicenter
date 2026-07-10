@@ -65,7 +65,7 @@ export async function createStdioMcpCatalog(
 	options: StdioMcpCatalogOptions,
 ): Promise<StdioMcpCatalog> {
 	const { connectTimeoutMs = 15_000 } = options;
-	const client = new Client({ name: 'super-chat', version: '0.0.0' });
+	const client = new Client({ name: 'query', version: '0.0.0' });
 	const transport = new StdioClientTransport({
 		command: options.command,
 		...(options.args !== undefined && { args: options.args }),

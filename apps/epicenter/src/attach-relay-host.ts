@@ -1,5 +1,5 @@
 /**
- * Bind one {@link SuperChatHost} to the AttachRelay (ADR-0115): the desktop
+ * Bind one {@link QueryHost} to the AttachRelay (ADR-0115): the desktop
  * host dials out to the per-user rendezvous, registers as a host endpoint, and
  * forwards the same session it already owns to every attached client. This is a
  * second transport for the host-owned session command seam (ADR-0113), beside
@@ -13,7 +13,7 @@
  * The host addresses each attached client endpoint on its own wire frame, never
  * a broadcast: on any host change it sends each client its own snapshot, and on
  * a client's command bytes it drives `handleCommand`. The relay routes by the
- * endpoint envelope (`deviceId`, `attachId`) and does not own the Super Chat
+ * endpoint envelope (`deviceId`, `attachId`) and does not own the Query
  * command or snapshot semantics.
  */
 
@@ -22,15 +22,15 @@ import {
 	type RelayToHostFrame,
 } from '@epicenter/server/bun';
 import {
-	parseSuperChatCommand,
-	type SuperChatClientCommand,
-	type SuperChatHost,
+	parseQueryCommand,
+	type QueryClientCommand,
+	type QueryHost,
 } from './host.ts';
-import type { SuperChatServerEvent } from './server.ts';
+import type { QueryServerEvent } from './server.ts';
 
 export type AttachRelayHostOptions = {
 	/** The one host-owned session every attached client shares. */
-	host: SuperChatHost;
+	host: QueryHost;
 	/** The relay's origin, e.g. `ws://127.0.0.1:<port>` on loopback. */
 	relayOrigin: string;
 	/**
@@ -120,7 +120,7 @@ export function attachHostToRelay(
 	};
 
 	const sendSnapshot = (client: Client): void => {
-		const event: SuperChatServerEvent = {
+		const event: QueryServerEvent = {
 			type: 'snapshot',
 			snapshot: host.snapshot(),
 		};
@@ -221,9 +221,9 @@ function parseRelayToHostFrame(data: string): RelayToHostFrame | undefined {
 /** Decode a client's opaque payload into a host command, or nothing. */
 function parseCommandPayload(
 	payload: string,
-): SuperChatClientCommand | undefined {
+): QueryClientCommand | undefined {
 	try {
-		return parseSuperChatCommand(JSON.parse(payload));
+		return parseQueryCommand(JSON.parse(payload));
 	} catch {
 		return undefined;
 	}

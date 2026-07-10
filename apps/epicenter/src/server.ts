@@ -1,5 +1,5 @@
 /**
- * The Super Chat shell: one Hono app served by Bun on a loopback address,
+ * The Query shell: one Hono app served by Bun on a loopback address,
  * carrying the SPA page, the HTTP API, and the chat WebSocket from one origin
  * (ADR-0084). Tauri points its window at this server instead of a bundled
  * `frontendDist`.
@@ -19,9 +19,9 @@ import type { AgentToolDefinition } from '@epicenter/workspace/agent';
 import { Hono } from 'hono';
 import { createBunWebSocket } from 'hono/bun';
 import {
-	parseSuperChatCommand,
-	type SuperChatHost,
-	type SuperChatSessionSnapshot,
+	parseQueryCommand,
+	type QueryHost,
+	type QuerySessionSnapshot,
 } from './host.ts';
 import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from './routes.ts';
 
@@ -31,18 +31,18 @@ import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from './routes.ts';
  * render state on every host change; `/api/session` returns the same snapshot
  * plus the tool catalog for hydration.
  */
-export type SuperChatServerEvent = {
+export type QueryServerEvent = {
 	type: 'snapshot';
-	snapshot: SuperChatSessionSnapshot;
+	snapshot: QuerySessionSnapshot;
 };
 
-export type SuperChatSessionResponse = {
+export type QuerySessionResponse = {
 	tools: AgentToolDefinition[];
-	snapshot: SuperChatSessionSnapshot;
+	snapshot: QuerySessionSnapshot;
 };
 
-export type SuperChatServerOptions = {
-	host: SuperChatHost;
+export type QueryServerOptions = {
+	host: QueryHost;
 	/** The per-launch token; the process must refuse to serve without one. */
 	token: string;
 	/** The built SPA document; the caller owns reading it from disk. */
@@ -54,14 +54,14 @@ export type SuperChatServerOptions = {
  * Binding (loopback, port 0) is the entrypoint's job, so tests can serve the
  * same app on an ephemeral port.
  */
-export function createSuperChatServer({
+export function createQueryServer({
 	host,
 	token,
 	page,
-}: SuperChatServerOptions) {
+}: QueryServerOptions) {
 	if (token === '') {
 		throw new Error(
-			'Super Chat refuses to serve without a per-launch token (ADR-0084).',
+			'Query refuses to serve without a per-launch token (ADR-0084).',
 		);
 	}
 
@@ -94,7 +94,7 @@ export function createSuperChatServer({
 		c.json({
 			tools: host.toolDefinitions(),
 			snapshot: host.snapshot(),
-		} satisfies SuperChatSessionResponse),
+		} satisfies QuerySessionResponse),
 	);
 
 	app.get(
@@ -102,7 +102,7 @@ export function createSuperChatServer({
 		upgradeWebSocket(() => {
 			let unsubscribe: (() => void) | undefined;
 			const push = (ws: { send(data: string): void }) => {
-				const event: SuperChatServerEvent = {
+				const event: QueryServerEvent = {
 					type: 'snapshot',
 					snapshot: host.snapshot(),
 				};
@@ -114,7 +114,7 @@ export function createSuperChatServer({
 					push(ws);
 				},
 				onMessage(event, ws) {
-					const command = parseSuperChatCommand(parseFrame(event.data));
+					const command = parseQueryCommand(parseFrame(event.data));
 					// Malformed frames drop silently for now: our own clients send
 					// typed commands, and an error outcome has nothing to name until
 					// commands carry client-minted ids. Accepted invokes settle as

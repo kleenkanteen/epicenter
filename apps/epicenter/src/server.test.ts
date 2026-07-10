@@ -1,5 +1,5 @@
 /**
- * Super Chat Server Tests
+ * Query Server Tests
  *
  * Verifies the loopback shell around one host session (ADR-0084): the
  * per-launch token gates every HTTP request and WebSocket upgrade, the SPA is
@@ -27,22 +27,22 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AgentEngine, EngineChunk } from '@epicenter/workspace/agent';
 import {
-	createSuperChatHost,
-	type SuperChatHost,
-	type SuperChatHostOptions,
+	createQueryHost,
+	type QueryHost,
+	type QueryHostOptions,
 } from './host.ts';
 import {
-	createSuperChatServer,
-	type SuperChatServerEvent,
-	type SuperChatSessionResponse,
+	createQueryServer,
+	type QueryServerEvent,
+	type QuerySessionResponse,
 } from './server.ts';
 
 const TOKEN = 'per-launch-secret';
 
 /** A stand-in for the built SPA document; `/` must return it byte-for-byte. */
-const PAGE = '<!doctype html><html><body>Super Chat test page</body></html>';
+const PAGE = '<!doctype html><html><body>Query test page</body></html>';
 
-const superChatDir = fileURLToPath(new URL('..', import.meta.url));
+const queryDir = fileURLToPath(new URL('..', import.meta.url));
 
 function scriptedEngine(scripts: EngineChunk[][]): AgentEngine {
 	let step = 0;
@@ -54,21 +54,21 @@ function scriptedEngine(scripts: EngineChunk[][]): AgentEngine {
 }
 
 function testDataDir(): string {
-	return mkdtempSync(join(tmpdir(), 'super-chat-server-test-'));
+	return mkdtempSync(join(tmpdir(), 'query-server-test-'));
 }
 
 function createTestHost(
-	options: Omit<SuperChatHostOptions, 'dataDir' | 'model'>,
+	options: Omit<QueryHostOptions, 'dataDir' | 'model'>,
 ) {
-	return createSuperChatHost({
+	return createQueryHost({
 		dataDir: testDataDir(),
 		model: 'test-model',
 		...options,
 	});
 }
 
-async function serveHost(host: SuperChatHost, page: string = PAGE) {
-	const { app, websocket } = createSuperChatServer({
+async function serveHost(host: QueryHost, page: string = PAGE) {
+	const { app, websocket } = createQueryServer({
 		host,
 		token: TOKEN,
 		page,
@@ -82,7 +82,7 @@ async function serveHost(host: SuperChatHost, page: string = PAGE) {
 	return server;
 }
 
-function conversationOf(event: SuperChatServerEvent) {
+function conversationOf(event: QueryServerEvent) {
 	return event.snapshot.conversation;
 }
 
@@ -97,17 +97,17 @@ function streamUrl(server: { url: URL }): string {
  */
 function nextSnapshot(
 	ws: WebSocket,
-	predicate: (event: SuperChatServerEvent) => boolean,
+	predicate: (event: QueryServerEvent) => boolean,
 	description: string,
 	timeoutMs = 5000,
-): Promise<SuperChatServerEvent> {
+): Promise<QueryServerEvent> {
 	return new Promise((resolve, reject) => {
 		const timer = setTimeout(
 			() => reject(new Error(`timed out waiting for ${description}`)),
 			timeoutMs,
 		);
 		ws.addEventListener('message', (event) => {
-			const parsed = JSON.parse(String(event.data)) as SuperChatServerEvent;
+			const parsed = JSON.parse(String(event.data)) as QueryServerEvent;
 			if (!predicate(parsed)) return;
 			clearTimeout(timer);
 			resolve(parsed);
@@ -122,7 +122,7 @@ function nextSnapshot(
 /** The turn settled and the last assistant message contains `text`. */
 const settledWith =
 	(text: string) =>
-	(event: SuperChatServerEvent): boolean => {
+	(event: QueryServerEvent): boolean => {
 		const snapshot = conversationOf(event);
 		const last = snapshot.messages.at(-1);
 		return (
@@ -134,13 +134,13 @@ const settledWith =
 		);
 	};
 
-describe('createSuperChatServer', () => {
+describe('createQueryServer', () => {
 	test('refuses an empty token at construction', async () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
 		expect(() =>
-			createSuperChatServer({ host, token: '', page: PAGE }),
+			createQueryServer({ host, token: '', page: PAGE }),
 		).toThrow(/per-launch token/);
 	});
 
@@ -186,7 +186,7 @@ describe('createSuperChatServer', () => {
 				headers: { authorization: `Bearer ${TOKEN}` },
 			});
 			expect(session.status).toBe(200);
-			const body = (await session.json()) as SuperChatSessionResponse;
+			const body = (await session.json()) as QuerySessionResponse;
 			const createTodos = body.tools.find(
 				(t) => t.name === 'todos__todos_create',
 			);
@@ -464,7 +464,7 @@ let builtPagePromise: Promise<string> | undefined;
 function buildSpaOnce(): Promise<string> {
 	builtPagePromise ??= (async () => {
 		const build = Bun.spawn(['bun', 'x', 'vite', 'build'], {
-			cwd: superChatDir,
+			cwd: queryDir,
 			stdout: 'pipe',
 			stderr: 'pipe',
 		});
@@ -473,7 +473,7 @@ function buildSpaOnce(): Promise<string> {
 			const stderr = await new Response(build.stderr).text();
 			throw new Error(`vite build exited with ${exitCode}:\n${stderr}`);
 		}
-		return Bun.file(join(superChatDir, 'dist', 'index.html')).text();
+		return Bun.file(join(queryDir, 'dist', 'index.html')).text();
 	})();
 	return builtPagePromise;
 }
@@ -652,15 +652,15 @@ describe('sidecar end-to-end smoke', () => {
 		});
 
 		const sidecar = Bun.spawn(['bun', 'run', 'src/main.ts'], {
-			cwd: superChatDir,
+			cwd: queryDir,
 			env: {
 				...process.env,
 				// The engine POSTs `${baseURL}/chat/completions`, so the base
 				// carries the `/v1` prefix.
-				SUPER_CHAT_INFERENCE_URL: `${inference.url.origin}/v1`,
-				SUPER_CHAT_MODEL: 'fake-model',
+				EPICENTER_QUERY_INFERENCE_URL: `${inference.url.origin}/v1`,
+				EPICENTER_QUERY_MODEL: 'fake-model',
 				// Keep the host's replicas out of the real user data directory.
-				SUPER_CHAT_DATA_DIR: testDataDir(),
+				EPICENTER_QUERY_DATA_DIR: testDataDir(),
 			},
 			stdin: 'pipe',
 			stdout: 'pipe',
@@ -683,7 +683,7 @@ describe('sidecar end-to-end smoke', () => {
 				headers: { authorization: `Bearer ${TOKEN}` },
 			});
 			expect(session.status).toBe(200);
-			const catalog = (await session.json()) as SuperChatSessionResponse;
+			const catalog = (await session.json()) as QuerySessionResponse;
 			expect(catalog.tools.map((t) => t.name)).toContain('todos__todos_list');
 			expect(catalog.snapshot.conversation.messages).toEqual([]);
 
@@ -700,7 +700,7 @@ describe('sidecar end-to-end smoke', () => {
 			ws.addEventListener('open', () => {
 				ws.send(JSON.stringify({ type: 'send', content: 'list my todos' }));
 			});
-			let final: SuperChatServerEvent;
+			let final: QueryServerEvent;
 			try {
 				final = await settled;
 			} finally {
