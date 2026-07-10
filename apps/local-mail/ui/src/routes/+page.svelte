@@ -3,6 +3,7 @@
 	import { Kbd } from '@epicenter/ui/kbd';
 	import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { onDestroy } from 'svelte';
+	import { createSubscriber } from 'svelte/reactivity';
 	import { toast } from 'svelte-sonner';
 	import {
 		invert,
@@ -16,6 +17,14 @@
 	import MessageList from '$lib/components/MessageList.svelte';
 	import StatusBar from '$lib/components/StatusBar.svelte';
 	import { api } from '$lib/api';
+	import {
+		deltaForTrashed,
+		MESSAGE_WRITE_MUTATION_KEY,
+		projectMessageList,
+		readPendingWrites,
+		reconcileAfterWrite,
+		type PendingMessageWrite,
+	} from '$lib/optimistic';
 
 	// Default to the inbox: this is a triage surface, and the inbox is the queue.
 	let selectedLabel = $state<string | null>('INBOX');
@@ -26,13 +35,37 @@
 	let shortcutsOpen = $state(false);
 
 	const queryClient = useQueryClient();
+
+	// The connected accounts the host serves under this one origin. The switcher
+	// picks one; every read and write below is scoped to it and keyed by it.
+	const accountsQuery = createQuery(() => ({
+		queryKey: ['accounts'],
+		queryFn: () => api.accounts(),
+	}));
+	let selectedAccount = $state<string | null>(null);
+	// Default to the first account once loaded, and re-resolve if the current
+	// selection disappears (an account list can only change across a restart, but
+	// this keeps the selection valid without special-casing the first load).
+	$effect(() => {
+		const list = accountsQuery.data?.accounts ?? [];
+		if (list.length === 0) {
+			selectedAccount = null;
+			return;
+		}
+		if (!selectedAccount || !list.includes(selectedAccount)) {
+			selectedAccount = list[0] ?? null;
+		}
+	});
+
 	const status = createQuery(() => ({
-		queryKey: ['status'],
-		queryFn: () => api.status(),
+		queryKey: ['status', selectedAccount],
+		queryFn: () => api.status(selectedAccount as string),
+		enabled: selectedAccount !== null,
 	}));
 	const labels = createQuery(() => ({
-		queryKey: ['labels'],
-		queryFn: () => api.labels(),
+		queryKey: ['labels', selectedAccount],
+		queryFn: () => api.labels(selectedAccount as string),
+		enabled: selectedAccount !== null,
 	}));
 	const messages = createQuery(() => {
 		const query = {
@@ -40,12 +73,23 @@
 			search: search.trim() || undefined,
 			limit: 100,
 		};
-		return { queryKey: ['messages', query], queryFn: () => api.messages(query) };
+		return {
+			queryKey: ['messages', selectedAccount, query],
+			queryFn: () => api.messages(selectedAccount as string, query),
+			enabled: selectedAccount !== null,
+		};
 	});
 
 	const sync = createMutation(() => ({
-		mutationFn: () => api.sync(),
+		mutationFn: () => api.sync(selectedAccount as string),
 		onSuccess: (outcome) => {
+			// The host yields busy when another owner holds this account's sync loop
+			// (a headless `sync`); it keeps the mirror fresh, so this is a note, not
+			// a failure, and there is nothing new to invalidate.
+			if ('synced' in outcome) {
+				toast.info(outcome.message);
+				return;
+			}
 			if (outcome.failure) {
 				toast.error(`Sync failed: ${outcome.failure.message}`);
 			} else {
@@ -90,20 +134,17 @@
 		if (outcome.results.some((r) => !r.folded)) flashCatchingUp();
 	}
 
-	function invalidateAfterWrite(id: string): void {
-		queryClient.invalidateQueries({ queryKey: ['messages'] });
-		queryClient.invalidateQueries({ queryKey: ['status'] });
-		queryClient.invalidateQueries({ queryKey: ['message', id] });
-	}
-
 	// The label write path. Both the toolbar (via `onDispatch`) and the keyboard
 	// call this; the read-only gate and the undo toast live here alone. `id` is
 	// explicit so Undo targets the original message even after the selection has
 	// moved on.
-	type ModifyVars = { id: string; action: TriageAction; undoable: boolean };
+	// Variables extend `PendingMessageWrite` so the projection can read `id` and
+	// `delta` off any pending message write without knowing which mutation it was.
+	type ModifyVars = PendingMessageWrite & { action: TriageAction; undoable: boolean };
 	const modify = createMutation(() => ({
+		mutationKey: MESSAGE_WRITE_MUTATION_KEY,
 		mutationFn: (v: ModifyVars) =>
-			api.modify({
+			api.modify(selectedAccount as string, {
 				ids: [v.id],
 				addLabels: v.action.addLabels,
 				removeLabels: v.action.removeLabels,
@@ -116,35 +157,49 @@
 					? () => runOn(v.id, invert(v.action), false)
 					: null,
 			);
-			invalidateAfterWrite(v.id);
 		},
 		onError: (error: Error) => toast.error(error.message),
+		onSettled: (_data, _error, v) => reconcileAfterWrite(queryClient, v.id),
 	}));
 
 	// Trash is its own Gmail endpoint, not a label delta, so it is a separate
 	// write; `trashed` carries the direction, matching the core. Undo restores
 	// (untrash) by firing the same mutation the other way, and fires silently.
+	type TrashVars = PendingMessageWrite & { trashed: boolean };
 	const setTrashed = createMutation(() => ({
-		mutationFn: (v: { id: string; trashed: boolean }) =>
-			api.setTrashed({ ids: [v.id], trashed: v.trashed }),
+		mutationKey: MESSAGE_WRITE_MUTATION_KEY,
+		mutationFn: (v: TrashVars) =>
+			api.setTrashed(selectedAccount as string, {
+				ids: [v.id],
+				trashed: v.trashed,
+			}),
 		onSuccess: (outcome, v) => {
 			reportOutcome(
 				outcome,
 				v.trashed ? 'Moved to trash' : 'Restored from trash',
-				v.trashed ? () => setTrashed.mutate({ id: v.id, trashed: false }) : null,
+				v.trashed ? () => restoreFromTrash(v.id) : null,
 			);
-			invalidateAfterWrite(v.id);
 		},
 		onError: (error: Error) => toast.error(error.message),
+		onSettled: (_data, _error, v) => reconcileAfterWrite(queryClient, v.id),
 	}));
+
+	function restoreFromTrash(id: string): void {
+		setTrashed.mutate({ id, trashed: false, delta: deltaForTrashed(false) });
+	}
 
 	function runOn(id: string, action: TriageAction, undoable: boolean): void {
 		if (readOnly) return;
-		modify.mutate({ id, action, undoable });
+		modify.mutate({
+			id,
+			action,
+			undoable,
+			delta: { add: action.addLabels, remove: action.removeLabels },
+		});
 	}
 	function trashSelected(): void {
 		if (readOnly || !selectedId) return;
-		setTrashed.mutate({ id: selectedId, trashed: true });
+		setTrashed.mutate({ id: selectedId, trashed: true, delta: deltaForTrashed(true) });
 	}
 	/** Dispatch a planned action against the current selection. */
 	function dispatch(action: TriageAction): void {
@@ -152,15 +207,39 @@
 		runOn(selectedId, action, true);
 	}
 
+	// The pending-write set lives in TanStack's mutation cache. Bridge it into
+	// reactivity with `createSubscriber` (the repo's standard external-store
+	// bridge, cf. `fromKv`/`fromTable`) so `pendingWrites` is a plain `$derived`
+	// that re-reads whenever a write starts or settles. `useMutationState` is
+	// avoided deliberately: its result array is grown in place and never shrinks,
+	// so a settled write would keep masking its row (see `readPendingWrites`).
+	const subscribeMutations = createSubscriber((update) =>
+		queryClient.getMutationCache().subscribe(update),
+	);
+	const pendingWrites = $derived.by(() => {
+		subscribeMutations();
+		return readPendingWrites(queryClient);
+	});
+
 	const labelList = $derived(labels.data?.labels ?? []);
-	const messageList = $derived(messages.data?.messages ?? []);
+	const messageList = $derived(
+		projectMessageList(messages.data?.messages ?? [], pendingWrites, selectedLabel),
+	);
+	const selectedPendingDeltas = $derived(
+		pendingWrites
+			.filter((write) => write.id === selectedId)
+			.map((write) => write.delta),
+	);
 	const readOnly = $derived(status.data?.readOnly ?? false);
 	// True when the mirror holds no messages at all (nothing synced yet), as
 	// opposed to this label/search view simply matching none. Drives which empty
 	// state the list shows: "run sync" vs "no match".
 	const mirrorEmpty = $derived((status.data?.rows.messages ?? 0) === 0);
 	const syncError = $derived(
-		sync.error?.message ?? sync.data?.failure?.message ?? null,
+		sync.error?.message ??
+			(sync.data && 'failure' in sync.data
+				? (sync.data.failure?.message ?? null)
+				: null),
 	);
 
 	// A brief "catching up" flash on the mirror chip after a sync-lagging write.
@@ -275,10 +354,19 @@
 <div class="flex h-full flex-col">
 	<StatusBar
 		status={status.data}
+		accounts={accountsQuery.data?.accounts ?? []}
+		{selectedAccount}
+		onSelectAccount={(account) => {
+			selectedAccount = account;
+			selectedId = null;
+			labelsOpen = false;
+		}}
 		syncing={sync.isPending}
 		{syncError}
 		{catchingUp}
-		onRefresh={() => sync.mutate()}
+		onRefresh={() => {
+			if (selectedAccount) sync.mutate();
+		}}
 	/>
 
 	<div class="flex min-h-0 flex-1">
@@ -303,8 +391,10 @@
 		{#key selectedId}
 			<MessageDetail
 				id={selectedId}
+				account={selectedAccount}
 				{readOnly}
 				labels={labelList}
+				pendingDeltas={selectedPendingDeltas}
 				busy={modify.isPending || setTrashed.isPending}
 				{labelsOpen}
 				onDispatch={dispatch}

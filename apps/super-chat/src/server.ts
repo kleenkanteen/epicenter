@@ -15,27 +15,30 @@
  */
 
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type {
-	AgentToolDefinition,
-	ConversationSnapshot,
-} from '@epicenter/workspace/agent';
+import type { AgentToolDefinition } from '@epicenter/workspace/agent';
 import { Hono } from 'hono';
 import { createBunWebSocket } from 'hono/bun';
-import type { SuperChatHost } from './host.ts';
+import {
+	parseSuperChatCommand,
+	type SuperChatHost,
+	type SuperChatSessionSnapshot,
+} from './host.ts';
 import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from './routes.ts';
 
-/** What a WebSocket client may ask of the one chat session. */
-export type ClientCommand =
-	| { type: 'send'; content: string }
-	| { type: 'stop' }
-	| { type: 'retry' };
+/**
+ * The transport frames (ADR-0113: the host owns command semantics and session
+ * state; the transport owns how they travel). The server pushes the full
+ * render state on every host change; `/api/session` returns the same snapshot
+ * plus the tool catalog for hydration.
+ */
+export type SuperChatServerEvent = {
+	type: 'snapshot';
+	snapshot: SuperChatSessionSnapshot;
+};
 
-/** What the server pushes: the full render state, on every loop change. */
-export type ServerEvent = { type: 'snapshot'; snapshot: ConversationSnapshot };
-
-export type SessionResponse = {
+export type SuperChatSessionResponse = {
 	tools: AgentToolDefinition[];
-	snapshot: ConversationSnapshot;
+	snapshot: SuperChatSessionSnapshot;
 };
 
 export type SuperChatServerOptions = {
@@ -89,9 +92,9 @@ export function createSuperChatServer({
 
 	app.get(SESSION_ROUTE.pattern, (c) =>
 		c.json({
-			tools: host.tools.definitions(),
-			snapshot: host.conversation.snapshot(),
-		} satisfies SessionResponse),
+			tools: host.toolDefinitions(),
+			snapshot: host.snapshot(),
+		} satisfies SuperChatSessionResponse),
 	);
 
 	app.get(
@@ -99,33 +102,25 @@ export function createSuperChatServer({
 		upgradeWebSocket(() => {
 			let unsubscribe: (() => void) | undefined;
 			const push = (ws: { send(data: string): void }) => {
-				const event: ServerEvent = {
+				const event: SuperChatServerEvent = {
 					type: 'snapshot',
-					snapshot: host.conversation.snapshot(),
+					snapshot: host.snapshot(),
 				};
 				ws.send(JSON.stringify(event));
 			};
 			return {
 				onOpen(_event, ws) {
-					unsubscribe = host.conversation.subscribe(() => push(ws));
+					unsubscribe = host.subscribe(() => push(ws));
 					push(ws);
 				},
 				onMessage(event, ws) {
-					const command = parseCommand(event.data);
+					const command = parseSuperChatCommand(parseFrame(event.data));
+					// Malformed frames drop silently for now: our own clients send
+					// typed commands, and an error outcome has nothing to name until
+					// commands carry client-minted ids. Accepted invokes settle as
+					// visible invocation records instead, so nothing real is lost.
 					if (!command) return;
-					switch (command.type) {
-						case 'send':
-							host.conversation.send(command.content);
-							break;
-						case 'stop':
-							host.conversation.stop();
-							break;
-						case 'retry':
-							host.conversation.retry();
-							break;
-						default:
-							command satisfies never;
-					}
+					host.handleCommand(command);
 					push(ws);
 				},
 				onClose() {
@@ -145,20 +140,12 @@ function tokensMatch(candidate: string, expected: string): boolean {
 	return timingSafeEqual(a, b);
 }
 
-function parseCommand(data: unknown): ClientCommand | undefined {
+/** Transport framing only: one text frame to one JSON value, or nothing. */
+function parseFrame(data: unknown): unknown {
 	if (typeof data !== 'string') return undefined;
-	let parsed: unknown;
 	try {
-		parsed = JSON.parse(data);
+		return JSON.parse(data);
 	} catch {
 		return undefined;
 	}
-	if (parsed === null || typeof parsed !== 'object') return undefined;
-	const command = parsed as Record<string, unknown>;
-	if (command.type === 'send' && typeof command.content === 'string') {
-		return { type: 'send', content: command.content };
-	}
-	if (command.type === 'stop') return { type: 'stop' };
-	if (command.type === 'retry') return { type: 'retry' };
-	return undefined;
 }

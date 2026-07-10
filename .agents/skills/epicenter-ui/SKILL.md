@@ -1,6 +1,6 @@
 ---
 name: epicenter-ui
-description: Epicenter UI component selection and composition patterns for Svelte apps using @epicenter/ui. Use when choosing or reviewing local UI components, loading or empty states, skeletons, spinners, command empty states, action pending UI, table/list no-row states, button or link tooltips, modal/dialog/sheet/drawer surfaces, package import boundaries, wrapper minimization, or replacing ad hoc UI such as Loading... text, custom loading dots, raw animate-pulse placeholders, raw tooltip wrappers, or one-off centered status markup.
+description: Epicenter UI component selection and composition patterns for Svelte apps using @epicenter/ui. Use when the user mentions @epicenter/ui, packages/ui, "packages slash ui", local UI primitives, shadcn-svelte wrappers, Loading, Empty, Spinner, Skeleton, Button, Tooltip, Modal, Dialog, Sheet, Drawer, Command, package import boundaries, or replacing ad hoc UI such as Loading... text, custom loading dots, raw animate-pulse placeholders, raw tooltip wrappers, or one-off centered status markup.
 metadata:
   author: epicenter
   version: '2.0'
@@ -10,10 +10,13 @@ metadata:
 
 Reach for a local `@epicenter/ui` component before writing one-off UI. Most state surfaces (loading, empty, pending, error, confirm, command, chat) already have a component that owns spacing, color, accessibility, and composition. This skill covers which local component to reach for and the conventions you cannot derive from upstream shadcn-svelte. Svelte decides which branch renders; this skill decides what the branch looks like.
 
-- Use `svelte` for branch mechanics: `{#if}`, `{#await}`, derived state, query state, lifecycle.
-- Use `styling` for Tailwind details, whether a wrapper element is needed, scroll traps, and disabled-state styling.
+For product apps, `@epicenter/ui` is the default visual system, not a bag of optional primitives. Preserve the shared Vega/Geist baseline unless the task explicitly reopens product identity. Use `frontend-design` for new visual direction, but do not let it replace local primitives, theme tokens, or package boundaries by default.
 
-`packages/ui/README.md` is the source of truth for the package internals: import boundary, `style-vega` activation, `cn-*` style hooks, overlay deltas, and the vendored-component update workflow. Read it before changing anything inside `packages/ui`.
+- Use `svelte` for branch mechanics: `{#if}`, `{#await}`, derived state, query state, and component lifecycle.
+- Use `styling` for Tailwind details, whether a wrapper element is needed, scroll traps, and disabled-state styling.
+- Local component choice and composition stay here.
+
+`packages/ui/README.md` is the source of truth for package internals and the shared product-system stance: import boundary, `style-vega` activation, `cn-*` style hooks, overlay deltas, visual baseline, component ownership, and the vendored-component update workflow. Read it before changing anything inside `packages/ui`.
 
 ## Package Boundary
 
@@ -38,7 +41,7 @@ Skip DeepWiki for the local conventions documented below.
 
 ## Which Local Component
 
-Reach for the component whose contract matches the job. Several have no upstream equivalent and exist only here: `Loading`, `ConfirmationDialog`, `Modal`, `CommandPalette`, `Chat.*`, `Item`, `SectionHeader`, and `Sidebar.*`.
+Reach for the component whose contract matches the job. Several have no upstream equivalent and exist only here or carry Epicenter-specific composition: `Loading`, `ConfirmationDialog`, `Modal`, `CommandPalette`, `Chat.*`, `Item`, `SectionHeader`, `Sidebar.*`, `CopyButton`, `FileDropZone`, `Kbd`, `LightSwitch`, `Markdown`, `NaturalLanguageDateInput`, `TimezoneCombobox`, and `TreeView`.
 
 Surfaces:
 
@@ -47,7 +50,10 @@ Surfaces:
 - `Modal`: forms, typing, dropdowns, multi-step input. Renders as a dialog on desktop and a drawer on mobile.
 - `Sheet` or `Drawer`: secondary panels and side surfaces.
 - `Command` or `CommandPalette`: command menus and filtered actions.
-- `Item`, `SectionHeader`, `ButtonGroup`, `InputGroup`, `CopyButton`, `Sidebar.*`: list rows, page sections, grouped controls, inline input actions, copy actions, app chrome.
+- `Item`, `SectionHeader`, `ButtonGroup`, `InputGroup`, `CopyButton`, `Kbd`, `Sidebar.*`: list rows, page sections, grouped controls, inline input actions, copy actions, keyboard hints, app chrome.
+- `Field`, `Input`, `Textarea`, `Select`, `Switch`, `Checkbox`, `RadioGroup`: forms and settings surfaces.
+- `FileDropZone`, `NaturalLanguageDateInput`, `TimezoneCombobox`, `TreeView`, `Markdown`: stable reusable product widgets. Use them before rebuilding their behavior in an app.
+- `Sonner` and `toastOnError`: toasts and result-aware error notifications.
 
 Dialog, Modal, Sheet, and Drawer need an accessible title. Use an `sr-only` title when the visual design already supplies equivalent context.
 

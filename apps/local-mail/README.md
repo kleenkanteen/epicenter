@@ -23,6 +23,10 @@ Gmail, not a local-only table.
 - `messages.body_text` is decoded at ingest from `text/plain` MIME parts, with
   stripped `text/html` as a fallback. That makes SQL and MCP useful for body
   questions without adding FTS yet.
+- The app detail pane can render formatted email from the raw Gmail payload, but
+  only behind the SPA sanitizer boundary. DOMPurify strips executable markup and
+  remote assets before the single `{@html}` sink renders the body on a light
+  email canvas; plain text stays available as the fallback view.
 
 ## Commands
 
@@ -104,24 +108,38 @@ Serve the triage UI and its API from one loopback process:
 bun run src/bin.ts app
 ```
 
-`app` runs the sync loop and serves the triage SPA (`ui/`) plus a same-origin
-`/api` on `127.0.0.1`, then prints `http://127.0.0.1:PORT/#token=...` and opens
-it. The tab is the app. Security is the loopback shell spec's: a single-use bootstrap
-token rides in the URL fragment and is exchanged once at `POST /api/session`
-for a per-launch session bearer (kept in sessionStorage); every request is
-Host-checked first; the write route is the one `POST /api/messages/modify`
+`app` is the desktop runtime host: it runs the sync loop and serves the triage
+SPA (`ui/`) plus a same-origin `/api` on `127.0.0.1`, then prints the origin to
+open (`http://127.0.0.1:PORT`). It launches no browser; opening the window is the
+host's job (a terminal today, Tauri later), not the engine's. Security: every
+request is Host-checked first (the DNS-rebinding kill switch); the web UI carries
+a per-launch local API bearer that the host injects into the served HTML as
+`window.__LOCAL_MAIL__ = { origin, bearer }` before the SPA boots (no URL
+fragment, no session-exchange endpoint, no sessionStorage), and that HTML is
+served `no-store` and frame-denied so a rotated bearer is never cached and a
+cross-origin page cannot frame the auto-authenticated SPA. The bearer is a
+loopback credential, never a Gmail token. In app mode the host loads every
+connected account and serves them under one origin: `GET /api/accounts` lists
+the loaded accounts, and reads/writes live under `/api/accounts/:account/*`.
+The label write route is `POST /api/accounts/:account/messages/modify`
 (`{ ids, addLabels, removeLabels }` -> `ModifyMessageLabelsOutcome`) over the
 same core the CLI verbs and MCP tool use, so archive/read/label all desugar to
 add/remove sets client-side. `LOCAL_MAIL_READ_ONLY` disables writes end to end;
-`--no-open` prints the URL without launching a browser. `--port <n>` pins the
-server port. `LOCAL_MAIL_NO_OPEN=1` and `LOCAL_MAIL_PORT` remain env fallbacks.
+`--port <n>` pins the server port (`LOCAL_MAIL_PORT` is the env fallback).
 
 Develop the UI against a running `app`:
 
 ```sh
-LOCAL_MAIL_DEV=1 LOCAL_MAIL_TOKEN=devtoken LOCAL_MAIL_PORT=4177 bun run src/bin.ts app
-LOCAL_MAIL_TOKEN=devtoken bun run --cwd ui dev   # same token: Vite proxies /api to app, injecting this bearer
+LOCAL_MAIL_PORT=4177 bun run src/bin.ts app   # serves /api + writes the presence file
+bun run --cwd ui dev                          # Vite proxies /api to the host and injects its bearer from the presence file
 ```
+
+The dev server reads the host's `0600` presence file (`runtime.json`) for the
+per-launch bearer and injects it on each proxied `/api` request (SvelteKit's dev
+HTML pipeline bypasses Vite's HTML transform, so the prod `window.__LOCAL_MAIL__`
+injection is a proxy-side header in dev). No token is typed by a human. Start the
+host first; a host restart rotates the bearer, so restart the dev server to pick
+it up. Pin `LOCAL_MAIL_PORT` if the host uses an ephemeral port.
 
 Serve tools to an MCP host:
 
@@ -129,8 +147,9 @@ Serve tools to an MCP host:
 bun run src/bin.ts mcp
 ```
 
-When more than one account is connected, set `LOCAL_MAIL_ACCOUNT` to choose
-which mirror `sync`, `query`, and `mcp` should use.
+When more than one account is connected, `local-mail app` serves all of them
+under one origin with an account switcher. Set `LOCAL_MAIL_ACCOUNT` only for
+headless `sync`, `query`, and `mcp`, which operate on one account per process.
 
 Tools:
 
@@ -156,11 +175,8 @@ Tools:
 - `LOCAL_MAIL_GMAIL_API_BASE`: test plumbing only; points the Gmail client at
   a mock server in the MCP subprocess test.
 - `LOCAL_MAIL_PORT`: fallback for pinning the `app` server port; prefer
-  `--port <n>` for normal use.
-- `LOCAL_MAIL_DEV` / `LOCAL_MAIL_TOKEN`: dev-mode `app`; the Vite proxy injects
-  the fixed bearer. The bearer gate is never disabled in any mode.
-- `LOCAL_MAIL_NO_OPEN`: fallback for making `app` print the launch URL without
-  opening a browser; prefer `--no-open` for normal use.
+  `--port <n>` for normal use. Also names the port the Vite dev proxy targets
+  when the host uses an ephemeral port.
 
 ## Testing
 
@@ -177,12 +193,16 @@ stdio subprocess for the agent-facing protocol surface.
 
 ## Not built yet
 
-- HTML mail-body rendering. The detail pane shows the pre-extracted plain-text
-  body; rich HTML rendering (the sanitizer + sandboxed srcdoc + CSP + show-images
-  proxy) is deferred, which is why the SPA has no mail-body iframe yet.
-- Compile-embed distribution (`bun build --compile`) and the Tauri wrapper. `app`
-  serves `ui/dist` from disk; the route table is the seam the distribution wave
-  swaps for embedded assets later.
+- Remote image loading and Gmail-perfect HTML fidelity. Formatted bodies render
+  as sanitized inline HTML on a light canvas; remote assets stay stripped, and
+  there is no show-images proxy yet.
+- Signed distribution. The Tauri desktop shell (`src-tauri/`, run with
+  `bun run app:desktop`) spawns this engine, reads the origin it prints, and
+  opens a `WebviewUrl::External` window at it, owning only the window and the
+  engine's lifetime (Rust never touches Gmail tokens, mail data, or the bearer).
+  `bun run desktop:build` produces a local unsigned macOS `.app` with the compiled
+  Bun sidecar and bundled SPA resources; signing and notarization still need
+  Apple Developer credentials and config, as described in `src-tauri/README.md`.
 - Send, reply, compose, drafts, trash, untrash, and permanent delete.
 - Thread-level modify and `messages.batchModify`. Triage is message-level.
 - FTS5. `LIKE` over `body_text` is enough for the current mirror size.

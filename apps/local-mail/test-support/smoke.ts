@@ -2,8 +2,8 @@
  * Headless, dependency-free smoke test for the Local Mail write path.
  *
  * One shot, no browser: it stands up the safe stack (throwaway mirror copy with
- * forged creds + mock Gmail + `local-mail up`), exchanges a session bearer,
- * fires ONE real triage write through `/api/messages/modify`, and proves the two
+ * forged creds + mock Gmail + `local-mail app`), reads the runtime host bearer
+ * from its presence file, fires ONE real triage write through `/api/messages/modify`, and proves the two
  * things the manual browser loop does:
  *   1. the write reached the mock (a matching line lands in the modify log), and
  *   2. the REAL mirror's durable state is byte-identical before and after.
@@ -28,16 +28,8 @@ async function main(): Promise<void> {
 
 	const harness = await bootHarness({ fold: true });
 	try {
-		// Exchange the single-use bootstrap for a session bearer.
-		const sessionRes = await fetch(`${harness.appOrigin}/api/session`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ token: harness.bootstrapToken }),
-		});
-		const bearer = ((await sessionRes.json()) as { token?: string }).token;
-		if (!bearer) throw new Error('session exchange returned no bearer');
 		const auth = {
-			authorization: `Bearer ${bearer}`,
+			authorization: `Bearer ${harness.bearer}`,
 			'content-type': 'application/json',
 		};
 

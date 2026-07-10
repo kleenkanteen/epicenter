@@ -24,6 +24,24 @@ Apps activate the preset with `class="style-vega"` on their root element; the
 preset is a one-class swap (e.g. to `style-rhea`). Background and rationale:
 `specs/20260606T160000-ui-shadcn-cn-style-migration-vega.md`.
 
+## Design Stance
+
+This package is the shared Epicenter product system, not a place for one-off app
+branding. Its job is to make product UI consistent, accessible, and easy to
+compose across apps. The baseline is intentionally restrained: Vega component
+structure, Geist typography, semantic tokens, and app-level composition for
+character.
+
+When a screen should feel more designed, improve the workflow first: hierarchy,
+density, copy, loading and empty states, grouping, keyboard affordances, and the
+shape of the user's next action. Add a new global token, font, animation system,
+or component variant only when several apps need the same product concept or the
+variant owns an accessibility or interaction contract.
+
+Bespoke visual direction belongs in an app, prototype, landing page, or explicit
+redesign until the pattern proves it is shared. Once it is shared, move the
+stable primitive here and keep app-specific behavior out of it.
+
 ### Surface Choice
 
 Use the component whose interaction contract matches the job:
@@ -39,9 +57,15 @@ Use the component whose interaction contract matches the job:
   surfaces.
 - `Command` or `CommandPalette`: command menus, filtered actions, and search
   empty states.
-- `Item`, `SectionHeader`, `ButtonGroup`, `InputGroup`, `CopyButton`, and
+- `Item`, `SectionHeader`, `ButtonGroup`, `InputGroup`, `CopyButton`, `Kbd`, and
   `Sidebar.*`: repeated list rows, page sections, grouped controls, inline input
-  actions, copy actions, and app chrome.
+  actions, copy actions, keyboard hints, and app chrome.
+- `Field`, `Input`, `Textarea`, `Select`, `Switch`, `Checkbox`, and
+  `RadioGroup`: forms and settings surfaces.
+- `FileDropZone`, `NaturalLanguageDateInput`, `TimezoneCombobox`, `TreeView`,
+  and `Markdown`: stable reusable product widgets. Use them before rebuilding
+  their behavior in an app.
+- `Sonner` and `toastOnError`: toasts and result-aware error notifications.
 
 Dialog, Modal, Sheet, and Drawer surfaces need accessible titles. Use an
 `sr-only` title when the visual design already supplies equivalent context.
@@ -64,6 +88,44 @@ every app hand-compose it.
 Use `Empty.Root` directly for actual empty, error, or prompt states. Also keep
 `Empty.Root` for loading states that need a title, description, custom media,
 actions, or exact visual parity with a nearby empty/error branch.
+
+Use `Spinner` for every spinning affordance. Do not hand-roll `animate-spin`,
+`LoaderCircleIcon`, or `Loader2Icon` in app code. Use `Skeleton` for known
+content shapes instead of raw `animate-pulse` placeholder blocks. A pulsing
+status dot is fine when the pulse is the content, not a fake-content skeleton.
+
+### Tooltips
+
+`Button` and `Link` take a `tooltip` prop. Prefer it over hand-wrapping
+`Tooltip.Root`, `Tooltip.Trigger`, and `Tooltip.Content` when the content is a
+simple label:
+
+```svelte
+<Button size="icon" variant="ghost" tooltip="Delete recording" onclick={deleteRecording}>
+	<TrashIcon />
+</Button>
+```
+
+The prop expects a `Tooltip.Provider` above the trigger. Hand-roll `Tooltip.*`
+only when the trigger is not a `Button` or `Link`, or the content is more than a
+simple label.
+
+### Composition Ladder
+
+Before copying component internals or adding a new package primitive, escalate
+in this order:
+
+1. Use an existing local component and its variants.
+2. Pass a `class` or supported prop.
+3. Add a local variant to the wrapper component.
+4. Wrap the component for a real composition boundary: scroll containment, pane
+   sizing, table cell structure, sticky headers.
+5. Copy upstream component code only when Epicenter needs to own behavior,
+   tokens, persistence, shortcuts, or app state.
+
+A new primitive belongs in `packages/ui` only when it is stable, visual, and
+shared. If it depends on one app's data model, persistence, or product policy,
+keep it in the app and compose UI primitives there.
 
 ## Key Differences from Standard shadcn-svelte
 
@@ -239,32 +301,31 @@ import { Button } from '../button/index.js';
 import { cn } from '../utils.js';
 ```
 
-## Directory Structure
+## Component Inventory
 
-```
-packages/ui/
-├── src/
-│   ├── button/
-│   │   ├── button.svelte
-│   │   └── index.ts
-│   ├── empty/
-│   │   ├── empty.svelte
-│   │   └── index.ts
-│   ├── loading/
-│   │   ├── loading.svelte
-│   │   └── index.ts
-│   ├── modal/
-│   │   ├── modal.svelte
-│   │   └── index.ts
-│   ├── styles/
-│   │   ├── shadcn-base.css        # vendored upstream base
-│   │   ├── style-vega.css         # vendored Vega preset (all cn-* rules)
-│   │   └── epicenter-overlay.css  # Epicenter deltas (variants + overrides)
-│   ├── utils.ts
-│   └── app.css                    # imports the three style files
-├── package.json
-└── tsconfig.json
-```
+Every `src/<folder>/index.ts` is a public `@epicenter/ui/<folder>` subpath. The
+inventory is grouped by job so it does not duplicate `ls`.
+
+- Foundations: `button`, `badge`, `card`, `separator`, `skeleton`, `spinner`,
+  `tooltip`, `sonner`, `utils`, `hooks`.
+- Forms and inputs: `field`, `input`, `textarea`, `select`, `checkbox`,
+  `radio-group`, `switch`, `toggle`, `toggle-group`, `input-group`,
+  `natural-language-date-input`, `timezone-combobox`, `file-drop-zone`.
+- Overlays and menus: `dialog`, `alert-dialog`, `modal`, `drawer`, `sheet`,
+  `popover`, `dropdown-menu`, `context-menu`, `command`, `command-palette`,
+  `confirmation-dialog`.
+- Layout and navigation: `accordion`, `breadcrumb`, `collapsible`, `resizable`,
+  `scroll-area`, `sidebar`, `tabs`, `table`, `tree-view`, `section-header`,
+  `item`, `button-group`.
+- Content and app widgets: `avatar`, `chart`, `chat`, `copy-button`,
+  `emoji-picker`, `github-button`, `kbd`, `light-switch`, `link`, `loading`,
+  `markdown`, `pm-command`, `progress`, `snippet`, `star-rating`.
+- Styles: `styles/shadcn-base.css`, `styles/style-vega.css`,
+  `styles/epicenter-overlay.css`, `prose.css`, and `app.css`.
+
+Add a folder only when the component is a shared visual primitive or stable
+product widget. App-owned behavior should stay in the app and compose these
+parts.
 
 ## Best Practices
 

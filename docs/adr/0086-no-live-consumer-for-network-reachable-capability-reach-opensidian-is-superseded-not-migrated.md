@@ -26,3 +26,7 @@ This resolves ADR-0079's Trigger to revisit. The trigger asked "power-user or ma
 
 - **Keep the capability-plane buildout going, migrating opensidian's consumer to direct Tailscale reach as planned.** Rejected: the consumer being migrated is itself being retired, so the migration would land nothing at the other end.
 - **Leave ADR-0079's trigger open and unresolved, since it is phrased as a future product question.** Rejected: the trigger's premise, that a consumer exists or will exist, does not hold today. Leaving it open reads as still-undecided when the actual state is confirmed: no consumer, a stronger and more honest claim than "revisit later."
+
+## Update 2026-07-07: reaffirmed against ADR-0115
+
+[ADR-0115](0115-super-chat-remote-attach-rides-an-endpoint-addressed-trusted-relay.md) adds a hosted relay for Super Chat remote attach, and it does not reopen this decision. Network-reachable per-app capability reach stays refused. The AttachRelay is endpoint-addressed (`principalId`, `hostId`, `deviceId`, `attachId`), not route-addressed: it carries a live session between two of the principal's endpoints and exposes no route name, no route registry, no `exposedRoutes` presence, no MCP-over-relay platform surface, and no per-app endpoint directory. A session channel with one named consumer is a different thing than a capability route, and a second consumer of the primitive still requires a new ADR naming a real, live consumer, the bar this ADR set.

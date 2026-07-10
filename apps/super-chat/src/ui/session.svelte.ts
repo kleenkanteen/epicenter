@@ -5,13 +5,21 @@
  * every initial payload and `snapshot` event replaces it wholesale, so the
  * client never accumulates a second transcript that could drift.
  *
- * Server types are imported type-only so no server runtime code (Hono, Bun
- * WebSocket glue) enters the browser bundle.
+ * Host and server types are imported type-only so no server runtime code
+ * (Hono, Bun WebSocket glue, node builtins) enters the browser bundle.
  */
 
 import type { ConversationSnapshot } from '@epicenter/workspace/agent';
+import type {
+	PendingApproval,
+	SuperChatClientCommand,
+	SuperChatInvocation,
+} from '../host.ts';
 import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from '../routes.ts';
-import type { ClientCommand, ServerEvent, SessionResponse } from '../server.ts';
+import type {
+	SuperChatServerEvent,
+	SuperChatSessionResponse,
+} from '../server.ts';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 
@@ -25,12 +33,12 @@ export function createSession({ token }: { token: string }) {
 		isGenerating: false,
 		error: null,
 	});
+	let pendingApprovals = $state<PendingApproval[]>([]);
+	let invocations = $state<SuperChatInvocation[]>([]);
 	let connection = $state<ConnectionStatus>('connecting');
-	let tools = $state<SessionResponse['tools']>([]);
+	let tools = $state<SuperChatSessionResponse['tools']>([]);
 
 	let socket: WebSocket | undefined;
-	let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-	let disposed = false;
 
 	async function hydrate() {
 		try {
@@ -41,9 +49,11 @@ export function createSession({ token }: { token: string }) {
 				connection = 'closed';
 				return false;
 			}
-			const body = (await response.json()) as SessionResponse;
+			const body = (await response.json()) as SuperChatSessionResponse;
 			tools = body.tools;
-			snapshot = body.snapshot;
+			snapshot = body.snapshot.conversation;
+			pendingApprovals = body.snapshot.pendingApprovals;
+			invocations = body.snapshot.invocations;
 			return true;
 		} catch {
 			connection = 'closed';
@@ -52,7 +62,6 @@ export function createSession({ token }: { token: string }) {
 	}
 
 	function connect() {
-		if (disposed) return;
 		connection = 'connecting';
 		// The browser WebSocket constructor cannot set headers, so the token
 		// rides the query string (the server gate accepts either).
@@ -68,25 +77,28 @@ export function createSession({ token }: { token: string }) {
 		};
 		ws.onmessage = (event) => {
 			if (typeof event.data !== 'string') return;
-			let parsed: ServerEvent;
+			let parsed: SuperChatServerEvent;
 			try {
 				parsed = JSON.parse(event.data);
 			} catch {
 				return;
 			}
-			if (parsed.type === 'snapshot') snapshot = parsed.snapshot;
+			if (parsed.type === 'snapshot') {
+				snapshot = parsed.snapshot.conversation;
+				pendingApprovals = parsed.snapshot.pendingApprovals;
+				invocations = parsed.snapshot.invocations;
+			}
 		};
 		ws.onclose = () => {
 			if (socket !== ws) return;
 			socket = undefined;
-			if (disposed) return;
 			connection = 'closed';
-			reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
+			setTimeout(connect, RECONNECT_DELAY_MS);
 		};
 	}
 
 	/** Returns whether the command actually went out over an open socket. */
-	function sendCommand(command: ClientCommand): boolean {
+	function sendCommand(command: SuperChatClientCommand): boolean {
 		if (socket?.readyState !== WebSocket.OPEN) return false;
 		socket.send(JSON.stringify(command));
 		return true;
@@ -106,6 +118,12 @@ export function createSession({ token }: { token: string }) {
 		get tools() {
 			return tools;
 		},
+		get pendingApprovals() {
+			return pendingApprovals;
+		},
+		get invocations() {
+			return invocations;
+		},
 		/** Returns whether the message went out, so the composer keeps the draft on failure. */
 		send(content: string) {
 			return sendCommand({ type: 'send', content });
@@ -116,13 +134,28 @@ export function createSession({ token }: { token: string }) {
 		retry() {
 			sendCommand({ type: 'retry' });
 		},
-		/** Stop reconnecting and close the socket for good. */
-		dispose() {
-			disposed = true;
-			clearTimeout(reconnectTimer);
-			socket?.close();
+		/** Start a fresh conversation; the old transcript stays durable on the host. */
+		clear() {
+			sendCommand({ type: 'clear' });
+		},
+		/** Run one tool directly; the result lands in `invocations`. */
+		invoke(
+			toolName: string,
+			input: Extract<SuperChatClientCommand, { type: 'invoke' }>['input'] = {},
+		) {
+			return sendCommand({ type: 'invoke', toolName, input });
+		},
+		approve(
+			requestId: string,
+			approved: boolean,
+			alwaysAllowSession: boolean = false,
+		) {
+			sendCommand({
+				type: 'approve',
+				requestId,
+				approved,
+				...(alwaysAllowSession && { alwaysAllowSession }),
+			});
 		},
 	};
 }
-
-export type Session = ReturnType<typeof createSession>;

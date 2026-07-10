@@ -1,6 +1,6 @@
 # 0084. Super Chat's shell is a Bun-hosted local server, not a bundled SPA
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-30
 - **Relates:** [ADR-0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) (the super app is a desktop host composing local surfaces), [ADR-0111](0111-super-chat-v1-exposes-built-in-epicenter-apps-and-defers-extension-surfaces.md) (Super Chat v1 exposes built-in Epicenter apps and supersedes this ADR's former tool-loading decision), [ADR-0066](0066-runtime-portability-is-per-concern-injection-not-a-runtime-object.md) (names the `bun build --compile` self-host binary plus Tauri sidecar shape this decision realizes)
 
@@ -25,9 +25,9 @@ us, so the sidecar server must own the local-request boundary.
 
 ## Decision
 
-Super Chat's Tauri shell spawns a Bun sidecar binary that serves both static
-assets and the `/api` / `/ws` surface from one loopback origin. The Tauri window
-opens that local server instead of a bundled `frontendDist`.
+Super Chat's shell is a Bun-hosted loopback server that serves both static assets
+and the session HTTP/WebSocket surface from one origin. The Tauri window opens
+that local server instead of a bundled `frontendDist`.
 
 This shape carries a mandatory security consequence, not an optional hardening
 pass:
@@ -39,10 +39,9 @@ pass:
 
 ## Consequences
 
-The desktop host has one runtime target: a Bun server binary that owns static
-serving, HTTP routes, WebSockets, and the local token gate. Building that binary
-is progress on both Super Chat and the self-host server artifact named by
-ADR-0066.
+The desktop host has one runtime target: a Bun server that owns static serving,
+HTTP routes, WebSockets, and the local token gate. Building that binary is
+progress on both Super Chat and the self-host server artifact named by ADR-0066.
 
 The loopback-plus-token pair must ship with the sidecar's first version. A
 loopback bind alone stops other machines, not other same-user processes.

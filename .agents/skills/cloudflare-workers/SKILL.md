@@ -19,15 +19,6 @@ When Worker runtime behavior, bindings, Durable Objects, WebSockets, streaming, 
 
 Verify decisive details against local generated Worker types, source, or official Cloudflare docs before changing code. Skip DeepWiki for stable Web API basics and repo-local deployment patterns already visible in the code.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Work on `apps/api` Worker code, bindings, or `wrangler` configuration.
-- Implement or debug Durable Objects, KV, R2, D1, Queues, or WebSockets.
-- Handle streaming responses, SSE, CORS, cache behavior, or request lifecycle limits.
-- Check Cloudflare-specific runtime behavior or deployment constraints.
-
 ## Request Lifecycle Rules
 
 - Every async side effect must be awaited, returned, or passed to `c.executionCtx.waitUntil(...)`. Floating promises are unsafe because the isolate can stop after the response.

@@ -49,7 +49,7 @@ const engine = createOpenAiAgentEngine({
 	}),
 });
 
-const host = await createSuperChatHost({ engine });
+const host = await createSuperChatHost({ engine, model });
 
 const pageFile = Bun.file(new URL('../dist/index.html', import.meta.url));
 if (!(await pageFile.exists())) {

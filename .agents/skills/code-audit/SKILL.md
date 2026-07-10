@@ -12,15 +12,6 @@ Recurring smell categories worth hunting periodically. Each category has a grep 
 
 > **Related skills**: See `post-implementation-review` for the full second-read ritual after implementation. See `refactoring` for the methodology of fixing what you find. See `one-sentence-test` for the cohesion audit that frames whether an abstraction earns its keep.
 
-## When to Apply This Skill
-
-Use when:
-
-- Doing a periodic code-quality review pass.
-- Scoping a cleanup PR.
-- After a major refactor, hunting for stale boundaries the new design exposes.
-- Reviewing a PR that touches a primitive: these patterns indicate where new contracts may be leaking into consumers.
-
 The categories below were validated against the actual codebase by repeated agent audits. They're not generic style nits: each one signals a specific kind of contract problem in a TypeScript-heavy framework codebase.
 
 ## 1. Duck-Typing at System Boundaries

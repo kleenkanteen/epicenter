@@ -1,0 +1,45 @@
+# 0116. Local Mail is desktop-first: one Bun engine, no background mail service, the open app owns the sync loop
+
+- **Status:** Accepted
+- **Date:** 2026-07-08
+- **Relates:** [ADR-0081](0081-per-upstream-oauth-concurrency-decides-mirror-topology.md) (Gmail permits an independent per-device grant and mirror), [ADR-0082](0082-local-mail-mirror-is-push-free-polling-collapsing-hosted-vs-self-host-to-one-oauth-client-id.md) (push-free interval polling from a single device; write-through to Gmail first), [ADR-0083](0083-apps-email-is-refused-local-mail-is-the-only-gmail-client.md) (Local Mail is the only Gmail client; the native app is the surface), [ADR-0098](0098-local-mail-state-round-trips-through-gmail.md) (every human-meaningful state round-trips through Gmail; the phone reads Gmail directly)
+
+## Context
+
+ADR-0081/0082/0098 settled Local Mail's data topology (a per-device SQLite mirror, push-free polling, write-through to Gmail, no phone code) but never named the process topology that carries it: who runs the sync loop, whether a background service keeps the mirror warm, which runtime owns Gmail OAuth, and how the local UI is authenticated. A prior draft reached for a persistent single-writer daemon (discovery, election, `up`/`down`). Read against the code, the premise was wrong: reads are direct read-only SQLite opens, and triage writes go to Gmail first with a best-effort local fold, so neither ever needed a shared writer. Only the continuous poll wants a single long-lived owner, and the app the user has open is its natural home. Commits `8f843edcae` and `d57458a54a` landed the deciding pieces: sync ownership is serialized across app, CLI, and MCP, and the browser-tab bearer bootstrap has been replaced by host-supplied loopback credentials.
+
+## Decision
+
+**Local Mail is a desktop-first app wrapped around one shared Bun mail engine. There is no background mail service. One Bun engine owns Gmail OAuth (connect, refresh, token persistence, API authorization), sync, the SQLite mirror, the CLI, and the MCP tool surface; the CLI and MCP are that same engine invoked headlessly. The open desktop app is the single owner of the continuous sync loop, and it runs only while the app is open. Native shell code may own window and packaging concerns, but it does not own Gmail auth or the mail engine.**
+
+This leaves four runtime invariants:
+
+- **One active sync owner per account.** The open app holds sync ownership for its lifetime. A headless one-shot `sync` takes ownership for its single pass; if the app already owns it, the headless command yields cleanly instead of racing a second bulk pull.
+- **Reads are direct and lock-free.** CLI, MCP, and UI reads open the mirror read-only. SQLite WAL is many-readers, so a read needs no running writer: it works app-open or app-closed, offline.
+- **Triage writes are Gmail-first.** `archive`/`label`/`mark-*`/`trash` send the durable effect to Gmail first, then fold the result into the mirror best-effort; a failed fold just defers to the next sync (ADR-0082's write-through, ADR-0098's round-trip rule). No shared writer required; works app-open or app-closed.
+- **The local API bearer is a per-launch loopback credential, never a Gmail token.** The host hands it to the UI out of band. It never rides a URL and it authorizes only the local API, never Gmail.
+
+### The asymmetric refusals
+
+- **Refuse an always-on warm-mirror daemon.** Local Mail runs no mail process while the user is not looking. The mirror is fresh while the app is open and stale-but-valid otherwise; freshness on demand is one `sync` away. ADR-0082 (no push, poll from a single device) and ADR-0098 (the phone reads Gmail directly) already committed the product to this, so the warm-while-closed cache serves no promise the product makes.
+- **Refuse daemon lifecycle, discovery, and election.** There is no `up`/`down`, no discovery-for-spawn, no leader election. A same-UID helper may discover the currently running host, but nothing ever spawns the host from that presence signal; stale presence yields a connection error, not a resurrected daemon.
+- **Refuse Rust-owned Gmail auth while Bun owns sync.** Splitting one Gmail token lifecycle (PKCE loopback, refresh coalescing, rotation persistence, `invalid_grant` reauth, the client-id-mismatch guard) across two runtimes while the Gmail client stays in Bun is the single worst boundary available: it guarantees a duplicated or racing refresh and a second copy of the mismatch guard, and buys nothing, because the CLI and MCP still need Bun to refresh headlessly.
+- **Refuse arbitrary browser-tab bootstrap as a product contract.** The `#token=` fragment, session exchange, browser storage, fixed dev token, and browser auto-open existed only because a browser tab could receive a secret solely through its URL. Host-supplied local credentials delete that family; the browser tab is not the product surface (ADR-0083).
+- **Refuse concurrent sync ownership.** Two simultaneous bulk pulls racing one `historyId` cursor is a real, previously unguarded bug. The per-account lock forecloses it across processes and across in-process holders.
+
+## Consequences
+
+- **What still works with the app closed:** direct read-only query/status (offline, instant); Gmail-first triage writes (the durable effect lands in Gmail, the fold defers); and a one-shot `sync` that runs the pass directly. The full headless promise (the founding reason agents can read and triage Local Mail, ADR-0083) survives without any running service.
+- **What requires the app open:** only the continuous polling loop. With the app closed the mirror is as fresh as the last sync, with an "as of" timestamp in `status`.
+- **Gmail owns truth; the SQLite mirror is disposable.** Every state a human acts on round-trips through Gmail (ADR-0098), so the mirror is a rebuildable local cache: it can be dropped and rebuilt on a schema-version bump, and a deferred or failed fold is self-healing because the next sync reconciles against Gmail. This is exactly why no operation needs a single shared writer.
+- **Bun owns OAuth end to end** so that `connect`, `seed-token`, `sync`, and `mcp` all refresh through one path; the client secret, refresh token, and Google access tokens never transit the webview, which only ever sees the local origin and the per-launch bearer.
+- **Cost accepted:** the mirror is not continuously warm while the app is closed (an agent wanting fresh-as-of-now runs `sync` first, roughly 2 Gmail quota units), and no single process narrates live status across surfaces. Both are the deliberate trade for deleting the entire service lifecycle and the browser-tab bootstrap. If a concrete promise for unattended always-on local sync ever emerges (ADR-0098's revisit trigger: an always-on device that can own timers), that is the one requirement that would reopen this, via a new ADR.
+- **Deleted:** the browser-tab bearer bootstrap, the fixed dev token path, the browser auto-open path, and the daemon lifecycle the prior draft would have added.
+- **Downstream and reversible (not decided here):** multi-account sessions under one window, native packaging/signing of the Bun engine, and whether a headless `sync` routes into the open app instead of yielding.
+
+## Considered alternatives
+
+- **A persistent single-writer service (the prior draft).** Rejected: it builds a daemon (discovery, election, `up`/`down`, idle-stop, version skew) to keep a cache warm while nobody is looking, a scenario ADR-0082/0098 deprioritize; and its single-writer justification is moot because reads are direct and triage writes are Gmail-first.
+- **A Rust-native engine (eliminate Bun).** Rejected: to keep the headless CLI/MCP promise, the entire surface (PKCE loopback, token store and refresh, the mismatch guard, the Gmail client, the CDC discipline, the SQLite schema, label folding, the MCP server) must be ported to Rust; a partial port either deletes headless value or runs two independent Gmail sync/schema owners for one account. The Tauri packaging question is identical whether or not Rust owns the engine, so the rewrite buys nothing that letting Rust own only the window does not.
+- **API-only while open (gate reads and writes behind the app).** Rejected: it would gate offline reads and Gmail-first writes (already service-free today) behind "the app must be open," a real regression for the CLI/MCP agent story, for no gain.
+- **Keep the browser tab as the canonical surface.** Rejected: it entrenches the URL-fragment token and browser-launch plumbing as product; ADR-0083 already named the native app as the surface.

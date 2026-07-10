@@ -42,25 +42,6 @@ the loss is load-bearing.
   and old-path deletion.
 - `radical-options` links here instead of re-deriving the refusal move.
 
-## When To Run
-
-Run this pass when a design adds or preserves:
-
-```txt
-a fast path beside the canonical path
-a provider-specific SDK wrapper beside a standard protocol
-a fallback parser for an old shape
-a second transport for one environment's nicer UX
-a compatibility alias nobody explicitly asked for
-an option that only preserves an old mental model
-a partial reflection API that makes callers ask which surfaces are real
-pixel-perfect reproduction of an old UI as a refactor requirement
-exact snapshot, fixture, layout, animation, or responsive-state compatibility
-a hand-drawn HTML diagram or component tree that reproduces structure already
-  owned by a UI primitive
-a rare mode whose tests, docs, branches, and state outlive its value
-```
-
 ## Domain Manifestations
 
 The same move shows up in different clothes:

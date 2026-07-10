@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { modifyExitCode, parseArgs, runCli } from './cli.ts';
 import { loadConfig } from './config.ts';
+import { acquireSyncLock } from './lock.ts';
 import type { MessageWriteOutcome } from './modify.ts';
 import { createFileTokenStore } from './token-store.ts';
 import type { TokenSet } from './tokens.ts';
@@ -51,10 +52,9 @@ test('--watch followed by another flag stays flag-only', () => {
 	expect(args.watchIntervalMs).toBeUndefined();
 });
 
-test('app parses browser and port flags', () => {
-	const args = parseArgs(['app', '--no-open', '--port', '4177']);
+test('app parses the port flag', () => {
+	const args = parseArgs(['app', '--port', '4177']);
 	expect(args.command).toBe('app');
-	expect(args.noOpen).toBe(true);
 	expect(args.port).toBe(4177);
 	expect(() => parseArgs(['app', '--port', 'abc'])).toThrow(
 		'--port must be a non-negative integer, got "NaN"',
@@ -166,6 +166,81 @@ test('label honors LOCAL_MAIL_READ_ONLY before resolving labels', async () => {
 		else process.env.LOCAL_MAIL_READ_ONLY = previousReadOnly;
 		rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+/**
+ * Drive `runCli` against a stored account whose sync lock is already held by
+ * another owner (the open app or a watch loop), capturing both streams. Proves
+ * the one-shot sync yields without opening a session or hitting the network.
+ */
+async function runSyncWithLockHeld(
+	argv: string[],
+): Promise<{ code: number; stdout: string[]; stderr: string[] }> {
+	const dir = mkdtempSync(join(tmpdir(), 'local-mail-cli-lock-test-'));
+	const token: TokenSet = {
+		accountEmail: 'you@example.com',
+		clientIdUsed: 'client-id',
+		accessToken: 'access-token',
+		refreshToken: 'refresh-token',
+		accessTokenExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+		obtainedAt: new Date(0).toISOString(),
+	};
+	await createFileTokenStore(join(dir, 'credentials.json')).set(token);
+	const previousDir = process.env.LOCAL_MAIL_DIR;
+	const previousAccount = process.env.LOCAL_MAIL_ACCOUNT;
+	const previousTokenFile = process.env.LOCAL_MAIL_TOKEN_FILE;
+	const stdout: string[] = [];
+	const stderr: string[] = [];
+	const originalLog = console.log;
+	const originalError = console.error;
+	process.env.LOCAL_MAIL_DIR = dir;
+	process.env.LOCAL_MAIL_ACCOUNT = '';
+	process.env.LOCAL_MAIL_TOKEN_FILE = '';
+	console.log = (message?: unknown) => {
+		stdout.push(String(message));
+	};
+	console.error = (message?: unknown) => {
+		stderr.push(String(message));
+	};
+	const held = acquireSyncLock({
+		dataDir: dir,
+		accountEmail: 'you@example.com',
+	});
+	expect(held).not.toBeNull();
+	try {
+		const code = await runCli(argv);
+		return { code, stdout, stderr };
+	} finally {
+		console.log = originalLog;
+		console.error = originalError;
+		held?.release();
+		if (previousDir === undefined) delete process.env.LOCAL_MAIL_DIR;
+		else process.env.LOCAL_MAIL_DIR = previousDir;
+		if (previousAccount === undefined) delete process.env.LOCAL_MAIL_ACCOUNT;
+		else process.env.LOCAL_MAIL_ACCOUNT = previousAccount;
+		if (previousTokenFile === undefined)
+			delete process.env.LOCAL_MAIL_TOKEN_FILE;
+		else process.env.LOCAL_MAIL_TOKEN_FILE = previousTokenFile;
+		rmSync(dir, { recursive: true, force: true });
+	}
+}
+
+test('sync yields a human note on stdout when another owner holds the lock', async () => {
+	const { code, stdout } = await runSyncWithLockHeld(['sync']);
+	expect(code).toBe(0);
+	// The terminal outcome lands on stdout like the success/failure summaries do.
+	expect(stdout.join('\n')).toContain('already syncing you@example.com');
+});
+
+test('sync --json yields a structured payload on stdout when the lock is held', async () => {
+	const { code, stdout } = await runSyncWithLockHeld(['sync', '--json']);
+	expect(code).toBe(0);
+	// The whole yield must be a single clean JSON value on stdout, not a human
+	// note on stderr: a --json consumer piping stdout has to see it.
+	const payload = JSON.parse(stdout.join('\n'));
+	expect(payload.synced).toBe(false);
+	expect(payload.reason).toBe('sync-owner-active');
+	expect(payload.message).toContain('you@example.com');
 });
 
 test('status --json resolves the sole stored account and prints JSON', async () => {

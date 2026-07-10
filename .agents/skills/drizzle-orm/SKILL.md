@@ -18,18 +18,6 @@ When Drizzle schema definitions, migration snapshots, query builder APIs, column
 
 Skip DeepWiki for repo-local schema naming and storage-boundary conventions already documented below.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Define Drizzle schemas, relations, indexes, migrations, or query code.
-- Define Drizzle columns that use branded TypeScript string types.
-- Choose between `$type<T>()` and `customType` for column definitions.
-- Configure Drizzle Kit and understand generated migration snapshots.
-- Choose a SQLite-compatible driver boundary: `bun:sqlite`, `better-sqlite3`, D1, or libSQL/Turso.
-- Remove identity `toDriver`/`fromDriver` conversions that add runtime overhead.
-- Keep data serialized through the storage layer and parse at UI edges.
-
 ## Schema And Migration Rules
 
 - Export a single schema object from the app's database module and pass that same object to `drizzle(...)` and Drizzle Kit config.

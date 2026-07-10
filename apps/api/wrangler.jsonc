@@ -49,10 +49,19 @@
 			{
 				"name": "ROOM",
 				"class_name": "Room"
+			},
+			// One AttachRelay actor per (principalId, hostId) pair holds the live
+			// Super Chat rendezvous sockets (ADR-0115). It stores no frames and owns
+			// no ctx.storage; the DO is a pure socket router.
+			{
+				"name": "ATTACH_RELAY",
+				"class_name": "AttachRelay"
 			}
 		]
 	},
-	// SQLite-backed DO: persistent storage survives hibernation.
+	// SQLite-backed DO: persistent storage survives hibernation. AttachRelay
+	// stores nothing, but new DO classes take the SQLite storage backend (the
+	// modern default) whether or not they touch it.
 	"migrations": [
 		{
 			"tag": "v1",
@@ -62,6 +71,10 @@
 			"tag": "v2",
 			"new_sqlite_classes": ["Room"],
 			"deleted_classes": ["WorkspaceRoom", "DocumentRoom"]
+		},
+		{
+			"tag": "v3",
+			"new_sqlite_classes": ["AttachRelay"]
 		}
 	],
 	// --- Secrets (set via `wrangler secret put`, typed via `wrangler types`) ---
@@ -73,15 +86,16 @@
 			// dev and production cannot accidentally share a checked-in client id.
 			"GOOGLE_CLIENT_ID",
 			"GOOGLE_CLIENT_SECRET",
-			// GitHub OAuth is optional at the library level (ServerBindings types
-			// it `?`), but it MUST be listed here so `wrangler types` reproduces
-			// it: defining `secrets.required` replaces wrangler's .dev.vars/.env
-			// inference, so any secret the worker reads (create-auth.ts,
-			// routes/auth.ts gate GitHub sign-in on these) that is NOT listed gets
-			// dropped from the generated Cloudflare.Env. A required `string` here
-			// still satisfies the library's optional binding.
+			// The shared server library keeps every provider register-when-present,
+			// but the hosted cloud product promise is stricter: the hosted sign-in UI
+			// offers only providers with production credentials. Listing those
+			// provider bindings here makes Wrangler fail deploy/typegen when the
+			// hosted edge is missing a provider the UI would show. A required `string`
+			// here still satisfies the library's optional CloudAuthBindings fields.
 			"GITHUB_CLIENT_ID",
 			"GITHUB_CLIENT_SECRET",
+			"MICROSOFT_CLIENT_ID",
+			"MICROSOFT_CLIENT_SECRET",
 			// House AI keys are required here even though the library types them
 			// as optional bindings: hosted credits are billed against house-key
 			// usage, so a deploy without them would 503 paying users.

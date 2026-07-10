@@ -228,7 +228,37 @@ describe('getMessageDetail', () => {
 			expect(detail?.to).toBe('you@example.com');
 			expect(detail?.date).toBe('Tue, 1 Jul 2026 08:00:00 -0700');
 			expect(detail?.bodyText).toBe('Please pay the invoice.');
+			// A text/plain-only message carries no HTML body.
+			expect(detail?.unsafeBodyHtml).toBeNull();
 			expect(detail?.labelIds).toEqual(['INBOX', 'UNREAD', 'Label_7']);
+		} finally {
+			cleanup();
+		}
+	});
+
+	test('an html message serves unsafeBodyHtml plus a text fallback', () => {
+		const { db, cleanup } = openTmp();
+		try {
+			const html = '<p>Pay <a href="https://acme.test">now</a></p>';
+			db.ingestFullPullPage(
+				[
+					message({
+						id: 'rich',
+						internalDate: '4000',
+						payload: {
+							headers: [{ name: 'Subject', value: 'Rich' }],
+							parts: [{ mimeType: 'text/html', body: { data: b64url(html) } }],
+						},
+					}),
+				],
+				new Date().toISOString(),
+			);
+			const detail = db.getMessageDetail('rich');
+			// bodyHtml is derived from `raw` at read time, unsanitized: the raw
+			// markup (including the anchor) crosses the wire verbatim.
+			expect(detail?.unsafeBodyHtml).toBe(html);
+			// The stored searchable text is the tag-stripped fallback.
+			expect(detail?.bodyText).toBe('Pay now');
 		} finally {
 			cleanup();
 		}

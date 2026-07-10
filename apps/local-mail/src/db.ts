@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { chmodSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { bodyText, headerValue } from './message-fields.ts';
+import { bodyHtml, bodyText, headerValue } from './message-fields.ts';
 import type { GmailLabel, GmailMessage } from './schema.ts';
 
 /**
@@ -55,14 +55,17 @@ export type MessageSummary = {
 	labelIds: string[];
 };
 
-/** A single message opened in the detail pane: a summary plus its extracted
- * plain-text body and the `To` header. Bodies are stored pre-extracted as
- * text (`message-fields.ts`'s `bodyText`), so the read surface never ships raw
- * HTML. */
+/** A single message opened in the detail pane: a summary, its `To`/`Date`
+ * headers, and both body projections. `bodyText` is the stored searchable
+ * plain text; `unsafeBodyHtml` is the raw `text/html` derived from `raw` at
+ * read time (never stored, so no schema change), unsanitized on purpose. The
+ * name carries the warning across the wire: the only caller that may render it
+ * is the sanitizer boundary in the SPA, which runs DOMPurify first. */
 export type MessageDetail = MessageSummary & {
 	to: string | null;
 	date: string | null;
 	bodyText: string | null;
+	unsafeBodyHtml: string | null;
 };
 
 /** A mirrored Gmail label, for the label-filter rail and the add/remove menu. */
@@ -71,6 +74,14 @@ export type LabelSummary = {
 	name: string | null;
 	type: string | null;
 };
+
+/** Label sets are unordered: Gmail may echo the same labels in a different
+ * order, so a material change is a set difference, not an array inequality. */
+function sameLabelSet(a: string[], b: string[]): boolean {
+	if (a.length !== b.length) return false;
+	const present = new Set(a);
+	return b.every((id) => present.has(id));
+}
 
 function parseLabelIds(json: string | null): string[] {
 	if (!json) return [];
@@ -280,18 +291,28 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 		);
 	}
 
+	/**
+	 * Fold `labelIds` into one row's `raw`, reporting both whether the row was
+	 * `found` (a write-through fold cares only about this) and whether the label
+	 * set `changed` materially (the sync metric counts only these, so an
+	 * idempotent history echo of labels already current does not read as drift).
+	 * The write is unconditional either way: a no-op patch still refreshes
+	 * `synced_at`, matching the prior behaviour.
+	 */
 	function patchMessageLabelsRow(
 		messageId: string,
 		labelIds: string[],
 		syncedAt: string,
-	): boolean {
+	): { found: boolean; changed: boolean } {
 		const row = getMessageRawStmt.get(messageId);
-		if (!row) return false;
-		const patched = { ...JSON.parse(row.raw), labelIds };
-		return (
-			patchMessageLabelsStmt.run(JSON.stringify(patched), syncedAt, messageId)
-				.changes > 0
-		);
+		if (!row) return { found: false, changed: false };
+		const parsed = JSON.parse(row.raw);
+		const prevLabelIds: string[] = Array.isArray(parsed.labelIds)
+			? parsed.labelIds
+			: [];
+		const patched = { ...parsed, labelIds };
+		patchMessageLabelsStmt.run(JSON.stringify(patched), syncedAt, messageId);
+		return { found: true, changed: !sameLabelSet(prevLabelIds, labelIds) };
 	}
 
 	return {
@@ -319,12 +340,10 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 			labelIds: string[],
 			syncedAt: string,
 		) {
-			let patched = false;
-			const tx = db.transaction(() => {
-				patched = patchMessageLabelsRow(messageId, labelIds, syncedAt);
-			});
-			tx.immediate();
-			return patched;
+			const tx = db.transaction(
+				() => patchMessageLabelsRow(messageId, labelIds, syncedAt).found,
+			);
+			return tx.immediate();
 		},
 
 		counts(): { messages: number; labels: number } {
@@ -445,10 +464,16 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 			if (!row) return null;
 			let to: string | null = null;
 			let date: string | null = null;
+			// Derived at read time from `raw`, never stored: an HTML body column
+			// would only mirror `body_text` for symmetry's sake and force a schema
+			// bump. `bodyHtml` is defensive on its own, but the parse shares this
+			// try so a corrupt `raw` yields nulls rather than throwing.
+			let unsafeBodyHtml: string | null = null;
 			try {
 				const message = JSON.parse(row.raw) as GmailMessage;
 				to = headerValue(message, 'To');
 				date = headerValue(message, 'Date');
+				unsafeBodyHtml = bodyHtml(message);
 			} catch {
 				// Fall back to nulls; the summary fields already carry the essentials.
 			}
@@ -463,6 +488,7 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 				to,
 				date,
 				bodyText: row.body_text,
+				unsafeBodyHtml,
 			};
 		},
 
@@ -504,15 +530,14 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 		 * disappearing behind a post-pull cursor.
 		 */
 		finishFullPull(historyId: string, syncedAt: string): number {
-			let swept = 0;
 			const tx = db.transaction(() => {
-				swept = sweepMessagesStmt.run(syncedAt).changes;
+				const swept = sweepMessagesStmt.run(syncedAt).changes;
 				setMetaStmt.run('history_id', historyId);
 				setMetaStmt.run('last_full_pull_at', syncedAt);
 				setMetaStmt.run('last_synced_at', syncedAt);
+				return swept;
 			});
-			tx.immediate();
-			return swept;
+			return tx.immediate();
 		},
 
 		/**
@@ -529,6 +554,11 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 		 * aimed at unmirrored rows into full refetches (`hasMessage`), so a
 		 * miss here means the message changed mid-pass and the next pass
 		 * converges.
+		 *
+		 * Returns `labelsChanged`: how many label patches materially changed a
+		 * row's label set. A patch whose labels already match (a history echo of
+		 * a change the write-through fold already applied) is applied but not
+		 * counted, so the sync metric reports convergence, not phantom drift.
 		 */
 		applyHistoryBatch({
 			messagesToUpsert,
@@ -542,18 +572,22 @@ export function openMailDb({ dataDir, accountEmail }: MailDbLocation) {
 			labelPatches: { messageId: string; labelIds: string[] }[];
 			newHistoryId: string;
 			syncedAt: string;
-		}): void {
+		}): { labelsChanged: number } {
 			const tx = db.transaction(() => {
+				let labelsChanged = 0;
 				for (const message of messagesToUpsert)
 					upsertMessage(message, syncedAt);
 				for (const id of messagesToDelete) deleteMessageStmt.run(id);
 				for (const { messageId, labelIds } of labelPatches) {
-					patchMessageLabelsRow(messageId, labelIds, syncedAt);
+					if (patchMessageLabelsRow(messageId, labelIds, syncedAt).changed) {
+						labelsChanged += 1;
+					}
 				}
 				setMetaStmt.run('history_id', newHistoryId);
 				setMetaStmt.run('last_synced_at', syncedAt);
+				return { labelsChanged };
 			});
-			tx.immediate();
+			return tx.immediate();
 		},
 
 		close(): void {

@@ -19,15 +19,6 @@ When Hono route typing, middleware order, context variables, response helpers, s
 
 Skip DeepWiki for stable HTTP basics and repo-local API conventions already visible in the code.
 
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Write or refactor Hono route handlers and middleware.
-- Type request params, query values, context variables, or response bodies.
-- Adapt Hono handlers to Cloudflare Workers runtime constraints.
-- Debug streaming, WebSockets, CORS, auth middleware, or per-route bindings.
-
 ## Middleware And Context
 
 - Middleware is onion-style and order-sensitive. Resource setup belongs before auth; auth belongs before protected routes.

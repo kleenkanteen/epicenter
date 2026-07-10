@@ -383,6 +383,38 @@ describe('applyHistoryBatch', () => {
 		cleanup();
 	});
 
+	test('labelsChanged counts only patches that materially change the label set', () => {
+		const { db, cleanup } = openTmp();
+		db.ingestFullPullPage(
+			[
+				message({ id: 'a', labelIds: ['INBOX', 'UNREAD'] }),
+				message({ id: 'b', labelIds: ['INBOX'] }),
+				message({ id: 'c', labelIds: ['INBOX', 'UNREAD'] }),
+			],
+			's1',
+		);
+
+		const { labelsChanged } = db.applyHistoryBatch({
+			messagesToUpsert: [],
+			messagesToDelete: [],
+			labelPatches: [
+				// 'a': same set in a different order, no material change.
+				{ messageId: 'a', labelIds: ['UNREAD', 'INBOX'] },
+				// 'b': a real change (UNREAD added).
+				{ messageId: 'b', labelIds: ['INBOX', 'UNREAD'] },
+				// 'c': identical set, an idempotent echo.
+				{ messageId: 'c', labelIds: ['INBOX', 'UNREAD'] },
+				// missing row: not found, not counted.
+				{ messageId: 'gone', labelIds: ['INBOX'] },
+			],
+			newHistoryId: '650',
+			syncedAt: 's2',
+		});
+
+		expect(labelsChanged).toBe(1);
+		cleanup();
+	});
+
 	test('a labelPatch for a message not yet mirrored is silently skipped', () => {
 		const { db, cleanup } = openTmp();
 		db.applyHistoryBatch({

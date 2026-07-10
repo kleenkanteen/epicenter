@@ -5,5 +5,5 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true
 	},
-	"exclude": ["ui", "test-support"]
+	"exclude": ["ui", "test-support", "src-tauri"]
 }

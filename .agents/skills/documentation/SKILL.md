@@ -8,42 +8,15 @@ metadata:
 
 # Documentation
 
-Follow [writing-voice](../writing-voice/SKILL.md) for tone.
-For architecture walkthroughs, folder mental models, or newcomer explanations, use [notebook-explanation](../notebook-explanation/SKILL.md) for the shape.
+Follow [writing-voice](../writing-voice/SKILL.md) for tone. For architecture walkthroughs, folder mental models, or newcomer explanations, compose with [notebook-explanation](../notebook-explanation/SKILL.md).
 
 Documentation explains **why**, not **what**. Users can read code to see what it does. They need you to explain the reasoning.
-
-## When to Apply This Skill
-
-Use this pattern when you need to:
-
-- Write or update folder `README.md` files with architecture intent.
-- Add JSDoc to public APIs with usage context and examples.
-- Review docs/comments that currently restate code without rationale.
-- Add code comments for non-obvious decisions, constraints, or workarounds.
 
 ## Folder READMEs
 
 Primary job: explain **why** this folder exists and the mental model.
 
-Notebook style is often the clearest README opening:
-
-```txt
-Question:
-  Why does this folder exist?
-
-Model:
-  file group = responsibility
-  boundary = owner
-
-Flow:
-  input
-    -> module
-    -> output
-
-Rule:
-  when adding code here, preserve this boundary
-```
+Open with the useful model: what this folder owns, why it exists, and what boundary future edits should preserve.
 
 ### Can Include
 

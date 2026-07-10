@@ -31,7 +31,6 @@
  */
 
 import {
-	BEARER_SUBPROTOCOL_PREFIX,
 	MAIN_SUBPROTOCOL,
 	parseSubprotocols,
 	ROOM_ROUTE,
@@ -39,9 +38,9 @@ import {
 import { Hono, type MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { describeRoute } from 'hono-openapi';
+import { extractUpgradeBearer } from '../auth/extract-upgrade-bearer.js';
 import { OAuthError } from '../auth/oauth-errors.js';
 import { createOAuthUnauthorizedResourceResponse } from '../auth/oauth-resource.js';
-import { parseBearer } from '../auth/parse-bearer.js';
 import { isWebSocketUpgrade } from '../is-websocket-upgrade.js';
 import { RequestGuardError } from '../middleware/request-guard-errors.js';
 import { setPrincipalOrReject } from '../middleware/require-auth.js';
@@ -158,26 +157,6 @@ function requireRoomBearer<E extends Env>(
 			return createOAuthUnauthorizedResourceResponse(c, error);
 		});
 	});
-}
-
-/**
- * Extract the bearer credential from a room upgrade's headers.
- *
- * `Authorization: Bearer <token>` wins when present (a non-browser client can
- * set it directly); otherwise a single `bearer.<token>` subprotocol entry is
- * the credential. Returns null when there is no usable bearer: none present,
- * an empty `bearer.` token, or more than one bearer entry (a malformed
- * client). The caller answers 401 in that case.
- */
-function extractUpgradeBearer(headers: Headers): string | null {
-	const fromHeader = parseBearer(headers.get('authorization'));
-	if (fromHeader) return fromHeader;
-
-	const bearers = parseSubprotocols(headers.get('sec-websocket-protocol'))
-		.filter((protocol) => protocol.startsWith(BEARER_SUBPROTOCOL_PREFIX))
-		.map((protocol) => protocol.slice(BEARER_SUBPROTOCOL_PREFIX.length));
-	if (bearers.length !== 1) return null;
-	return bearers[0] || null;
 }
 
 /**

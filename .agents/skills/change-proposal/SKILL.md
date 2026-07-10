@@ -1,25 +1,14 @@
 ---
 name: change-proposal
-description: 'Present proposed code changes visually before implementing. Use when: "show me options", "compare approaches", "what should we do", or when changes need before/after comparison.'
+description: 'Present proposed code changes visually before implementing: before/after diffs, ASCII diagrams, comparison tables. Use when: "show me options for this change", "compare approaches", or a multi-file change needs a before/after comparison before editing. Not for planning questions with no concrete code change on the table.'
 ---
 
 # Change Proposal
 
-When proposing non-trivial changes, make your reasoning visible before acting. The user should see what will change, why, and what alternatives were considered:before a single file is edited.
+When proposing non-trivial changes, make your reasoning visible before acting. The user should see what will change, why, and what alternatives were considered, before a single file is edited.
 
 Follow [writing-voice](../writing-voice/SKILL.md) for prose sections.
 
-## When to Use This
-
-- Multiple valid approaches exist (show competing options)
-- Changes span 3+ files (show the dependency graph)
-- Architecture or ownership shifts (show before/after diagrams)
-- Lifecycle or data flow changes (show the flow)
-- The user asks "what do you think?" or "how should we do this?"
-
-For trivial changes (typo fix, single-line edit, obvious bug), skip this and just do it.
-
-If the change reshapes a product surface (new command, new route, new primary API), state the post-change one-sentence meaning using [one-sentence-test](../one-sentence-test/SKILL.md) alongside the diagrams and diffs. It anchors the proposal to what the product *is*, not just what changed.
 
 ## The Three Tools
 
@@ -72,11 +61,7 @@ auth ──signOut()──→ workspace.current.dispose()
           workspace is a reactive slot ← auth owns lifecycle
 ```
 
-When to use which diagram type:
-- **Ownership diagrams**: Who controls what (arrows show control flow)
-- **Layer diagrams**: Stacked boxes for architectural layers
-- **Flow diagrams**: Data or control moving between components
-- **Journey diagrams**: Evolution from attempt A → B → C
+Default to an ownership diagram: who controls what, with arrows showing control flow. Reach for stacked layers, a data-flow shape, or an attempt A → B → C journey only when ownership is not the question being decided.
 
 ### 3. Comparison Tables
 

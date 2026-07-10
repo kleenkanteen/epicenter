@@ -25,6 +25,15 @@ This is deliberate. A trusted relay that can read the doc is what makes server-s
 
 Content is only half of what a relay learns. Sealed frames would still leave the routing in the clear, so the relay sees the metadata around the bytes: the authenticated principal id, the connecting node id, which devices share a room (the presence frames), the names of dispatched actions, and the timing, size, and client IP of every message. That envelope outlives any future blind relay, which stops reading the values but still forwards them; sealing a frame hides what is inside it, not the fact that your phone and laptop touched this room at this minute. Run the relay yourself and the metadata is yours. Use Epicenter's and it is a who-talks-to-whom graph Epicenter can read.
 
+## The live attach relay follows the same trust model
+
+Super Chat remote attach adds a second, live channel beside CRDT sync, but not a second privacy promise (ADR-0115).
+
+- **The sync anchor holds plaintext.** It decrypts nothing because nothing is encrypted, and it reads document structure, keys, and values, because serving a sleeping device's catch-up, compaction, and search needs the data (ADR-0004). The anchor is app-blind, not content-blind.
+- **The live attach relay forwards plaintext live frames.** It carries a Super Chat session (prompts, tool results, approvals) between two of your own signed-in devices, addressed by `principalId`, `hostId`, `deviceId`, and `attachId`. It stores no frames and exposes no route/capability/tool surface, but hosted Epicenter may observe the live payloads while forwarding them. It is endpoint-addressed, not route-addressed, so it is not a resurrection of the deleted relay floor (ADR-0086, ADR-0115).
+
+Confidentiality follows topology. On Cloud, the operator can read live attach frames just as it can read synced workspace data. On self-host the operator is you. The private answer is to run the deployment yourself.
+
 ## Big files (audio, images) follow the same rule
 
 Workspace data rides the Yjs doc, but large binaries cannot (they would blow the CRDT's size caps), so audio and images go to a separate content-addressed blob store: an S3-compatible bucket reached through `packages/server/src/s3-blob-store.ts`. Those bytes are **not encrypted** either. The only cryptography on that path is plumbing, never secrecy: a SHA-256 that *names* each object by its content (addressing and dedup), the same digest reused as an integrity checksum the store verifies on upload, and SigV4 that signs the control-plane request. Reads are gated by auth plus a principal key prefix (`principals/<principalId>/blobs/<sha256>`) behind short-lived presigned URLs, not by concealing the bytes. So a blob's confidentiality equals a document's: whoever operates the bucket can read it. Hosted, that operator is Epicenter (R2); self-hosted, it is your own bucket (Garage, S3). Same topology answer, different storage. (R2 and S3 encrypt at rest under their own keys, which the operator reads straight through, so that changes nothing about who can read your blob.)

@@ -25,7 +25,7 @@
 |------|------|-------|------|
 | 2026-07-09 | rdev-tier1-keyboard-runtime-decision | removed | apps/whispering/specs/20260709T010000-rdev-tier1-keyboard-runtime-decision.md |
 | 2026-07-09 | provider-app-and-empty-launch | removed | apps/local-mail/specs/20260709-provider-app-and-empty-launch.md |
-| 2026-07-08 | host-discovery-connect-device | removed | apps/super-chat/specs/host-discovery-connect-device.md |
+| 2026-07-08 | host-discovery-connect-device | in tree | apps/super-chat/specs/host-discovery-connect-device.md |
 | 2026-07-07 | super-chat-attach-relay-proof | removed | specs/20260707T200000-super-chat-attach-relay-proof.md |
 | 2026-07-06 | cross-device-coordination-vision | in tree | specs/20260706T220000-cross-device-coordination-vision.md |
 | 2026-07-06 | encrypted-job-envelope-strategy | in tree | specs/20260706T233000-encrypted-job-envelope-strategy.md |
@@ -654,7 +654,7 @@
 | 2026-03-14 | bare-uint8array-encrypted-blob | removed | specs/20260314T230000-bare-uint8array-encrypted-blob.md |
 | 2026-03-14 | migration-flow-cleanup | removed | specs/20260314T232643-migration-flow-cleanup.md |
 | 2026-03-14 | encryption-hygiene | removed | specs/20260314T234500-encryption-hygiene.md |
-| 2026-03-13 | workspace-architecture-decisions | in tree | specs/20260313T063000-workspace-architecture-decisions.md |
+| 2026-03-13 | workspace-architecture-decisions | removed | specs/20260313T063000-workspace-architecture-decisions.md |
 | 2026-03-13 | opensidian-sqlite-index-extension | in tree | specs/20260313T143000-opensidian-sqlite-index-extension.md |
 | 2026-03-13 | opensidian-feature-additions | in tree | specs/20260313T143300-opensidian-feature-additions.md |
 | 2026-03-13 | unify-document-content-model | in tree | specs/20260313T224500-unify-document-content-model.md |
