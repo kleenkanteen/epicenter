@@ -151,7 +151,7 @@ export function createReachRouter({
 				// exact set match and tolerates an overlapping prefix (the focused
 				// store's own policy likewise refuses only exact duplicates), so the
 				// unavoidable double-fire is the identical gesture living in both
-				// stores. Matching the focused tier's test keeps the two consistent.
+				// stores. Matching the focused backend's test keeps the two consistent.
 				if (existing && bindingsEqual(existing, binding)) {
 					return { kind: 'crossStore', commandId: command.id };
 				}

@@ -16,7 +16,7 @@ import {
 	type BindingLike,
 	isRegistrableChord,
 	type Modifier,
-} from '$lib/utils/key-binding';
+} from './key-binding';
 
 /**
  * `primary` stands for the platform's command modifier: Command on macOS,

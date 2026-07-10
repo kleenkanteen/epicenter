@@ -21,7 +21,7 @@ import type { KeyBinding } from '$lib/utils/key-binding';
  * conflict is shown, so the policy layer never owns user-facing strings.
  *
  * - `reserved`: an OS-reserved global gesture (`reason` is self-contained).
- * - `duplicate`: this tier already binds this exact gesture to `commandId`.
+ * - `duplicate`: this backend already binds this exact gesture to `commandId`.
  * - `crossStore`: on desktop, `commandId`'s binding in the OTHER store is the same
  *   gesture, so both would fire in the focused window.
  */
@@ -60,7 +60,7 @@ export type Shortcuts = {
 	 * allowed, as structured {@link ShortcutConflict} (the recorder renders the
 	 * message). The policy lives in each backend: the in-app backend
 	 * refuses an exact duplicate (its matcher fires every command whose set
-	 * matches); the global tier also refuses OS-reserved gestures.
+	 * matches); the global backend also refuses OS-reserved gestures.
 	 */
 	findConflict(
 		commandId: Command['id'],

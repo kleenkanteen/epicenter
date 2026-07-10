@@ -31,8 +31,8 @@ export type RecordingShortcutMode = keyof typeof RECORDING_SHORTCUT_PREFERENCE;
 /**
  * The label for the bound gesture this mode starts in one store, picked by walking
  * the preference list (the first bound command wins). Reading a single command
- * (`toggleManualRecording`) rendered an empty key where the toggle ships unbound
- * and another gesture is the live one; the list shows the bound gesture instead.
+ * (`toggleManualRecording`) rendered an empty key when a user cleared the toggle
+ * while another gesture was live; the list shows the bound gesture instead.
  * Returns `''` when nothing in the list is bound. `keyBindingToLabel` formats the
  * physical binding.
  */
@@ -61,8 +61,8 @@ export function getRecordingShortcutLabel(mode: RecordingShortcutMode): string {
  * Both reach slots for this recording mode: the in-app (`focused`) key and the
  * system-global (`global`) key. `focused` is `''` when unbound. `global` is `null`
  * when this platform has no system backend (web), and `''` when it has one but the
- * slot is unbound (desktop): one source of truth for "is there a from-anywhere tier
- * at all" versus "there is, but it needs setting up". The home hint teaches both, so
+ * slot is unbound (desktop): one source of truth for "is there a global backend at
+ * all" versus "there is, but it needs setting up". The home hint teaches both, so
  * a desktop user learns the quick in-app key *and* the from-anywhere gesture
  * (and, for VAD, the in-app key the single-label hint never surfaced, since VAD
  * ships no global default).
