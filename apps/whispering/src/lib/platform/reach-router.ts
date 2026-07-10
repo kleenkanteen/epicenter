@@ -3,12 +3,7 @@ import type { KeyBinding } from '$lib/tauri/commands';
 // Relative, not `$lib`: the router carries no runtime `$lib` import so it stays
 // free of the catalog's operations/`#platform` graph and unit-testable in
 // isolation. `key-binding` itself has only type imports, so this is its lone dep.
-import {
-	bindingsEqual,
-	type Reach,
-	type ReachWithGrant,
-	realizedReach,
-} from '../utils/key-binding';
+import { bindingsEqual, type Reach, realizedReach } from '../utils/key-binding';
 import type { ShortcutConflict, Shortcuts } from './types';
 
 /** The reach ceiling per command, the only slice of the catalog the router reads. */
@@ -64,12 +59,11 @@ export type RoutedShortcuts = {
 		binding: KeyBinding,
 	): ShortcutConflict | null;
 	/**
-	 * The reach a candidate binding would achieve for a command on this platform,
-	 * with whether it needs the macOS Accessibility grant. Drives the read-only
-	 * reach badge ("Works in Whispering" / "Works everywhere" / "Works everywhere,
-	 * needs Accessibility") for both a recorded candidate and a stored slot.
+	 * The reach a candidate binding would achieve for a command on this platform.
+	 * Drives the read-only reach badge ("Works in Whispering" / "Works
+	 * everywhere") for both a recorded candidate and a stored slot.
 	 */
-	reachBadge(commandId: Command['id'], binding: KeyBinding): ReachWithGrant;
+	reachBadge(commandId: Command['id'], binding: KeyBinding): Reach;
 };
 
 /**
@@ -98,10 +92,7 @@ export function createReachRouter({
 	const platformReach: Reach = global ? 'global' : 'focused';
 	const reachByCommandId = new Map(commands.map((c) => [c.id, c.reach]));
 
-	function badge(
-		commandId: Command['id'],
-		binding: KeyBinding,
-	): ReachWithGrant {
+	function badge(commandId: Command['id'], binding: KeyBinding): Reach {
 		const commandReach = reachByCommandId.get(commandId) ?? 'focused';
 		return realizedReach(commandReach, binding, platformReach);
 	}
@@ -113,9 +104,7 @@ export function createReachRouter({
 		commandId: Command['id'],
 		binding: KeyBinding,
 	): Shortcuts {
-		return badge(commandId, binding).reach === 'global' && global
-			? global
-			: focused;
+		return badge(commandId, binding) === 'global' && global ? global : focused;
 	}
 
 	return {

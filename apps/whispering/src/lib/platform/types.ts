@@ -35,7 +35,7 @@ export type ShortcutConflict =
 /**
  * Contract for a single shortcut backend. Two implement it: `focusedShortcuts`
  * (in-app keydown shortcuts in workspace KV, universal) and `systemShortcuts`
- * (system-global rdev bindings in device-config, Tauri-only). The reach router
+ * (system-global plugin-chord bindings in device-config, Tauri-only). The reach router
  * (`shortcuts.ts`) composes the two and routes each write by realized reach
  * (ADR-0052), so app code talks to the router, not to a backend directly; the
  * settings recorders are handed the specific backend they edit. The trigger

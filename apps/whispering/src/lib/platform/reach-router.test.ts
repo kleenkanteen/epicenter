@@ -87,7 +87,7 @@ test('a bare key on a global command routes to the focused store (key ceiling, d
 	expect(global.calls.set).toEqual([]);
 });
 
-test('an Fn hold routes global and its badge needs Accessibility (desktop)', async () => {
+test('a refused Fn hold is not global and routes to the focused store (desktop)', async () => {
 	const focused = fakeShortcuts();
 	const global = fakeShortcuts();
 	const router = createReachRouter({
@@ -96,13 +96,14 @@ test('an Fn hold routes global and its badge needs Accessibility (desktop)', asy
 		commands: CATALOG,
 	});
 
-	expect(router.reachBadge('pushToTalk', FN_HOLD)).toEqual({
-		reach: 'global',
-		needsAccessibility: true,
-	});
+	// An Fn hold is not a registrable chord (ADR-0117), so its key capability caps
+	// at focused; the badge is 'focused' and the write routes to the focused store,
+	// never claiming "Works everywhere".
+	expect(router.reachBadge('pushToTalk', FN_HOLD)).toBe('focused');
 
 	await router.set('pushToTalk', FN_HOLD);
-	expect(global.calls.set).toEqual([['pushToTalk', FN_HOLD]]);
+	expect(focused.calls.set).toEqual([['pushToTalk', FN_HOLD]]);
+	expect(global.calls.set).toEqual([]);
 });
 
 test('web has no global backend, so the platform ceiling clamps every write to focused', async () => {
@@ -114,10 +115,7 @@ test('web has no global backend, so the platform ceiling clamps every write to f
 	});
 
 	// A chord buys nothing on web: min(global, global, focused) = focused.
-	expect(router.reachBadge('toggleManualRecording', CHORD)).toEqual({
-		reach: 'focused',
-		needsAccessibility: false,
-	});
+	expect(router.reachBadge('toggleManualRecording', CHORD)).toBe('focused');
 
 	await router.set('toggleManualRecording', CHORD);
 	expect(focused.calls.set).toEqual([['toggleManualRecording', CHORD]]);

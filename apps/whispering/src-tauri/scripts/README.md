@@ -65,6 +65,6 @@ bun run dev:doctor
 
 prints the dev binary path, its signed identifier, signature, designated
 requirement, whether the fixed requirement is present, and the reset command.
-Live trust, the current `DictationCapability`, and the rdev listener's health
+Live trust, the current `DictationCapability`, and the macOS Accessibility-grant watch
 are owned by the running app's supervisor
 (`src/keyboard/mod.rs`) and show up in the app and the Tauri log.
