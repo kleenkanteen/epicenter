@@ -1,7 +1,7 @@
 import { loadPersistedAuthStorage } from '@epicenter/auth';
 import {
-	EPICENTER_WHISPERING_OAUTH_CLIENT_ID,
-	EPICENTER_WHISPERING_TAURI_OAUTH_REDIRECT_URI,
+	EPICENTER_DESKTOP_OAUTH_CLIENT_ID,
+	EPICENTER_DESKTOP_TAURI_OAUTH_REDIRECT_URI,
 } from '@epicenter/constants/oauth-clients';
 import { APP_URLS } from '@epicenter/constants/vite';
 import { createHostedDeepLinkAuth } from '@epicenter/svelte/auth/tauri';
@@ -41,8 +41,8 @@ async function writeGrant(serialized: string | null): Promise<void> {
 
 export const auth: PlatformAuth = createHostedDeepLinkAuth({
 	instanceSetting,
-	clientId: EPICENTER_WHISPERING_OAUTH_CLIENT_ID,
-	redirectUri: EPICENTER_WHISPERING_TAURI_OAUTH_REDIRECT_URI,
+	clientId: EPICENTER_DESKTOP_OAUTH_CLIENT_ID,
+	redirectUri: EPICENTER_DESKTOP_TAURI_OAUTH_REDIRECT_URI,
 	api: APP_URLS.API,
 	persistedAuthStorage: await loadPersistedAuthStorage({
 		read: readGrant,
