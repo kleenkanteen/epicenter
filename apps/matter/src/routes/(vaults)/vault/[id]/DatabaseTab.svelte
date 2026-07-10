@@ -86,8 +86,9 @@
 			<SectionHeader.Root>
 				<SectionHeader.Title level={3}>Projected tables</SectionHeader.Title>
 				<SectionHeader.Description>
-					{tableSchemas.length}
-					{tableSchemas.length === 1 ? 'typed table is' : 'typed tables are'} available to SQL.
+					{tableSchemas.length === 0
+						? 'No typed tables are available to SQL.'
+						: `${tableSchemas.length} ${tableSchemas.length === 1 ? 'typed table is' : 'typed tables are'} available to SQL.`}
 				</SectionHeader.Description>
 			</SectionHeader.Root>
 			{#if tableSchemas.length === 0}
