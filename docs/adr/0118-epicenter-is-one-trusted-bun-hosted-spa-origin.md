@@ -1,6 +1,6 @@
 # 0118. Epicenter is one trusted Bun-hosted SPA origin
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-10
 - **Supersedes:** [ADR-0084](0084-super-chat-shell-is-a-bun-hosted-local-server-not-a-bundled-spa.md) by promoting its Bun-hosted shell into the application host and replacing its ephemeral production port and URL-carried token.
 - **Amends:** [ADR-0080](0080-the-super-app-is-a-desktop-host-cross-device-is-remote-access-to-the-session-not-a-per-app-capability-plane.md) only at the application-packaging boundary: Whispering becomes a trusted surface and native subsystem inside Epicenter instead of remaining a separately shipped desktop runtime. The host-session remote-access decision is unchanged.
@@ -46,6 +46,13 @@ honest WebView-local durable store: Whispering retains the
 its WAV artifacts. Bun does not mount a Whispering Yjs replica in the first
 milestone.
 
+Whispering remains one independently hostable SPA with build-time environment
+selection. Its browser build uses browser implementations and can be deployed as
+static assets on Cloudflare; its Epicenter build selects focused Tauri
+implementations and is served under `/apps/whispering/`. Epicenter is the only
+native desktop runtime. There is no separately packaged Whispering Tauri app and
+no runtime branch that guesses which host it is running inside.
+
 The first release is a clean break. It does not read or migrate the old
 Whispering origin, app-data directory, settings, recipes, shortcuts, recordings,
 or permissions. Epicenter has no Bun-independent mode and no bundled production
@@ -58,6 +65,8 @@ resident; an explicit Quit stops and reaps Bun before Rust exits.
   product identity of the host.
 - Whispering keeps its existing data-owner split but receives a new origin,
   native app-data directory, bundle identity, and macOS permission identity.
+- The Whispering SPA remains browser-deployable from the same source tree; only
+  its standalone native desktop runtime is retired.
 - All trusted SPAs share one browser security origin. Workspace ids and database
   names separate their data logically, not as a sandbox or security boundary.
 - A production port collision or Bun boot failure prevents application windows
