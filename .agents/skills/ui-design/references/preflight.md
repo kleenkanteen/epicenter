@@ -15,6 +15,13 @@ Foundation:
   Uses @epicenter/ui primitives where appropriate.
   Does not import from packages/ui/src or stock $lib/components/ui paths.
   Does not create a one-off primitive when a local one exists.
+  Does not preserve inherited markup or styling merely for exact reproduction.
+
+Collapse:
+  No class-heavy wrapper survives when a primitive can own the composition.
+  Arbitrary values and custom colors have a named product or geometry reason.
+  Primitive overrides express parent layout or product state, not a second theme.
+  Surviving app-local UI owns app-specific behavior or product meaning.
 
 States:
   Loading, empty, error, disabled, selected, and pending states are considered.
@@ -34,7 +41,7 @@ Layout:
 Copy and visuals:
   Visible strings are reread.
   No obvious filler copy, fake precision, or generic placeholder names ship.
-  Visual change preserves the existing language unless a redesign was requested.
+  The user-visible objective survives even when inherited structure does not.
 ```
 
 ## Full Pre-Flight
@@ -51,6 +58,7 @@ System coherence:
   One palette and accent logic.
   One radius, shadow, and border language, or a named rule for variants.
   Typography matches the surface and does not rely on random font contrast.
+  Repeated visual contracts are promoted instead of copied locally.
 
 Hierarchy and density:
   The primary action or reading path is obvious.
