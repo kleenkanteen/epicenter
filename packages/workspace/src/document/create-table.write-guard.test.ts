@@ -154,8 +154,8 @@ describe('set write guard', () => {
 
 		ydoc.transact(() => {
 			// Simulate a v2 row landing in the same transaction. The observer has
-			// not run yet, so only YKeyValueLww's transaction-local read overlay
-			// can see it.
+			// not run yet, so the guard can see the row only through YKeyValueLww's
+			// transaction-local read overlay.
 			ykv.set('1', { id: '1', title: 'newer', rating: 1, _v: 2 });
 			const error = expectErr(table.set({ id: '1', title: 'stale' }));
 			expect(error.name).toBe('NewerWriterRefusal');

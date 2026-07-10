@@ -235,10 +235,11 @@ export class YKeyValueLww<T> implements ObservableKvStore<T>, Disposable {
 	 *   delete(key) when present
 	 *     pending.delete(key)
 	 *     pendingDeletes.add(key)       // reads report the key as absent
-	 *     yarray.delete(entry)
+	 *     deleteEntryByKey(key)         // finds and deletes the Y.Array index
 	 *
-	 *   get(key), has(key), entries()
-	 *     read precedence: pendingDeletes (absent) -> pending -> _map
+	 *   read view
+	 *     pendingDeletes hides keys
+	 *     pending overrides _map
 	 *
 	 * transaction closes
 	 *   observer updates _map and clears the matching overlays
@@ -384,8 +385,8 @@ export class YKeyValueLww<T> implements ObservableKvStore<T>, Disposable {
 				deletedItem.content
 					.getContent()
 					.forEach((entry: YKeyValueLwwEntry<T>) => {
-						// The observer has caught up with a local delete for this key.
-						// Clear the read overlay even if the deleted entry never reached _map
+						// A deletion for this key has reached the observer. Clear the local
+						// delete overlay even if the deleted entry never reached _map
 						// (for example, set+delete inside one outer transaction).
 						this.pendingDeletes.delete(entry.key);
 
@@ -591,17 +592,6 @@ export class YKeyValueLww<T> implements ObservableKvStore<T>, Disposable {
 	}
 
 	/**
-	 * Check if the Y.Doc is currently inside an active transaction.
-	 *
-	 * Yjs exposes no public transaction-depth API, so this uses the internal
-	 * `_transaction` field to let `set()` join a caller-owned transaction. The read
-	 * overlay above remains active until that transaction's observer runs.
-	 */
-	private isInTransaction(): boolean {
-		return this.doc._transaction !== null;
-	}
-
-	/**
 	 * Set a key-value pair with automatic timestamp.
 	 * The timestamp enables LWW conflict resolution during sync.
 	 *
@@ -644,17 +634,10 @@ export class YKeyValueLww<T> implements ObservableKvStore<T>, Disposable {
 		this.pending.set(key, entry);
 		this.pendingDeletes.delete(key);
 
-		const doWork = () => {
+		this.doc.transact(() => {
 			if (this._map.has(key)) this.deleteEntryByKey(key);
 			this.yarray.push([entry]);
-		};
-
-		// Avoid nested transactions - if already in one, just do the work
-		if (this.isInTransaction()) {
-			doWork();
-		} else {
-			this.doc.transact(doWork);
-		}
+		});
 
 		// DO NOT update this.map here - observer is the sole writer to map
 	}

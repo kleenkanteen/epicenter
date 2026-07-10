@@ -486,7 +486,7 @@ describe('YKeyValueLww', () => {
 				expect(keysDuringTransaction.sort()).toEqual(['a', 'b', 'c']);
 			});
 
-			test('entries() yields both confirmed and transaction-local values', () => {
+			test('entries() yields both observer-indexed and transaction-local values', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -508,7 +508,7 @@ describe('YKeyValueLww', () => {
 				expect(entriesDuringTransaction).toContainEqual(['new', 'value']);
 			});
 
-			test('entries() prefers transaction-local value over confirmed value for same key', () => {
+			test('entries() prefers transaction-local value over observer-indexed value for same key', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
