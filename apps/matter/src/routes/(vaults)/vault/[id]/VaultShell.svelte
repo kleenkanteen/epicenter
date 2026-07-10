@@ -18,7 +18,7 @@
 	} from '$lib/routes';
 	import { createVault } from '$lib/vault.svelte';
 	import DatabaseTab from './DatabaseTab.svelte';
-	import IntegrityPanel from './IntegrityPanel.svelte';
+	import IntegritySheet from './IntegritySheet.svelte';
 	import MatterSidebar from './MatterSidebar.svelte';
 	import SqlConsole from './SqlConsole.svelte';
 	import TablePane from './TablePane.svelte';
@@ -86,70 +86,82 @@
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-	{#await vault.whenReady}
-		<Loading class="flex-1" label="Loading {vault.folderName}" />
-	{:then _}
-		<!-- No tables means this folder is not marked and has no marked children (ADR-0029): matter is
-		     a declared store, so it shows nothing until a folder is adopted. Offer to adopt the root
-		     (write a `{}` marker); the watcher then surfaces it as an untyped table live. -->
-		{#if vault.tables.length === 0}
-			<Empty.Root class="flex-1 border-0">
-				<Empty.Media variant="icon"><LayersIcon /></Empty.Media>
-				<Empty.Title>Not a table yet</Empty.Title>
-				<Empty.Description>
-					{vault.folderName} has no matter.json, so matter shows nothing here. Adopt it to
-					create an untyped table from the markdown already inside, or add a matter.json
-					yourself.
-				</Empty.Description>
-				<Empty.Content>
-					<Button onclick={adopt} disabled={adopting}>
-						<LayersIcon />
-						{adopting ? 'Adopting...' : 'Adopt this folder as a table'}
-					</Button>
-					{#if adoptError}
-						<p class="text-sm text-destructive">{adoptError}</p>
-					{/if}
-				</Empty.Content>
-			</Empty.Root>
-		{:else}
-			<Sidebar.Provider bind:open={sidebarOpen} class="h-full min-h-0">
-				<MatterSidebar
-					tables={vault.tables}
-					{activeTable}
-					{activeSurface}
-					collapseOnNavigate={isNarrow.current}
-				/>
-				<Sidebar.Inset class="min-h-0 overflow-hidden">
-					<header class="flex min-h-12 items-center gap-2 border-b px-3">
-						<Sidebar.Trigger class="shrink-0" />
-						<h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{surfaceTitle}</h1>
-						{#if activeTable && activeSurface.kind !== 'panel'}
-							<nav aria-label="Table views" class="flex shrink-0 items-center gap-1 overflow-x-auto">
+	<Sidebar.Provider bind:open={sidebarOpen} class="h-full min-h-0">
+		<MatterSidebar
+			tables={vault.tables}
+			{activeTable}
+			{activeSurface}
+			collapseOnNavigate={isNarrow.current}
+		/>
+		<Sidebar.Inset class="min-h-0 overflow-hidden">
+			<header class="flex min-h-12 items-center gap-2 border-b px-3">
+				<Sidebar.Trigger class="shrink-0" />
+				<h1
+					class={[
+						'min-w-0 truncate text-sm font-semibold',
+						activeTable && activeSurface.kind !== 'panel' ? 'max-w-40 shrink-0' : 'flex-1',
+					]}
+				>
+					{surfaceTitle}
+				</h1>
+				{#if activeTable && activeSurface.kind !== 'panel'}
+					<nav aria-label="Table views" class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+						<Button
+							variant={activeSurface.kind === 'grid' ? 'secondary' : 'ghost'}
+							size="xs"
+							aria-current={activeSurface.kind === 'grid' ? 'page' : undefined}
+							onclick={() => goto(routes.table(activeTable.folderName), SWITCH_NAV)}
+						>
+							<Grid2x2Icon />
+							Grid
+						</Button>
+						{#if activeTable.read.view.mode === 'typed'}
+							{#each activeTable.read.view.contract.views as view (view.id)}
+								{@const isActive = activeSurface.kind === 'projection' && activeSurface.projection.id === view.id}
 								<Button
-									variant={activeSurface.kind === 'grid' ? 'secondary' : 'ghost'}
+									variant={isActive ? 'secondary' : 'ghost'}
 									size="xs"
-									onclick={() => goto(routes.table(activeTable.folderName), SWITCH_NAV)}
+									aria-current={isActive ? 'page' : undefined}
+									onclick={() => goto(routes.projection(activeTable.folderName, view.id), SWITCH_NAV)}
 								>
-									<Grid2x2Icon />
-									Grid
+									<KanbanIcon />
+									{view.title ?? view.id}
 								</Button>
-								{#if activeTable.read.view.mode === 'typed'}
-									{#each activeTable.read.view.contract.views as view (view.id)}
-										<Button
-											variant={activeSurface.kind === 'projection' && activeSurface.projection.id === view.id ? 'secondary' : 'ghost'}
-											size="xs"
-											onclick={() => goto(routes.projection(activeTable.folderName, view.id), SWITCH_NAV)}
-										>
-											<KanbanIcon />
-											{view.title ?? view.id}
-										</Button>
-									{/each}
-								{/if}
-							</nav>
+							{/each}
 						{/if}
-						<IntegrityPanel integrity={vault.integrity} />
-					</header>
+					</nav>
+				{/if}
+				{#if activeTable}
+					<IntegritySheet integrity={vault.integrity} />
+				{/if}
+			</header>
 
+			{#await vault.whenReady}
+				<Loading class="flex-1" label="Loading {vault.folderName}" />
+			{:then _}
+				<!-- No tables means this folder is not marked and has no marked children (ADR-0029): matter is
+				     a declared store, so it shows nothing until a folder is adopted. Offer to adopt the root
+				     (write a `{}` marker); the watcher then surfaces it as an untyped table live. -->
+				{#if vault.tables.length === 0}
+					<Empty.Root class="flex-1 border-0">
+						<Empty.Media variant="icon"><LayersIcon /></Empty.Media>
+						<Empty.Title>Not a table yet</Empty.Title>
+						<Empty.Description>
+							{vault.folderName} has no matter.json, so matter shows nothing here. Adopt it to
+							create an untyped table from the markdown already inside, or add a matter.json
+							yourself.
+						</Empty.Description>
+						<Empty.Content>
+							<Button onclick={adopt} disabled={adopting}>
+								<LayersIcon />
+								{adopting ? 'Adopting...' : 'Adopt this folder as a table'}
+							</Button>
+							{#if adoptError}
+								<p class="text-sm text-destructive">{adoptError}</p>
+							{/if}
+						</Empty.Content>
+					</Empty.Root>
+				{:else}
 					{#if activeSurface.kind === 'panel' && activeSurface.panel === 'sql'}
 						<SqlConsole {vault} defaultTable={activeTable?.folderName} />
 					{:else if activeSurface.kind === 'panel' && activeSurface.panel === 'db'}
@@ -165,16 +177,16 @@
 							/>
 						{/key}
 					{/if}
-				</Sidebar.Inset>
-			</Sidebar.Provider>
-		{/if}
-	{:catch error}
-		<Empty.Root class="flex-1 border-0">
-			<Empty.Media variant="icon"><FolderOpenIcon /></Empty.Media>
-			<Empty.Title>Couldn't open {vault.folderName}</Empty.Title>
-			<Empty.Description>
-				{error instanceof Error ? error.message : String(error)}
-			</Empty.Description>
-		</Empty.Root>
-	{/await}
+				{/if}
+			{:catch error}
+				<Empty.Root class="flex-1 border-0">
+					<Empty.Media variant="icon"><FolderOpenIcon /></Empty.Media>
+					<Empty.Title>Couldn't open {vault.folderName}</Empty.Title>
+					<Empty.Description>
+						{error instanceof Error ? error.message : String(error)}
+					</Empty.Description>
+				</Empty.Root>
+			{/await}
+		</Sidebar.Inset>
+	</Sidebar.Provider>
 </div>

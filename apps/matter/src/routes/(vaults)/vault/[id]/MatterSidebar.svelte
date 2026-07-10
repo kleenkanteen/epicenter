@@ -78,8 +78,13 @@
 								isActive={page.params.id === vault.id}
 								tooltipContent={basename(vault.root)}
 							>
-								{#snippet child({ props })}
-									<a href={routes.vault(vault.id)} onclick={finishNavigation} {...props}>
+							{#snippet child({ props })}
+								<a
+									href={routes.vault(vault.id)}
+									aria-current={page.params.id === vault.id ? 'page' : undefined}
+									onclick={finishNavigation}
+									{...props}
+								>
 										<FolderIcon />
 										<span>{basename(vault.root)}</span>
 									</a>
@@ -99,58 +104,66 @@
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 
-		<Sidebar.Separator />
+		{#if tables.length}
+			<Sidebar.Separator />
 
-		<Sidebar.Group>
-			<Sidebar.GroupLabel>Tables</Sidebar.GroupLabel>
-			<Sidebar.GroupContent>
-				<Sidebar.Menu>
-					{#each tables as table (table.folderName)}
+			<Sidebar.Group>
+				<Sidebar.GroupLabel>Tables</Sidebar.GroupLabel>
+				<Sidebar.GroupContent>
+					<Sidebar.Menu>
+						{#each tables as table (table.folderName)}
+							{@const isActive = activeSurface.kind !== 'panel' && activeTable?.folderName === table.folderName}
+							<Sidebar.MenuItem>
+								<Sidebar.MenuButton
+									{isActive}
+									aria-current={isActive ? 'page' : undefined}
+									onclick={() => selectSurface(routes.table(table.folderName))}
+								>
+									<Table2Icon />
+									<span>{table.folderName}</span>
+								</Sidebar.MenuButton>
+							</Sidebar.MenuItem>
+						{/each}
+					</Sidebar.Menu>
+				</Sidebar.GroupContent>
+			</Sidebar.Group>
+
+			<Sidebar.Group>
+				<Sidebar.GroupLabel>Tools</Sidebar.GroupLabel>
+				<Sidebar.GroupContent>
+					<Sidebar.Menu>
 						<Sidebar.MenuItem>
 							<Sidebar.MenuButton
-								isActive={activeSurface.kind !== 'panel' && activeTable?.folderName === table.folderName}
-								onclick={() => selectSurface(routes.table(table.folderName))}
+								isActive={activeSurface.kind === 'panel' && activeSurface.panel === 'sql'}
+								aria-current={activeSurface.kind === 'panel' && activeSurface.panel === 'sql' ? 'page' : undefined}
+								onclick={() => selectSurface(routes.panel('sql', activeTable?.folderName))}
 							>
-								<Table2Icon />
-								<span>{table.folderName}</span>
+								<TerminalIcon />
+								<span>SQL console</span>
 							</Sidebar.MenuButton>
 						</Sidebar.MenuItem>
-					{/each}
-				</Sidebar.Menu>
-			</Sidebar.GroupContent>
-		</Sidebar.Group>
-
-		<Sidebar.Group>
-			<Sidebar.GroupLabel>Tools</Sidebar.GroupLabel>
-			<Sidebar.GroupContent>
-				<Sidebar.Menu>
-					<Sidebar.MenuItem>
-						<Sidebar.MenuButton
-							isActive={activeSurface.kind === 'panel' && activeSurface.panel === 'sql'}
-							onclick={() => selectSurface(routes.panel('sql', activeTable?.folderName))}
-						>
-							<TerminalIcon />
-							<span>SQL console</span>
-						</Sidebar.MenuButton>
-					</Sidebar.MenuItem>
-					<Sidebar.MenuItem>
-						<Sidebar.MenuButton
-							isActive={activeSurface.kind === 'panel' && activeSurface.panel === 'db'}
-							onclick={() => selectSurface(routes.panel('db', activeTable?.folderName))}
-						>
-							<DatabaseIcon />
-							<span>Database</span>
-						</Sidebar.MenuButton>
-					</Sidebar.MenuItem>
-				</Sidebar.Menu>
-			</Sidebar.GroupContent>
-		</Sidebar.Group>
+						<Sidebar.MenuItem>
+							<Sidebar.MenuButton
+								isActive={activeSurface.kind === 'panel' && activeSurface.panel === 'db'}
+								aria-current={activeSurface.kind === 'panel' && activeSurface.panel === 'db' ? 'page' : undefined}
+								onclick={() => selectSurface(routes.panel('db', activeTable?.folderName))}
+							>
+								<DatabaseIcon />
+								<span>Database</span>
+							</Sidebar.MenuButton>
+						</Sidebar.MenuItem>
+					</Sidebar.Menu>
+				</Sidebar.GroupContent>
+			</Sidebar.Group>
+		{/if}
 	</Sidebar.Content>
 
-	<Sidebar.Footer>
-		<p class="truncate px-2 text-xs text-muted-foreground" title={activeTable?.path}>
-			{activeTable?.path}
-		</p>
-	</Sidebar.Footer>
+	{#if activeTable}
+		<Sidebar.Footer>
+			<p class="truncate px-2 text-xs text-muted-foreground" title={activeTable.path}>
+				{activeTable.path}
+			</p>
+		</Sidebar.Footer>
+	{/if}
 	<Sidebar.Rail />
 </Sidebar.Root>

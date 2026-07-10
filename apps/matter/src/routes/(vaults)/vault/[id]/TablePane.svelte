@@ -25,7 +25,7 @@
 	} = $props();
 
 	// This table's slice of the vault-wide integrity, selected from the one live model the
-	// IntegrityPanel also reads, so the grid's reference chips and the panel's findings agree by
+	// IntegritySheet also reads, so the grid's reference chips and the sheet's findings agree by
 	// construction. Derived here, next to the grid that consumes it, rather than threaded from the
 	// shell: the pane already holds the vault, so the slice is a pure selector with no prop hop.
 	const assessment = $derived(

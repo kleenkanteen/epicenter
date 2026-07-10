@@ -15,7 +15,7 @@
 		type Violation,
 	} from '@epicenter/matter-core';
 
-	// The one "what is wrong" surface for the whole vault, a pure selector over the live
+	// The one "what is wrong" sheet for the whole vault, a pure selector over the live
 	// VaultIntegrity. It re-decides nothing: `toViolations` and `summarize` read the same vault
 	// assessment the grid renders, so the panel and the grid can never disagree.
 	let { integrity }: { integrity: VaultIntegrity } = $props();
