@@ -5,7 +5,7 @@ import type { KeyBinding } from '$lib/utils/key-binding';
 import type { ShortcutConflict, Shortcuts } from './types';
 
 /** A command paired with its current stored binding (`null` = unbound). */
-export type ShortcutEntry = {
+type ShortcutEntry = {
 	command: Command;
 	binding: KeyBinding | null;
 };
@@ -18,7 +18,7 @@ export type ShortcutEntry = {
  * orchestration, reset, label dispatch) is identical and lives in
  * {@link createShortcuts}, so each backend supplies just these primitives.
  */
-export type ShortcutBackend = {
+type ShortcutBackend = {
 	/** This command's currently stored binding (`null` = unbound). */
 	read(commandId: Command['id']): KeyBinding | null;
 	/** This command's default binding (`null` = unbound by default). */

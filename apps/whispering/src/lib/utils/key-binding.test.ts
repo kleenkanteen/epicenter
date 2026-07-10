@@ -4,7 +4,6 @@ import {
 	domCodeToKey,
 	isRegistrableChord,
 	keyBindingToAccelerator,
-	keyCapability,
 	realizedReach,
 } from './key-binding';
 
@@ -104,26 +103,6 @@ test('domCodeToKey is the inverse of acceleratorKey for every chord key', () => 
 		expect(code).toBeDefined();
 		expect(domCodeToKey(code as string)).toBe(key);
 	}
-});
-
-test('keyCapability: a chord reaches global', () => {
-	expect(keyCapability({ modifiers: ['meta', 'shift'], keys: ['space'] })).toBe(
-		'global',
-	);
-});
-
-test('keyCapability: a bare key caps at focused', () => {
-	// A global bare key would swallow that key in every app, so it can only act
-	// in-app no matter the platform.
-	expect(keyCapability({ modifiers: [], keys: ['space'] })).toBe('focused');
-});
-
-test('keyCapability: Fn and modifier-only holds are not global (refused)', () => {
-	// Refused as a product surface (ADR-0117); they are not registrable chords, so
-	// they reach at most in-app.
-	expect(keyCapability({ modifiers: ['fn'], keys: [] })).toBe('focused');
-	expect(keyCapability({ modifiers: ['fn'], keys: ['space'] })).toBe('focused');
-	expect(keyCapability({ modifiers: ['meta'], keys: [] })).toBe('focused');
 });
 
 // The worked table from ADR-0052: realizedReach = min(command, key, platform).

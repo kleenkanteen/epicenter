@@ -11,7 +11,7 @@ import {
 import type { ShortcutConflict, Shortcuts } from './types';
 
 /** The reach ceiling per command, the only slice of the catalog the router reads. */
-export type CommandReach = { id: Command['id']; reach: Reach };
+type CommandReach = { id: Command['id']; reach: Reach };
 
 /**
  * Both stored slots for one command. A command can hold a focused binding and a
@@ -20,7 +20,7 @@ export type CommandReach = { id: Command['id']; reach: Reach };
  * honest read, not a single binding. `global` is always `null` on web, where no
  * system backend exists. See ADR-0052.
  */
-export type CommandBindings = {
+type CommandBindings = {
 	focused: KeyBinding | null;
 	global: KeyBinding | null;
 };
@@ -33,7 +33,7 @@ export type CommandBindings = {
  * clears (a command may hold both). The per-tier conflict policy and the storage
  * scheme stay owned by the underlying surfaces; this only routes. See ADR-0052.
  */
-export type RoutedShortcuts = {
+type RoutedShortcuts = {
 	/** Push every command's bindings to both backends (the global one only on desktop). */
 	sync(): Promise<void>;
 	/** Restore every shortcut in both stores to its default, then re-sync. */

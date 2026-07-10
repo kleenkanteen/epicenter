@@ -305,7 +305,7 @@ export function isRegistrableChord(binding: BindingLike): boolean {
  * that key in every app, and holds are not valid global shortcuts. No shortcut
  * reach needs an Accessibility grant (ADR-0117). Callers pass a non-empty binding.
  */
-export function keyCapability(binding: BindingLike): Reach {
+function keyCapability(binding: BindingLike): Reach {
 	return isRegistrableChord(binding) ? 'global' : 'focused';
 }
 
