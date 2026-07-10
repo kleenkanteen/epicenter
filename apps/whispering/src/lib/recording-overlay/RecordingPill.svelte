@@ -7,6 +7,7 @@
 	import SquareIcon from '@lucide/svelte/icons/square';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
+	import type { Component } from 'svelte';
 	import type { DeliveryReach } from '$lib/operations/delivery';
 	import {
 		FAILURE_LABEL,
@@ -48,10 +49,6 @@
 	// non-recording phase, which the chip block below renders instead.
 	const recording = $derived(status?.phase === 'recording' ? status : null);
 
-	// Speech-latched tints the meter bars, but only in a VAD session (a manual take
-	// never latches), named here so the bar tint reads as one thought.
-	const isSpeaking = $derived(recording?.trigger === 'vad' && recording.speaking);
-
 	// Every non-recording phase is a "chip": one icon plus a short, fixed label,
 	// with a tone that tints the icon (and, when failed, the whole pill). They
 	// render through one block below instead of a branch apiece. The label is
@@ -60,7 +57,7 @@
 	// notification and the recordings row (ADR-0039).
 	type ChipTone = 'neutral' | 'success' | 'degraded' | 'failed';
 	type Chip = {
-		icon: typeof CheckIcon | 'spinner';
+		Icon: Component<{ class?: string }>;
 		label: string;
 		tone: ChipTone;
 	};
@@ -68,9 +65,9 @@
 	// A delivery is a success at both reaches: a clean `output` reads green; the
 	// `clipboard` fallback reads amber, "landed, but not where you asked".
 	const DELIVERED_CHIP = {
-		output: { icon: CheckIcon, label: 'Delivered', tone: 'success' },
+		output: { Icon: CheckIcon, label: 'Delivered', tone: 'success' },
 		clipboard: {
-			icon: CheckIcon,
+			Icon: CheckIcon,
 			label: 'Copied to clipboard',
 			tone: 'degraded',
 		},
@@ -84,7 +81,7 @@
 		switch (status.phase) {
 			case 'transcribing':
 				return {
-					icon: 'spinner',
+					Icon: Spinner,
 					label: 'Transcribing',
 					tone: 'neutral',
 				};
@@ -92,7 +89,7 @@
 				return DELIVERED_CHIP[status.reach];
 			case 'failed':
 				return {
-					icon: TriangleAlertIcon,
+					Icon: TriangleAlertIcon,
 					label: FAILURE_LABEL[status.tier],
 					tone: 'failed',
 				};
@@ -105,21 +102,6 @@
 	// press-scale glide together at 150ms.
 	const actionBase =
 		'flex size-6 cursor-pointer items-center justify-center rounded-full bg-white/10 text-white/90 transition duration-150 ease-out hover:scale-[1.08] active:scale-95';
-
-	function handleStop(event: MouseEvent) {
-		event.stopPropagation();
-		onStop();
-	}
-
-	function handleCancel(event: MouseEvent) {
-		event.stopPropagation();
-		onCancel();
-	}
-
-	function handleShipRaw(event: MouseEvent) {
-		event.stopPropagation();
-		onShipRaw();
-	}
 </script>
 
 <!-- The desktop pill lives in a non-focusable overlay window. Clicking its body
@@ -166,7 +148,9 @@
 			<LevelMeter
 				{level}
 				class="h-5"
-				barClass={isSpeaking ? 'bg-[#ffe5ee]' : undefined}
+				barClass={recording.trigger === 'vad' && recording.speaking
+					? 'bg-[#ffe5ee]'
+					: undefined}
 			/>
 
 			<!-- Trailing cluster: a contextual slot, then stop as the constant right
@@ -183,7 +167,10 @@
 						class={cn(actionBase, 'hover:bg-[#faa2ca]/20 hover:text-[#ffd2e4]')}
 						aria-label="Cancel recording"
 						title="Cancel recording"
-						onclick={handleCancel}
+						onclick={(event) => {
+							event.stopPropagation();
+							onCancel();
+						}}
 					>
 						<XIcon class="size-4" />
 					</button>
@@ -210,12 +197,15 @@
 					title={recording.trigger === 'manual'
 						? 'Stop recording'
 						: 'Stop listening'}
-					onclick={handleStop}
+					onclick={(event) => {
+						event.stopPropagation();
+						onStop();
+					}}
 				>
 					<SquareIcon class="size-3.5" />
 				</button>
 			</div>
-		{:else if status?.phase === 'polishing'}
+		{:else if status.phase === 'polishing'}
 			<!-- The Polish HUD holds the same spot as a chip: a spinner and "Polishing…"
 			     mask the ~1s AI pass, with a single ship-raw control to skip it and take
 			     the raw transcript now (ADR-0099). Unlike a chip, it carries an action. -->
@@ -228,7 +218,10 @@
 				class={cn(actionBase, 'hover:bg-[#faa2ca]/20 hover:text-[#ffd2e4]')}
 				aria-label="Ship raw transcript now"
 				title="Ship raw transcript now"
-				onclick={handleShipRaw}
+				onclick={(event) => {
+					event.stopPropagation();
+					onShipRaw();
+				}}
 			>
 				<XIcon class="size-4" />
 			</button>
@@ -236,6 +229,7 @@
 			<!-- One chip block for every non-recording phase. A failure is glanceable
 			     by design: the terse label, no action; detail and retry live on the
 			     recordings row (ADR-0039). -->
+			{@const Icon = chip.Icon}
 			<div
 				class={cn(
 					'flex items-center text-white/80',
@@ -247,12 +241,7 @@
 					chip.tone === 'failed' && 'text-[#ffb4b4]',
 				)}
 			>
-				{#if chip.icon === 'spinner'}
-					<Spinner class="size-4" />
-				{:else}
-					{@const Icon = chip.icon}
-					<Icon class="size-4" />
-				{/if}
+				<Icon class="size-4" />
 			</div>
 			<!-- The label takes only its text's width in the snug chip. Labels are
 			     closed, short tokens that fit the fixed-width pill; truncate's ellipsis
