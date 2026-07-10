@@ -71,13 +71,6 @@
 		return byFile;
 	});
 
-	function verdictFor(
-		fileName: string,
-		fieldName: string,
-	): ReferenceVerdict | undefined {
-		return referenceVerdicts.get(fileName)?.get(fieldName);
-	}
-
 	// The stems the query matched, in SQL order, or undefined when no control is active (then the grid
 	// renders the in-memory rows in their natural order). `isQuerying` is whether any control is set.
 	const orderedStems = $derived(query?.orderedStems);
@@ -549,7 +542,7 @@
 									</div>
 								</Table.Cell>
 								{#each conf.cells as cell (cell.field.name)}
-									{@const verdict = verdictFor(conf.row.fileName, cell.field.name)}
+									{@const verdict = referenceVerdicts.get(conf.row.fileName)?.get(cell.field.name)}
 									<Table.Cell
 										aria-invalid={cell.state === 'INVALID' || cell.state === 'MISSING_REQUIRED'}
 										class={[
