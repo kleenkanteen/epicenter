@@ -501,25 +501,30 @@ The milestone explicitly excludes:
 
 ### Wave 3: Transplant Whispering native mechanisms
 
-- [ ] Move the recorder, audio, transcription, shortcut, clipboard, overlay, and permission modules into Epicenter Rust.
-- [ ] Move required Cargo dependencies, resources, entitlements, and usage descriptions.
-- [ ] Preserve focused command names and generated bindings where practical.
-- [ ] Add fresh Epicenter microphone and Accessibility onboarding.
-- [ ] Do not generalize the Rust modules during the move.
+- [x] Move the recorder, audio, transcription, shortcut, clipboard, overlay, and permission modules into Epicenter Rust.
+- [x] Move required Cargo dependencies, resources, entitlements, and usage descriptions.
+- [x] Preserve focused command names and generated bindings where practical.
+- [x] Add fresh Epicenter microphone and Accessibility onboarding.
+- [x] Do not generalize the Rust modules during the move.
 
 ### Wave 4: Transplant the Whispering SPA
 
-- [ ] Serve the existing functional Whispering UI at `/apps/whispering/`.
-- [ ] Preserve its WebView-owned Yjs/IndexedDB workspace.
-- [ ] Preserve native artifact-by-ID handling.
-- [ ] Replace Whispering-specific app, window, tray, and navigation assumptions.
+- [x] Serve the existing functional Whispering UI at `/apps/whispering/`.
+- [x] Preserve its WebView-owned Yjs/IndexedDB workspace.
+- [x] Preserve native artifact-by-ID handling.
+- [x] Replace Whispering-specific app, window, tray, and navigation assumptions.
 - [ ] Prove the complete local dictation path.
-- [ ] Leave old standalone source on disk but stop importing it.
+- [x] Leave old standalone source on disk but stop importing it.
 
 ### Wave 5: Prove and delete
 
 - [ ] Run every milestone verification gate with old paths unimported.
-- [ ] Test a production `.app` from `/Applications`.
+- [x] Test a production `.app` from `/Applications`.
+  > **Checkpoint:** The hardened-runtime, ad hoc signed bundle validates under
+  > `codesign --verify --deep --strict`, runs from `/Applications/Epicenter.app`,
+  > binds only 39130 despite overrides, serves all four routes, keeps one
+  > Rust/Bun pair on warm opens, refuses collisions without fallback, and leaves
+  > no Bun orphan after either normal or forced Rust termination.
 - [ ] Use Computer Use for visible window, Dock, menu-bar, permission, and shortcut evidence.
 - [ ] Delete the old standalone Super Chat identity and Whispering runtime only after proof.
 - [ ] Keep Mail and Books production work for later specs.
