@@ -2,22 +2,25 @@
 	import { Button } from '@epicenter/ui/button';
 	import * as Empty from '@epicenter/ui/empty';
 	import { Loading } from '@epicenter/ui/loading';
-	import DatabaseIcon from '@lucide/svelte/icons/database';
+	import * as Sidebar from '@epicenter/ui/sidebar';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+	import Grid2x2Icon from '@lucide/svelte/icons/grid-2x2';
+	import KanbanIcon from '@lucide/svelte/icons/kanban';
 	import LayersIcon from '@lucide/svelte/icons/layers';
-	import TerminalIcon from '@lucide/svelte/icons/terminal';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
 		resolveVaultSurface,
 		routes,
+		SWITCH_NAV,
 		TABLE_PARAM,
-		type VaultPanel,
 	} from '$lib/routes';
 	import { createVault } from '$lib/vault.svelte';
 	import DatabaseTab from './DatabaseTab.svelte';
 	import IntegrityPanel from './IntegrityPanel.svelte';
+	import MatterSidebar from './MatterSidebar.svelte';
 	import SqlConsole from './SqlConsole.svelte';
-	import SurfacePill from './SurfacePill.svelte';
 	import TablePane from './TablePane.svelte';
 
 	let { root }: { root: string } = $props();
@@ -49,12 +52,21 @@
 		resolveVaultSurface(page.url.searchParams, activeTable?.read.view),
 	);
 
-	// Opening a panel keeps `?table` so the console defaults to the table you were on (the Database
-	// panel is table-agnostic, so it just ignores it). `?panel` owns vault-wide panels; `?view` is
-	// reserved for table-scoped projections.
-	function panelHref(panel: VaultPanel): string {
-		return routes.panel(panel, activeTable?.folderName);
-	}
+	const isNarrow = new MediaQuery('(max-width: 899px)');
+	let sidebarOpen = $state(true);
+	$effect(() => {
+		sidebarOpen = !isNarrow.current;
+	});
+
+	const surfaceTitle = $derived.by(() => {
+		if (activeSurface.kind === 'panel') {
+			return activeSurface.panel === 'sql' ? 'SQL console' : 'Database';
+		}
+		if (activeSurface.kind === 'projection') {
+			return activeSurface.projection.title ?? activeSurface.projection.id;
+		}
+		return activeTable?.folderName ?? vault.folderName;
+	});
 
 	// Adopt the root as a table (writes the `{}` marker). The watcher re-scans on the new marker and
 	// surfaces the table live, so success needs no manual refresh; only a write failure shows here.
@@ -73,7 +85,7 @@
 	}
 </script>
 
-<div class="flex min-h-0 flex-1 flex-col">
+<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
 	{#await vault.whenReady}
 		<Loading class="flex-1" label="Loading {vault.folderName}" />
 	{:then _}
@@ -100,55 +112,61 @@
 				</Empty.Content>
 			</Empty.Root>
 		{:else}
-			<div class="flex min-h-10 items-center gap-1 border-b px-2 py-1">
-				<div class="flex flex-1 items-center gap-1 overflow-x-auto">
-					{#each vault.tables as table (table.folderName)}
-						<SurfacePill
-							active={activeSurface.kind !== 'panel' &&
-								activeTable?.folderName === table.folderName}
-							to={routes.table(table.folderName)}
-						>
-							{table.folderName}
-						</SurfacePill>
-					{/each}
-				</div>
-				<!-- The two vault-wide views, set off from the per-table tabs: SQL is the query face, the
-				     Database panel is the "this is a SQLite database" face. -->
-				<div class="flex shrink-0 items-center gap-1 border-l pl-1">
-					<SurfacePill
-						active={activeSurface.kind === 'panel' &&
-							activeSurface.panel === 'sql'}
-						to={panelHref('sql')}
-					>
-						<TerminalIcon class="size-4" />
-						SQL
-					</SurfacePill>
-					<SurfacePill
-						active={activeSurface.kind === 'panel' &&
-							activeSurface.panel === 'db'}
-						to={panelHref('db')}
-					>
-						<DatabaseIcon class="size-4" />
-						Database
-					</SurfacePill>
-				</div>
-			</div>
-			{#if activeSurface.kind === 'panel' && activeSurface.panel === 'sql'}
-				<SqlConsole {vault} defaultTable={activeTable?.folderName} />
-			{:else if activeSurface.kind === 'panel' && activeSurface.panel === 'db'}
-				<DatabaseTab {vault} />
-			{:else if activeTable}
-				{#key activeTable}
-					<TablePane
-						{vault}
-						table={activeTable}
-						projection={activeSurface.kind === 'projection'
-							? activeSurface.projection
-							: undefined}
-					/>
-				{/key}
-			{/if}
-			<IntegrityPanel integrity={vault.integrity} />
+			<Sidebar.Provider bind:open={sidebarOpen} class="h-full min-h-0">
+				<MatterSidebar
+					tables={vault.tables}
+					{activeTable}
+					{activeSurface}
+					collapseOnNavigate={isNarrow.current}
+				/>
+				<Sidebar.Inset class="min-h-0 overflow-hidden">
+					<header class="flex min-h-12 items-center gap-2 border-b px-3">
+						<Sidebar.Trigger class="shrink-0" />
+						<h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{surfaceTitle}</h1>
+						{#if activeTable && activeSurface.kind !== 'panel'}
+							<nav aria-label="Table views" class="flex shrink-0 items-center gap-1 overflow-x-auto">
+								<Button
+									variant={activeSurface.kind === 'grid' ? 'secondary' : 'ghost'}
+									size="xs"
+									onclick={() => goto(routes.table(activeTable.folderName), SWITCH_NAV)}
+								>
+									<Grid2x2Icon />
+									Grid
+								</Button>
+								{#if activeTable.read.view.mode === 'typed'}
+									{#each activeTable.read.view.contract.views as view (view.id)}
+										<Button
+											variant={activeSurface.kind === 'projection' && activeSurface.projection.id === view.id ? 'secondary' : 'ghost'}
+											size="xs"
+											onclick={() => goto(routes.projection(activeTable.folderName, view.id), SWITCH_NAV)}
+										>
+											<KanbanIcon />
+											{view.title ?? view.id}
+										</Button>
+									{/each}
+								{/if}
+							</nav>
+						{/if}
+						<IntegrityPanel integrity={vault.integrity} />
+					</header>
+
+					{#if activeSurface.kind === 'panel' && activeSurface.panel === 'sql'}
+						<SqlConsole {vault} defaultTable={activeTable?.folderName} />
+					{:else if activeSurface.kind === 'panel' && activeSurface.panel === 'db'}
+						<DatabaseTab {vault} />
+					{:else if activeTable}
+						{#key activeTable}
+							<TablePane
+								{vault}
+								table={activeTable}
+								projection={activeSurface.kind === 'projection'
+									? activeSurface.projection
+									: undefined}
+							/>
+						{/key}
+					{/if}
+				</Sidebar.Inset>
+			</Sidebar.Provider>
 		{/if}
 	{:catch error}
 		<Empty.Root class="flex-1 border-0">

@@ -1,4 +1,9 @@
 <script lang="ts">
+	import { Badge } from '@epicenter/ui/badge';
+	import { Button } from '@epicenter/ui/button';
+	import * as Empty from '@epicenter/ui/empty';
+	import * as Item from '@epicenter/ui/item';
+	import * as Sheet from '@epicenter/ui/sheet';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import {
@@ -47,53 +52,87 @@
 	}
 </script>
 
-<aside class="border-t bg-muted/30 text-xs">
-	<div class="flex items-center gap-2 px-3 py-1.5 font-medium">
-		{#if clean}
-			<CircleCheckIcon class="size-3.5 text-emerald-600 dark:text-emerald-400" />
-			<span>
-				All references resolve · {summary.totals.ready} ready across {summary
-					.totals.tables}
+<Sheet.Root>
+	<Sheet.Trigger>
+		{#snippet child({ props })}
+			<Button
+				variant={clean ? 'ghost' : 'outline'}
+				size="xs"
+				aria-label={clean ? 'Vault integrity is clean' : `Open ${issueCount} integrity issues`}
+				{...props}
+			>
+				{#if clean}
+					<CircleCheckIcon class="text-emerald-600 dark:text-emerald-400" />
+					<span class="hidden sm:inline">Integrity</span>
+				{:else}
+					<TriangleAlertIcon class="text-amber-600 dark:text-amber-400" />
+					<span class="hidden sm:inline">Integrity</span>
+					<Badge variant="secondary">{issueCount}</Badge>
+				{/if}
+			</Button>
+		{/snippet}
+	</Sheet.Trigger>
+	<Sheet.Content class="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+		<Sheet.Header class="border-b px-5 py-4 text-left">
+			<Sheet.Title>Vault integrity</Sheet.Title>
+			<Sheet.Description>
+				{summary.totals.ready} ready across {summary.totals.tables}
 				{summary.totals.tables === 1 ? 'table' : 'tables'}
-			</span>
-		{:else}
-			<TriangleAlertIcon class="size-3.5 text-amber-600 dark:text-amber-400" />
-			<span>
-				{issueCount}
-				{issueCount === 1 ? 'issue' : 'issues'} · {summary.totals.ready} ready
-			</span>
-		{/if}
-	</div>
+			</Sheet.Description>
+		</Sheet.Header>
 
-	{#if !clean}
-		<ul class="max-h-40 space-y-1 overflow-y-auto border-t px-3 py-1.5">
-			{#each fatals as table (table.name)}
-				<li class="flex gap-2 text-destructive">
-					<span class="font-mono">{table.name}</span>
-					<span class="text-muted-foreground">
-						{table.status === 'unreadable' ? "can't read" : 'invalid contract'}:
-						{'message' in table ? table.message : ''}
-					</span>
-				</li>
-			{/each}
-			{#each unreadableFiles as file (`${file.table}/${file.fileName}`)}
-				<li class="flex gap-2 text-destructive">
-					<span class="font-mono">{file.table}/{file.fileName}</span>
-					<span class="text-muted-foreground">can't read: {file.message}</span>
-				</li>
-			{/each}
-			{#each violations as violation, index (index)}
-				<li
-					class={[
-						'flex gap-2',
-						violation.kind === 'missing-target'
-							? 'text-amber-700 dark:text-amber-400'
-							: 'text-destructive',
-					]}
-				>
-					<span>{describe(violation)}</span>
-				</li>
-			{/each}
-		</ul>
-	{/if}
-</aside>
+		<div class="min-h-0 flex-1 overflow-y-auto p-3">
+			{#if clean}
+				<Empty.Root class="min-h-full border-0">
+					<Empty.Media variant="icon"><CircleCheckIcon /></Empty.Media>
+					<Empty.Title>Everything resolves</Empty.Title>
+					<Empty.Description>
+						Every readable row matches its contract and all references resolve.
+					</Empty.Description>
+				</Empty.Root>
+			{:else}
+				<Item.Group class="gap-2">
+					{#each fatals as table (table.name)}
+						<Item.Root variant="outline" size="sm" role="listitem">
+							<Item.Content>
+								<Item.Title class="font-mono text-destructive">{table.name}</Item.Title>
+								<Item.Description class="line-clamp-none">
+									{table.status === 'unreadable' ? "Can't read table" : 'Invalid contract'}:
+									{'message' in table ? table.message : ''}
+								</Item.Description>
+							</Item.Content>
+						</Item.Root>
+					{/each}
+					{#each unreadableFiles as file (`${file.table}/${file.fileName}`)}
+						<Item.Root variant="outline" size="sm" role="listitem">
+							<Item.Content>
+								<Item.Title class="font-mono text-destructive">
+									{file.table}/{file.fileName}
+								</Item.Title>
+								<Item.Description class="line-clamp-none">
+									Can't read: {file.message}
+								</Item.Description>
+							</Item.Content>
+						</Item.Root>
+					{/each}
+					{#each violations as violation, index (index)}
+						<Item.Root variant="outline" size="sm" role="listitem">
+							<Item.Content>
+								<Item.Title
+									class={violation.kind === 'missing-target'
+										? 'text-amber-700 dark:text-amber-400'
+										: 'text-destructive'}
+								>
+									{violation.kind.replaceAll('-', ' ')}
+								</Item.Title>
+								<Item.Description class="line-clamp-none font-mono text-xs">
+									{describe(violation)}
+								</Item.Description>
+							</Item.Content>
+						</Item.Root>
+					{/each}
+				</Item.Group>
+			{/if}
+		</div>
+	</Sheet.Content>
+</Sheet.Root>
