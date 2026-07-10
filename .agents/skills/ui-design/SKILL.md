@@ -90,8 +90,9 @@ details that serve the chosen direction.
 ## References
 
 - Read [references/component-system.md](references/component-system.md) for every
-  meaningful Epicenter product UI implementation or review. It owns component
-  selection, collapse smells, exceptions, package boundaries, and promotion rules.
+  meaningful Epicenter product UI implementation or review. It owns collapse
+  smells and exceptions, then routes exact component and package mechanics to
+  the authoritative `packages/ui` guide.
 - Read [references/anti-slop-tells.md](references/anti-slop-tells.md) for public,
   marketing, docs, portfolio-like, or highly polished work where templated output
   is a material risk.
