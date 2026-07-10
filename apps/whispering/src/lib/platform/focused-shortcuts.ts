@@ -4,8 +4,7 @@ import {
 	LocalShortcutManagerLive,
 } from '$lib/services/local-shortcut-manager';
 import { settings } from '$lib/state/settings.svelte';
-import type { KeyBinding } from '$lib/tauri/commands';
-import { bindingsEqual } from '$lib/utils/key-binding';
+import { bindingsEqual, type KeyBinding } from '$lib/utils/key-binding';
 import { createShortcuts } from './shortcuts.shared';
 import type { Shortcuts } from './types';
 

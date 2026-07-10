@@ -1,9 +1,13 @@
 import type { Command } from '$lib/commands';
-import type { KeyBinding } from '$lib/tauri/commands';
 // Relative, not `$lib`: the router carries no runtime `$lib` import so it stays
 // free of the catalog's operations/`#platform` graph and unit-testable in
 // isolation. `key-binding` itself has only type imports, so this is its lone dep.
-import { bindingsEqual, type Reach, realizedReach } from '../utils/key-binding';
+import {
+	bindingsEqual,
+	type KeyBinding,
+	type Reach,
+	realizedReach,
+} from '../utils/key-binding';
 import type { ShortcutConflict, Shortcuts } from './types';
 
 /** The reach ceiling per command, the only slice of the catalog the router reads. */

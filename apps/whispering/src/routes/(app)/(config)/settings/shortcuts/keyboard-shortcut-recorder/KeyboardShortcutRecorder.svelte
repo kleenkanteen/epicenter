@@ -10,10 +10,10 @@
 	import { os } from '#platform/os';
 	import { shortcuts } from '$lib/platform/shortcuts';
 	import { report } from '$lib/report';
-	import type { KeyBinding } from '$lib/tauri/commands';
 	import {
 		isEmptyBinding,
 		keyBindingToLabel,
+		type KeyBinding,
 		type Reach,
 	} from '$lib/utils/key-binding';
 	import { createChordRecorder } from './create-chord-recorder';

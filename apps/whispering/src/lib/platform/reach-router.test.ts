@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import type { KeyBinding } from '$lib/tauri/commands';
+import type { KeyBinding } from '$lib/utils/key-binding';
 import { type CommandReach, createReachRouter } from './reach-router';
 import type { ShortcutConflict, Shortcuts } from './types';
 

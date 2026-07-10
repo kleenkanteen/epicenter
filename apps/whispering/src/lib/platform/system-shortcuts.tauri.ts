@@ -5,12 +5,12 @@ import {
 	DEFAULT_GLOBAL_BINDINGS,
 	deviceConfig,
 } from '$lib/state/device-config.svelte';
-import type { KeyBinding } from '$lib/tauri/commands';
 import { type ChordRegistration, tauriOnly } from '$lib/tauri.tauri';
 import {
 	bindingsOverlap,
 	isEmptyBinding,
 	isRegistrableChord,
+	type KeyBinding,
 	resolveBinding,
 } from '$lib/utils/key-binding';
 import { validateGlobalBinding } from '$lib/utils/reserved-shortcuts';
@@ -32,9 +32,9 @@ import type { Shortcuts } from './types';
 const globalKey = (id: Command['id']) => `shortcuts.global.${id}` as const;
 
 /**
- * The stored shape's `keys` are plain `string[]` (validated structurally in
- * device-config), so the read crosses into the IPC `KeyBinding` (`keys: Key[]`)
- * with one documented cast at this boundary.
+ * Device-config validates `keys` structurally as `string[]`, so this read is the
+ * boundary that narrows the stored value to `KeyBinding`. The registrability
+ * check below rejects any key string the plugin vocabulary cannot spell.
  *
  * A stale persisted binding that is not a registrable plugin chord (a
  * pre-ADR-0117 Fn or modifier-only hold) is sanitized to `null`: it no longer

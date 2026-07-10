@@ -8,7 +8,7 @@ import {
 	nullable,
 } from '@epicenter/workspace';
 import { Type } from 'typebox';
-import type { KeyBinding } from '$lib/tauri/commands';
+import type { KeyBinding } from '$lib/utils/key-binding';
 
 // ── Constant imports ─────────────────────────────────────────────────────────
 
@@ -267,11 +267,11 @@ const analytics = {
 
 /**
  * A stored in-app shortcut: the structured `KeyBinding` the keydown matcher and
- * the system tier both speak (physical-key space). `modifiers` is enumerated;
- * `keys` is validated as strings here and against the real `Key` vocabulary by
- * Rust at the IPC boundary. This is the same shape device-config stores for the
- * global tier; persisting it here too (not a joined string) lets both stores read
- * and write the binding directly, with no manual-grammar codec in between.
+ * the system tier both speak (physical-key space). `modifiers` is enumerated and
+ * `keys` is validated structurally as strings. This is the same shape
+ * device-config stores for the global tier; persisting it here too (not a joined
+ * string) lets both stores read and write the binding directly, with no
+ * manual-grammar codec in between.
  */
 const KeyBindingSchema = Type.Object({
 	modifiers: Type.Array(

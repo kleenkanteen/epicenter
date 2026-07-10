@@ -12,7 +12,7 @@
 
 import type { createAppAuthClient } from '@epicenter/svelte/auth';
 import type { Command } from '$lib/commands';
-import type { KeyBinding } from '$lib/tauri/commands';
+import type { KeyBinding } from '$lib/utils/key-binding';
 
 /**
  * Why a binding cannot be assigned, as structured data rather than prose. The
