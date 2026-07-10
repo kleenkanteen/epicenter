@@ -126,7 +126,9 @@ test('isRegistrableChord names the registrable-chord boundary', () => {
 	expect(
 		isRegistrableChord({ modifiers: ['meta', 'shift'], keys: ['space'] }),
 	).toBe(true);
-	expect(isRegistrableChord({ modifiers: ['fn'], keys: ['space'] })).toBe(false);
+	expect(isRegistrableChord({ modifiers: ['fn'], keys: ['space'] })).toBe(
+		false,
+	);
 	expect(isRegistrableChord({ modifiers: ['meta'], keys: [] })).toBe(false);
 	expect(isRegistrableChord({ modifiers: [], keys: ['keyA'] })).toBe(false);
 });
@@ -224,7 +226,11 @@ test('realizedReach: a global command on a bare key on desktop is focused', () =
 test('realizedReach: a focused command on a chord on desktop stays focused', () => {
 	// The command's nature is the floor: a capable chord cannot escape it.
 	expect(
-		realizedReach('focused', { modifiers: ['meta'], keys: ['comma'] }, 'global'),
+		realizedReach(
+			'focused',
+			{ modifiers: ['meta'], keys: ['comma'] },
+			'global',
+		),
 	).toBe('focused');
 });
 

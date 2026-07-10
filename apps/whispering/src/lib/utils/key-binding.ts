@@ -247,7 +247,10 @@ export function realizedReach(
 	binding: BindingLike,
 	platformReach: Reach,
 ): Reach {
-	return minReach(minReach(commandReach, keyCapability(binding)), platformReach);
+	return minReach(
+		minReach(commandReach, keyCapability(binding)),
+		platformReach,
+	);
 }
 
 /**
