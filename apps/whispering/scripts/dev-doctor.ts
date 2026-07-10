@@ -8,10 +8,9 @@
  * stick: where the dev binary is, its code-signing Identifier, signature,
  * designated requirement, whether those match the dev identity, and the reset
  * command to copy. The LIVE facts (AXIsProcessTrusted, the current
- * DictationCapability, the rdev listener's last stop reason) are owned by the
- * running app's Rust supervisor and surface in the app itself plus the Tauri
- * log, so this script points there rather than guessing them from outside the
- * process.
+ * DictationCapability, the grant watcher's last stop reason) are owned by the
+ * running app's Rust supervisor and surface in the app itself plus the Tauri log,
+ * so this script points there rather than guessing them from outside the process.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

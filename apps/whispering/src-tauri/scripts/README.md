@@ -2,7 +2,7 @@
 
 `bun run dev` launches Whispering under its own macOS identity,
 `so.epicenter.whispering.dev`, separate from the released **Whispering**
-(`so.epicenter.whispering`). Grant Accessibility once and global shortcuts keep
+(`so.epicenter.whispering`). Grant Accessibility once and paste at cursor keeps
 working across rebuilds.
 
 Because dev runs a bare binary rather than a `.app`, its System Settings entry

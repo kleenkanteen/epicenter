@@ -67,13 +67,12 @@ const sharedCommands = [
 		category: 'Recording',
 		reach: 'global',
 		// Hold to record, release to stop. The push-to-talk controller owns the
-		// recording its press starts: a release, a synthetic release from the
-		// keyboard backend (a tap restart, a re-sync), or a 5-minute cap stops only
-		// that session, and a release that lands before startup finishes is still
-		// honored. Not "the edges are the whole state machine": a lost release edge
-		// would otherwise leave recording stuck on. Both the desktop global shortcut
-		// backend and the browser keydown backend emit the Pressed/Released pair.
-		// Unbound globally by default: bind a chord here for hold-to-talk.
+		// recording its press starts: a release or a 5-minute cap stops only that
+		// session, and a release that lands before startup finishes is still honored.
+		// Not "the edges are the whole state machine": a lost release edge would
+		// otherwise leave recording stuck on. Both the desktop global-shortcut plugin
+		// and the browser keydown backend emit the Pressed/Released pair. Unbound
+		// globally by default: bind a chord here for hold-to-talk.
 		on: ['Pressed', 'Released'],
 		run: (state?: ShortcutEventState) => {
 			if (state === 'Pressed') return pushToTalk.start();
