@@ -28,10 +28,10 @@ const globalBinding = type({
 // keys may be a subset of another's (the shorter would shadow the longer under
 // the overlap check): every default below is distinct.
 //
-// Toggle recording is the out-of-the-box gesture: tap to start, tap to stop. A
-// chord is the right tool for a toggle (its press effort resists accidental
-// triggers). Push-to-talk ships unbound: bind a chord for it in settings if you
-// want a held key (Fn and modifier-only holds are not supported).
+// Toggle recording is the out-of-the-box gesture: press once to start and again
+// to stop. A chord is the right tool for a toggle; its press effort resists
+// accidental triggers. Push-to-talk ships unbound: bind a chord for it in
+// settings if you want a held key (Fn and modifier-only holds are not supported).
 //
 //   macOS:   Cmd + Shift + Space  = toggle,  Cmd + .          = cancel
 //   Windows: Ctrl + Shift + Space = toggle,  Ctrl + Shift + . = cancel

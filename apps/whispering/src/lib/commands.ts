@@ -84,7 +84,7 @@ const sharedCommands = [
 		title: 'Toggle recording',
 		category: 'Recording',
 		reach: 'global',
-		// Tap to start, tap to stop. This is also what the in-app record button
+		// Press once to start and again to stop. This is also what the record button
 		// fires (a click arrives with no edge). Unbound globally by default:
 		// push-to-talk owns the default recording key. Bind a key here for a
 		// hands-free toggle, e.g. for long-form dictation.
