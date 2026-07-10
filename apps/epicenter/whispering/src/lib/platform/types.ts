@@ -1,6 +1,6 @@
 /**
  * Platform seam contracts. Each `#platform/*` subpath (declared in
- * `apps/whispering/package.json` "imports") has a browser impl and a Tauri impl
+ * `apps/epicenter/whispering/package.json` "imports") has a browser impl and a Tauri impl
  * that both conform to a type here, so the two stay in lockstep no matter which
  * one a given build or the type checker resolves. Consumers import the bare
  * `#platform/*` specifier; the build picks the impl (web uses `default`, the
