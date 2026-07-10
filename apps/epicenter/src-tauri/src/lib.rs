@@ -1055,6 +1055,32 @@ fn initialization_script(origin: &str, token: &str) -> Result<String> {
     configurable: false,
     writable: false,
   }});
+  if (window.location.pathname.startsWith('/apps/whispering/')) {{
+    const credentialReady = window.__TAURI_INTERNALS__.invoke('keyring_read').then(
+      (serialized) => {{
+        Object.defineProperty(window, '__EPICENTER_WHISPERING_AUTH_BOOTSTRAP__', {{
+          value: {{ serialized, error: null }},
+          enumerable: false,
+          configurable: true,
+          writable: false,
+        }});
+      }},
+      (error) => {{
+        Object.defineProperty(window, '__EPICENTER_WHISPERING_AUTH_BOOTSTRAP__', {{
+          value: {{ serialized: null, error: String(error) }},
+          enumerable: false,
+          configurable: true,
+          writable: false,
+        }});
+      }},
+    );
+    Object.defineProperty(window, '__EPICENTER_WHISPERING_AUTH_READY__', {{
+      value: credentialReady,
+      enumerable: false,
+      configurable: false,
+      writable: false,
+    }});
+  }}
 }})();"#
     ))
 }
@@ -1242,6 +1268,10 @@ mod tests {
         assert!(script.contains("window.location.origin !== expectedOrigin"));
         assert!(script.contains("/_epicenter/bootstrap"));
         assert!(script.contains("__EPICENTER_SESSION_READY__"));
+        assert!(script.contains("window.location.pathname.startsWith('/apps/whispering/')"));
+        assert!(script.contains("__EPICENTER_WHISPERING_AUTH_READY__"));
+        assert!(script.contains("__EPICENTER_WHISPERING_AUTH_BOOTSTRAP__"));
+        assert!(script.contains("invoke('keyring_read')"));
         assert!(!script.contains("localStorage"));
         assert!(!script.contains("sessionStorage"));
     }
