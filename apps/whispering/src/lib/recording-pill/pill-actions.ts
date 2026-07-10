@@ -3,7 +3,7 @@ import {
 	stopManualRecording,
 	stopVadRecording,
 } from '$lib/operations/recording';
-import type { RecordingOverlayAction } from '$lib/recording-overlay/events';
+import type { RecordingPillAction } from '$lib/recording-pill/model';
 import { dictationLifecycle } from '$lib/state/dictation-lifecycle.svelte';
 import { polishHud } from '$lib/state/polish-hud.svelte';
 
@@ -19,7 +19,7 @@ import { polishHud } from '$lib/state/polish-hud.svelte';
  * in-flight completion through `polishHud` rather than a recorder (ADR-0099).
  * There is no retry gesture: a failed dictation is retried from its recordings row.
  */
-export function dispatchPillAction(action: RecordingOverlayAction): void {
+export function dispatchPillAction(action: RecordingPillAction): void {
 	// Ship-raw fires during the polishing phase (capture already idle), so it sits
 	// ahead of the live-capture guard below.
 	if (action === 'ship-raw') {

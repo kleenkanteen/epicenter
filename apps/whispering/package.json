@@ -40,9 +40,9 @@
 			"tauri": "./src/lib/services/recorder/index.tauri.ts",
 			"default": "./src/lib/services/recorder/index.browser.ts"
 		},
-		"#platform/recording-overlay": {
-			"tauri": "./src/lib/recording-overlay/index.tauri.ts",
-			"default": "./src/lib/recording-overlay/index.browser.ts"
+		"#platform/recording-mic-level": {
+			"tauri": "./src/lib/recording-overlay/mic-level.tauri.ts",
+			"default": "./src/lib/recording-pill/mic-level.browser.ts"
 		},
 		"#platform/text": {
 			"tauri": "./src/lib/services/text/index.tauri.ts",
