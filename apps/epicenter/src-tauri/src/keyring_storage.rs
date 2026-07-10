@@ -17,11 +17,11 @@ use keyring::{Entry, Error as KeyringCrateError};
 use serde::Serialize;
 use thiserror::Error;
 
-const KEYRING_SERVICE: &str = "so.epicenter.app";
+const KEYRING_SERVICE: &str = "so.epicenter";
 // macOS scopes keychain ACLs to the app's code signature, so an
 // ad-hoc-signed dev build touching an entry created by the notarized prod
 // build, or the reverse, can trigger a Keychain permission prompt. If that
-// bites, suffix this service string per channel, such as `so.epicenter.app.dev`,
+// bites, suffix this service string per channel, such as `so.epicenter.dev`,
 // rather than sharing one entry across signatures.
 
 // Epicenter's Whispering surface stores exactly one secret, so the account is a Rust constant. A

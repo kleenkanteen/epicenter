@@ -46,7 +46,7 @@ describe('Epicenter-hosted Whispering identity', () => {
 		expect(read('src/lib/services/fs-paths.ts')).not.toContain(
 			'so.epicenter.whispering',
 		);
-		expect(read('src/lib/services/fs-paths.ts')).toContain('so.epicenter.app');
+		expect(read('src/lib/services/fs-paths.ts')).toContain('so.epicenter');
 	});
 
 	test('OAuth callbacks use the unified Epicenter deep-link scheme', () => {

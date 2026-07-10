@@ -3,10 +3,10 @@
  *
  * Tauri derives this root from `appDataDir()`, i.e.
  * `${dataDir}/${bundleIdentifier}`. With identifier
- * `so.epicenter.app`, that means:
- *   macOS:   ~/Library/Application Support/so.epicenter.app/
- *   Windows: %APPDATA%/so.epicenter.app/
- *   Linux:   ~/.local/share/so.epicenter.app/
+ * `so.epicenter`, that means:
+ *   macOS:   ~/Library/Application Support/so.epicenter/
+ *   Windows: %APPDATA%/so.epicenter/
+ *   Linux:   ~/.local/share/so.epicenter/
  *
  * This module stays importable from browser builds because routes statically
  * import it while guarding calls with `tauri`; the build-time platform seam

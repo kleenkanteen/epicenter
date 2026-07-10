@@ -23,7 +23,7 @@ while a bundled fallback SPA would create a second hosting and recovery mode.
 ## Decision
 
 Epicenter ships as one signed Tauri application with bundle identifier
-`so.epicenter.app`. Rust boots and supervises one required, compiled Bun child;
+`so.epicenter`. Rust boots and supervises one required, compiled Bun child;
 Bun serves every release-bundled trusted SPA, API, and WebSocket from one
 loopback origin. Production binds exactly `http://127.0.0.1:39130`, ignores port
 overrides, and fails visibly on collision instead of falling back. Development
