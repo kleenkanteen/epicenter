@@ -50,21 +50,6 @@ pub(crate) enum Control {
     AutoPaste(bool),
 }
 
-/// Whether anything wants the tap. Auto-paste-at-cursor is the sole reason: it
-/// writes through the macOS Accessibility grant the tap watches. Kept as a struct
-/// (not a bare bool) so the supervisor still reads intent through one
-/// [`TapIntent::wants_tap`] predicate.
-#[derive(Default)]
-struct TapIntent {
-    auto_paste: bool,
-}
-
-impl TapIntent {
-    fn wants_tap(&self) -> bool {
-        self.auto_paste
-    }
-}
-
 /// A side effect for the owning loop to perform. At most one per step: a single
 /// signal never both spawns and stops the tap.
 #[derive(Debug, PartialEq, Eq)]
@@ -85,7 +70,8 @@ pub(crate) struct Outcome {
 /// The tap lifecycle decision state. Holds everything the next decision needs:
 /// what wants the tap, whether one is believed alive, and the restart budget.
 pub(crate) struct Supervisor {
-    intent: TapIntent,
+    /// Whether auto-paste-at-cursor currently needs the grant watcher.
+    auto_paste: bool,
     /// Whether a tap thread is believed alive. Flipped true when we emit
     /// `SpawnTap`, and false only when a `TapStopped` confirms the death, so we
     /// never spawn a second tap over a live one.
@@ -103,7 +89,7 @@ pub(crate) struct Supervisor {
 impl Supervisor {
     pub(crate) fn new() -> Self {
         Self {
-            intent: TapIntent::default(),
+            auto_paste: false,
             tap_running: false,
             restart_attempt: 0,
             last_stop: None,
@@ -119,7 +105,7 @@ impl Supervisor {
         let effect = match control {
             None => self.on_timeout(trusted),
             Some(Control::AutoPaste(next)) => {
-                self.intent.auto_paste = next;
+                self.auto_paste = next;
                 self.reconcile(trusted)
             }
             Some(Control::TapStopped) => self.on_tap_stopped(trusted, now_ms),
@@ -164,7 +150,7 @@ impl Supervisor {
     fn reconcile(&mut self, trusted: bool) -> Option<Effect> {
         self.restart_attempt = 0;
         self.restart_delay = None;
-        if !self.intent.wants_tap() {
+        if !self.auto_paste {
             // Nothing needs the grant. Ask a live tap to stop (the `TapStopped`
             // that follows flips `tap_running`); publish `Inactive` now so the
             // floor shows nothing.
@@ -187,7 +173,7 @@ impl Supervisor {
     /// The tap exited.
     fn on_tap_stopped(&mut self, trusted: bool, now_ms: u64) -> Option<Effect> {
         self.tap_running = false;
-        if !self.intent.wants_tap() {
+        if !self.auto_paste {
             // We asked it to stop because the last reason left. Settled.
             self.phase = DictationCapability::Inactive;
         } else if !trusted {
@@ -223,7 +209,7 @@ impl Supervisor {
     fn next_timeout(&self) -> Option<Duration> {
         if let Some(delay) = self.restart_delay {
             Some(delay)
-        } else if self.intent.wants_tap()
+        } else if self.auto_paste
             && matches!(
                 self.phase,
                 DictationCapability::Untrusted | DictationCapability::Broken
