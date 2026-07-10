@@ -166,31 +166,27 @@
 	let unlistenDragDrop: UnlistenFn | undefined;
 
 	onMount(async () => {
-		if (!tauri) return;
+		const desktop = tauri;
+		if (!desktop) return;
 		const { error } = await tryAsync({
 			try: async () => {
-				const { getCurrentWebview } = await import('@tauri-apps/api/webview');
-				const { extname } = await import('@tauri-apps/api/path');
-
 				const isAudio = async (path: string) =>
 					IMPORTABLE_AUDIO_EXTENSIONS.includes(
-						(await extname(path)) as (typeof IMPORTABLE_AUDIO_EXTENSIONS)[number],
+						(await desktop.fs.extension(
+							path,
+						)) as (typeof IMPORTABLE_AUDIO_EXTENSIONS)[number],
 					);
 				const isVideo = async (path: string) =>
 					IMPORTABLE_VIDEO_EXTENSIONS.includes(
-						(await extname(path)) as (typeof IMPORTABLE_VIDEO_EXTENSIONS)[number],
+						(await desktop.fs.extension(
+							path,
+						)) as (typeof IMPORTABLE_VIDEO_EXTENSIONS)[number],
 					);
 
-				unlistenDragDrop = await getCurrentWebview().onDragDropEvent(
-					async (event) => {
-						if (
-							event.payload.type !== 'drop' ||
-							event.payload.paths.length === 0
-						)
-							return;
-
+				unlistenDragDrop = await desktop.fs.onDragDrop(
+					async (paths) => {
 						const pathResults = await Promise.all(
-							event.payload.paths.map(async (path) => ({
+							paths.map(async (path) => ({
 								path,
 								isValid: (await isAudio(path)) || (await isVideo(path)),
 							})),
@@ -207,9 +203,8 @@
 							return;
 						}
 
-						if (!tauri) return;
 						const { data: files, error } =
-							await tauri.fs.pathsToFiles(validPaths);
+							await desktop.fs.pathsToFiles(validPaths);
 
 						if (error) {
 							report.error({ cause: error, title: 'Failed to read files' });

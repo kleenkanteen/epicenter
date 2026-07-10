@@ -1,5 +1,5 @@
 import type { Command } from '$lib/commands';
-import type { KeyBinding } from '$lib/tauri/commands';
+import type { KeyBinding } from '$lib/tauri/commands.types';
 // Relative, not `$lib`: the router carries no runtime `$lib` import so it stays
 // free of the catalog's operations/`#platform` graph and unit-testable in
 // isolation. `key-binding` itself has only type imports, so this is its lone dep.

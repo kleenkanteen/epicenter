@@ -12,7 +12,7 @@
  *   (ADR-0117).
  */
 
-import type { Modifier } from '$lib/tauri/commands';
+import type { Modifier } from '$lib/tauri/commands.types';
 import { type BindingLike, isRegistrableChord } from '$lib/utils/key-binding';
 
 /**

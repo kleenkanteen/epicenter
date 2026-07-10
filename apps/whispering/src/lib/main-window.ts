@@ -1,4 +1,4 @@
-import { defineWindowEvent } from '$lib/window-events';
+import { defineWindowEvent } from '#platform/window-events';
 
 /**
  * An auxiliary window (the recording overlay pill) asking the main window to

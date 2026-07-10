@@ -8,7 +8,7 @@ import {
 	nullable,
 } from '@epicenter/workspace';
 import { Type } from 'typebox';
-import type { KeyBinding } from '$lib/tauri/commands';
+import type { KeyBinding } from '$lib/tauri/commands.types';
 
 // ── Constant imports ─────────────────────────────────────────────────────────
 

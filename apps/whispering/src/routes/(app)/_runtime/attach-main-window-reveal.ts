@@ -1,5 +1,4 @@
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { tauri } from '#platform/tauri';
 import { goto } from '$app/navigation';
 import { normalizeWhisperingPath } from '$lib/constants/urls';
@@ -12,18 +11,15 @@ import { revealMainWindow } from '$lib/main-window';
  * surfaces, then routes if the request carried a path. Desktop only.
  */
 export function attachMainWindowReveal() {
-	if (!tauri) return () => {};
+	const desktop = tauri;
+	if (!desktop) return () => {};
 
 	let unlisten: UnlistenFn | undefined;
 	let destroyed = false;
 
 	void revealMainWindow
 		.listen(async ({ payload }) => {
-			const mainWindow = getCurrentWindow();
-			await mainWindow.show();
-			await mainWindow.unminimize();
-			// setFocus often fails on macOS; ignore.
-			await mainWindow.setFocus().catch(() => {});
+			await desktop.mainWindow.reveal();
 			if (payload.path) await goto(normalizeWhisperingPath(payload.path));
 		})
 		.then((fn) => {

@@ -38,7 +38,9 @@
  * See `specs/20260526T000140-collapse-tauri-only-services-into-namespace.md`.
  */
 
-import { basename } from '@tauri-apps/api/path';
+import { Channel } from '@tauri-apps/api/core';
+import { appDataDir, basename, extname, join } from '@tauri-apps/api/path';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { openPath as revealPath } from '@tauri-apps/plugin-opener';
@@ -49,6 +51,7 @@ import { Ok, tryAsync } from 'wellcrafted/result';
 import { defineMutation, defineQuery, queryClient } from '$lib/rpc/client';
 import type {
 	DictationCapability,
+	DownloadProgress,
 	GlobalShortcutRegistration,
 } from '$lib/tauri/commands';
 import { commands, events } from '$lib/tauri/commands';
@@ -90,6 +93,15 @@ const fs = {
 					}),
 				),
 			catch: (error) => FsError.ReadFilesFailed({ paths, cause: error }),
+		}),
+	appDataPath: async (...segments: string[]) =>
+		join(await appDataDir(), ...segments),
+	extension: extname,
+	onDragDrop: (handler: (paths: string[]) => void | Promise<void>) =>
+		getCurrentWebview().onDragDropEvent(async (event) => {
+			if (event.payload.type !== 'drop' || event.payload.paths.length === 0)
+				return;
+			await handler(event.payload.paths);
 		}),
 };
 
@@ -353,6 +365,30 @@ const media = {
 	resume: (sessions: string[]) => commands.resumePlayback(sessions),
 };
 
+// transcription ----------------------------------------------------
+// Shared transcription orchestration uses this namespace through the
+// `#platform/tauri` seam. Keeping the raw generated bindings here prevents a
+// browser build from retaining native invoke names merely because it shares the
+// orchestration module with Epicenter.
+const transcription = {
+	encodeRecordingForUpload: commands.encodeRecordingForUpload,
+	listModels: commands.listModels,
+	downloadModel: (
+		modelId: string,
+		downloadId: string,
+		onProgress: (progress: DownloadProgress) => void,
+	) => {
+		const channel = new Channel<DownloadProgress>();
+		channel.onmessage = onProgress;
+		return commands.downloadModel(modelId, downloadId, channel);
+	},
+	deleteModel: commands.deleteModel,
+	cancelDownload: commands.cancelDownload,
+	prewarmModel: commands.prewarmModel,
+	transcribeRecording: commands.transcribeRecording,
+	setUnloadPolicy: commands.setUnloadPolicy,
+};
+
 // opener ------------------------------------------------------------
 const OpenerError = defineErrors({
 	OpenPathFailed: ({ path, cause }: { path: string; cause: unknown }) => ({
@@ -382,6 +418,13 @@ const mainWindow = {
 		await window.show();
 		await window.setFocus();
 	},
+	async reveal(): Promise<void> {
+		const window = getCurrentWindow();
+		await window.show();
+		await window.unminimize();
+		// Raising the window can succeed even when macOS refuses the focus request.
+		await window.setFocus().catch(() => {});
+	},
 };
 
 // barrel ------------------------------------------------------------
@@ -394,6 +437,7 @@ export const tauriOnly = {
 	keyboard,
 	autostart,
 	media,
+	transcription,
 	opener,
 	mainWindow,
 };

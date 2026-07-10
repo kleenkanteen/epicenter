@@ -1,6 +1,6 @@
 import { debounce } from '@epicenter/workspace';
 import { on } from 'svelte/events';
-import type { Key, KeyBinding, Modifier } from '$lib/tauri/commands';
+import type { Key, KeyBinding, Modifier } from '$lib/tauri/commands.types';
 import { domCodeToKey, eventModifiers } from '$lib/utils/key-binding';
 
 const CAPTURE_WINDOW_MS = 300; // Time to wait for additional keys in a combination.

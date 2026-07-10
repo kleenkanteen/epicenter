@@ -6,7 +6,7 @@
  * no longer sees a `KeyBinding` (ADR-0117), the vocabulary lives here: the FE
  * stores chords in device-config and computes plugin accelerators from them, all
  * without a round trip through Rust. The barrel (`./commands`) re-exports these,
- * so every consumer keeps importing them from `$lib/tauri/commands`.
+ * so every consumer keeps importing them from `$lib/tauri/commands.types`.
  */
 
 /**

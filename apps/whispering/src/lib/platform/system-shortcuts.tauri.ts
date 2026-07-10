@@ -8,7 +8,7 @@ import {
 import type {
 	GlobalShortcutRegistration,
 	KeyBinding,
-} from '$lib/tauri/commands';
+} from '$lib/tauri/commands.types';
 import { tauriOnly } from '$lib/tauri.tauri';
 import {
 	bindingsOverlap,

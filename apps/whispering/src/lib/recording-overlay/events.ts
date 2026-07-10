@@ -1,5 +1,5 @@
+import { defineWindowEvent, defineWindowSignal } from '#platform/window-events';
 import type { DeliveryReach } from '$lib/operations/delivery';
-import { defineWindowEvent, defineWindowSignal } from '$lib/window-events';
 
 /**
  * Event contract for the recording overlay window.

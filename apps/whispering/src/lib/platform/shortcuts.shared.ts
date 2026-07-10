@@ -1,7 +1,7 @@
 import type { AnyTaggedError } from 'wellcrafted/error';
 import { type Command, commands } from '$lib/commands';
 import { report } from '$lib/report';
-import type { KeyBinding } from '$lib/tauri/commands';
+import type { KeyBinding } from '$lib/tauri/commands.types';
 import type { ShortcutConflict, Shortcuts } from './types';
 
 /** A command paired with its current stored binding (`null` = unbound). */

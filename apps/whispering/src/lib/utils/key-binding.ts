@@ -6,7 +6,7 @@
  * which is the capture side of the same physical-key model.
  */
 
-import type { Key, Modifier } from '$lib/tauri/commands';
+import type { Key, Modifier } from '$lib/tauri/commands.types';
 
 /**
  * How far a shortcut fires, ordered `focused < global`. The one reach scale,
@@ -247,7 +247,10 @@ export function realizedReach(
 	binding: BindingLike,
 	platformReach: Reach,
 ): Reach {
-	return minReach(minReach(commandReach, keyCapability(binding)), platformReach);
+	return minReach(
+		minReach(commandReach, keyCapability(binding)),
+		platformReach,
+	);
 }
 
 /**

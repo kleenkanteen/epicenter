@@ -71,6 +71,10 @@
 		"#platform/base-path": {
 			"tauri": "./src/lib/platform/base-path.tauri.ts",
 			"default": "./src/lib/platform/base-path.browser.ts"
+		},
+		"#platform/window-events": {
+			"tauri": "./src/lib/window-events.tauri.ts",
+			"default": "./src/lib/window-events.browser.ts"
 		}
 	},
 	"scripts": {
