@@ -8,7 +8,8 @@
  * needed to change it because this entrypoint reads the env once.
  */
 
-import { createOpenAiAgentEngine } from '@epicenter/client';
+import { join } from 'node:path';
+import { type AgentEngine, createOpenAiAgentEngine } from '@epicenter/client';
 import { createQueryHost, type QueryHost } from './host.ts';
 import { createQueryServer } from './server.ts';
 import {
@@ -29,38 +30,13 @@ async function main(): Promise<void> {
 		const runtimeMode = parseRuntimeMode(Bun.argv);
 		const boot = parseBootFrame(await parentPipe.bootLine, runtimeMode);
 
-		const baseURL = process.env.EPICENTER_QUERY_INFERENCE_URL;
-		const model = process.env.EPICENTER_QUERY_MODEL;
-		const apiKey = process.env.EPICENTER_QUERY_API_KEY;
-		if (!baseURL || !model) {
-			throw new Error(
-				'Set EPICENTER_QUERY_INFERENCE_URL and EPICENTER_QUERY_MODEL (an OpenAI-compatible endpoint) to start Query.',
-			);
-		}
-
-		const engine = createOpenAiAgentEngine({
-			data: () => ({
-				fetch: apiKey
-					? (input, init) =>
-							fetch(input, {
-								...init,
-								headers: {
-									...init?.headers,
-									authorization: `Bearer ${apiKey}`,
-								},
-							})
-					: fetch,
-				baseURL,
-				model,
-				systemPrompts: [
-					'You are Query, a local assistant that acts across the apps on this machine through their tools.',
-				],
-			}),
-		});
+		const { engine, model } = queryEngineFromEnvironment(process.env);
 
 		host = await createQueryHost({ engine, model });
 
-		const pageFile = Bun.file(new URL('../dist/index.html', import.meta.url));
+		const pageFile = process.env.EPICENTER_QUERY_DIST
+			? Bun.file(join(process.env.EPICENTER_QUERY_DIST, 'index.html'))
+			: Bun.file(new URL('../dist/index.html', import.meta.url));
 		if (!(await pageFile.exists())) {
 			throw new Error(
 				'The built SPA is missing. Run `bun run --filter @epicenter/epicenter build` first.',
@@ -93,6 +69,50 @@ async function main(): Promise<void> {
 			await parentPipe.cancel();
 		}
 	}
+}
+
+export function queryEngineFromEnvironment(
+	environment: Record<string, string | undefined>,
+): { engine: AgentEngine; model: string } {
+	const baseURL = environment.EPICENTER_QUERY_INFERENCE_URL;
+	const model = environment.EPICENTER_QUERY_MODEL;
+	const apiKey = environment.EPICENTER_QUERY_API_KEY;
+	if (!baseURL || !model) {
+		return {
+			model: 'unconfigured',
+			engine: async function* () {
+				yield {
+					type: 'run-error',
+					code: 'stream-error',
+					message:
+						'Query needs an OpenAI-compatible endpoint. Set EPICENTER_QUERY_INFERENCE_URL and EPICENTER_QUERY_MODEL, then restart Epicenter.',
+				};
+			},
+		};
+	}
+
+	return {
+		model,
+		engine: createOpenAiAgentEngine({
+			data: () => ({
+				fetch: apiKey
+					? (input, init) =>
+							fetch(input, {
+								...init,
+								headers: {
+									...init?.headers,
+									authorization: `Bearer ${apiKey}`,
+								},
+							})
+					: fetch,
+				baseURL,
+				model,
+				systemPrompts: [
+					'You are Query, a local assistant that acts across the apps on this machine through their tools.',
+				],
+			}),
+		}),
+	};
 }
 
 try {

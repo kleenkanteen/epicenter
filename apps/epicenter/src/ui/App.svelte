@@ -8,6 +8,7 @@
 	import { Spinner } from '@epicenter/ui/spinner';
 	import type { QueryInvocation } from '../host.ts';
 	import Composer from './Composer.svelte';
+	import { readRuntimeInfo } from './runtime.ts';
 	import Transcript from './Transcript.svelte';
 	import { createSession } from './session.svelte.ts';
 
@@ -15,6 +16,16 @@
 	// The bootstrap promise is fixed for this document lifetime.
 	// svelte-ignore state_referenced_locally
 	const session = createSession({ ready: sessionReady });
+	let nativeStatus = $state<'checking' | 'browser' | 'connected' | 'denied'>(
+		'checking',
+	);
+	void readRuntimeInfo()
+		.then((info) => {
+			nativeStatus = info === null ? 'browser' : 'connected';
+		})
+		.catch(() => {
+			nativeStatus = 'denied';
+		});
 
 	let toolsOpen = $state(false);
 
@@ -60,6 +71,11 @@
 <div class="flex h-full flex-col text-sm">
 		<header class="flex flex-none items-center gap-3 border-b px-3 py-2">
 			<span class="font-semibold">Query</span>
+			{#if nativeStatus === 'connected'}
+				<Badge variant="status.completed">Native connected</Badge>
+			{:else if nativeStatus === 'denied'}
+				<Badge variant="status.failed">Native denied</Badge>
+			{/if}
 			<span
 				class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
 			>

@@ -87,6 +87,35 @@
         "vite": "catalog:",
       },
     },
+    "apps/epicenter": {
+      "name": "@epicenter/epicenter",
+      "version": "0.0.1",
+      "dependencies": {
+        "@epicenter/chat": "workspace:*",
+        "@epicenter/client": "workspace:*",
+        "@epicenter/honeycrisp": "workspace:*",
+        "@epicenter/server": "workspace:*",
+        "@epicenter/todos": "workspace:*",
+        "@epicenter/ui": "workspace:*",
+        "@epicenter/workspace": "workspace:*",
+        "@modelcontextprotocol/sdk": "catalog:",
+        "@tauri-apps/api": "catalog:",
+        "hono": "catalog:",
+        "yjs": "catalog:",
+      },
+      "devDependencies": {
+        "@sveltejs/vite-plugin-svelte": "catalog:",
+        "@tailwindcss/vite": "catalog:",
+        "@tauri-apps/cli": "catalog:",
+        "@types/bun": "catalog:",
+        "svelte": "catalog:",
+        "svelte-check": "catalog:",
+        "tailwindcss": "catalog:",
+        "typescript": "catalog:",
+        "vite": "catalog:",
+        "vite-plugin-singlefile": "catalog:",
+      },
+    },
     "apps/honeycrisp": {
       "name": "@epicenter/honeycrisp",
       "version": "0.0.2",
@@ -430,33 +459,6 @@
         "y-codemirror.next": "^0.3.5",
         "y-indexeddb": "catalog:",
         "yjs": "catalog:",
-      },
-    },
-    "apps/epicenter": {
-      "name": "@epicenter/epicenter",
-      "version": "0.0.1",
-      "dependencies": {
-        "@epicenter/chat": "workspace:*",
-        "@epicenter/client": "workspace:*",
-        "@epicenter/honeycrisp": "workspace:*",
-        "@epicenter/server": "workspace:*",
-        "@epicenter/todos": "workspace:*",
-        "@epicenter/ui": "workspace:*",
-        "@epicenter/workspace": "workspace:*",
-        "@modelcontextprotocol/sdk": "catalog:",
-        "hono": "catalog:",
-        "yjs": "catalog:",
-      },
-      "devDependencies": {
-        "@sveltejs/vite-plugin-svelte": "catalog:",
-        "@tailwindcss/vite": "catalog:",
-        "@types/bun": "catalog:",
-        "svelte": "catalog:",
-        "svelte-check": "catalog:",
-        "tailwindcss": "catalog:",
-        "typescript": "catalog:",
-        "vite": "catalog:",
-        "vite-plugin-singlefile": "catalog:",
       },
     },
     "apps/tab-manager": {
@@ -1438,6 +1440,8 @@
 
     "@epicenter/encryption": ["@epicenter/encryption@workspace:packages/encryption"],
 
+    "@epicenter/epicenter": ["@epicenter/epicenter@workspace:apps/epicenter"],
+
     "@epicenter/field": ["@epicenter/field@workspace:packages/field"],
 
     "@epicenter/filesystem": ["@epicenter/filesystem@workspace:packages/filesystem"],
@@ -1473,8 +1477,6 @@
     "@epicenter/server": ["@epicenter/server@workspace:packages/server"],
 
     "@epicenter/skills": ["@epicenter/skills@workspace:packages/skills"],
-
-    "@epicenter/epicenter": ["@epicenter/epicenter@workspace:apps/epicenter"],
 
     "@epicenter/svelte": ["@epicenter/svelte@workspace:packages/svelte-utils"],
 

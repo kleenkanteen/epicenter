@@ -8,10 +8,15 @@
 		".": "./src/host.ts"
 	},
 	"scripts": {
-		"start": "bun run src/main.ts",
+		"dev": "bun run dev:desktop",
+		"dev:desktop": "tauri dev --config src-tauri/tauri.dev.conf.json",
 		"remote:dev": "bun run scripts/remote-dev-smoke.ts",
 		"build": "vite build",
+		"build:sidecar": "bun run scripts/build-sidecar.ts",
+		"build:desktop": "bun run build && bun run build:sidecar",
+		"desktop:build": "tauri build",
 		"test": "bun test",
+		"tauri": "tauri",
 		"typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json"
 	},
 	"dependencies": {
@@ -23,12 +28,14 @@
 		"@epicenter/ui": "workspace:*",
 		"@epicenter/workspace": "workspace:*",
 		"@modelcontextprotocol/sdk": "catalog:",
+		"@tauri-apps/api": "catalog:",
 		"hono": "catalog:",
 		"yjs": "catalog:"
 	},
 	"devDependencies": {
 		"@sveltejs/vite-plugin-svelte": "catalog:",
 		"@tailwindcss/vite": "catalog:",
+		"@tauri-apps/cli": "catalog:",
 		"@types/bun": "catalog:",
 		"svelte": "catalog:",
 		"svelte-check": "catalog:",

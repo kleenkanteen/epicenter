@@ -1,0 +1,34 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Epicenter",
+	"version": "0.0.1",
+	"identifier": "so.epicenter.app",
+	"build": {
+		"beforeBuildCommand": "bun run build:desktop",
+		"beforeDevCommand": "bun run build",
+		"frontendDist": "frontend-placeholder"
+	},
+	"app": {
+		"windows": [],
+		"security": {
+			"capabilities": ["trusted-query-production"],
+			"csp": "default-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": ["app"],
+		"category": "Productivity",
+		"publisher": "Epicenter",
+		"copyright": "Copyright © 2026 Epicenter",
+		"shortDescription": "One trusted desktop host for Epicenter apps",
+		"externalBin": ["binaries/epicenter-host"],
+		"resources": {
+			"../dist": "query-dist"
+		},
+		"icon": ["icons/icon.png", "icons/icon.icns"],
+		"macOS": {
+			"minimumSystemVersion": "10.15"
+		}
+	}
+}

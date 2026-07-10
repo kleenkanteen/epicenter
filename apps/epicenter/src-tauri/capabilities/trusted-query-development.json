@@ -1,0 +1,11 @@
+{
+	"$schema": "../gen/schemas/desktop-schema.json",
+	"identifier": "trusted-query-development",
+	"description": "Allows the development Bun-served Query window to prove focused native authority on its explicitly selected loopback port.",
+	"local": false,
+	"windows": ["query"],
+	"remote": {
+		"urls": ["http://127.0.0.1:*"]
+	},
+	"permissions": ["allow-get-runtime-info"]
+}
