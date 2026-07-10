@@ -1,5 +1,5 @@
 import type { DictationLifecycle } from '$lib/state/dictation-lifecycle.svelte';
-import type { RecordingOverlayStatus } from './events';
+import type { RecordingPillStatus } from './model.js';
 
 /**
  * Project the main window's dictation lifecycle into the serializable status the
@@ -16,7 +16,7 @@ import type { RecordingOverlayStatus } from './events';
  */
 export function projectLifecycleToStatus(
 	lifecycle: DictationLifecycle,
-): RecordingOverlayStatus | null {
+): RecordingPillStatus | null {
 	const { capture, outcome } = lifecycle;
 
 	// A live capture owns the pill: the recording meter is the primary content. For

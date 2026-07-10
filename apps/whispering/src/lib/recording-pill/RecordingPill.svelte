@@ -8,13 +8,11 @@
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
 	import type { Component } from 'svelte';
+	import { DICTATION_FAILURE_LABEL } from '$lib/dictation-feedback';
 	import type { DeliveryReach } from '$lib/operations/delivery';
-	import {
-		FAILURE_LABEL,
-		type RecordingOverlayStatus,
-	} from '$lib/recording-overlay/events';
-	import LevelMeter from '$lib/recording-overlay/LevelMeter.svelte';
-	import VadIndicator from '$lib/recording-overlay/VadIndicator.svelte';
+	import LevelMeter from '$lib/recording-pill/LevelMeter.svelte';
+	import type { RecordingPillStatus } from '$lib/recording-pill/model';
+	import VadIndicator from '$lib/recording-pill/VadIndicator.svelte';
 
 	// The floating dictation pill, presentational and platform-free. It renders
 	// whatever status it is handed and reports control gestures through callback
@@ -30,7 +28,7 @@
 		onReveal,
 	}: {
 		/** What to display, or `null` when the dictation is idle (hidden). */
-		status: RecordingOverlayStatus | null;
+		status: RecordingPillStatus | null;
 		/** Live, smoothed mic loudness, 0 (silent) to 1 (loud). */
 		level: number;
 		/** Stop the live capture (stop recording / stop listening). */
@@ -97,7 +95,7 @@
 			case 'failed':
 				return {
 					Icon: TriangleAlertIcon,
-					label: FAILURE_LABEL[status.tier],
+					label: DICTATION_FAILURE_LABEL[status.tier],
 					tone: 'failed',
 				};
 			default:
@@ -130,7 +128,7 @@
 			// with the meter spread between them (justify-between). The text chips hug
 			// their content, capped wide enough for the longest label ("Transcription
 			// failed") to show in full. The 224px cap is mirrored by the desktop overlay
-			// window (OVERLAY_WIDTH in overlay.rs / index.tauri.ts), which must stay in sync.
+			// window (OVERLAY_WIDTH in the Tauri runtime owner), which must stay in sync.
 			recording
 				? 'w-[208px] justify-between'
 				: 'w-fit max-w-[224px]',

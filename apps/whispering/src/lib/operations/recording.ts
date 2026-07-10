@@ -1,7 +1,7 @@
 import type { DeviceAcquisitionOutcome } from '@epicenter/recorder';
 import { nanoid } from 'nanoid/non-secure';
 import { manualRecorderConfig } from '#platform/manual-recorder-config';
-import { recordingOverlay } from '#platform/recording-overlay';
+import { reportRecordingMicLevel } from '#platform/recording-mic-level';
 import { goto } from '$app/navigation';
 import type { CaptureSurface } from '$lib/constants/audio';
 import { analytics } from '$lib/operations/analytics';
@@ -92,14 +92,14 @@ export async function startManualRecording(): Promise<string | null> {
 	// its stream to drive this; on desktop the CPAL worker emits the level from
 	// Rust straight to the overlay, so this callback is never invoked there.
 	const { data: outcome, error } = await manualRecorder.startRecording({
-		onLevel: (level) => recordingOverlay.reportLevel(level),
+		onLevel: reportRecordingMicLevel,
 	});
 
 	if (error) {
 		void recordingMedia.resume();
 		// The recording never started, so there is no artifact to recover: the
-		// loudest tier. The pill glances it and the notification fires when
-		// unfocused, so there is no toast.
+		// loudest tier. The pill glances it and the OS notification always fires, so
+		// there is no toast.
 		dictationLifecycle.markFailed({ tier: 'silent-loss', error });
 		return null;
 	}
@@ -265,7 +265,7 @@ export async function startVadRecording() {
 	log.info('Starting voice activated capture');
 
 	const { data: outcome, error } = await vadRecorder.startActiveListening({
-		onLevel: (level) => recordingOverlay.reportLevel(level),
+		onLevel: reportRecordingMicLevel,
 		onSpeechStart: () => {
 			// Speaking window opened: pause whatever is playing. The pill's meter
 			// tint shows speech was detected, so there is no toast.

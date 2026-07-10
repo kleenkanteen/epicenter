@@ -1,3 +1,4 @@
+import { tauri } from '#platform/tauri';
 import { dictationCapability } from '$lib/state/dictation-capability.svelte';
 import { attachAnalytics } from './attach-analytics.svelte';
 import { attachAutoPasteIntent } from './attach-auto-paste-intent.svelte';
@@ -19,7 +20,7 @@ export const runtimeOwners = [
 	{ attach: attachLocalShortcutListener },
 	{ attach: attachShortcutSync },
 	{ attach: attachTrayIcon },
-	{ attach: attachRecordingOverlay },
+	...(tauri ? [{ attach: attachRecordingOverlay }] : []),
 	{ attach: attachDictationExceptions },
 	{ attach: attachUnloadPolicy },
 	{ attach: attachRecordingRetention },
