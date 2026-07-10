@@ -333,7 +333,7 @@ pub fn run() {
         ))
         .target(tauri_plugin_log::Target::new(
             tauri_plugin_log::TargetKind::LogDir {
-                file_name: Some("epicenter-whispering".to_string()),
+                file_name: Some("epicenter".to_string()),
             },
         ))
         .build();
