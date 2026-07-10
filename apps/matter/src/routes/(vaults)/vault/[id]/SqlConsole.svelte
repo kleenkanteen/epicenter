@@ -33,17 +33,7 @@
 	let result = $state<{ columns: string[]; rows: unknown[][] }>();
 	let error = $state<string>();
 	let running = $state(false);
-	let hasRun = $state(false);
 	let recentQueries = $state.raw<string[]>([]);
-
-	// A starting query the user edits: every column of the active table. With no table yet, list the
-	// db's tables so even an empty vault shows something runnable. Seeded once at mount (read via
-	// `untrack` in the effect), since the console mounts fresh for the active table.
-	function initialQuery(): string {
-		return defaultTable
-			? `SELECT * FROM "${defaultTable}" LIMIT 100`
-			: "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name";
-	}
 
 	async function run(text: string): Promise<void> {
 		const trimmed = text.trim();
@@ -55,7 +45,6 @@
 		].slice(0, 8);
 		const { data, error: failure } = await vault.mirror.runSql(trimmed);
 		running = false;
-		hasRun = true;
 		if (failure) {
 			error = failure.message;
 			result = undefined;
@@ -105,12 +94,19 @@
 		'.cm-placeholder': { color: 'hsl(var(--muted-foreground))' },
 	});
 
+	// Seed the editor once with every column of the active table. With no table yet, list the db's
+	// tables so even an empty vault shows something runnable. The console mounts fresh for a new
+	// active table, so this initial value intentionally does not react afterward.
 	$effect(() => {
 		if (!container) return;
 		const view = new EditorView({
 			parent: container,
 			state: EditorState.create({
-				doc: untrack(initialQuery),
+				doc: untrack(() =>
+					defaultTable
+						? `SELECT * FROM "${defaultTable}" LIMIT 100`
+						: "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
+				),
 				extensions: [
 					history(),
 					keymap.of([
@@ -264,7 +260,7 @@
 				<Empty.Title>No result</Empty.Title>
 				<Empty.Description>Fix the query above and run it again.</Empty.Description>
 			</Empty.Root>
-		{:else if !hasRun}
+		{:else}
 			<Empty.Root class="min-h-full border-0">
 				<Empty.Media variant="icon"><DatabaseIcon /></Empty.Media>
 				<Empty.Title>Ready to query</Empty.Title>
