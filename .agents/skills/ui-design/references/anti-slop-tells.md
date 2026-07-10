@@ -1,9 +1,11 @@
-# Anti-Slop Tells
+# UI Anti-Slop Tells
 
-This reference catalogs recurring visual, copy, layout, state, and motion tells
-that make UI feel templated.
+This reference catalogs recurring visual, copy, layout-pattern, and attention
+tells that make public or expressive UI feel templated. Component-system
+consistency and state completeness belong to `component-system.md`; final
+accessibility, responsive, and motion verification belong to `preflight.md`.
 
-Use these as strong defaults, not hard bans. Break one when the brief earns it
+Treat these as strong defaults, not hard bans. Break one when the brief earns it
 and the result is more specific, accessible, and useful.
 
 ## Default AI Visual Tells
@@ -39,34 +41,17 @@ surface's job.
 
 Watch for:
 
-- Hero content that does not fit the first viewport.
-- Navigation wrapping onto two desktop lines.
-- CTA text wrapping inside the button.
-- Long lists rendered as endless plain rows when grouping, search, or hierarchy is needed.
 - Logo walls with explanatory category labels under every logo.
 - Empty bento cells or cells added only to complete a grid.
 - Section headers that repeat the same headline plus right-column paragraph pattern.
 
-## State Tells
+## Attention Tells
 
 Watch for:
 
-- Happy-path-only UI.
-- Bare `Loading...` text.
-- Raw spinners or skeletons instead of local primitives.
-- Empty states that do not say what happened or what to do next.
-- Error states that only show a toast for a persistent problem.
-- Disabled controls with no visual or semantic disabled state.
-
-## Motion Tells
-
-Watch for:
-
-- Motion because it looks cool, not because it communicates something.
 - Multiple marquees or perpetual loops on one page.
 - Scroll hijacks for ordinary content.
-- Page transitions that slow down frequent app work.
-- Animation that ignores reduced-motion preferences.
+- Several unrelated animations competing for attention.
 
-Motion should usually be page/view transitions, state feedback, or a clear
-storytelling reveal. If the reason is not obvious, remove it.
+Use motion to communicate hierarchy, state, feedback, or one clear storytelling
+moment. If the reason is not obvious, remove it.
