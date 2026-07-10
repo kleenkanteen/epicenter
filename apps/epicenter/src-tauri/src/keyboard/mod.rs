@@ -1,7 +1,7 @@
 //! The macOS Accessibility-grant watch for auto-paste-at-cursor.
 //!
 //! Global-shortcut input is `tauri-plugin-global-shortcut` chords on every
-//! platform (registered on the FE); this module owns no shortcut input
+//! platform (registered and dispatched by the Rust shell); this module owns no shortcut input
 //! (ADR-0117). What survives is a macOS-only keyboard tap kept alive for one
 //! reason: auto-paste-at-cursor writes a synthetic Cmd+V through the macOS
 //! Accessibility grant, and a stale post-update grant reads as trusted through

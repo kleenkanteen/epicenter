@@ -19,6 +19,7 @@ enum RecordingState {
 }
 
 fn emit_recording_state(app: &AppHandle, state: RecordingState) {
+    crate::shell::set_tray_recording_state(app, matches!(state, RecordingState::Recording));
     if let Err(e) = app.emit(RECORDER_STATE_CHANGED, state) {
         warn!(
             "Failed to emit {} = {:?}: {}",

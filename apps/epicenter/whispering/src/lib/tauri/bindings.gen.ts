@@ -196,11 +196,15 @@ export const commands = {
 	 *  command for the FE to call.
 	 */
 	getDictationCapability: () => __TAURI_INVOKE<DictationCapability>("get_dictation_capability"),
+	replaceGlobalShortcuts: (registrations: GlobalShortcutRegistration[]) => typedError<null, string>(__TAURI_INVOKE("replace_global_shortcuts", { registrations })),
+	isAutostartEnabled: () => typedError<boolean, string>(__TAURI_INVOKE("is_autostart_enabled")),
+	setAutostartEnabled: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_autostart_enabled", { enabled })),
 };
 
 /** Events */
 export const events = {
 	dictationCapabilityEvent: makeEvent<DictationCapabilityEvent>("dictation-capability-event"),
+	globalShortcutTriggered: makeEvent<GlobalShortcutTriggered>("global-shortcut-triggered"),
 };
 
 /* Types */
@@ -277,6 +281,18 @@ export type DownloadProgress = {
 	bytesReceived: number | null,
 	/**  Grand total bytes for the whole model (sum of the catalog file sizes). */
 	totalBytes: number | null,
+};
+
+export type GlobalShortcutRegistration = {
+	commandId: string,
+	accelerator: string,
+};
+
+export type GlobalShortcutState = "Pressed" | "Released";
+
+export type GlobalShortcutTriggered = {
+	commandId: string,
+	state: GlobalShortcutState,
 };
 
 /**

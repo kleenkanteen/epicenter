@@ -59,6 +59,12 @@ use media::{pause_playback, resume_playback};
 
 pub mod timing;
 
+mod shell;
+use shell::{
+    is_autostart_enabled, replace_global_shortcuts, set_autostart_enabled, GlobalShortcutRegistry,
+    GlobalShortcutTriggered,
+};
+
 #[cfg(desktop)]
 pub mod keyboard;
 
@@ -277,9 +283,13 @@ fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             keyring_write,
             keyboard::commands::set_auto_paste_enabled,
             keyboard::commands::get_dictation_capability,
+            replace_global_shortcuts,
+            is_autostart_enabled,
+            set_autostart_enabled,
         ])
         .events(tauri_specta::collect_events![
             keyboard::DictationCapabilityEvent,
+            GlobalShortcutTriggered,
         ])
         .error_handling(tauri_specta::ErrorHandlingMode::Result)
 }
@@ -340,8 +350,12 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .manage(HostState::new(port))
+        .manage(GlobalShortcutRegistry::default())
         .manage(Mutex::new(Recorder::new()))
         .manage(DownloadManager::default());
 
@@ -368,6 +382,8 @@ pub fn run() {
 
             #[cfg(desktop)]
             app.manage(keyboard::TapController::new(app.handle().clone()));
+
+            shell::create_tray(app.handle())?;
 
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
@@ -449,7 +465,7 @@ fn request_surface(app: &DesktopAppHandle, surface: Surface) {
         if !window_app.state::<HostState>().token_is_active(&token) {
             return;
         }
-        if let Err(error) = show_or_create_surface(&window_app, surface, port, &token) {
+        if let Err(error) = ensure_surface(&window_app, surface, port, &token, true) {
             append_parent_log(
                 &window_app,
                 &format!("open {} surface: {error:#}", surface.id()),
@@ -809,9 +825,11 @@ fn create_surfaces_on_main_thread(
             #[cfg(target_os = "macos")]
             create_recording_overlay(&app, port, &token)?;
 
+            ensure_surface(&app, Surface::Whispering, port, &token, false)?;
+
             surfaces
                 .into_iter()
-                .try_for_each(|surface| show_or_create_surface(&app, surface, port, &token))
+                .try_for_each(|surface| ensure_surface(&app, surface, port, &token, true))
         })();
         let _ = sender.send(result);
     })?;
@@ -829,14 +847,17 @@ fn create_recording_overlay(app: &DesktopAppHandle, port: u16, token: &str) -> R
         .context("create the Whispering recording overlay")
 }
 
-fn show_or_create_surface(
+fn ensure_surface(
     app: &DesktopAppHandle,
     surface: Surface,
     port: u16,
     token: &str,
+    reveal: bool,
 ) -> Result<()> {
     if let Some(window) = app.get_webview_window(surface.id()) {
-        focus(window);
+        if reveal {
+            focus(window);
+        }
         return Ok(());
     }
 
@@ -847,6 +868,7 @@ fn show_or_create_surface(
         .title(surface.title())
         .inner_size(1100.0, 760.0)
         .min_inner_size(680.0, 480.0)
+        .visible(reveal)
         .initialization_script(initialization_script)
         .on_navigation(move |url| is_allowed_navigation(url, port))
         .on_new_window(|_, _| NewWindowResponse::Deny)
@@ -860,7 +882,9 @@ fn show_or_create_surface(
             let _ = close_window.hide();
         }
     });
-    focus(window);
+    if reveal {
+        focus(window);
+    }
     Ok(())
 }
 

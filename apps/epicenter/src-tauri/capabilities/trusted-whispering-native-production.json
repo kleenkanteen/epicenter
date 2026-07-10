@@ -49,18 +49,19 @@
 		"allow-keyring-write",
 		"allow-set-auto-paste-enabled",
 		"allow-get-dictation-capability",
+		"allow-replace-global-shortcuts",
+		"allow-is-autostart-enabled",
+		"allow-set-autostart-enabled",
 		"clipboard-manager:allow-read-text",
 		"clipboard-manager:allow-write-text",
 		"dialog:allow-open",
 		"dialog:allow-save",
-		"global-shortcut:allow-is-registered",
-		"global-shortcut:allow-register",
-		"global-shortcut:allow-unregister",
-		"global-shortcut:allow-register-all",
-		"global-shortcut:allow-unregister-all",
+		"deep-link:default",
 		"log:default",
 		"macos-permissions:default",
+		"notification:default",
 		"opener:allow-default-urls",
-		"opener:allow-open-url"
+		"opener:allow-open-url",
+		"os:default"
 	]
 }
