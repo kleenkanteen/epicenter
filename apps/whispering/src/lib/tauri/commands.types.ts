@@ -14,7 +14,6 @@ export type CatalogError =
 
 export type DictationCapability =
 	| 'unknown'
-	| 'unsupported'
 	| 'inactive'
 	| 'untrusted'
 	| 'active'
@@ -23,11 +22,6 @@ export type DictationCapability =
 export type DownloadProgress = {
 	bytesReceived: number | null;
 	totalBytes: number | null;
-};
-
-export type GlobalShortcutRegistration = {
-	commandId: string;
-	accelerator: string;
 };
 
 export type IpcRecorderError =
@@ -64,5 +58,3 @@ export type TranscriptionSpec = {
 	language?: string | null;
 	initialPrompt?: string | null;
 };
-
-export type { Key, KeyBinding, Modifier } from './key-binding-types';

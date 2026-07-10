@@ -68,13 +68,12 @@ const sharedCommands = [
 		category: 'Recording',
 		reach: 'global',
 		// Hold to record, release to stop. The push-to-talk controller owns the
-		// recording its press starts: a release, a synthetic release from the
-		// keyboard backend (a tap restart, a re-sync), or a 5-minute cap stops only
-		// that session, and a release that lands before startup finishes is still
-		// honored. Not "the edges are the whole state machine": a lost release edge
-		// would otherwise leave recording stuck on. Both the desktop global shortcut
-		// backend and the browser keydown backend emit the Pressed/Released pair.
-		// Unbound globally by default: bind a chord here for hold-to-talk.
+		// recording its press starts: a release or a 5-minute cap stops only that
+		// session, and a release that lands before startup finishes is still honored.
+		// Not "the edges are the whole state machine": a lost release edge would
+		// otherwise leave recording stuck on. Both the desktop global-shortcut plugin
+		// and the browser keydown backend emit the Pressed/Released pair. Unbound
+		// globally by default: bind a chord here for hold-to-talk.
 		on: ['Pressed', 'Released'],
 		run: (state?: ShortcutEventState) => {
 			if (state === 'Pressed') return pushToTalk.start();
@@ -86,10 +85,9 @@ const sharedCommands = [
 		title: 'Toggle recording',
 		category: 'Recording',
 		reach: 'global',
-		// Tap to start, tap to stop. This is also what the in-app record button
-		// fires (a click arrives with no edge). Unbound globally by default:
-		// push-to-talk owns the default recording key. Bind a key here for a
-		// hands-free toggle, e.g. for long-form dictation.
+		// Press once to start and again to stop. This is also what the record button
+		// fires (a click arrives with no edge). It ships with the default global
+		// recording chord; push-to-talk ships unbound for users who prefer a hold.
 		on: ['Pressed'],
 		run: () => toggleManualRecording(),
 	},
@@ -157,8 +155,8 @@ const triggerTargetById = new Map<string, TriggerTarget>(
 );
 
 /**
- * The single convergence point for trigger backends. The desktop global
- * shortcut listener and the browser keydown manager both emit raw `(commandId,
+ * The single convergence point for trigger backends. The desktop global-shortcut
+ * plugin and the browser keydown manager both emit raw `(commandId,
  * edge)` pairs into here, so neither reimplements the `on` filter: an edge the
  * command does not subscribe to is dropped, the rest reach the handler. Direct
  * invocations (command palette, in-app buttons) bypass this and call

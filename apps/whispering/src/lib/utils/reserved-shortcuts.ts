@@ -12,8 +12,11 @@
  *   (ADR-0117).
  */
 
-import type { Modifier } from '$lib/tauri/commands.types';
-import { type BindingLike, isRegistrableChord } from '$lib/utils/key-binding';
+import {
+	type BindingLike,
+	isRegistrableChord,
+	type Modifier,
+} from './key-binding';
 
 /**
  * `primary` stands for the platform's command modifier: Command on macOS,

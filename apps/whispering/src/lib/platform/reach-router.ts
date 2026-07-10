@@ -1,13 +1,17 @@
 import type { Command } from '$lib/commands';
-import type { KeyBinding } from '$lib/tauri/commands.types';
 // Relative, not `$lib`: the router carries no runtime `$lib` import so it stays
 // free of the catalog's operations/`#platform` graph and unit-testable in
 // isolation. `key-binding` itself has only type imports, so this is its lone dep.
-import { bindingsEqual, type Reach, realizedReach } from '../utils/key-binding';
+import {
+	bindingsEqual,
+	type KeyBinding,
+	type Reach,
+	realizedReach,
+} from '../utils/key-binding';
 import type { ShortcutConflict, Shortcuts } from './types';
 
 /** The reach ceiling per command, the only slice of the catalog the router reads. */
-export type CommandReach = { id: Command['id']; reach: Reach };
+type CommandReach = { id: Command['id']; reach: Reach };
 
 /**
  * Both stored slots for one command. A command can hold a focused binding and a
@@ -16,7 +20,7 @@ export type CommandReach = { id: Command['id']; reach: Reach };
  * honest read, not a single binding. `global` is always `null` on web, where no
  * system backend exists. See ADR-0052.
  */
-export type CommandBindings = {
+type CommandBindings = {
 	focused: KeyBinding | null;
 	global: KeyBinding | null;
 };
@@ -26,10 +30,10 @@ export type CommandBindings = {
  * backends (ADR-0007), where the user never names a store. A write routes by the
  * realized reach of the key the user pressed, a read returns both slots, and a
  * clear names the slot it
- * clears (a command may hold both). The per-tier conflict policy and the storage
+ * clears (a command may hold both). The per-backend conflict policy and storage
  * scheme stay owned by the underlying surfaces; this only routes. See ADR-0052.
  */
-export type RoutedShortcuts = {
+type RoutedShortcuts = {
 	/** Push every command's bindings to both backends (the global one only on desktop). */
 	sync(): Promise<void>;
 	/** Restore every shortcut in both stores to its default, then re-sync. */
@@ -39,7 +43,7 @@ export type RoutedShortcuts = {
 	/**
 	 * Persist a binding, routed to the focused or global store by its realized
 	 * reach. A bare key or a chord on a focused command lands in the synced
-	 * focused store; a capable chord or hold on a global command, on desktop,
+	 * focused store; a registrable chord on a global command, on desktop,
 	 * lands in the per-device global store. On web the platform ceiling clamps
 	 * every write to focused.
 	 */
@@ -48,8 +52,8 @@ export type RoutedShortcuts = {
 	clear(commandId: Command['id'], reach: Reach): Promise<void>;
 	/**
 	 * Why `binding` cannot be assigned to this command, or `null` when allowed.
-	 * First the per-tier policy of the store the key routes into (focused refuses
-	 * duplicates; global refuses reserved gestures and overlaps); then, on desktop,
+	 * First the policy of the backend the key routes into (focused refuses
+	 * duplicates; global also refuses reserved gestures); then, on desktop,
 	 * a duplicate in the OTHER store, because the focused window runs both backends
 	 * at once and the same gesture in both stores would double-fire on one keypress
 	 * (ADR-0052).
@@ -147,7 +151,7 @@ export function createReachRouter({
 				// exact set match and tolerates an overlapping prefix (the focused
 				// store's own policy likewise refuses only exact duplicates), so the
 				// unavoidable double-fire is the identical gesture living in both
-				// stores. Matching the focused tier's test keeps the two consistent.
+				// stores. Matching the focused backend's test keeps the two consistent.
 				if (existing && bindingsEqual(existing, binding)) {
 					return { kind: 'crossStore', commandId: command.id };
 				}

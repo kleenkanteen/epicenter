@@ -79,7 +79,7 @@
 	},
 	"scripts": {
 		"dev": "vite dev",
-		"test": "bun test tests/",
+		"test": "bun test",
 		"build": "NODE_ENV=production vite build",
 		"build:epicenter": "EPICENTER_SURFACE=1 bun run build",
 		"check": "bun run typecheck",

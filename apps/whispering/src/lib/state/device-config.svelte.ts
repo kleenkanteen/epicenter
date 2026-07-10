@@ -5,7 +5,7 @@ import { os } from '#platform/os';
 import { BITRATES_KBPS, DEFAULT_BITRATE_KBPS } from '$lib/constants/audio';
 import { LOCAL_MODEL_UNLOAD_POLICIES } from '$lib/constants/local-model-unload-policy';
 import { log, report } from '$lib/report';
-import type { KeyBinding } from '$lib/tauri/commands.types';
+import type { KeyBinding } from '$lib/utils/key-binding';
 
 // ── Global shortcut binding shape ────────────────────────────────────────────
 
@@ -24,14 +24,13 @@ const globalBinding = type({
 
 // Default global gestures, not mnemonic app hotkeys. These are plain chords the
 // `tauri-plugin-global-shortcut` backend registers with no Accessibility grant,
-// the only global-shortcut backend on every platform (ADR-0117). No default's
-// keys may be a subset of another's (the shorter would shadow the longer under
-// the overlap check): every default below is distinct.
+// the only global-shortcut backend on every platform (ADR-0117). Every default
+// binding is distinct.
 //
-// Toggle recording is the out-of-the-box gesture: tap to start, tap to stop. A
-// chord is the right tool for a toggle (its press effort resists accidental
-// triggers). Push-to-talk ships unbound: bind a chord for it in settings if you
-// want a held key (Fn and modifier-only holds are not supported).
+// Toggle recording is the out-of-the-box gesture: press once to start and again
+// to stop. A chord is the right tool for a toggle; its press effort resists
+// accidental triggers. Push-to-talk ships unbound: bind a chord for it in
+// settings if you want a held key (Fn and modifier-only holds are not supported).
 //
 //   macOS:   Cmd + Shift + Space  = toggle,  Cmd + .          = cancel
 //   Windows: Ctrl + Shift + Space = toggle,  Ctrl + Shift + . = cancel

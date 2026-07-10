@@ -6,7 +6,6 @@ const OVERRIDABLE_DICTATION_CAPABILITIES = [
 	'untrusted',
 	'active',
 	'broken',
-	'unsupported',
 ] as const satisfies readonly DictationCapability[];
 type DictationCapabilityOverride =
 	| (typeof OVERRIDABLE_DICTATION_CAPABILITIES)[number]
@@ -59,17 +58,6 @@ function createDictationCapability() {
 		get isStale(): boolean {
 			return effective() === 'broken';
 		},
-		/**
-		 * Paste at cursor cannot fire right now, for any settled reason
-		 * (`untrusted`, `broken`, or `unsupported`). Excludes `active` (it works),
-		 * `unknown` (the pre-seed sub-tick), and `inactive` (paste at cursor is off
-		 * by design).
-		 */
-		get isUnavailable(): boolean {
-			const s = effective();
-			return s !== 'active' && s !== 'unknown' && s !== 'inactive';
-		},
-
 		/**
 		 * Dev-only: pin the capability (or `null` to resume the live value) so the
 		 * denied/granted/stale UI can be toggled in real time. No-op in production

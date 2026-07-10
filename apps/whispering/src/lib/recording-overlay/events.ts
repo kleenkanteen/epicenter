@@ -42,7 +42,7 @@ export type DictationFailureTier = 'silent-loss' | 'transcription';
 export const FAILURE_LABEL = {
 	'silent-loss': 'Recording failed',
 	transcription: 'Transcription failed',
-} as const satisfies Record<DictationFailureTier, string>;
+} satisfies Record<DictationFailureTier, string>;
 
 /**
  * What the pill should display, the serializable projection of the main
@@ -54,8 +54,8 @@ export const FAILURE_LABEL = {
  * full error detail lives on the recordings row and in the OS notification.
  *
  * The VAD `recording` variant carries two glanceable, orthogonal signals beside
- * the live meter: `speaking` (VAD has latched onto speech, past mere loudness)
- * and `transcribing` (a previous phrase is still transcribing alongside the live
+ * the live meter: `isSpeaking` (VAD has latched onto speech, past mere loudness)
+ * and `isTranscribing` (a previous phrase is still transcribing alongside the live
  * session). They are independent: a new utterance can latch while the prior one
  * still transcribes. Both are already-resolved booleans, not the raw VAD state,
  * so every surface renders them identically without re-deriving. Success and
@@ -73,9 +73,9 @@ export type RecordingOverlayStatus =
 			phase: 'recording';
 			trigger: 'vad';
 			/** VAD has latched onto speech: light the meter past mere loudness. */
-			speaking: boolean;
+			isSpeaking: boolean;
 			/** A previous phrase is still transcribing beside the live meter. */
-			transcribing: boolean;
+			isTranscribing: boolean;
 	  }
 	| { phase: 'transcribing' }
 	| { phase: 'polishing' }
@@ -95,10 +95,13 @@ export const recordingOverlayStatus = defineWindowEvent<RecordingOverlayStatus>(
 	'recording-overlay:status',
 );
 
-/** overlay -> main: the user clicked stop or cancel. */
+/** overlay -> main: the user invoked a pill control. */
 export const recordingOverlayAction = defineWindowEvent<RecordingOverlayAction>(
 	'recording-overlay:action',
 );
+
+/** overlay -> main: reveal the main Whispering window. */
+export const revealMainWindow = defineWindowSignal('main-window:reveal');
 
 /**
  * overlay -> main: the overlay mounted and its listener is live, so the main

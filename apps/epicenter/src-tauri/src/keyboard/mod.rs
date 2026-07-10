@@ -132,40 +132,26 @@ fn set_capability(
     let _ = DictationCapabilityEvent { capability: next }.emit_to(app, MAIN_WINDOW);
 }
 
-/// Run the macOS tap on the calling thread until it stops. Returns the
-/// debug-formatted stop reason (log only), or `None` on a clean stop.
+/// Spawn one Accessibility-grant watcher. Its passive tap runs until a tap break,
+/// revoked grant, stale signature, or requested stop, then reports the exit over
+/// `control_tx`. It decodes nothing and cannot swallow keystrokes; its liveness
+/// is the whole signal. The supervisor serializes spawns, so exactly one watcher
+/// is ever live.
 #[cfg(target_os = "macos")]
-fn run_listen() -> Option<String> {
-    mac_tap::listen().err().map(|error| format!("{error:?}"))
-}
-
-/// Spawn one tap thread. It runs until `run_listen` returns (a tap break, a
-/// revoked grant, or a stale signature), then reports its exit over `control_tx`.
-/// The tap is passive (not `grab`, so keystrokes still reach the foreground app)
-/// and decodes nothing: its liveness is the whole signal. The supervisor is the
-/// only caller and serializes spawns, so exactly one tap thread is ever live.
-#[cfg(target_os = "macos")]
-fn spawn_listener(control_tx: &Sender<Control>) {
+fn spawn_grant_watcher(control_tx: &Sender<Control>) {
     let control_tx = control_tx.clone();
     std::thread::Builder::new()
-        .name("keyboard-listener".into())
+        .name("accessibility-grant-watcher".into())
         .spawn(move || {
-            if let Some(reason) = run_listen() {
-                log::error!("keyboard tap stopped: {reason}");
+            if let Err(error) = mac_tap::listen() {
+                log::error!("Accessibility grant watcher stopped: {error:?}");
             }
             // Hand the exit to the supervisor, which decides what it means
             // (revoked grant vs requested stop vs transient death vs stale
             // signature) and whether to restart.
             let _ = control_tx.send(Control::TapStopped);
         })
-        .expect("failed to spawn keyboard listener thread");
-}
-
-/// Ask the live tap (if any) to stop. Returns `mac_tap::listen` from its blocking
-/// loop, which lands as a `Control::TapStopped` the supervisor settles.
-#[cfg(target_os = "macos")]
-fn request_tap_stop() {
-    mac_tap::stop();
+        .expect("failed to spawn Accessibility grant watcher thread");
 }
 
 #[cfg(target_os = "macos")]
@@ -230,8 +216,8 @@ fn run_supervisor(
         let outcome = supervisor.step(control, is_trusted(), now_ms);
 
         match outcome.effect {
-            Some(Effect::SpawnTap) => spawn_listener(&control_tx),
-            Some(Effect::StopTap) => request_tap_stop(),
+            Some(Effect::SpawnTap) => spawn_grant_watcher(&control_tx),
+            Some(Effect::StopTap) => mac_tap::stop(),
             None => {}
         }
         set_capability(&app, &capability, outcome.phase);

@@ -58,10 +58,11 @@ import { commands, events } from '$lib/tauri/commands';
 
 /**
  * A global chord resolved to the accelerator the plugin registers under. The
- * caller (`platform/system-shortcuts.tauri.ts`) resolves each binding once via
- * `resolveBinding`, so `registerChords` registers the string instead of
- * re-deriving it.
+ * caller (`platform/system-shortcuts.tauri.ts`) computes each accelerator once,
+ * so `registerChords` registers the string instead of re-deriving it.
  */
+export type ChordRegistration = GlobalShortcutRegistration;
+
 // fs ----------------------------------------------------------------
 const FsError = defineErrors({
 	ReadFilesFailed: ({ paths, cause }: { paths: string[]; cause: unknown }) => ({

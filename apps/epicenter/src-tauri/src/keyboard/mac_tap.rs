@@ -139,8 +139,8 @@ pub fn listen() -> Result<(), TapError> {
 }
 
 /// Ask the live tap (if any) to stop and return from `listen`. Safe to call from
-/// any thread and when nothing is running. Called by the supervisor's
-/// `request_tap_stop` when auto-paste-at-cursor is disabled.
+/// any thread and when nothing is running. Called by the supervisor when
+/// auto-paste-at-cursor is disabled.
 pub fn stop() {
     STOP.store(true, Ordering::SeqCst);
     if let Ok(active) = ACTIVE_LOOP.lock() {

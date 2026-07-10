@@ -6,18 +6,17 @@
 	import Globe from '@lucide/svelte/icons/globe';
 	import Plus from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
-	import type { Command } from '$lib/commands';
+	import { type Command, commands } from '$lib/commands';
 	import { os } from '#platform/os';
 	import { shortcuts } from '$lib/platform/shortcuts';
 	import { report } from '$lib/report';
-	import type { KeyBinding } from '$lib/tauri/commands.types';
 	import {
 		isEmptyBinding,
 		keyBindingToLabel,
+		type KeyBinding,
 		type Reach,
 	} from '$lib/utils/key-binding';
 	import { createChordRecorder } from './create-chord-recorder';
-	import { describeShortcutConflict } from './describe-conflict';
 
 	// The one router-driven recorder (ADR-0052): the user picks a key, never a
 	// store. A command's two slots (focused, global) render as reach-glyphed chips,
@@ -50,8 +49,7 @@
 	// never diverge, so there is no separate `capturing` flag to keep in sync.
 	let open = $state(false);
 	// The combo held so far this session, so the popover can preview its reach
-	// before the user releases. `null` between sessions. See each recorder's
-	// `onProgress`.
+	// before the user releases. `null` between sessions.
 	let previewBinding = $state<KeyBinding | null>(null);
 	const preview = $derived.by(() => {
 		if (!previewBinding || isEmptyBinding(previewBinding)) return null;
@@ -63,11 +61,12 @@
 
 	// One capture brain: the webview recorder captures bare keys for focused
 	// shortcuts and chords for global shortcuts.
-	const onCapture = (next: KeyBinding) => void commitCandidate(next);
-	const onProgress = (partial: KeyBinding) => {
-		previewBinding = partial;
-	};
-	const chordRecorder = createChordRecorder({ onCapture, onProgress });
+	const chordRecorder = createChordRecorder({
+		onCapture: (next) => void commitCandidate(next),
+		onProgress: (partial) => {
+			previewBinding = partial;
+		},
+	});
 
 	// The recorder runs while the popover is open. Closing or unmounting stops it.
 	$effect(() => {
@@ -76,33 +75,36 @@
 		return () => chordRecorder.stop();
 	});
 
-	// The router checks the conflict against the store the key would route into,
-	// so the per-tier policy (focused refuses duplicates; global refuses reserved
-	// gestures and overlaps) matches where the binding will live. Returns true when
-	// refused.
-	function rejectConflict(next: KeyBinding): boolean {
-		const conflict = shortcuts.findConflict(command.id, next);
-		if (!conflict) return false;
-		const reason = describeShortcutConflict(conflict, os.isApple);
-		report.error({
-			title: 'That shortcut is not available',
-			description: reason,
-			cause: {
-				name: 'ShortcutConflict',
-				message: `${keyBindingToLabel(next, os.isApple)}: ${reason}`,
-			},
-		});
-		return true;
-	}
-
 	// Persist a captured key, routed by realized reach: a bare key lands in-app and
 	// a chord goes global on desktop. The recorder never names a store; the key's
 	// reach decides. On a conflict it stays listening so the user can retry without
 	// reopening.
 	async function commitCandidate(next: KeyBinding) {
-		// On a conflict, stay open and listening so the user can retry; each recorder
-		// has already reset its own accumulation.
-		if (rejectConflict(next)) {
+		// Check the backend the key will route into. Both refuse exact duplicates;
+		// the global backend also refuses OS-reserved gestures. On a conflict, stay
+		// open so the user can retry; the recorder has reset its own accumulation.
+		const conflict = shortcuts.findConflict(command.id, next);
+		if (conflict) {
+			let reason: string;
+			if (conflict.kind === 'reserved') {
+				reason = conflict.reason;
+			} else {
+				const title =
+					commands.find((candidate) => candidate.id === conflict.commandId)
+						?.title ?? conflict.commandId;
+				reason =
+					conflict.kind === 'duplicate'
+						? `Those keys already trigger "${title}". Pick a different combination.`
+						: `Those keys are already used by "${title}", which also fires in this window. Pick a different combination.`;
+			}
+			report.error({
+				title: 'That shortcut is not available',
+				description: reason,
+				cause: {
+					name: 'ShortcutConflict',
+					message: `${keyBindingToLabel(next, os.isApple)}: ${reason}`,
+				},
+			});
 			previewBinding = null;
 			return;
 		}
@@ -116,13 +118,10 @@
 		previewBinding = null;
 		open = false;
 	}
-
-	async function clear(reach: Reach) {
-		await shortcuts.clear(command.id, reach);
-	}
 </script>
 
-{#snippet reachGlyph(reach: Reach)}
+{#snippet keyChip(binding: KeyBinding, reach: Reach)}
+	<Kbd.Root>{keyBindingToLabel(binding, os.isApple)}</Kbd.Root>
 	<span
 		class="inline-flex items-center text-muted-foreground"
 		title={reachLabel(reach)}
@@ -136,11 +135,6 @@
 	</span>
 {/snippet}
 
-{#snippet keyChip(binding: KeyBinding, reach: Reach)}
-	<Kbd.Root>{keyBindingToLabel(binding, os.isApple)}</Kbd.Root>
-	{@render reachGlyph(reach)}
-{/snippet}
-
 <div class="flex flex-wrap items-center justify-end gap-2">
 	{#each chips as chip (chip.reach)}
 		<div class="flex items-center gap-1.5">
@@ -152,7 +146,7 @@
 				variant="ghost"
 				size="icon"
 				class="size-6 shrink-0"
-				onclick={() => clear(chip.reach)}
+				onclick={() => void shortcuts.clear(command.id, chip.reach)}
 			>
 				<XIcon class="size-3.5" />
 				<span class="sr-only">Clear {chip.reach} shortcut</span>
