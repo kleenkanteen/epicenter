@@ -11,10 +11,9 @@ import { dictationLifecycle } from '$lib/state/dictation-lifecycle.svelte';
  * (ADR-0039). Detail and retry live on the recordings row, not here.
  *
  * A reduced delivery reach is not a failure: the transcript is saved, so it never
- * reaches this projection. It surfaces on the pill instead (a `clipboard` or
- * `history` tag that persists until the next dictation), which is enough because
- * the dominant `history` cause, a revoked Accessibility grant, already raises its
- * own standing notice.
+	 * reaches this projection. It surfaces on the pill instead as a `clipboard` tag
+	 * that persists until the next dictation, which is enough because a revoked
+	 * Accessibility grant already raises its own standing notice.
  *
  * There is no toast and no `MoreDetailsDialog`. `report.warning` and standing
  * warnings for a revoked or stale Accessibility grant are a different,

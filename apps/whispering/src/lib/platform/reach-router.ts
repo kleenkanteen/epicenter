@@ -30,7 +30,7 @@ type CommandBindings = {
  * backends (ADR-0007), where the user never names a store. A write routes by the
  * realized reach of the key the user pressed, a read returns both slots, and a
  * clear names the slot it
- * clears (a command may hold both). The per-tier conflict policy and the storage
+ * clears (a command may hold both). The per-backend conflict policy and storage
  * scheme stay owned by the underlying surfaces; this only routes. See ADR-0052.
  */
 type RoutedShortcuts = {
@@ -43,7 +43,7 @@ type RoutedShortcuts = {
 	/**
 	 * Persist a binding, routed to the focused or global store by its realized
 	 * reach. A bare key or a chord on a focused command lands in the synced
-	 * focused store; a capable chord or hold on a global command, on desktop,
+	 * focused store; a registrable chord on a global command, on desktop,
 	 * lands in the per-device global store. On web the platform ceiling clamps
 	 * every write to focused.
 	 */
@@ -52,7 +52,7 @@ type RoutedShortcuts = {
 	clear(commandId: Command['id'], reach: Reach): Promise<void>;
 	/**
 	 * Why `binding` cannot be assigned to this command, or `null` when allowed.
-	 * First the per-tier policy of the store the key routes into (focused refuses
+	 * First the policy of the backend the key routes into (focused refuses
 	 * duplicates; global also refuses reserved gestures); then, on desktop,
 	 * a duplicate in the OTHER store, because the focused window runs both backends
 	 * at once and the same gesture in both stores would double-fire on one keypress

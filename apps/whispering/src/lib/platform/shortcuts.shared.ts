@@ -28,7 +28,7 @@ type ShortcutBackend = {
 	/**
 	 * Why `binding` cannot be assigned to this command, or `null` when allowed,
 	 * as structured {@link ShortcutConflict} (the recorder renders the message).
-	 * The per-tier conflict policy (exact duplicates for both, plus OS-reserved
+	 * The per-backend conflict policy (exact duplicates for both, plus OS-reserved
 	 * gestures for global) lives here, beside the storage the policy reads.
 	 */
 	findConflict(

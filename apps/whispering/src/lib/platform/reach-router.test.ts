@@ -1,3 +1,4 @@
+/** Reach routing, backend delegation, and cross-store conflict behavior. */
 import { expect, test } from 'bun:test';
 import type { KeyBinding } from '$lib/utils/key-binding';
 import { createReachRouter } from './reach-router';
@@ -239,7 +240,7 @@ test('the cross-store check refuses only an identical gesture, not a mere overla
 
 	// Cmd+Shift+Space (routed global) merely *contains* bare Space; pressing it
 	// never produces the exact `{Space}` held-set the in-app matcher needs, so it
-	// does not double-fire and is allowed. The focused tier itself refuses only
+	// does not double-fire and is allowed. The focused backend itself refuses only
 	// exact duplicates, and the cross-store check matches that.
 	expect(router.findConflict('cancelRecording', CHORD)).toBeNull();
 });
