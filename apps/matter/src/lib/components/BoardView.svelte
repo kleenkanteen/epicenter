@@ -78,21 +78,9 @@
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col">
-	<header
-		class="flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-4 py-3"
-	>
-		<div class="min-w-0">
-			<h1 class="max-w-[70vw] truncate text-sm font-semibold">
-				{projection.title ?? projection.id}
-			</h1>
-			<div class="mt-1 flex flex-wrap gap-1.5">
-				<Badge variant="secondary">{cardCount} rows</Badge>
-				<Badge variant="secondary">grouped by {projection.groupBy}</Badge>
-				{#if read.unreadable.length}
-					<Badge variant="destructive">{read.unreadable.length} unreadable</Badge>
-				{/if}
-			</div>
-		</div>
+	<header class="flex items-center gap-2 border-b px-3 py-2">
+		<Badge variant="secondary">{cardCount} rows</Badge>
+		<Badge variant="secondary">grouped by {projection.groupBy}</Badge>
 		<Badge variant="outline">board</Badge>
 	</header>
 

@@ -3,7 +3,7 @@
 	import { Badge } from '@epicenter/ui/badge';
 	import { Button } from '@epicenter/ui/button';
 	import * as Empty from '@epicenter/ui/empty';
-	import { Input } from '@epicenter/ui/input';
+	import * as InputGroup from '@epicenter/ui/input-group';
 	import * as Table from '@epicenter/ui/table';
 	import * as ToggleGroup from '@epicenter/ui/toggle-group';
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
@@ -84,7 +84,6 @@
 	const isQuerying = $derived(query?.isActive ?? false);
 
 	const read = $derived(table.read);
-	const folder = $derived(table.folderName);
 	const onSaveField = $derived(table.saveField);
 	const onSaveBody = $derived(table.saveBody);
 	const view = $derived(read.view);
@@ -271,15 +270,10 @@
 	Icon: typeof ListIcon,
 	ariaLabel: string,
 )}
-	<ToggleGroup.Item {value} aria-label={ariaLabel} class="h-8 flex-none gap-2 px-3 text-xs">
+	<ToggleGroup.Item {value} aria-label={ariaLabel} class="flex-none gap-1.5">
 		<Icon data-icon="inline-start" class="size-4" />
 		<span>{label}</span>
-		<Badge
-			variant="secondary"
-			class="ml-0.5 h-5 min-w-5 justify-center rounded-md px-1.5 font-mono text-[11px]"
-		>
-			{count}
-		</Badge>
+		<span class="tabular-nums text-muted-foreground">{count}</span>
 	</ToggleGroup.Item>
 {/snippet}
 
@@ -299,19 +293,9 @@
 
 <div class="flex min-h-0 flex-1 flex-col">
 	{#if view.mode === 'untyped'}
-		<header
-			class="flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-4 py-3"
-		>
-			<div class="min-w-0">
-				<h1 class="max-w-[70vw] truncate text-sm font-semibold">{folder}</h1>
-				<div class="mt-1 flex flex-wrap gap-1.5">
-					<Badge variant="secondary">{read.rows.length} rows</Badge>
-					<Badge variant="secondary">{view.columns.length} columns</Badge>
-					{#if read.unreadable.length}
-						<Badge variant="destructive">{read.unreadable.length} unreadable</Badge>
-					{/if}
-				</div>
-			</div>
+		<header class="flex items-center gap-2 border-b px-3 py-2">
+			<Badge variant="secondary">{read.rows.length} rows</Badge>
+			<Badge variant="secondary">{view.columns.length} columns</Badge>
 			<Badge variant="outline">no contract</Badge>
 		</header>
 
@@ -366,46 +350,32 @@
 			</Table.Root>
 		</div>
 	{:else}
-		<header
-			class="flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-4 py-3"
-		>
-			<div class="min-w-0">
-				<h1 class="max-w-[70vw] truncate text-sm font-semibold">{folder}</h1>
-				<div class="mt-1 flex flex-wrap gap-1.5">
-					<Badge variant="secondary">
-						{isFiltered
-							? `${visibleRows.length} of ${read.rows.length} rows`
-							: `${read.rows.length} rows`}
-					</Badge>
-					<Badge variant="secondary">{view.contract.fields.length} fields</Badge>
-					{#if read.unreadable.length}
-						<Badge variant="destructive">{read.unreadable.length} unreadable</Badge>
-					{/if}
-				</div>
-			</div>
-			<div class="flex min-w-0 flex-wrap items-center justify-end gap-3">
+		<header class="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+			<Badge variant="secondary" class="shrink-0">
+				{isFiltered
+					? `${visibleRows.length} of ${read.rows.length} rows`
+					: `${read.rows.length} rows`}
+			</Badge>
+			<div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
 				{#if query}
 					<!-- Search only exists for a searchable folder: an empty `searchable` projects no FTS
 					     table, so a MATCH would hit "no such table". -->
 					{#if view.contract.searchable.length}
-						<div class="flex min-w-0 items-center gap-1.5">
-							<SearchIcon class="size-4 shrink-0 text-muted-foreground" />
-							<Input
+						<InputGroup.Root class="w-40">
+							<InputGroup.Addon><SearchIcon /></InputGroup.Addon>
+							<InputGroup.Input
 								bind:value={query.match}
-								placeholder="Search text"
+								placeholder="Search rows"
 								spellcheck={false}
 								aria-label="Full-text search row bodies and text fields"
-								class="h-8 w-48 max-w-[min(12rem,50vw)] text-xs"
 							/>
-						</div>
+						</InputGroup.Root>
 					{/if}
-					<div class="flex min-w-0 items-center gap-1.5">
-						<span
-							class="font-mono text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-						>
-							where
-						</span>
-						<Input
+					<InputGroup.Root class="w-52">
+						<InputGroup.Addon>
+							<span class="font-mono text-xs text-muted-foreground">WHERE</span>
+						</InputGroup.Addon>
+						<InputGroup.Input
 							bind:value={query.where}
 							placeholder="status = 'ready'"
 							spellcheck={false}
@@ -415,19 +385,16 @@
 							aria-invalid={Boolean(query.error)}
 							aria-label="Filter rows with a SQL WHERE clause"
 							title={query.error}
-							class={[
-								'h-8 w-64 max-w-[min(16rem,60vw)] font-mono text-xs',
-								query.error && 'border-destructive focus-visible:ring-destructive/30',
-							]}
+							class="font-mono"
 						/>
-					</div>
+					</InputGroup.Root>
 				{/if}
 				<ToggleGroup.Root
 					type="single"
 					variant="outline"
 					size="sm"
 					spacing={1}
-					class="max-w-full flex-wrap justify-end"
+					class="ml-auto max-w-full flex-wrap justify-end"
 					bind:value={() => rowFilter, setRowFilter}
 				>
 					{@render rowFilterItem(
@@ -610,22 +577,6 @@
 		</div>
 	{/if}
 
-	{#if read.unreadable.length}
-		<section class="border-t bg-muted/20 px-4 py-3">
-			<div class="flex items-center gap-2">
-				<FileWarningIcon class="size-4 text-muted-foreground" />
-				<h2 class="text-xs font-semibold text-muted-foreground">Can't read</h2>
-			</div>
-			<ul class="mt-1 space-y-0.5">
-				{#each read.unreadable as file (file.fileName)}
-					<li class="text-xs">
-						<span class="font-mono">{file.fileName}</span>
-						<span class="text-muted-foreground"> / {file.error.message}</span>
-					</li>
-				{/each}
-			</ul>
-		</section>
-	{/if}
 </div>
 
 {#if detailConformance}
