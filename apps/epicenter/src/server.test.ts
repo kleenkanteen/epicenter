@@ -11,8 +11,8 @@
  * - `/` returns exactly the page string the server was constructed with
  * - Malformed WebSocket frames drop silently without killing the socket
  * - The real vite build emits one document with no external asset references
- * - The spawned `main.ts` sidecar announces a port, serves the built SPA, and
- *   drives a tool-calling turn against an OpenAI-compatible endpoint
+ * - The spawned `main.ts` sidecar announces versioned readiness, serves the
+ *   built SPA, and drives a tool-calling turn against an OpenAI-compatible endpoint
  *
  * See also:
  * - `host.test.ts` for tool catalog composition and turn execution
@@ -36,6 +36,7 @@ import {
 	type QueryServerEvent,
 	type QuerySessionResponse,
 } from './server.ts';
+import type { ReadyFrame } from './sidecar-runtime.ts';
 
 const TOKEN = 'per-launch-secret';
 
@@ -57,9 +58,12 @@ function testDataDir(): string {
 	return mkdtempSync(join(tmpdir(), 'query-server-test-'));
 }
 
-function createTestHost(
-	options: Omit<QueryHostOptions, 'dataDir' | 'model'>,
-) {
+function boundPort(server: { port?: number }): number {
+	if (server.port === undefined) throw new Error('server did not bind a port');
+	return server.port;
+}
+
+function createTestHost(options: Omit<QueryHostOptions, 'dataDir' | 'model'>) {
 	return createQueryHost({
 		dataDir: testDataDir(),
 		model: 'test-model',
@@ -139,9 +143,9 @@ describe('createQueryServer', () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
-		expect(() =>
-			createQueryServer({ host, token: '', page: PAGE }),
-		).toThrow(/per-launch token/);
+		expect(() => createQueryServer({ host, token: '', page: PAGE })).toThrow(
+			/per-launch token/,
+		);
 	});
 
 	test('rejects every request without the token, on any route', async () => {
@@ -581,7 +585,7 @@ const FINAL_TEXT_TURN = [
 ];
 
 /**
- * Read the sidecar's stdout until the one-line `{"port": N}` announcement.
+ * Read the sidecar's stdout until the one-line versioned ready announcement.
  * Rejects with the buffered stdout (or the sidecar's stderr, if it exited)
  * so a failed launch names its cause instead of timing out silently.
  */
@@ -613,7 +617,13 @@ async function readPortAnnouncement(
 				const newline = buffer.indexOf('\n');
 				if (newline !== -1) {
 					const line = buffer.slice(0, newline);
-					return (JSON.parse(line) as { port: number }).port;
+					const ready = JSON.parse(line) as ReadyFrame;
+					expect(ready).toEqual({
+						type: 'ready',
+						protocolVersion: 1,
+						port: ready.port,
+					});
+					return ready.port;
 				}
 			}
 			if (done) {
@@ -627,6 +637,18 @@ async function readPortAnnouncement(
 		clearTimeout(timer);
 		reader.releaseLock();
 	}
+}
+
+async function exitWithin(
+	sidecar: { exited: Promise<number> },
+	timeoutMs: number,
+): Promise<number> {
+	return Promise.race([
+		sidecar.exited,
+		Bun.sleep(timeoutMs).then(() => {
+			throw new Error(`sidecar did not exit within ${timeoutMs}ms`);
+		}),
+	]);
 }
 
 describe('sidecar end-to-end smoke', () => {
@@ -651,27 +673,40 @@ describe('sidecar end-to-end smoke', () => {
 			},
 		});
 
-		const sidecar = Bun.spawn(['bun', 'run', 'src/main.ts'], {
-			cwd: queryDir,
-			env: {
-				...process.env,
-				// The engine POSTs `${baseURL}/chat/completions`, so the base
-				// carries the `/v1` prefix.
-				EPICENTER_QUERY_INFERENCE_URL: `${inference.url.origin}/v1`,
-				EPICENTER_QUERY_MODEL: 'fake-model',
-				// Keep the host's replicas out of the real user data directory.
-				EPICENTER_QUERY_DATA_DIR: testDataDir(),
-			},
-			stdin: 'pipe',
-			stdout: 'pipe',
-			stderr: 'pipe',
+		const portProbe = Bun.serve({
+			hostname: '127.0.0.1',
+			port: 0,
+			fetch: () => new Response(),
 		});
+		const port = boundPort(portProbe);
+		await portProbe.stop(true);
+		const sidecar = Bun.spawn(
+			['bun', 'run', 'src/main.ts', '--runtime-mode=development'],
+			{
+				cwd: queryDir,
+				env: {
+					...process.env,
+					// The engine POSTs `${baseURL}/chat/completions`, so the base
+					// carries the `/v1` prefix.
+					EPICENTER_QUERY_INFERENCE_URL: `${inference.url.origin}/v1`,
+					EPICENTER_QUERY_MODEL: 'fake-model',
+					// Keep the host's replicas out of the real user data directory.
+					EPICENTER_QUERY_DATA_DIR: testDataDir(),
+				},
+				stdin: 'pipe',
+				stdout: 'pipe',
+				stderr: 'pipe',
+			},
+		);
 		try {
-			// The per-launch token travels as the first stdin line, never argv.
-			sidecar.stdin.write(`${TOKEN}\n`);
+			// The credential and Rust-resolved port travel in the boot frame.
+			sidecar.stdin.write(
+				`${JSON.stringify({ type: 'boot', protocolVersion: 1, token: TOKEN, port })}\n`,
+			);
 			await sidecar.stdin.flush();
-			const port = await readPortAnnouncement(sidecar, 30_000);
-			const origin = `http://127.0.0.1:${port}`;
+			const announcedPort = await readPortAnnouncement(sidecar, 30_000);
+			expect(announcedPort).toBe(port);
+			const origin = `http://127.0.0.1:${announcedPort}`;
 
 			// The one-request page: exactly the built document.
 			const served = await fetch(`${origin}/?token=${TOKEN}`);
@@ -724,8 +759,93 @@ describe('sidecar end-to-end smoke', () => {
 			);
 			expect(inferenceRequests).toBe(2);
 		} finally {
-			sidecar.kill();
+			sidecar.kill('SIGTERM');
+			expect(await sidecar.exited).toBe(0);
 			await inference.stop(true);
 		}
 	}, 120_000);
+
+	test('a port collision exits without announcing readiness or falling back', async () => {
+		await buildSpaOnce();
+		const occupied = Bun.serve({
+			hostname: '127.0.0.1',
+			port: 0,
+			fetch: () => new Response('occupied'),
+		});
+		const occupiedPort = boundPort(occupied);
+		const sidecar = Bun.spawn(
+			['bun', 'run', 'src/main.ts', '--runtime-mode=development'],
+			{
+				cwd: queryDir,
+				env: {
+					...process.env,
+					EPICENTER_QUERY_INFERENCE_URL: 'http://127.0.0.1:1/v1',
+					EPICENTER_QUERY_MODEL: 'unused-model',
+					EPICENTER_QUERY_DATA_DIR: testDataDir(),
+				},
+				stdin: 'pipe',
+				stdout: 'pipe',
+				stderr: 'pipe',
+			},
+		);
+		try {
+			sidecar.stdin.write(
+				`${JSON.stringify({ type: 'boot', protocolVersion: 1, token: TOKEN, port: occupiedPort })}\n`,
+			);
+			await sidecar.stdin.flush();
+			expect(await exitWithin(sidecar, 30_000)).not.toBe(0);
+			expect(await new Response(sidecar.stdout).text()).toBe('');
+			expect(await new Response(sidecar.stderr).text()).toMatch(
+				/port|address/i,
+			);
+		} finally {
+			sidecar.kill();
+			await occupied.stop(true);
+		}
+	}, 60_000);
+
+	test('parent-pipe EOF exits and releases the listening port', async () => {
+		await buildSpaOnce();
+		const portProbe = Bun.serve({
+			hostname: '127.0.0.1',
+			port: 0,
+			fetch: () => new Response(),
+		});
+		const port = boundPort(portProbe);
+		await portProbe.stop(true);
+		const sidecar = Bun.spawn(
+			['bun', 'run', 'src/main.ts', '--runtime-mode=development'],
+			{
+				cwd: queryDir,
+				env: {
+					...process.env,
+					EPICENTER_QUERY_INFERENCE_URL: 'http://127.0.0.1:1/v1',
+					EPICENTER_QUERY_MODEL: 'unused-model',
+					EPICENTER_QUERY_DATA_DIR: testDataDir(),
+				},
+				stdin: 'pipe',
+				stdout: 'pipe',
+				stderr: 'pipe',
+			},
+		);
+		try {
+			sidecar.stdin.write(
+				`${JSON.stringify({ type: 'boot', protocolVersion: 1, token: TOKEN, port })}\n`,
+			);
+			await sidecar.stdin.flush();
+			expect(await readPortAnnouncement(sidecar, 30_000)).toBe(port);
+			sidecar.stdin.end();
+			expect(await exitWithin(sidecar, 30_000)).toBe(0);
+
+			const replacement = Bun.serve({
+				hostname: '127.0.0.1',
+				port,
+				fetch: () => new Response(),
+			});
+			expect(replacement.port).toBe(port);
+			await replacement.stop(true);
+		} finally {
+			sidecar.kill();
+		}
+	}, 60_000);
 });

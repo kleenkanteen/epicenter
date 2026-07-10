@@ -474,6 +474,11 @@ The milestone explicitly excludes:
 - [ ] Preserve Bun SPA/API/WebSocket serving.
 - [ ] Bind production to 39130 and development to 39131 or `EPICENTER_DEV_PORT`.
 - [ ] Add exact single-instance, readiness, shutdown, and collision behavior.
+  > **Checkpoint:** Bun now accepts one strict versioned boot frame, validates
+  > the Rust-supplied production or development port, emits one versioned ready
+  > frame, fails a collision without fallback, and exits cleanly on signal or
+  > parent-pipe EOF. Rust port resolution, supervision, and single-instance
+  > ownership remain in this wave.
 - [ ] Open Query from the Bun origin in a Tauri WebView.
 - [ ] Prove a Bun-served trusted page can call one harmless focused Rust command.
 
