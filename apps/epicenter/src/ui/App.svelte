@@ -3,7 +3,6 @@
 	import { Badge, type BadgeVariant } from '@epicenter/ui/badge';
 	import { Button } from '@epicenter/ui/button';
 	import * as Command from '@epicenter/ui/command';
-	import * as Empty from '@epicenter/ui/empty';
 	import * as Item from '@epicenter/ui/item';
 	import * as Popover from '@epicenter/ui/popover';
 	import { Spinner } from '@epicenter/ui/spinner';
@@ -12,12 +11,10 @@
 	import Transcript from './Transcript.svelte';
 	import { createSession } from './session.svelte.ts';
 
-	const { token }: { token: string | null } = $props();
-
-	// The token never changes within a page load (boot strips it from the URL
-	// and passes it once), so capturing its initial value is the point.
+	const { sessionReady }: { sessionReady: Promise<void> } = $props();
+	// The bootstrap promise is fixed for this document lifetime.
 	// svelte-ignore state_referenced_locally
-	const session = token === null ? null : createSession({ token });
+	const session = createSession({ ready: sessionReady });
 
 	let toolsOpen = $state(false);
 
@@ -60,16 +57,7 @@
 	}
 </script>
 
-{#if session === null}
-	<Empty.Root class="h-full">
-		<Empty.Title>Query</Empty.Title>
-		<Empty.Description>
-			This page is missing its launch token. Relaunch Query from the app;
-			opening this address by hand will not work.
-		</Empty.Description>
-	</Empty.Root>
-{:else}
-	<div class="flex h-full flex-col text-sm">
+<div class="flex h-full flex-col text-sm">
 		<header class="flex flex-none items-center gap-3 border-b px-3 py-2">
 			<span class="font-semibold">Query</span>
 			<span
@@ -237,5 +225,4 @@
 			onStop={() => session.stop()}
 			onRetry={() => session.retry()}
 		/>
-	</div>
-{/if}
+</div>

@@ -2,13 +2,15 @@
  * Query Server Tests
  *
  * Verifies the loopback shell around one host session (ADR-0084): the
- * per-launch token gates every HTTP request and WebSocket upgrade, the SPA is
- * one self-contained document served byte-for-byte at `/`, and the WebSocket
- * drives the single shared chat session.
+ * exact Host and Origin checks protect the loopback boundary, Tauri bootstraps
+ * HttpOnly browser sessions without a URL token, Query is served at its final
+ * route, and the WebSocket drives the single shared chat session.
  *
  * Key behaviors:
- * - Every route 401s without the token (bearer header or `?token=` query)
- * - `/` returns exactly the page string the server was constructed with
+ * - The launch token is accepted only by the bootstrap route
+ * - Query APIs and WebSockets require an HttpOnly browser session
+ * - `/apps/query/` returns exactly the built Query document
+ * - Host, Origin, CSP, frame, and referrer policies are enforced
  * - Malformed WebSocket frames drop silently without killing the socket
  * - The real vite build emits one document with no external asset references
  * - The spawned `main.ts` sidecar announces versioned readiness, serves the
@@ -32,6 +34,12 @@ import {
 	type QueryHostOptions,
 } from './host.ts';
 import {
+	BOOTSTRAP_ROUTE,
+	QUERY_ROUTE,
+	SESSION_ROUTE,
+	SESSION_STREAM_ROUTE,
+} from './routes.ts';
+import {
 	createQueryServer,
 	type QueryServerEvent,
 	type QuerySessionResponse,
@@ -44,6 +52,14 @@ const TOKEN = 'per-launch-secret';
 const PAGE = '<!doctype html><html><body>Query test page</body></html>';
 
 const queryDir = fileURLToPath(new URL('..', import.meta.url));
+type TestServer = ReturnType<typeof Bun.serve>;
+const BunWebSocket = WebSocket as unknown as {
+	new (url: string, options: { headers: Record<string, string> }): WebSocket;
+};
+const serverAuthentication = new WeakMap<
+	TestServer,
+	{ cookie: string; origin: string }
+>();
 
 function scriptedEngine(scripts: EngineChunk[][]): AgentEngine {
 	let step = 0;
@@ -72,17 +88,39 @@ function createTestHost(options: Omit<QueryHostOptions, 'dataDir' | 'model'>) {
 }
 
 async function serveHost(host: QueryHost, page: string = PAGE) {
+	const portProbe = Bun.serve({
+		hostname: '127.0.0.1',
+		port: 0,
+		fetch: () => new Response(),
+	});
+	const port = boundPort(portProbe);
+	await portProbe.stop(true);
+	const origin = `http://127.0.0.1:${port}`;
 	const { app, websocket } = createQueryServer({
 		host,
-		token: TOKEN,
-		page,
+		origin,
+		launchToken: TOKEN,
+		queryPage: page,
 	});
 	const server = Bun.serve({
 		hostname: '127.0.0.1',
-		port: 0,
+		port,
 		fetch: app.fetch,
 		websocket,
 	});
+	const bootstrap = await fetch(BOOTSTRAP_ROUTE.url(origin), {
+		method: 'POST',
+		headers: {
+			authorization: `Bearer ${TOKEN}`,
+			origin,
+		},
+	});
+	if (bootstrap.status !== 204) {
+		throw new Error(`test bootstrap failed with ${bootstrap.status}`);
+	}
+	const cookie = bootstrap.headers.get('set-cookie')?.split(';', 1)[0];
+	if (cookie === undefined) throw new Error('test bootstrap set no cookie');
+	serverAuthentication.set(server, { cookie, origin });
 	return server;
 }
 
@@ -90,8 +128,25 @@ function conversationOf(event: QueryServerEvent) {
 	return event.snapshot.conversation;
 }
 
-function streamUrl(server: { url: URL }): string {
-	return `${server.url.origin.replace('http', 'ws')}/api/session/stream?token=${TOKEN}`;
+function authenticationFor(server: TestServer) {
+	const authentication = serverAuthentication.get(server);
+	if (authentication === undefined) throw new Error('unknown test server');
+	return authentication;
+}
+
+function authenticatedHeaders(server: TestServer) {
+	return { cookie: authenticationFor(server).cookie };
+}
+
+function streamUrl(server: TestServer): string {
+	return SESSION_STREAM_ROUTE.url(server.url.origin).replace('http:', 'ws:');
+}
+
+function openSocket(server: TestServer): WebSocket {
+	const { cookie, origin } = authenticationFor(server);
+	return new BunWebSocket(streamUrl(server), {
+		headers: { cookie, origin },
+	});
 }
 
 /**
@@ -139,55 +194,90 @@ const settledWith =
 	};
 
 describe('createQueryServer', () => {
-	test('refuses an empty token at construction', async () => {
+	test('refuses an empty launch token and non-loopback origins', async () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
-		expect(() => createQueryServer({ host, token: '', page: PAGE })).toThrow(
-			/per-launch token/,
-		);
+		expect(() =>
+			createQueryServer({
+				host,
+				origin: 'http://127.0.0.1:39130',
+				launchToken: '',
+				queryPage: PAGE,
+			}),
+		).toThrow(/launch token/);
+		for (const origin of [
+			'http://localhost:39130',
+			'https://127.0.0.1:39130',
+			'http://127.0.0.1',
+			'http://127.0.0.1:39130/path',
+		]) {
+			expect(() =>
+				createQueryServer({
+					host,
+					origin,
+					launchToken: TOKEN,
+					queryPage: PAGE,
+				}),
+			).toThrow(/exact http:\/\/127\.0\.0\.1/);
+		}
 	});
 
-	test('rejects every request without the token, on any route', async () => {
+	test('the launch token mints a browser session only at bootstrap', async () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
 		const server = await serveHost(host);
+		const { origin } = authenticationFor(server);
 		try {
-			for (const path of [
-				'/',
-				'/api/session',
-				'/api/session/stream',
-				'/nope',
-			]) {
-				const bare = await fetch(server.url.origin + path);
-				expect(bare.status).toBe(401);
-				const wrong = await fetch(`${server.url.origin}${path}?token=wrong`);
-				expect(wrong.status).toBe(401);
-			}
+			const minted = await fetch(BOOTSTRAP_ROUTE.url(origin), {
+				method: 'POST',
+				headers: { authorization: `Bearer ${TOKEN}`, origin },
+			});
+			const setCookie = minted.headers.get('set-cookie');
+			expect(minted.status).toBe(204);
+			expect(setCookie).toContain('HttpOnly');
+			expect(setCookie).toContain('SameSite=Strict');
+			expect(setCookie).toContain('Path=/');
+			expect(setCookie).not.toContain(TOKEN);
+
+			const wrongToken = await fetch(BOOTSTRAP_ROUTE.url(origin), {
+				method: 'POST',
+				headers: { authorization: 'Bearer wrong', origin },
+			});
+			expect(wrongToken.status).toBe(401);
+			const wrongOrigin = await fetch(BOOTSTRAP_ROUTE.url(origin), {
+				method: 'POST',
+				headers: {
+					authorization: `Bearer ${TOKEN}`,
+					origin: 'http://localhost:39130',
+				},
+			});
+			expect(wrongOrigin.status).toBe(403);
+			const queryToken = await fetch(
+				`${SESSION_ROUTE.url(origin)}?token=${TOKEN}`,
+			);
+			expect(queryToken.status).toBe(401);
 		} finally {
 			await server.stop(true);
 		}
 	});
 
-	test('serves the page via query token and the API via bearer', async () => {
+	test('serves Query publicly but keeps domain APIs behind the browser session', async () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
 		const server = await serveHost(host);
 		try {
-			// The initial window URL carries the token once as a query parameter,
-			// and the response IS the page the server was constructed with.
-			const page = await fetch(`${server.url.origin}/?token=${TOKEN}`);
+			const page = await fetch(QUERY_ROUTE.url(server.url.origin));
 			expect(page.status).toBe(200);
 			expect(await page.text()).toBe(PAGE);
-			// The tokened navigation must never land in a disk cache keyed by
-			// its full URL (ADR-0084: the token dies with the process).
 			expect(page.headers.get('cache-control')).toBe('no-store');
 
-			// Subsequent fetches carry it as a bearer header.
-			const session = await fetch(`${server.url.origin}/api/session`, {
-				headers: { authorization: `Bearer ${TOKEN}` },
+			const bareSession = await fetch(SESSION_ROUTE.url(server.url.origin));
+			expect(bareSession.status).toBe(401);
+			const session = await fetch(SESSION_ROUTE.url(server.url.origin), {
+				headers: authenticatedHeaders(server),
 			});
 			expect(session.status).toBe(200);
 			const body = (await session.json()) as QuerySessionResponse;
@@ -198,13 +288,42 @@ describe('createQueryServer', () => {
 			expect(createTodos?.inputSchema).toBeDefined();
 			expect(body.snapshot.conversation.messages).toEqual([]);
 
-			const oldTools = await fetch(`${server.url.origin}/api/tools`, {
-				headers: { authorization: `Bearer ${TOKEN}` },
-			});
+			const oldTools = await fetch(`${server.url.origin}/api/tools`);
 			expect(oldTools.status).toBe(404);
-
-			const oldWs = await fetch(`${server.url.origin}/ws?token=${TOKEN}`);
+			const oldWs = await fetch(`${server.url.origin}/ws`);
 			expect(oldWs.status).toBe(404);
+		} finally {
+			await server.stop(true);
+		}
+	});
+
+	test('rejects wrong Host and Origin and serves the browser security policy', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		const server = await serveHost(host);
+		try {
+			const wrongHost = await fetch(
+				QUERY_ROUTE.url(server.url.origin).replace('127.0.0.1', 'localhost'),
+			);
+			expect(wrongHost.status).toBe(421);
+			const wrongOrigin = await fetch(QUERY_ROUTE.url(server.url.origin), {
+				headers: { origin: 'https://example.com' },
+			});
+			expect(wrongOrigin.status).toBe(403);
+
+			const page = await fetch(QUERY_ROUTE.url(server.url.origin));
+			expect(page.headers.get('content-security-policy')).toContain(
+				"connect-src 'self' ipc: http://ipc.localhost",
+			);
+			expect(page.headers.get('content-security-policy')).toContain(
+				"script-src 'self'",
+			);
+			expect(page.headers.get('content-security-policy')).not.toContain(
+				"script-src 'self' 'unsafe-inline'",
+			);
+			expect(page.headers.get('referrer-policy')).toBe('no-referrer');
+			expect(page.headers.get('x-frame-options')).toBe('DENY');
 		} finally {
 			await server.stop(true);
 		}
@@ -218,7 +337,7 @@ describe('createQueryServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const ws = new WebSocket(streamUrl(server));
+			const ws = openSocket(server);
 			const answered = nextSnapshot(
 				ws,
 				settledWith('Hello from the host.'),
@@ -256,7 +375,7 @@ describe('createQueryServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const firstSocket = new WebSocket(streamUrl(server));
+			const firstSocket = openSocket(server);
 			const pending = nextSnapshot(
 				firstSocket,
 				(event) => event.snapshot.pendingApprovals.length === 1,
@@ -281,7 +400,7 @@ describe('createQueryServer', () => {
 
 			// A fresh socket re-renders the same pending approval from host state
 			// (ADR-0113): the prompt outlives the transport that first saw it.
-			const secondSocket = new WebSocket(streamUrl(server));
+			const secondSocket = openSocket(server);
 			await nextSnapshot(
 				secondSocket,
 				(event) =>
@@ -317,8 +436,8 @@ describe('createQueryServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const watcher = new WebSocket(streamUrl(server));
-			const driver = new WebSocket(streamUrl(server));
+			const watcher = openSocket(server);
+			const driver = openSocket(server);
 			const watcherSettled = nextSnapshot(
 				watcher,
 				settledWith('Shared.'),
@@ -368,7 +487,7 @@ describe('createQueryServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const ws = new WebSocket(streamUrl(server));
+			const ws = openSocket(server);
 			const settled = nextSnapshot(
 				ws,
 				(event) =>
@@ -408,7 +527,7 @@ describe('createQueryServer', () => {
 		});
 		const server = await serveHost(host);
 		try {
-			const ws = new WebSocket(streamUrl(server));
+			const ws = openSocket(server);
 			const settled = nextSnapshot(
 				ws,
 				settledWith('Still alive.'),
@@ -433,21 +552,26 @@ describe('createQueryServer', () => {
 		}
 	});
 
-	test('a WebSocket upgrade without the token is refused', async () => {
+	test('WebSocket upgrades require both a browser session and exact Origin', async () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
 		const server = await serveHost(host);
 		try {
-			const ws = new WebSocket(
-				`${server.url.origin.replace('http', 'ws')}/api/session/stream`,
-			);
-			const outcome = await new Promise<'open' | 'refused'>((resolve) => {
-				ws.addEventListener('open', () => resolve('open'));
-				ws.addEventListener('error', () => resolve('refused'));
-				ws.addEventListener('close', () => resolve('refused'));
-			});
-			expect(outcome).toBe('refused');
+			const { cookie, origin } = authenticationFor(server);
+			const rejectedHeaders: Record<string, string>[] = [
+				{ origin },
+				{ cookie, origin: 'http://localhost:39130' },
+			];
+			for (const headers of rejectedHeaders) {
+				const ws = new BunWebSocket(streamUrl(server), { headers });
+				const outcome = await new Promise<'open' | 'refused'>((resolve) => {
+					ws.addEventListener('open', () => resolve('open'));
+					ws.addEventListener('error', () => resolve('refused'));
+					ws.addEventListener('close', () => resolve('refused'));
+				});
+				expect(outcome).toBe('refused');
+			}
 		} finally {
 			await server.stop(true);
 		}
@@ -486,9 +610,8 @@ describe('the built SPA', () => {
 	test('the build emits one self-contained document and the server returns it byte-for-byte', async () => {
 		const page = await buildSpaOnce();
 
-		// One inline script, and it must be inline: a `src` attribute would be
-		// a second request the token gate 401s (ADR-0084: the page is ONE
-		// request; every other request carries the token explicitly).
+		// Query currently ships as one document. The server hashes every inline
+		// script into its CSP instead of allowing arbitrary inline execution.
 		const scriptTags = page.match(/<script\b[^>]*>/gi) ?? [];
 		expect(scriptTags.length).toBeGreaterThan(0);
 		for (const tag of scriptTags) {
@@ -510,9 +633,12 @@ describe('the built SPA', () => {
 		});
 		const server = await serveHost(host, page);
 		try {
-			const response = await fetch(`${server.url.origin}/?token=${TOKEN}`);
+			const response = await fetch(QUERY_ROUTE.url(server.url.origin));
 			expect(response.status).toBe(200);
 			expect(await response.text()).toBe(page);
+			expect(response.headers.get('content-security-policy')).toMatch(
+				/script-src 'self' 'sha256-/,
+			);
 		} finally {
 			await server.stop(true);
 		}
@@ -708,14 +834,24 @@ describe('sidecar end-to-end smoke', () => {
 			expect(announcedPort).toBe(port);
 			const origin = `http://127.0.0.1:${announcedPort}`;
 
-			// The one-request page: exactly the built document.
-			const served = await fetch(`${origin}/?token=${TOKEN}`);
+			// The final Query route is public static content; domain access is not.
+			const served = await fetch(QUERY_ROUTE.url(origin));
 			expect(served.status).toBe(200);
 			expect(await served.text()).toBe(page);
 
-			// The API behind the bearer exposes the composed catalog and snapshot.
-			const session = await fetch(`${origin}/api/session`, {
-				headers: { authorization: `Bearer ${TOKEN}` },
+			const bootstrap = await fetch(BOOTSTRAP_ROUTE.url(origin), {
+				method: 'POST',
+				headers: {
+					authorization: `Bearer ${TOKEN}`,
+					origin,
+				},
+			});
+			expect(bootstrap.status).toBe(204);
+			const cookie = bootstrap.headers.get('set-cookie')?.split(';', 1)[0];
+			expect(cookie).toBeDefined();
+
+			const session = await fetch(SESSION_ROUTE.url(origin), {
+				headers: { cookie: cookie ?? '' },
 			});
 			expect(session.status).toBe(200);
 			const catalog = (await session.json()) as QuerySessionResponse;
@@ -723,8 +859,9 @@ describe('sidecar end-to-end smoke', () => {
 			expect(catalog.snapshot.conversation.messages).toEqual([]);
 
 			// One WebSocket turn: send, then await the settled snapshot.
-			const ws = new WebSocket(
-				`ws://127.0.0.1:${port}/api/session/stream?token=${TOKEN}`,
+			const ws = new BunWebSocket(
+				SESSION_STREAM_ROUTE.url(origin).replace('http:', 'ws:'),
+				{ headers: { cookie: cookie ?? '', origin } },
 			);
 			const settled = nextSnapshot(
 				ws,

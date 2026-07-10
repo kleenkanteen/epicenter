@@ -1,36 +1,27 @@
 /**
- * The Query shell: one Hono app served by Bun on a loopback address,
- * carrying the SPA page, the HTTP API, and the chat WebSocket from one origin
- * (ADR-0084). Tauri points its window at this server instead of a bundled
- * `frontendDist`.
- *
- * The token gate is a mandatory consequence of that shape, not hardening:
- * Tauri provides no protection for an external-URL window, a loopback bind
- * only stops other machines, and behind this port sits a process with full
- * ambient trust to invoke tools. Every HTTP request and every WebSocket
- * upgrade is rejected before any tool executes unless it carries the
- * per-launch token: an `Authorization: Bearer` header for fetches, or a
- * `?token=` query parameter for the initial page load and WebSocket upgrades
- * (the browser `WebSocket` constructor cannot set custom headers).
+ * The Bun-owned Epicenter origin: trusted SPA documents, Query APIs, and the
+ * Query session WebSocket. The launch credential can only mint short-lived
+ * browser sessions at the bootstrap route; it never appears in a URL or
+ * durable browser storage.
  */
 
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { AgentToolDefinition } from '@epicenter/workspace/agent';
 import { Hono } from 'hono';
 import { createBunWebSocket } from 'hono/bun';
+import { getCookie, setCookie } from 'hono/cookie';
 import {
 	parseQueryCommand,
 	type QueryHost,
 	type QuerySessionSnapshot,
 } from './host.ts';
-import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from './routes.ts';
+import {
+	BOOTSTRAP_ROUTE,
+	QUERY_ROUTE,
+	SESSION_ROUTE,
+	SESSION_STREAM_ROUTE,
+} from './routes.ts';
 
-/**
- * The transport frames (ADR-0113: the host owns command semantics and session
- * state; the transport owns how they travel). The server pushes the full
- * render state on every host change; `/api/session` returns the same snapshot
- * plus the tool catalog for hydration.
- */
 export type QueryServerEvent = {
 	type: 'snapshot';
 	snapshot: QuerySessionSnapshot;
@@ -43,51 +34,89 @@ export type QuerySessionResponse = {
 
 export type QueryServerOptions = {
 	host: QueryHost;
-	/** The per-launch token; the process must refuse to serve without one. */
-	token: string;
-	/** The built SPA document; the caller owns reading it from disk. */
-	page: string;
+	/** Exact active origin, including the Rust-selected explicit port. */
+	origin: string;
+	/** Per-launch credential received from Rust over stdin. */
+	launchToken: string;
+	/** The built Query SPA document. */
+	queryPage: string;
 };
 
-/**
- * Build the Hono app plus the Bun WebSocket handler to pass to `Bun.serve`.
- * Binding (loopback, port 0) is the entrypoint's job, so tests can serve the
- * same app on an ephemeral port.
- */
+const SESSION_COOKIE = 'epicenter_session';
+const MAX_BROWSER_SESSIONS = 32;
+
 export function createQueryServer({
 	host,
-	token,
-	page,
+	origin,
+	launchToken,
+	queryPage,
 }: QueryServerOptions) {
-	if (token === '') {
-		throw new Error(
-			'Query refuses to serve without a per-launch token (ADR-0084).',
-		);
+	if (launchToken === '') {
+		throw new Error('Epicenter refuses to serve without a launch token.');
 	}
-
+	const activeUrl = validateOrigin(origin);
+	const activeHost = activeUrl.host;
+	const sessionHashes = new Set<string>();
+	const csp = contentSecurityPolicy(queryPage);
 	const { upgradeWebSocket, websocket } = createBunWebSocket();
 	const app = new Hono();
 
 	app.use('*', async (c, next) => {
+		if (c.req.header('host') !== activeHost) {
+			return c.text('Misdirected Request', 421);
+		}
+		const requestOrigin = c.req.header('origin');
+		if (requestOrigin !== undefined && requestOrigin !== origin) {
+			return c.text('Forbidden', 403);
+		}
+
+		c.header('content-security-policy', csp);
+		c.header('referrer-policy', 'no-referrer');
+		c.header('x-content-type-options', 'nosniff');
+		c.header('x-frame-options', 'DENY');
+		await next();
+	});
+
+	app.post(BOOTSTRAP_ROUTE.pattern, (c) => {
+		if (c.req.header('origin') !== origin) return c.text('Forbidden', 403);
 		const header = c.req.header('authorization');
-		const bearer = header?.startsWith('Bearer ')
+		const candidate = header?.startsWith('Bearer ')
 			? header.slice('Bearer '.length)
 			: undefined;
-		const candidate = bearer ?? c.req.query('token');
-		if (candidate === undefined || !tokensMatch(candidate, token)) {
+		if (candidate === undefined || !tokensMatch(candidate, launchToken)) {
+			return c.text('Unauthorized', 401);
+		}
+
+		const session = randomBytes(32).toString('base64url');
+		sessionHashes.add(tokenHash(session));
+		while (sessionHashes.size > MAX_BROWSER_SESSIONS) {
+			const oldest = sessionHashes.values().next().value;
+			if (oldest === undefined) break;
+			sessionHashes.delete(oldest);
+		}
+		setCookie(c, SESSION_COOKIE, session, {
+			httpOnly: true,
+			path: '/',
+			sameSite: 'Strict',
+		});
+		return c.body(null, 204);
+	});
+
+	app.get(QUERY_ROUTE.pattern, (c) => {
+		c.header('cache-control', 'no-store');
+		return c.html(queryPage);
+	});
+
+	app.use('/api/query/*', async (c, next) => {
+		const session = getCookie(c, SESSION_COOKIE);
+		if (session === undefined || !sessionHashes.has(tokenHash(session))) {
 			return c.text('Unauthorized', 401);
 		}
 		await next();
 	});
-
-	// The SPA: one self-contained document (all JS and CSS inlined by the
-	// build), because a separate asset request could not carry the bearer.
-	// `no-store` keeps the `/?token=` navigation out of the webview's disk
-	// cache, whose entries are keyed by the full URL including the query; the
-	// token must never outlive the process (ADR-0084).
-	app.get('/', (c) => {
-		c.header('cache-control', 'no-store');
-		return c.html(page);
+	app.use(SESSION_STREAM_ROUTE.pattern, async (c, next) => {
+		if (c.req.header('origin') !== origin) return c.text('Forbidden', 403);
+		await next();
 	});
 
 	app.get(SESSION_ROUTE.pattern, (c) =>
@@ -115,10 +144,6 @@ export function createQueryServer({
 				},
 				onMessage(event, ws) {
 					const command = parseQueryCommand(parseFrame(event.data));
-					// Malformed frames drop silently for now: our own clients send
-					// typed commands, and an error outcome has nothing to name until
-					// commands carry client-minted ids. Accepted invokes settle as
-					// visible invocation records instead, so nothing real is lost.
 					if (!command) return;
 					host.handleCommand(command);
 					push(ws);
@@ -133,14 +158,61 @@ export function createQueryServer({
 	return { app, websocket };
 }
 
-/** Constant-time token comparison; hashing first equalizes lengths. */
+function validateOrigin(origin: string): URL {
+	let url: URL;
+	try {
+		url = new URL(origin);
+	} catch {
+		throw new Error(`Invalid Epicenter origin: ${origin}`);
+	}
+	if (
+		url.origin !== origin ||
+		url.protocol !== 'http:' ||
+		url.hostname !== '127.0.0.1' ||
+		url.port === '' ||
+		url.username !== '' ||
+		url.password !== ''
+	) {
+		throw new Error(
+			'Epicenter origin must be exact http://127.0.0.1:<port> without credentials or a path.',
+		);
+	}
+	return url;
+}
+
+function tokenHash(token: string): string {
+	return createHash('sha256').update(token).digest('base64url');
+}
+
 function tokensMatch(candidate: string, expected: string): boolean {
 	const a = createHash('sha256').update(candidate).digest();
 	const b = createHash('sha256').update(expected).digest();
 	return timingSafeEqual(a, b);
 }
 
-/** Transport framing only: one text frame to one JSON value, or nothing. */
+function contentSecurityPolicy(page: string): string {
+	const scriptHashes = [
+		...page.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi),
+	]
+		.map((match) => match[1] ?? '')
+		.map(
+			(script) =>
+				`'sha256-${createHash('sha256').update(script).digest('base64')}'`,
+		);
+	return [
+		"default-src 'self'",
+		`script-src 'self' ${scriptHashes.join(' ')}`,
+		"style-src 'self' 'unsafe-inline'",
+		"connect-src 'self' ipc: http://ipc.localhost",
+		"img-src 'self' data: blob:",
+		"media-src 'self' data: blob:",
+		"worker-src 'self' blob:",
+		"object-src 'none'",
+		"base-uri 'self'",
+		"frame-ancestors 'none'",
+	].join('; ');
+}
+
 function parseFrame(data: unknown): unknown {
 	if (typeof data !== 'string') return undefined;
 	try {

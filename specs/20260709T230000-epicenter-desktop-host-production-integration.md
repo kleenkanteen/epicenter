@@ -471,7 +471,10 @@ The milestone explicitly excludes:
 
 - [x] Rename `apps/super-chat` to `apps/epicenter` without aliases.
 - [ ] Add the Tauri crate and `so.epicenter.app` identity.
-- [ ] Preserve Bun SPA/API/WebSocket serving.
+- [x] Preserve Bun SPA/API/WebSocket serving.
+  > **Note:** Query now lives only at `/apps/query/`; its API and WebSocket are
+  > namespaced under `/api/query/`. Tauri will exchange the launch credential
+  > for an HttpOnly same-site browser session at `/_epicenter/bootstrap`.
 - [ ] Bind production to 39130 and development to 39131 or `EPICENTER_DEV_PORT`.
 - [ ] Add exact single-instance, readiness, shutdown, and collision behavior.
   > **Checkpoint:** Bun now accepts one strict versioned boot frame, validates

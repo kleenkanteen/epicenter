@@ -67,10 +67,12 @@ async function main(): Promise<void> {
 			);
 		}
 		const page = await pageFile.text();
+		const origin = `http://127.0.0.1:${boot.port}`;
 		const { app, websocket } = createQueryServer({
 			host,
-			token: boot.token,
-			page,
+			origin,
+			launchToken: boot.token,
+			queryPage: page,
 		});
 
 		server = Bun.serve({

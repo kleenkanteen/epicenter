@@ -1,6 +1,6 @@
 /**
  * The browser side of the Query session: one startup fetch of
- * `/api/session`, one WebSocket to `/api/session/stream`, and a `$state`-backed
+ * the Query session API, one Query session WebSocket, and a `$state`-backed
  * view the components read. The server snapshot is the only transcript state;
  * every initial payload and `snapshot` event replaces it wholesale, so the
  * client never accumulates a second transcript that could drift.
@@ -16,16 +16,13 @@ import type {
 	QueryInvocation,
 } from '../host.ts';
 import { SESSION_ROUTE, SESSION_STREAM_ROUTE } from '../routes.ts';
-import type {
-	QueryServerEvent,
-	QuerySessionResponse,
-} from '../server.ts';
+import type { QueryServerEvent, QuerySessionResponse } from '../server.ts';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 
 const RECONNECT_DELAY_MS = 1500;
 
-export function createSession({ token }: { token: string }) {
+export function createSession({ ready }: { ready: Promise<void> }) {
 	let snapshot = $state<ConversationSnapshot>({
 		messages: [],
 		streaming: null,
@@ -42,9 +39,7 @@ export function createSession({ token }: { token: string }) {
 
 	async function hydrate() {
 		try {
-			const response = await fetch(SESSION_ROUTE.url(location.origin), {
-				headers: { authorization: `Bearer ${token}` },
-			});
+			const response = await fetch(SESSION_ROUTE.url(location.origin));
 			if (!response.ok) {
 				connection = 'closed';
 				return false;
@@ -63,10 +58,7 @@ export function createSession({ token }: { token: string }) {
 
 	function connect() {
 		connection = 'connecting';
-		// The browser WebSocket constructor cannot set headers, so the token
-		// rides the query string (the server gate accepts either).
 		const url = new URL(SESSION_STREAM_ROUTE.url(location.origin));
-		url.searchParams.set('token', token);
 		// Match the page's scheme: plain ws: against the loopback origin, wss:
 		// when a remote overlay proxy serves this page over https.
 		url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -104,9 +96,14 @@ export function createSession({ token }: { token: string }) {
 		return true;
 	}
 
-	void hydrate().then((ready) => {
-		if (ready) connect();
-	});
+	void ready
+		.then(hydrate)
+		.then((isHydrated) => {
+			if (isHydrated) connect();
+		})
+		.catch(() => {
+			connection = 'closed';
+		});
 
 	return {
 		get snapshot() {
