@@ -53,7 +53,7 @@ export type RoutedShortcuts = {
 	/**
 	 * Why `binding` cannot be assigned to this command, or `null` when allowed.
 	 * First the per-tier policy of the store the key routes into (focused refuses
-	 * duplicates; global refuses reserved gestures and overlaps); then, on desktop,
+	 * duplicates; global also refuses reserved gestures); then, on desktop,
 	 * a duplicate in the OTHER store, because the focused window runs both backends
 	 * at once and the same gesture in both stores would double-fire on one keypress
 	 * (ADR-0052).

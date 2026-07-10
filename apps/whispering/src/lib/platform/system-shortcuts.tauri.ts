@@ -7,8 +7,7 @@ import {
 } from '$lib/state/device-config.svelte';
 import { type ChordRegistration, tauriOnly } from '$lib/tauri.tauri';
 import {
-	bindingsOverlap,
-	isEmptyBinding,
+	bindingsEqual,
 	isRegistrableChord,
 	type KeyBinding,
 	keyBindingToAccelerator,
@@ -43,7 +42,7 @@ const globalKey = (id: Command['id']) => `shortcuts.global.${id}` as const;
  */
 function readBinding(id: Command['id']): KeyBinding | null {
 	const stored = (deviceConfig.get(globalKey(id)) as KeyBinding | null) ?? null;
-	if (stored === null || isEmptyBinding(stored)) return null;
+	if (stored === null) return null;
 	return isRegistrableChord(stored) ? stored : null;
 }
 
@@ -51,17 +50,16 @@ export const systemShortcuts: Shortcuts | null = createShortcuts({
 	read: readBinding,
 	getDefault: (id) => DEFAULT_GLOBAL_BINDINGS[id] ?? null,
 	write: (id, binding) => deviceConfig.set(globalKey(id), binding),
-	// tauri-plugin-global-shortcut registers complete chords, so a gesture that
-	// contains (or is contained by) another would shadow it or be unreachable.
-	// Refuse reserved gestures and overlaps, naming the collision.
+	// The plugin matches complete chords. Refuse reserved gestures and exact
+	// duplicates, while allowing distinct chords that share keys or modifiers.
 	findConflict: (id, binding) => {
 		const reserved = validateGlobalBinding(binding);
 		if (reserved) return { kind: 'reserved', reason: reserved };
 		for (const command of commands) {
 			if (command.id === id) continue;
 			const other = readBinding(command.id);
-			if (other && !isEmptyBinding(other) && bindingsOverlap(other, binding)) {
-				return { kind: 'overlap', commandId: command.id, binding: other };
+			if (other && bindingsEqual(other, binding)) {
+				return { kind: 'duplicate', commandId: command.id };
 			}
 		}
 		return null;
@@ -71,7 +69,7 @@ export const systemShortcuts: Shortcuts | null = createShortcuts({
 		const chords: ChordRegistration[] = [];
 		for (const entry of entries) {
 			if (entry.binding === null) continue;
-			const accelerator = keyBindingToAccelerator(entry.binding as KeyBinding);
+			const accelerator = keyBindingToAccelerator(entry.binding);
 			if (accelerator === null) continue;
 			chords.push({ commandId: entry.command.id, accelerator });
 		}

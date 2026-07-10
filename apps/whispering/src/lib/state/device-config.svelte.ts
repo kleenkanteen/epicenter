@@ -24,9 +24,8 @@ const globalBinding = type({
 
 // Default global gestures, not mnemonic app hotkeys. These are plain chords the
 // `tauri-plugin-global-shortcut` backend registers with no Accessibility grant,
-// the only global-shortcut backend on every platform (ADR-0117). No default's
-// keys may be a subset of another's (the shorter would shadow the longer under
-// the overlap check): every default below is distinct.
+// the only global-shortcut backend on every platform (ADR-0117). Every default
+// binding is distinct.
 //
 // Toggle recording is the out-of-the-box gesture: press once to start and again
 // to stop. A chord is the right tool for a toggle; its press effort resists

@@ -394,17 +394,6 @@ function isContainedBy(subset: BindingLike, superset: BindingLike): boolean {
 }
 
 /**
- * Whether two gestures overlap: one is a subset of the other (including equal).
- * The in-app keydown matcher fires on exact set equality with no prefix
- * resolution, so an overlapping pair is unusable there: the shorter gesture fires
- * first and shadows the longer. The recorder refuses to save a gesture that
- * overlaps another, so a key bound to one gesture cannot appear in any other.
- */
-export function bindingsOverlap(a: BindingLike, b: BindingLike): boolean {
-	return isContainedBy(a, b) || isContainedBy(b, a);
-}
-
-/**
  * Whether two bindings are the same gesture: identical modifier and key sets,
  * order-independent. The browser matcher arms a shortcut when the live held set
  * equals its stored binding, so this is the in-app match test.

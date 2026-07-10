@@ -77,13 +77,13 @@
 	});
 
 	// The router checks the conflict against the store the key would route into,
-	// so the per-tier policy (focused refuses duplicates; global refuses reserved
-	// gestures and overlaps) matches where the binding will live. Returns true when
+	// so the per-tier policy (exact duplicates for both; global also refuses
+	// reserved gestures) matches where the binding will live. Returns true when
 	// refused.
 	function rejectConflict(next: KeyBinding): boolean {
 		const conflict = shortcuts.findConflict(command.id, next);
 		if (!conflict) return false;
-		const reason = describeShortcutConflict(conflict, os.isApple);
+		const reason = describeShortcutConflict(conflict);
 		report.error({
 			title: 'That shortcut is not available',
 			description: reason,
