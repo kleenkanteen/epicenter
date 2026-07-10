@@ -149,4 +149,4 @@ keep `changeset version` (it owns version math and changelogs) but replaced
 
 **Web apps**: Revert the commit on `main` and push, or for immediate rollback: `bunx wrangler rollback --name <worker-name>`.
 
-**Desktop releases**: Delete the draft release and re-tag from an earlier commit.
+**Desktop releases**: Follow the owning Tauri app's release workflow. Whispering has no independent desktop release to roll back.
