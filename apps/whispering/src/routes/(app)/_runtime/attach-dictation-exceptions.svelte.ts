@@ -16,9 +16,9 @@ import { dictationLifecycle } from '$lib/state/dictation-lifecycle.svelte';
  * the dominant `history` cause, a revoked Accessibility grant, already raises its
  * own standing notice.
  *
- * There is no toast and no `MoreDetailsDialog`. `report.warning` and
- * standing-condition warnings (revoked Accessibility, dead listener) are a
- * different, present-tense path and are untouched.
+ * There is no toast and no `MoreDetailsDialog`. `report.warning` and standing
+ * warnings for a revoked or stale Accessibility grant are a different,
+ * present-tense path and are untouched.
  */
 export function attachDictationExceptions() {
 	// The failure's error object is stable for the life of one failure, so it is

@@ -85,9 +85,8 @@ const sharedCommands = [
 		category: 'Recording',
 		reach: 'global',
 		// Press once to start and again to stop. This is also what the record button
-		// fires (a click arrives with no edge). Unbound globally by default:
-		// push-to-talk owns the default recording key. Bind a key here for a
-		// hands-free toggle, e.g. for long-form dictation.
+		// fires (a click arrives with no edge). It ships with the default global
+		// recording chord; push-to-talk ships unbound for users who prefer a hold.
 		on: ['Pressed'],
 		run: () => toggleManualRecording(),
 	},
@@ -155,8 +154,8 @@ const triggerTargetById = new Map<string, TriggerTarget>(
 );
 
 /**
- * The single convergence point for trigger backends. The desktop global
- * shortcut listener and the browser keydown manager both emit raw `(commandId,
+ * The single convergence point for trigger backends. The desktop global-shortcut
+ * plugin and the browser keydown manager both emit raw `(commandId,
  * edge)` pairs into here, so neither reimplements the `on` filter: an edge the
  * command does not subscribe to is dropped, the rest reach the handler. Direct
  * invocations (command palette, in-app buttons) bypass this and call

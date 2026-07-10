@@ -24,8 +24,8 @@
 	// Scope is the only axis that varies: the keys are `output.<scope>.*` and every
 	// label is the scope's noun plugged into one phrasing, so a label change happens
 	// in exactly one place. Paste-at-cursor stays interactive without the grant (it
-	// records intent); the capability recheck on window focus starts the paste the
-	// moment Accessibility lands, with no second visit to flip it back on.
+	// records intent); Rust's bounded grant watcher notices when Accessibility
+	// lands, with no second visit needed to flip it back on.
 	type OutputScope = 'transcription' | 'recipe';
 	let { scope }: { scope: OutputScope } = $props();
 
@@ -71,15 +71,13 @@
 	>
 		<LockIcon class="size-3.5 shrink-0" aria-hidden="true" />
 		<span>{pasteBack} {clipboardFallback}</span>
-		{#if dictationCapability.needsAccessibility}
-			<Button
-				variant="link"
-				class="h-auto p-0 text-sm font-normal"
-				onclick={openSystemSettings}
-			>
-				Open Settings
-			</Button>
-		{/if}
+		<Button
+			variant="link"
+			class="h-auto p-0 text-sm font-normal"
+			onclick={openSystemSettings}
+		>
+			Open Settings
+		</Button>
 	</div>
 {/if}
 

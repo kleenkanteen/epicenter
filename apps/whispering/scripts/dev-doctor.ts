@@ -104,7 +104,7 @@ console.log(
 	'  then relaunch dev and grant the new Microphone/Accessibility entries.',
 );
 
-console.log('\nlive trust / capability / listener health:');
+console.log('\nlive trust / capability / grant-watcher health:');
 console.log(
 	'  shown in the app (DictationCapability) and the Tauri log; the Rust',
 );
