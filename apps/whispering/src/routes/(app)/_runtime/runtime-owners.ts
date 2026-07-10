@@ -5,7 +5,6 @@ import { attachDebugCommands } from './attach-debug-commands';
 import { attachDictationExceptions } from './attach-dictation-exceptions.svelte';
 import { attachGlobalShortcutTriggers } from './attach-global-shortcut-triggers';
 import { attachLocalShortcutListener } from './attach-local-shortcut-listener.svelte';
-import { attachMainWindowReveal } from './attach-main-window-reveal';
 import { attachPushToTalkReconcile } from './attach-push-to-talk-reconcile.svelte';
 import { attachRecordingOverlay } from './attach-recording-overlay.svelte';
 import { attachRecordingRetention } from './attach-recording-retention.svelte';
@@ -28,7 +27,6 @@ export const runtimeOwners = [
 	{ attach: attachUnloadPolicy },
 	{ attach: attachRecordingRetention },
 	{ attach: attachUpdateCheck },
-	{ attach: attachMainWindowReveal },
 	{ attach: attachAutoPasteIntent },
 	{ attach: dictationCapability.attach },
 	{ attach: attachPushToTalkReconcile },

@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { type UnlistenFn } from '@tauri-apps/api/event';
 	import { onDestroy, onMount } from 'svelte';
-	import { revealMainWindow } from '$lib/main-window';
 	import {
 		recordingOverlayAction,
 		recordingOverlayMicLevel,
 		recordingOverlayReady,
 		recordingOverlayStatus,
+		revealMainWindow,
 		type RecordingOverlayAction,
 		type RecordingOverlayStatus,
 	} from '$lib/recording-overlay/events';
@@ -51,10 +51,6 @@
 	function sendAction(action: RecordingOverlayAction) {
 		void recordingOverlayAction.emit(action);
 	}
-
-	function focusMainWindow() {
-		void revealMainWindow.emit();
-	}
 </script>
 
 <!-- The pill hugs its content, so center it within the fixed overlay window (the
@@ -67,7 +63,7 @@
 		onStop={() => sendAction('stop')}
 		onCancel={() => sendAction('cancel')}
 		onShipRaw={() => sendAction('ship-raw')}
-		onReveal={focusMainWindow}
+		onReveal={() => void revealMainWindow.emit()}
 	/>
 </div>
 
