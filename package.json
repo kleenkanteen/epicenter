@@ -152,7 +152,7 @@
 		"dev:vocab": "bun run --filter @epicenter/api --filter @epicenter/vocab dev",
 		"dev:vocab:ui": "bun run --cwd apps/vocab dev",
 		"dev:whispering": "bun run --filter @epicenter/api --filter @epicenter/whispering dev",
-		"dev:whispering:ui": "bun run --cwd apps/whispering dev:web",
+		"dev:whispering:ui": "bun run --cwd apps/whispering dev",
 		"smoke:local": "bun run --cwd apps/api smoke:local",
 		"format": "biome check --write --linter-enabled=false",
 		"format:check": "biome ci --linter-enabled=false",

@@ -92,6 +92,19 @@ type _EncodeRecordingForUpload = Expect<
 	>
 >;
 
+// read_recording_artifact: hand-rolled, raw bytes success path. The only
+// argument is the app-owned recording id; no filesystem path crosses IPC.
+type _ReadRecordingArtifact = Expect<
+	Equal<
+		ReturnType<typeof commands.readRecordingArtifact>,
+		Promise<Result<ArrayBuffer, string>>
+	>
+>;
+
+type _ReadRecordingArtifactArgs = Expect<
+	Equal<Parameters<typeof commands.readRecordingArtifact>, [string]>
+>;
+
 // TranscriptionSpec is the per-call local transcription config.
 type _TranscriptionSpecShape = Expect<
 	Equal<

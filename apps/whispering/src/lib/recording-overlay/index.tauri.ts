@@ -6,6 +6,7 @@ import {
 } from '@tauri-apps/api/window';
 import { once } from 'wellcrafted/function';
 import { createLogger } from 'wellcrafted/logger';
+import { whisperingPath } from '$lib/constants/urls';
 import {
 	type RecordingOverlayStatus,
 	recordingOverlayMicLevel,
@@ -88,12 +89,16 @@ const ensureReadyListener = once(
 
 async function createOverlayWindow(): Promise<WebviewWindow | null> {
 	await ensureReadyListener();
+	const overlayUrl = new URL(
+		whisperingPath('/recording-overlay'),
+		window.location.origin,
+	).href;
 
 	// Created hidden and positioned by `applyStatus` before its first `show()`,
 	// so the window is never painted at this initial position. No need to
 	// compute a real one here.
 	const overlay = new WebviewWindow(WINDOW_LABEL, {
-		url: '/recording-overlay',
+		url: overlayUrl,
 		title: 'Recording',
 		width: OVERLAY_WIDTH,
 		height: OVERLAY_HEIGHT,

@@ -14,13 +14,13 @@
 		"build": "bun run clean:dist && bun run build:query && bun run build:whispering",
 		"build:query": "vite build",
 		"build:sidecar": "bun run scripts/build-sidecar.ts",
-		"build:whispering": "TAURI_ENV_PLATFORM=macos bun run --cwd whispering build && bun run scripts/prepare-whispering-index.ts",
+		"build:whispering": "bun run --cwd ../whispering build:epicenter && bun run scripts/prepare-whispering-index.ts",
 		"clean:dist": "bun run scripts/clean-dist.ts",
 		"build:desktop": "bun run build && bun run build:sidecar",
 		"desktop:build": "tauri build",
 		"test": "bun test",
 		"tauri": "tauri",
-		"typecheck": "bun run typecheck:query && bun run --cwd whispering typecheck",
+		"typecheck": "bun run typecheck:query && bun run --cwd ../whispering typecheck",
 		"typecheck:query": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json"
 	},
 	"dependencies": {

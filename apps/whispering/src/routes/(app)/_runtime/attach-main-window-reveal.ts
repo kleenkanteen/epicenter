@@ -2,6 +2,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { tauri } from '#platform/tauri';
 import { goto } from '$app/navigation';
+import { normalizeWhisperingPath } from '$lib/constants/urls';
 import { revealMainWindow } from '$lib/main-window';
 
 /**
@@ -23,7 +24,7 @@ export function attachMainWindowReveal() {
 			await mainWindow.unminimize();
 			// setFocus often fails on macOS; ignore.
 			await mainWindow.setFocus().catch(() => {});
-			if (payload.path) await goto(payload.path);
+			if (payload.path) await goto(normalizeWhisperingPath(payload.path));
 		})
 		.then((fn) => {
 			if (destroyed) fn();

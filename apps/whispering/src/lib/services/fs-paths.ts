@@ -3,10 +3,10 @@
  *
  * Tauri derives this root from `appDataDir()`, i.e.
  * `${dataDir}/${bundleIdentifier}`. With identifier
- * `so.epicenter.whispering`, that means:
- *   macOS:   ~/Library/Application Support/so.epicenter.whispering/
- *   Windows: %APPDATA%/so.epicenter.whispering/
- *   Linux:   ~/.local/share/so.epicenter.whispering/
+ * `so.epicenter.app`, that means:
+ *   macOS:   ~/Library/Application Support/so.epicenter.app/
+ *   Windows: %APPDATA%/so.epicenter.app/
+ *   Linux:   ~/.local/share/so.epicenter.app/
  *
  * This module must stay importable from browser builds because Svelte routes
  * and components statically import it while guarding calls with `tauri`. Keep

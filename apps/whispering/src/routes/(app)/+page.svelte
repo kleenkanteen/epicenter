@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Button } from '@epicenter/ui/button';
-	import { confirmationDialog } from '@epicenter/ui/confirmation-dialog';
 	import { FileDropZone } from '@epicenter/ui/file-drop-zone';
 	import * as Kbd from '@epicenter/ui/kbd';
 	import { Link } from '@epicenter/ui/link';
@@ -27,10 +26,11 @@
 		MAX_IMPORT_FILES,
 		MAX_IMPORT_FILE_SIZE,
 	} from '$lib/constants/import-formats';
+	import { whisperingPath } from '$lib/constants/urls';
 	import { importFiles } from '$lib/operations/import';
 	import { selectCaptureSurface } from '$lib/operations/recording';
+	import { deleteRecordingsWithConfirmation } from '$lib/operations/recordings';
 	import { report } from '$lib/report';
-	import { services } from '$lib/services';
 	import {
 		getSelectedTranscriptionProvider,
 		getTranscriptionReadiness,
@@ -269,12 +269,16 @@
 			{#if inlineKeyProvider}
 				<ProviderConfigFields provider={inlineKeyProvider.id} secretsOnly />
 				<p class="text-muted-foreground text-sm">
-					<Link href="/settings/processing">
+					<Link href={whisperingPath('/settings/processing')}>
 						Change provider, model, or endpoint in Privacy &amp; Processing
 					</Link>
 				</p>
 			{:else}
-				<Button href="/settings/processing" variant="outline" class="w-full">
+				<Button
+					href={whisperingPath('/settings/processing')}
+					variant="outline"
+					class="w-full"
+				>
 					Set up in Privacy &amp; Processing
 				</Button>
 			{/if}
@@ -383,19 +387,7 @@
 				transcript={latestRecording.polishedTranscript ?? latestRecording.transcript}
 				rows={1}
 				onDelete={() => {
-					confirmationDialog.open({
-						title: 'Delete recording',
-						description: 'Are you sure you want to delete this recording?',
-						confirm: { text: 'Delete', variant: 'destructive' },
-						onConfirm: () => {
-							services.blobs.audio.revokeUrl(latestRecording.id);
-							recordings.delete(latestRecording.id);
-							report.success({
-								title: 'Deleted recording!',
-								description: 'Your recording has been deleted.',
-							});
-						},
-					});
+					deleteRecordingsWithConfirmation(latestRecording);
 				}}
 			/>
 		{/if}
@@ -430,7 +422,7 @@
 <!-- A shortcut option as a link into settings: a key chip, or the "set one up" call
 to action. -->
 {#snippet shortcutLink(link: HintLink)}
-	<Link tooltip={link.tooltip} href="/settings/shortcuts">
+	<Link tooltip={link.tooltip} href={whisperingPath('/settings/shortcuts')}>
 		{#if link.kind === 'key'}
 			<Kbd.Root>{link.label}</Kbd.Root>
 		{:else}{link.label}{/if}

@@ -7,48 +7,15 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**
 	 *  Delivers text to the cursor, falling back to the clipboard when it cannot.
-	 * 
-	 *  The reach is decided from the live Accessibility *capability* before the
-	 *  keystroke, not from the keystroke's result. A `Broken` grant — one that still
-	 *  reads as trusted via `AXIsProcessTrusted` but whose synthetic events the OS
-	 *  drops — lets the paste return `Ok` while nothing lands, so observing the
-	 *  result is unreliable.
-	 * 
-	 *  The clipboard is the paste transport, and `keep_on_clipboard` is the caller's
-	 *  statement of what the clipboard should hold *afterward*:
-	 * 
-	 *  - `keep_on_clipboard == true` (clipboard output is on): the transcript is the
-	 *    intended final clipboard state, so we write it, paste, and leave it. No
-	 *    snapshot, no restore.
-	 *  - `keep_on_clipboard == false` (clipboard output is off): we borrow the
-	 *    clipboard. Snapshot what the user had, write the transcript (concealed on
-	 *    macOS so clipboard-history managers skip it), paste, then restore the
-	 *    snapshot — so `write_text` leaves the clipboard exactly as it found it. On
-	 *    macOS the snapshot is full-fidelity native `NSPasteboard` save/restore (see
-	 *    `clipboard.rs`), which fixes the silent loss of a non-text clipboard
-	 *    (image, file); every other platform keeps the text-only plugin save/restore.
-	 * 
-	 *  When we cannot paste, or the paste fails, the transcript is left on the
-	 *  clipboard as the fallback (this wins over restoring the snapshot). The
-	 *  transcript is independently saved to history either way, so a fallback is a
-	 *  reduced reach, never data loss.
+	 *
+	 *  With `keep_on_clipboard`, the transcript is the intended final clipboard
+	 *  state. Otherwise this command borrows the clipboard, pastes, then restores
+	 *  the exact previous macOS pasteboard or the previous text on other platforms.
 	 */
 	writeText: (text: string, keepOnClipboard: boolean) => typedError<WriteTextOutcome, string>(__TAURI_INVOKE("write_text", { text, keepOnClipboard })),
-	/**
-	 *  Simulates pressing the Enter/Return key
-	 * 
-	 *  This is useful for automatically submitting text in chat applications
-	 *  after transcription has been pasted.
-	 */
+	/**  Simulates pressing the Enter/Return key. */
 	simulateEnterKeystroke: () => typedError<null, string>(__TAURI_INVOKE("simulate_enter_keystroke")),
-	/**
-	 *  Simulates pressing the copy shortcut (Cmd+C on macOS, Ctrl+C elsewhere)
-	 * 
-	 *  This copies the active selection in the foreground app to the clipboard. The
-	 *  frontend pairs it with a clipboard save/read/restore to capture the user's
-	 *  selection without clobbering their clipboard (see the text service's
-	 *  `captureSelection`).
-	 */
+	/**  Simulates the platform copy shortcut with layout-independent key codes. */
 	simulateCopyKeystroke: () => typedError<null, string>(__TAURI_INVOKE("simulate_copy_keystroke")),
 	getCurrentRecordingId: () => typedError<string | null, RecorderError>(__TAURI_INVOKE("get_current_recording_id")),
 	enumerateRecordingDevices: () => typedError<string[], RecorderError>(__TAURI_INVOKE("enumerate_recording_devices")),
@@ -58,7 +25,7 @@ export const commands = {
 	/**
 	 *  Stop the recorder, write the canonical WAV artifact to
 	 *  `<appDataDir>/recordings/{id}.wav`, return the small JSON handle.
-	 * 
+	 *
 	 *  JS never sees raw PCM samples on the wire: later operations look the
 	 *  file up by id (`transcribe_recording`, `encode_recording_for_upload`,
 	 *  and `delete_recording_artifacts`).
@@ -67,7 +34,7 @@ export const commands = {
 	cancelRecording: () => typedError<null, RecorderError>(__TAURI_INVOKE("cancel_recording")),
 	/**
 	 *  Delete recording artifacts by id.
-	 * 
+	 *
 	 *  This is intentionally id-based instead of path-based. The recorder
 	 *  artifact module owns which files under the recordings directory are blobs,
 	 *  so TypeScript callers cannot accidentally delete markdown sidecars or
@@ -76,7 +43,7 @@ export const commands = {
 	deleteRecordingArtifacts: (recordingIds: string[]) => typedError<number, RecorderError>(__TAURI_INVOKE("delete_recording_artifacts", { recordingIds })),
 	/**
 	 *  Delete every recording artifact while preserving markdown sidecars.
-	 * 
+	 *
 	 *  Used by the blob store's `clear()` path. The Rust layer owns the directory
 	 *  scan because it has the same artifact matching rule used by targeted
 	 *  deletion and transcription lookup.
@@ -94,7 +61,7 @@ export const commands = {
 	 *  warm. The frontend fires this fire-and-forget at capture start (manual
 	 *  record or VAD listen) for a local provider, overlapping the ~1 s model
 	 *  load with the user's speech instead of paying it after they stop.
-	 * 
+	 *
 	 *  Idempotent and cheap: a no-op when the exact model is already resident.
 	 *  Shares the one load path with `transcribe_recording` (`ModelCache::prewarm`
 	 *  and `transcribe` both resolve through `ensure_loaded`), so the model warmed
@@ -105,7 +72,7 @@ export const commands = {
 	prewarmModel: (spec: TranscriptionSpec) => typedError<null, TranscriptionError>(__TAURI_INVOKE("prewarm_model", { spec })),
 	/**
 	 *  Open macOS Accessibility settings.
-	 * 
+	 *
 	 *  This is intentionally a fixed command instead of a general command
 	 *  runner. The app only needs this one OS handoff, so the frontend should
 	 *  not receive shell or process execution privileges.
@@ -113,7 +80,7 @@ export const commands = {
 	openAccessibilitySettings: () => typedError<null, string>(__TAURI_INVOKE("open_accessibility_settings")),
 	/**
 	 *  Show the macOS Accessibility permission prompt.
-	 * 
+	 *
 	 *  macOS never lets an app grant itself Accessibility, so this only surfaces the
 	 *  system prompt (which also adds the app to the Accessibility list, toggled
 	 *  off); the live grant is observed by the Rust tap supervisor, not returned
@@ -124,7 +91,7 @@ export const commands = {
 	requestAccessibilityPermission: () => __TAURI_INVOKE<void>("request_accessibility_permission"),
 	/**
 	 *  Read the microphone authorization the OS records up front.
-	 * 
+	 *
 	 *  One owner for every platform. macOS answers through
 	 *  `tauri-plugin-macos-permissions` (AVFoundation), which reports a definitive
 	 *  authorized-or-not, so macOS only ever reads `Granted` or `Denied` (a
@@ -137,7 +104,7 @@ export const commands = {
 	/**
 	 *  Elicit a microphone grant the way each platform allows, then let the caller
 	 *  re-read `get_microphone_permission`.
-	 * 
+	 *
 	 *  macOS shows the system permission prompt (its only programmatic grant path).
 	 *  Windows has no programmatic grant for an unpackaged desktop app, so when the
 	 *  consent store reads `Denied` it deep-links the privacy page for the user to
@@ -195,7 +162,7 @@ export const commands = {
 	resumePlayback: (sessions: string[]) => __TAURI_INVOKE<void>("resume_playback", { sessions }),
 	/**
 	 *  Read the stored secret, or `None` when absent.
-	 * 
+	 *
 	 *  `keyring::Error::NoEntry` (nothing stored yet, or a prior delete) is the
 	 *  only variant folded into `Ok(None)`; every other failure (locked keychain,
 	 *  platform failure, bad encoding) surfaces as `Err`.
@@ -204,7 +171,7 @@ export const commands = {
 	/**
 	 *  Write `value` as the stored secret, or delete the entry when `value` is
 	 *  `None`.
-	 * 
+	 *
 	 *  Deleting an entry that is already absent (`NoEntry`) is treated as
 	 *  success, matching `Storage.removeItem`'s no-throw-if-missing semantics:
 	 *  the TypeScript `PersistedAuthStorage.set(null)` contract relies on a
@@ -229,58 +196,62 @@ export const commands = {
 	 *  command for the FE to call.
 	 */
 	getDictationCapability: () => __TAURI_INVOKE<DictationCapability>("get_dictation_capability"),
+	replaceGlobalShortcuts: (registrations: GlobalShortcutRegistration[]) => typedError<null, string>(__TAURI_INVOKE("replace_global_shortcuts", { registrations })),
+	isAutostartEnabled: () => typedError<boolean, string>(__TAURI_INVOKE("is_autostart_enabled")),
+	setAutostartEnabled: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_autostart_enabled", { enabled })),
 };
 
 /** Events */
 export const events = {
 	dictationCapabilityEvent: makeEvent<DictationCapabilityEvent>("dictation-capability-event"),
+	globalShortcutTriggered: makeEvent<GlobalShortcutTriggered>("global-shortcut-triggered"),
 };
 
 /* Types */
 export type CatalogError = { name: "UnknownModel"; message: string } | { name: "DownloadFailed"; message: string } | { name: "DeleteFailed"; message: string };
 
 /**
- *  The single source of truth for whether Whispering can paste a transcript at
+ *  The single source of truth for whether Epicenter can paste a transcript at
  *  the cursor: a synthetic Cmd/Ctrl+V that, on macOS, needs the Accessibility
  *  grant. macOS is the only platform that gates it, and the only process that
  *  can authoritatively know is the one holding the tap (this one), so Rust owns
  *  this value and the frontend is a pure view over it (ADR-0117).
- * 
+ *
  *  It folds two facts the frontend used to infer separately: the macOS trust
  *  probe (`AXIsProcessTrusted`) and the tap's liveness. Crucially `Broken` is
  *  distinguishable from `Active` only here, because `AXIsProcessTrusted` reports
  *  a stale post-update grant as trusted: the tap dying under a held grant is the
  *  only signal that tells them apart.
  */
-export type DictationCapability = 
+export type DictationCapability =
 /**
  *  The supervisor has not determined the value yet. Rust resolves this
  *  synchronously at startup, so it exists only as the frontend's pre-seed
  *  initial value before the first probe lands.
  */
-"unknown" | 
+"unknown" |
 /**
  *  Reserved. No longer produced: the tap is macOS-only and exists solely to
  *  watch the paste grant (ADR-0117), so there is no "cannot tap" state to
  *  report. Kept in the enum so the frontend's capability vocabulary is stable.
  */
-"unsupported" | 
+"unsupported" |
 /**
  *  Auto-paste-at-cursor is off, so nothing needs the grant: the tap is
  *  deliberately not running and no Accessibility is touched. Global shortcuts
  *  are plugin chords and work regardless.
  */
-"inactive" | 
+"inactive" |
 /**
  *  macOS Accessibility is not granted, so paste at cursor falls back to the
- *  clipboard. Turning Whispering on in System Settings unlocks the paste.
+ *  clipboard. Turning Epicenter on in System Settings unlocks the paste.
  */
-"untrusted" | 
+"untrusted" |
 /**  The tap is running and the app is trusted: paste at cursor can land. */
-"active" | 
+"active" |
 /**
  *  macOS reports the app trusted, but the tap keeps dying under the held
- *  grant: a stale post-update signature. Removing and re-adding Whispering
+ *  grant: a stale post-update signature. Removing and re-adding Epicenter
  *  in Accessibility is the fix, which `Untrusted`'s "just toggle on" is not.
  */
 "broken";
@@ -289,7 +260,7 @@ export type DictationCapability =
  *  Pushed whenever the dictation capability changes. The frontend seeds from
  *  `get_dictation_capability` on attach, then tracks this event for transitions;
  *  it never probes the OS itself. A `tauri_specta::Event`, emitted with
- *  `emit_to(app, MAIN_WINDOW)` (the main webview, not the overlay) and listened
+ *  `emit_to(app, MAIN_WINDOW)` (the Whispering webview, not the overlay) and listened
  *  through the generated `events.dictationCapabilityEvent`.
  */
 export type DictationCapabilityEvent = {
@@ -312,9 +283,21 @@ export type DownloadProgress = {
 	totalBytes: number | null,
 };
 
+export type GlobalShortcutRegistration = {
+	commandId: string,
+	accelerator: string,
+};
+
+export type GlobalShortcutState = "Pressed" | "Released";
+
+export type GlobalShortcutTriggered = {
+	commandId: string,
+	state: GlobalShortcutState,
+};
+
 /**
  *  Structured failure for both commands.
- * 
+ *
  *  Only one variant: the frontend adapter (`tauriOnly.keyring` in
  *  `tauri.tauri.ts`) does not branch on a finer taxonomy. It logs and treats a
  *  read failure as signed-out, and propagates a write failure, exactly like
@@ -325,7 +308,7 @@ export type KeyringError = { name: "Failed"; message: string };
 
 /**
  *  The OS-level microphone authorization, read from the platform privacy store.
- * 
+ *
  *  Only an explicit `Denied` gates recording. `Unknown` (no entry in the store,
  *  or a platform with no such gate) means "can't tell from here": the caller
  *  treats it as available and lets the recorder's stream-open fallback
@@ -356,19 +339,19 @@ export type ModelInfo = {
 	downloaded: boolean,
 };
 
-export type RecorderError = 
+export type RecorderError =
 /**
  *  The OS refused microphone access. The frontend checks microphone
  *  permission before recording, so this is the stream-open fallback for a
  *  denial that slips past that gate (e.g. a declined first-run prompt).
  */
-{ name: "PermissionDenied"; message: string } | 
+{ name: "PermissionDenied"; message: string } |
 /**
  *  No usable input device: none selected and no default, the named device
  *  is gone, cpal reports the device unavailable mid-open, or the device
  *  yields no input configurations at all (query errors or returns empty).
  */
-{ name: "NoInputDevice"; message: string } | 
+{ name: "NoInputDevice"; message: string } |
 /**
  *  Any other recording failure (device config, stream build, filesystem,
  *  session lifecycle, internal). The frontend does not branch on these.
@@ -380,11 +363,11 @@ export type RecorderError =
  *  for every later operation; the rest is metadata the UI needs without
  *  having to read the file (duration for analytics, byteLength for artifact
  *  diagnostics, mimeType for the player).
- * 
+ *
  *  `mime_type` is `String` rather than `&'static str` so specta's TS
  *  generator sees a stable serializable shape. The runtime cost is one short
  *  allocation per artifact write.
- * 
+ *
  *  `duration_ms` and `byte_length` use `#[specta(type = Number<u64>)]`
  *  to opt out of specta's bigint guard: both stay well under
  *  `Number.MAX_SAFE_INTEGER` (2^53) for any plausible recording
@@ -398,7 +381,7 @@ export type RecordingArtifact = {
 	mimeType: string,
 };
 
-export type TranscriptionError = { name: "AudioReadError"; message: string } | { name: "ModelLoadError"; message: string } | { name: "TranscriptionError"; message: string } | 
+export type TranscriptionError = { name: "AudioReadError"; message: string } | { name: "ModelLoadError"; message: string } | { name: "TranscriptionError"; message: string } |
 /**
  *  The per-call spec holds a model id that cannot be resolved to a
  *  downloaded GGUF (no selection, an unknown id, or a not-yet-downloaded
@@ -427,26 +410,18 @@ export type TranscriptionSpec = {
  *  How long after the last transcription the resident model should be
  *  dropped. Mirrors the frontend `transcription.localModelUnloadPolicy`
  *  device setting; serde tags below match its wire format exactly.
- * 
+ *
  *  `Immediately` is enforced synchronously at the end of each transcription;
  *  timed variants are enforced by the background idle watcher.
  */
 export type UnloadPolicy = "never" | "immediately" | "after_5_minutes" | "after_30_minutes";
 
-/**
- *  Where `write_text` left the transcript.
- * 
- *  - `Pasted`: a synthetic paste landed it at the cursor. When the caller asked
- *    to keep the transcript on the clipboard the transcript stays there;
- *    otherwise the clipboard is restored to whatever the user had (see
- *    `write_text`).
- *  - `LeftOnClipboard`: delivery could not paste (no Accessibility grant, or the
- *    paste itself failed), so the transcript was left on the clipboard as the
- *    fallback — always one ⌘V away.
- * 
- *  The frontend maps this to the dictation pill's delivery reach.
- */
-export type WriteTextOutcome = "pasted" | "leftOnClipboard";
+/**  Where `write_text` left the transcript. */
+export type WriteTextOutcome =
+/**  The synthetic paste landed at the cursor. */
+"pasted" |
+/**  Delivery could not paste, so the transcript remains on the clipboard. */
+"leftOnClipboard";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
@@ -478,4 +453,3 @@ function makeEvent<T>(name: string, serialize?: (payload: T) => unknown, deseria
 
     return Object.assign(fn, base);
 }
-

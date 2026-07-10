@@ -5,8 +5,11 @@ import {
 	DEFAULT_GLOBAL_BINDINGS,
 	deviceConfig,
 } from '$lib/state/device-config.svelte';
-import type { KeyBinding } from '$lib/tauri/commands';
-import { type ChordRegistration, tauriOnly } from '$lib/tauri.tauri';
+import type {
+	GlobalShortcutRegistration,
+	KeyBinding,
+} from '$lib/tauri/commands';
+import { tauriOnly } from '$lib/tauri.tauri';
 import {
 	bindingsOverlap,
 	isEmptyBinding,
@@ -68,7 +71,7 @@ export const systemShortcuts: Shortcuts | null = createShortcuts({
 	},
 	syncErrorTitle: 'Error registering global shortcuts',
 	async push(entries) {
-		const chords: ChordRegistration[] = [];
+		const chords: GlobalShortcutRegistration[] = [];
 		for (const entry of entries) {
 			if (entry.binding === null) continue;
 			const resolved = resolveBinding(entry.binding as KeyBinding);

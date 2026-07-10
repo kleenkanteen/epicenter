@@ -684,7 +684,6 @@
         "@sveltejs/vite-plugin-svelte": "catalog:",
         "@tailwindcss/typography": "catalog:",
         "@tailwindcss/vite": "catalog:",
-        "@tauri-apps/cli": "catalog:",
         "@types/bun": "catalog:",
         "@types/js-yaml": "^4.0.9",
         "mode-watcher": "catalog:",
