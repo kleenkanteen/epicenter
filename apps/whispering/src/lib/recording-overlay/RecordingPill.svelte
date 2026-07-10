@@ -1,12 +1,13 @@
 <script lang="ts">
+	import { Spinner } from '@epicenter/ui/spinner';
 	import { cn } from '@epicenter/ui/utils';
 	import AudioLinesIcon from '@lucide/svelte/icons/audio-lines';
 	import CheckIcon from '@lucide/svelte/icons/check';
-	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import MicIcon from '@lucide/svelte/icons/mic';
 	import SquareIcon from '@lucide/svelte/icons/square';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
+	import type { Component } from 'svelte';
 	import type { DeliveryReach } from '$lib/operations/delivery';
 	import {
 		FAILURE_LABEL,
@@ -38,8 +39,7 @@
 		onCancel: () => void;
 		/** Skip the in-flight Polish pass and deliver the raw transcript now. */
 		onShipRaw: () => void;
-		/** Reveal Whispering by raising the main window (desktop). Omitted on web,
-		 * where the app window is already in front. */
+		/** Reveal Whispering by raising the main window (desktop). */
 		onReveal?: () => void;
 	} = $props();
 
@@ -49,23 +49,23 @@
 	// non-recording phase, which the chip block below renders instead.
 	const recording = $derived(status?.phase === 'recording' ? status : null);
 
-	// Speech-latched tints the meter bars, but only in a VAD session (a manual take
-	// never latches), named here so the bar tint reads as one thought.
-	const isSpeaking = $derived(recording?.trigger === 'vad' && recording.speaking);
-
 	// Every non-recording phase is a "chip": one icon plus a short, fixed label,
 	// with a tone that tints the icon (and, when failed, the whole pill). They
 	// render through one block below instead of a branch apiece. The label is
 	// always a closed, glanceable token, never a raw error message, so it fits the
 	// fixed-width pill without truncation; the full failure detail lives in the OS
 	// notification and the recordings row (ADR-0039).
-	type ChipTone = 'neutral' | 'success' | 'degraded' | 'failed';
 	type Chip = {
-		Icon: typeof CheckIcon;
+		Icon: Component<{ class?: string }>;
 		label: string;
-		tone: ChipTone;
-		spin?: boolean;
+		tone: 'neutral' | 'success' | 'degraded' | 'failed';
 	};
+	const CHIP_TONE_CLASS = {
+		neutral: 'text-white/80',
+		success: 'text-[#7ee2a8]',
+		degraded: 'text-[#f5c97b]',
+		failed: 'text-[#ffb4b4]',
+	} satisfies Record<Chip['tone'], string>;
 
 	// A delivery is a success at both reaches: a clean `output` reads green; the
 	// `clipboard` fallback reads amber, "landed, but not where you asked".
@@ -76,20 +76,21 @@
 			label: 'Copied to clipboard',
 			tone: 'degraded',
 		},
-	} as const satisfies Record<DeliveryReach, Chip>;
+	} satisfies Record<DeliveryReach, Chip>;
 
 	const chip = $derived.by((): Chip | null => {
-		// `recording` renders the meter and `polishing` its own HUD (with an action),
-		// so neither is a plain chip.
-		if (!status || status.phase === 'recording' || status.phase === 'polishing')
-			return null;
+		if (!status) return null;
 		switch (status.phase) {
+			// `recording` renders the meter and `polishing` its own HUD (with an
+			// action), so neither is a plain chip.
+			case 'recording':
+			case 'polishing':
+				return null;
 			case 'transcribing':
 				return {
-					Icon: LoaderCircleIcon,
+					Icon: Spinner,
 					label: 'Transcribing',
 					tone: 'neutral',
-					spin: true,
 				};
 			case 'delivered':
 				return DELIVERED_CHIP[status.reach];
@@ -99,6 +100,9 @@
 					label: FAILURE_LABEL[status.tier],
 					tone: 'failed',
 				};
+			default:
+				status satisfies never;
+				return null;
 		}
 	});
 
@@ -108,29 +112,11 @@
 	// press-scale glide together at 150ms.
 	const actionBase =
 		'flex size-6 cursor-pointer items-center justify-center rounded-full bg-white/10 text-white/90 transition duration-150 ease-out hover:scale-[1.08] active:scale-95';
-
-	function handleStop(event: MouseEvent) {
-		// Don't let a button click bubble to the pill's focus-main handler:
-		// stop/cancel should only stop/cancel, never reveal the main window.
-		event.stopPropagation();
-		onStop();
-	}
-
-	function handleCancel(event: MouseEvent) {
-		event.stopPropagation();
-		onCancel();
-	}
-
-	function handleShipRaw(event: MouseEvent) {
-		event.stopPropagation();
-		onShipRaw();
-	}
 </script>
 
-<!-- The pill is non-focusable on desktop (an overlay window) and decorative on
-     web, so it can never receive keyboard focus; clicking its body (not a
-     button) just brings the main window forward. Keyboard handlers are moot
-     here, hence the a11y ignores. -->
+<!-- The desktop pill lives in a non-focusable overlay window. Clicking its body
+     asks the main window to reveal itself; the nested controls stop propagation
+     so stop, cancel, and ship-raw never reveal it as a side effect. -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 {#if status}
@@ -139,7 +125,7 @@
 			// 40px-tall pill, shared look. gap-2.5 spaces the chip icon from its label;
 			// in recording it is only the floor (justify-between distributes wider). The
 			// width differs by phase (next arg).
-			'box-border flex h-10 items-center gap-2.5 rounded-full px-2.5 text-white/90 shadow-[0_6px_20px_rgba(0,0,0,0.35)] backdrop-blur-md select-none',
+			'box-border flex h-10 items-center gap-2.5 rounded-full px-2.5 text-white/90 backdrop-blur-md select-none',
 			// Recording is a wider bar: the mic pins the left edge and stop the right,
 			// with the meter spread between them (justify-between). The text chips hug
 			// their content, capped wide enough for the longest label ("Transcription
@@ -153,16 +139,14 @@
 			chip?.tone === 'failed'
 				? 'border border-red-500/55 bg-[#3c1216]/90'
 				: 'border border-white/10 bg-[#0f0f11]/80',
-			// Clickable only where it can reveal the main window: desktop, where onReveal
-			// is wired. On web the app window is already in front, so onReveal is omitted
-			// and the body shows no pointer or tooltip (the action buttons stop
-			// propagation, so only the empty areas would have triggered it).
 			onReveal && 'cursor-pointer',
 		)}
 		title={onReveal ? 'Open Whispering' : undefined}
 		onclick={onReveal}
 	>
 		{#if recording}
+			{@const stopLabel =
+				recording.trigger === 'manual' ? 'Stop recording' : 'Stop listening'}
 			<div class="flex items-center text-white/80">
 				{#if recording.trigger === 'manual'}
 					<MicIcon class="size-4" />
@@ -176,7 +160,9 @@
 			<LevelMeter
 				{level}
 				class="h-5"
-				barClass={isSpeaking ? 'bg-[#ffe5ee]' : undefined}
+				barClass={recording.trigger === 'vad' && recording.isSpeaking
+					? 'bg-[#ffe5ee]'
+					: undefined}
 			/>
 
 			<!-- Trailing cluster: a contextual slot, then stop as the constant right
@@ -193,7 +179,10 @@
 						class={cn(actionBase, 'hover:bg-[#faa2ca]/20 hover:text-[#ffd2e4]')}
 						aria-label="Cancel recording"
 						title="Cancel recording"
-						onclick={handleCancel}
+						onclick={(event) => {
+							event.stopPropagation();
+							onCancel();
+						}}
 					>
 						<XIcon class="size-4" />
 					</button>
@@ -214,23 +203,22 @@
 				<button
 					type="button"
 					class={cn(actionBase, 'bg-red-500/60 text-white hover:bg-red-500/80')}
-					aria-label={recording.trigger === 'manual'
-						? 'Stop recording'
-						: 'Stop listening'}
-					title={recording.trigger === 'manual'
-						? 'Stop recording'
-						: 'Stop listening'}
-					onclick={handleStop}
+					aria-label={stopLabel}
+					title={stopLabel}
+					onclick={(event) => {
+						event.stopPropagation();
+						onStop();
+					}}
 				>
 					<SquareIcon class="size-3.5" />
 				</button>
 			</div>
-		{:else if status?.phase === 'polishing'}
+		{:else if status.phase === 'polishing'}
 			<!-- The Polish HUD holds the same spot as a chip: a spinner and "Polishing…"
 			     mask the ~1s AI pass, with a single ship-raw control to skip it and take
 			     the raw transcript now (ADR-0099). Unlike a chip, it carries an action. -->
 			<div class="flex items-center text-white/80">
-				<LoaderCircleIcon class="size-4 animate-spin" />
+				<Spinner class="size-4 text-white/80" />
 			</div>
 			<span class="min-w-0 truncate text-[13px] font-medium">Polishing…</span>
 			<button
@@ -238,7 +226,10 @@
 				class={cn(actionBase, 'hover:bg-[#faa2ca]/20 hover:text-[#ffd2e4]')}
 				aria-label="Ship raw transcript now"
 				title="Ship raw transcript now"
-				onclick={handleShipRaw}
+				onclick={(event) => {
+					event.stopPropagation();
+					onShipRaw();
+				}}
 			>
 				<XIcon class="size-4" />
 			</button>
@@ -249,16 +240,14 @@
 			{@const Icon = chip.Icon}
 			<div
 				class={cn(
-					'flex items-center text-white/80',
+					'flex items-center',
 					// A clean delivery reads green; a reduced reach (clipboard/history)
 					// reads amber, "landed, but not where you asked" rather than a clean
 					// success; a failure reads red, paired with the red pill background.
-					chip.tone === 'success' && 'text-[#7ee2a8]',
-					chip.tone === 'degraded' && 'text-[#f5c97b]',
-					chip.tone === 'failed' && 'text-[#ffb4b4]',
+					CHIP_TONE_CLASS[chip.tone],
 				)}
 			>
-				<Icon class="size-4 {chip.spin ? 'animate-spin' : ''}" />
+				<Icon class="size-4" />
 			</div>
 			<!-- The label takes only its text's width in the snug chip. Labels are
 			     closed, short tokens that fit the fixed-width pill; truncate's ellipsis

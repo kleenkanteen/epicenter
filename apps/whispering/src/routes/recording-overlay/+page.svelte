@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { type UnlistenFn } from '@tauri-apps/api/event';
+	import type { UnlistenFn } from '@tauri-apps/api/event';
 	import { onDestroy, onMount } from 'svelte';
-	import { revealMainWindow } from '$lib/main-window';
 	import {
 		recordingOverlayAction,
 		recordingOverlayMicLevel,
 		recordingOverlayReady,
 		recordingOverlayStatus,
+		revealMainWindow,
 		type RecordingOverlayAction,
 		type RecordingOverlayStatus,
 	} from '$lib/recording-overlay/events';
@@ -28,33 +28,38 @@
 	let level = $state(0);
 
 	const unlisteners: UnlistenFn[] = [];
+	let isDestroyed = false;
+	const trackUnlistener = (unlisten: UnlistenFn) => {
+		if (isDestroyed) unlisten();
+		else unlisteners.push(unlisten);
+	};
 
-	onMount(async () => {
-		unlisteners.push(
-			await recordingOverlayStatus.listen((event) => {
-				status = event.payload;
-			}),
-			await recordingOverlayMicLevel.listen((event) => {
-				level = foldMicLevel(level, event.payload);
-			}),
-		);
-		// Tell the main window we are ready so it re-sends the latest status.
-		// Without this handshake the status emitted right after window creation
-		// can land before our listener is attached.
-		await recordingOverlayReady.emit();
+	onMount(() => {
+		void (async () => {
+			trackUnlistener(
+				await recordingOverlayStatus.listen((event) => {
+					status = event.payload;
+				}),
+			);
+			trackUnlistener(
+				await recordingOverlayMicLevel.listen((event) => {
+					level = foldMicLevel(level, event.payload);
+				}),
+			);
+			// Tell the main window we are ready so it re-sends the latest status.
+			// Without this handshake the status emitted right after window creation
+			// can land before our listener is attached.
+			if (!isDestroyed) await recordingOverlayReady.emit();
+		})();
 	});
 
 	onDestroy(() => {
+		isDestroyed = true;
 		for (const unlisten of unlisteners) unlisten();
 	});
 
 	function sendAction(action: RecordingOverlayAction) {
 		void recordingOverlayAction.emit(action);
-	}
-
-	function focusMainWindow() {
-		// Clicking the pill body raises the main window (the shared reveal).
-		void revealMainWindow.emit({});
 	}
 </script>
 
@@ -68,7 +73,7 @@
 		onStop={() => sendAction('stop')}
 		onCancel={() => sendAction('cancel')}
 		onShipRaw={() => sendAction('ship-raw')}
-		onReveal={focusMainWindow}
+		onReveal={() => void revealMainWindow.emit()}
 	/>
 </div>
 

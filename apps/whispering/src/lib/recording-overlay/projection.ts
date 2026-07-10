@@ -31,10 +31,10 @@ export function projectLifecycleToStatus(
 		return {
 			phase: 'recording',
 			trigger: 'vad',
-			speaking: capture.vadState === 'SPEECH_DETECTED',
+			isSpeaking: capture.vadState === 'SPEECH_DETECTED',
 			// The previous utterance's transcribe or its Polish pass both read as
 			// "still working on the last phrase" beside the live meter.
-			transcribing:
+			isTranscribing:
 				outcome.kind === 'transcribing' || outcome.kind === 'polishing',
 		};
 	}
@@ -52,5 +52,8 @@ export function projectLifecycleToStatus(
 			return { phase: 'delivered', reach: outcome.reach };
 		case 'failed':
 			return { phase: 'failed', tier: outcome.tier };
+		default:
+			outcome satisfies never;
+			return null;
 	}
 }
