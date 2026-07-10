@@ -7,11 +7,11 @@
  * noted. Presentation vocabulary lives in `recording-pill/model.ts`; this
  * module only binds those payloads to transport channels.
  */
+import { defineWindowEvent, defineWindowSignal } from '#platform/window-events';
 import type {
 	RecordingPillAction,
 	RecordingPillStatus,
 } from '$lib/recording-pill/model';
-import { defineWindowEvent, defineWindowSignal } from '$lib/window-events';
 
 /** Stable Tauri label for the secondary recording pill webview. */
 export const RECORDING_OVERLAY_WINDOW_LABEL = 'recording-overlay';

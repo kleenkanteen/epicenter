@@ -29,9 +29,10 @@ into Rust would split the source of truth, so we keep it in the main window.
   in-page pill on web.
 - **Tauri overlay** (`src/lib/recording-overlay/`): owns only the secondary-window
   event protocol and desktop mic-level transport. On desktop,
-  `attach-recording-overlay.svelte.ts` is the runtime owner that projects the
+  the Tauri implementation of `#platform/recording-overlay-owner` projects the
   lifecycle, synchronizes the separate overlay window, and listens for overlay
-  actions and reveal requests. Status synchronization has no browser surface.
+  actions and reveal requests. The browser implementation is a no-op because
+  its pill is mounted directly in the app layout.
 - **Protocol** (`src/lib/recording-overlay/events.ts`): binds the shared pill
   model to Tauri event channels. The main window pushes a `status` to the overlay;
   the overlay pushes `action` (stop/cancel) and a `ready` handshake back. Actions
