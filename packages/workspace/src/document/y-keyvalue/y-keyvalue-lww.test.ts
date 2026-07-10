@@ -2,12 +2,12 @@
  * YKeyValueLww Tests - Last-Write-Wins Conflict Resolution
  *
  * These tests verify timestamp-based last-write-wins semantics in `YKeyValueLww`
- * across local operations, batched transactions, and multi-client synchronization.
+ * across local operations, caller-owned transactions, and multi-client synchronization.
  * They ensure deterministic winner selection by timestamp and convergence after sync.
  *
  * Key behaviors:
  * - Higher timestamps win conflicts regardless of merge ordering.
- * - Transaction-local pending state and observer processing stay internally consistent.
+ * - Reads inside caller-owned Yjs transactions include local writes and deletes.
  *
  * See also:
  * - `y-keyvalue.ts` for positional (rightmost-wins) alternative
@@ -322,91 +322,92 @@ describe('YKeyValueLww', () => {
 		});
 	});
 
-	describe('Single-Writer Architecture', () => {
+	describe('Transaction-local reads', () => {
 		/**
-		 * These tests verify the single-writer architecture where:
-		 * - set() writes to `pending` and Y.Array, but NOT to `map`
-		 * - Observer is the sole writer to `map` and clears `pending` after processing
-		 * - get()/has() check `pending` first, then `map`
-		 * - entries() yields from both pending and map
+		 * When a caller opens a Yjs transaction, the Y.Array mutates
+		 * immediately but the observer-backed map is not refreshed until the
+		 * transaction closes. These tests cover the public read overlay: local
+		 * writes and deletes are visible through get(), has(), and entries() during
+		 * that transaction window.
 		 */
 
-		describe('Batch operations with nested reads', () => {
-			test('get() returns value set in same batch', () => {
+		describe('writes inside caller-owned transactions', () => {
+			test('get() returns value set in the same caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
-				let valueInBatch: string | undefined;
+				let valueDuringTransaction: string | undefined;
 
 				ydoc.transact(() => {
 					kv.set('foo', 'bar');
-					valueInBatch = kv.get('foo');
+					valueDuringTransaction = kv.get('foo');
 				});
 
-				expect(valueInBatch).toBe('bar');
-				expect(kv.get('foo')).toBe('bar'); // Still works after batch
+				expect(valueDuringTransaction).toBe('bar');
+				// The value remains visible after the observer-backed map catches up.
+				expect(kv.get('foo')).toBe('bar');
 			});
 
-			test('has() returns true for key set in same batch', () => {
+			test('has() returns true for key set in the same caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
-				let hasInBatch: boolean = false;
+				let hasDuringTransaction: boolean = false;
 
 				ydoc.transact(() => {
 					kv.set('foo', 'bar');
-					hasInBatch = kv.has('foo');
+					hasDuringTransaction = kv.has('foo');
 				});
 
-				expect(hasInBatch).toBe(true);
+				expect(hasDuringTransaction).toBe(true);
 			});
 
-			test('multiple updates to same key in batch - final value wins', () => {
+			test('get() returns each successive value in a caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
-				const valuesInBatch: Array<string | undefined> = [];
+				const valuesDuringTransaction: Array<string | undefined> = [];
 
 				ydoc.transact(() => {
 					kv.set('foo', 'first');
-					valuesInBatch.push(kv.get('foo'));
+					valuesDuringTransaction.push(kv.get('foo'));
 
 					kv.set('foo', 'second');
-					valuesInBatch.push(kv.get('foo'));
+					valuesDuringTransaction.push(kv.get('foo'));
 
 					kv.set('foo', 'third');
-					valuesInBatch.push(kv.get('foo'));
+					valuesDuringTransaction.push(kv.get('foo'));
 				});
 
-				expect(valuesInBatch).toEqual(['first', 'second', 'third']);
+				expect(valuesDuringTransaction).toEqual(['first', 'second', 'third']);
 				expect(kv.get('foo')).toBe('third');
 			});
 
-			test('get() returns updated value when updating existing key in batch', () => {
+			test('get() returns updated value for existing key in a caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
-				// Set initial value outside batch
+				// Set the initial value before the caller-owned transaction.
 				kv.set('foo', 'initial');
 
-				let valueInBatch: string | undefined;
+				let valueDuringTransaction: string | undefined;
 
 				ydoc.transact(() => {
 					kv.set('foo', 'updated');
-					valueInBatch = kv.get('foo');
+					valueDuringTransaction = kv.get('foo');
 				});
 
-				expect(valueInBatch).toBe('updated');
+				expect(valueDuringTransaction).toBe('updated');
 				expect(kv.get('foo')).toBe('updated');
 			});
 		});
 
-		describe('Batch with deletes', () => {
-			test('delete() removes key set in same batch', () => {
+		describe('deletes inside caller-owned transactions', () => {
+			test('delete() removes key set in the same caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -419,15 +420,14 @@ describe('YKeyValueLww', () => {
 					hasAfterDelete = kv.has('foo');
 				});
 
-				// During batch: pending was cleared by delete(), map doesn't have it yet
 				expect(hasAfterDelete).toBe(false);
 
-				// After batch: delete() now correctly removes the yarray entry even for
-				// keys that were set (pending-only) in the same transaction
+				// After the transaction closes, the observer has caught up and the key
+				// remains absent.
 				expect(kv.has('foo')).toBe(false);
 			});
 
-			test('set() after delete() in same batch restores key', () => {
+			test('set() after delete() in the same caller-owned transaction restores key', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -435,19 +435,19 @@ describe('YKeyValueLww', () => {
 				// Set initial value
 				kv.set('foo', 'initial');
 
-				let valueInBatch: string | undefined;
+				let valueDuringTransaction: string | undefined;
 
 				ydoc.transact(() => {
 					kv.delete('foo');
 					kv.set('foo', 'restored');
-					valueInBatch = kv.get('foo');
+					valueDuringTransaction = kv.get('foo');
 				});
 
-				expect(valueInBatch).toBe('restored');
+				expect(valueDuringTransaction).toBe('restored');
 				expect(kv.get('foo')).toBe('restored');
 			});
 
-			test('delete() on pre-existing key during batch', () => {
+			test('delete() hides pre-existing key during a caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -457,21 +457,21 @@ describe('YKeyValueLww', () => {
 
 				ydoc.transact(() => {
 					kv.delete('foo');
-					// During batch, map still has old value until observer fires
-					// But has() checks pending first (which was cleared)
+					// _map still has the old value until the observer fires, but the
+					// transaction-local delete overlay hides it from reads.
 				});
 
 				expect(kv.has('foo')).toBe(false);
 			});
 		});
 
-		describe('entries() iterator', () => {
-			test('entries() yields pending values during batch', () => {
+		describe('entries() during caller-owned transactions', () => {
+			test('entries() yields values set during a caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
-				const keysInBatch: string[] = [];
+				const keysDuringTransaction: string[] = [];
 
 				ydoc.transact(() => {
 					kv.set('a', '1');
@@ -479,14 +479,14 @@ describe('YKeyValueLww', () => {
 					kv.set('c', '3');
 
 					for (const { key } of kv.entries()) {
-						keysInBatch.push(key);
+						keysDuringTransaction.push(key);
 					}
 				});
 
-				expect(keysInBatch.sort()).toEqual(['a', 'b', 'c']);
+				expect(keysDuringTransaction.sort()).toEqual(['a', 'b', 'c']);
 			});
 
-			test('entries() yields both pending and map values', () => {
+			test('entries() yields both confirmed and transaction-local values', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -494,38 +494,38 @@ describe('YKeyValueLww', () => {
 				// Set initial values (will be in map after transaction)
 				kv.set('existing', 'old');
 
-				const entriesInBatch: Array<[string, string]> = [];
+				const entriesDuringTransaction: Array<[string, string]> = [];
 
 				ydoc.transact(() => {
 					kv.set('new', 'value');
 
 					for (const { key, val } of kv.entries()) {
-						entriesInBatch.push([key, val]);
+						entriesDuringTransaction.push([key, val]);
 					}
 				});
 
-				expect(entriesInBatch).toContainEqual(['existing', 'old']);
-				expect(entriesInBatch).toContainEqual(['new', 'value']);
+				expect(entriesDuringTransaction).toContainEqual(['existing', 'old']);
+				expect(entriesDuringTransaction).toContainEqual(['new', 'value']);
 			});
 
-			test('entries() prefers pending over map for same key', () => {
+			test('entries() prefers transaction-local value over confirmed value for same key', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
 				kv.set('foo', 'old');
 
-				let valueInBatch: string | undefined;
+				let valueDuringTransaction: string | undefined;
 
 				ydoc.transact(() => {
 					kv.set('foo', 'new');
 
 					for (const { key, val } of kv.entries()) {
-						if (key === 'foo') valueInBatch = val;
+						if (key === 'foo') valueDuringTransaction = val;
 					}
 				});
 
-				expect(valueInBatch).toBe('new');
+				expect(valueDuringTransaction).toBe('new');
 			});
 
 			test('entries() does not yield duplicates', () => {
@@ -549,7 +549,7 @@ describe('YKeyValueLww', () => {
 			});
 		});
 
-		describe('Pending cleanup', () => {
+		describe('overlay cleanup', () => {
 			test('multiple transactions preserve prior keys and apply updates', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
@@ -575,7 +575,7 @@ describe('YKeyValueLww', () => {
 		});
 
 		describe('Observer behavior', () => {
-			test('observer fires once per batch, not per set()', () => {
+			test('observer fires once per caller-owned transaction, not per set()', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -594,7 +594,7 @@ describe('YKeyValueLww', () => {
 				expect(observerCallCount).toBe(1);
 			});
 
-			test('observer receives all changes from batch', () => {
+			test('observer receives all changes from a caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -616,8 +616,8 @@ describe('YKeyValueLww', () => {
 			});
 		});
 
-		describe('Sync with pending values', () => {
-			test('remote sync during batch: synced values visible after batch ends', () => {
+		describe('Sync with transaction-local writes', () => {
+			test('remote sync during a caller-owned transaction is visible after it ends', () => {
 				const doc1 = new Y.Doc({ guid: 'shared' });
 				const doc2 = new Y.Doc({ guid: 'shared' });
 
@@ -633,21 +633,21 @@ describe('YKeyValueLww', () => {
 				// kv2 makes a change while kv1's change is not yet synced
 				doc2.transact(() => {
 					kv2.set('bar', 'from-kv2');
-					// Sync kv1's changes into kv2 during the batch
+					// Sync kv1's changes into kv2 during the caller-owned transaction.
 					Y.applyUpdate(doc2, Y.encodeStateAsUpdate(doc1));
 
-					// During batch: local pending values are visible
 					expect(kv2.get('bar')).toBe('from-kv2');
-					// Remote synced values are in yarray but observer hasn't updated map yet
-					// So they won't be visible via get() until batch ends
+					// Remote synced values are in the Y.Array, but only local writes go
+					// through the transaction-local overlay. Remote values become visible
+					// after the observer runs at transaction close.
 				});
 
-				// After batch: both local and synced values are visible
+				// After the transaction closes, both local and synced values are visible.
 				expect(kv2.get('bar')).toBe('from-kv2');
 				expect(kv2.get('foo')).toBe('from-kv1');
 			});
 
-			test('LWW still works with pending entries', () => {
+			test('LWW conflict resolution still works with transaction-local writes', () => {
 				const doc1 = new Y.Doc({ guid: 'shared' });
 				const doc2 = new Y.Doc({ guid: 'shared' });
 
@@ -702,7 +702,7 @@ describe('YKeyValueLww', () => {
 				expect(kv.get('counter')).toBe(99);
 			});
 
-			test('batch with mixed operations on multiple keys', () => {
+			test('mixed operations expose their latest state in a caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -720,7 +720,7 @@ describe('YKeyValueLww', () => {
 					expect(kv.get('keep')).toBe('original');
 					expect(kv.get('update')).toBe('new');
 					expect(kv.get('new')).toBe('added');
-					// delete() adds key to pendingDeletes, so has() returns false immediately
+					// The transaction-local delete overlay hides the key immediately.
 					expect(kv.has('delete')).toBe(false);
 					expect(kv.get('delete')).toBeUndefined();
 				});
@@ -731,61 +731,60 @@ describe('YKeyValueLww', () => {
 				expect(kv.has('delete')).toBe(false);
 			});
 
-			test('delete during batch: has() returns false immediately', () => {
+			test('delete in a caller-owned transaction makes has() return false immediately', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
 				kv.set('foo', 'bar');
 
-				let hasDuringBatch: boolean = true;
+				let hasDuringTransaction: boolean = true;
 
 				ydoc.transact(() => {
 					kv.delete('foo');
-					hasDuringBatch = kv.has('foo');
+					hasDuringTransaction = kv.has('foo');
 				});
 
-				// During batch, has() correctly returns false via pendingDeletes
-				expect(hasDuringBatch).toBe(false);
-				// After batch, still correctly returns false
+				expect(hasDuringTransaction).toBe(false);
+				// After the transaction closes, the observer-backed map agrees.
 				expect(kv.has('foo')).toBe(false);
 			});
 
-			test('delete then get in batch returns undefined', () => {
+			test('delete then get in a caller-owned transaction returns undefined', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
 				kv.set('foo', 'bar');
 
-				let getDuringBatch: string | undefined = 'not-cleared';
+				let valueDuringTransaction: string | undefined = 'not-cleared';
 
 				ydoc.transact(() => {
 					kv.delete('foo');
-					getDuringBatch = kv.get('foo');
+					valueDuringTransaction = kv.get('foo');
 				});
 
-				expect(getDuringBatch).toBeUndefined();
+				expect(valueDuringTransaction).toBeUndefined();
 				expect(kv.get('foo')).toBeUndefined();
 			});
 
-			test('delete then set in batch returns new value', () => {
+			test('delete then set in a caller-owned transaction returns new value', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
 				kv.set('foo', 'bar');
 
-				let getDuringBatch: string | undefined;
+				let valueDuringTransaction: string | undefined;
 
 				ydoc.transact(() => {
 					kv.delete('foo');
 					expect(kv.get('foo')).toBeUndefined();
 					kv.set('foo', 'new');
-					getDuringBatch = kv.get('foo');
+					valueDuringTransaction = kv.get('foo');
 				});
 
-				expect(getDuringBatch).toBe('new');
+				expect(valueDuringTransaction).toBe('new');
 				expect(kv.get('foo')).toBe('new');
 				expect(kv.has('foo')).toBe(true);
 			});
@@ -807,7 +806,7 @@ describe('YKeyValueLww', () => {
 				expect(kv.get('foo')).toBeUndefined();
 			});
 
-			test('entries skips pending deletes', () => {
+			test('entries skips transaction-local deletes', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -816,19 +815,21 @@ describe('YKeyValueLww', () => {
 				kv.set('b', '2');
 				kv.set('c', '3');
 
-				let keysDuringBatch: string[] = [];
+				let keysDuringTransaction: string[] = [];
 
 				ydoc.transact(() => {
 					kv.delete('b');
-					keysDuringBatch = Array.from(kv.entries()).map((entry) => entry.key);
+					keysDuringTransaction = Array.from(kv.entries()).map(
+						(entry) => entry.key,
+					);
 				});
 
-				expect(keysDuringBatch).not.toContain('b');
-				expect(keysDuringBatch).toContain('a');
-				expect(keysDuringBatch).toContain('c');
+				expect(keysDuringTransaction).not.toContain('b');
+				expect(keysDuringTransaction).toContain('a');
+				expect(keysDuringTransaction).toContain('c');
 			});
 
-			test('observer clears pendingDeletes', () => {
+			test('observer clears transaction-local delete overlay', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -837,36 +838,36 @@ describe('YKeyValueLww', () => {
 
 				ydoc.transact(() => {
 					kv.delete('foo');
-					expect(kv.has('foo')).toBe(false); // pendingDeletes active
+					expect(kv.has('foo')).toBe(false);
 				});
 
-				// After transaction, observer has fired and cleared pendingDeletes
-				// Verify by setting a new value: if pendingDeletes wasn't cleared,
-				// has() would still return false incorrectly
+				// After the transaction closes, the observer has cleared the delete overlay.
+				// Verify by setting a new value: a sticky overlay would keep has() false.
 				kv.set('foo', 'baz');
 				expect(kv.has('foo')).toBe(true);
 				expect(kv.get('foo')).toBe('baz');
 			});
 
-			test('set+delete in same batch leaves no sticky pendingDeletes', () => {
+			test('set+delete in a caller-owned transaction leaves no sticky delete overlay', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
-				// set then delete in same batch: entry added+deleted from yarray
+				// Set then delete in one transaction: the Y.Array entry is added and removed
+				// before the observer runs.
 				ydoc.transact(() => {
 					kv.set('foo', 'bar');
 					kv.delete('foo');
 				});
 
-				// After transaction, pendingDeletes should be clear (observer processed deletion)
-				// Verify: a subsequent set should work correctly
+				// After the transaction closes, the delete overlay should be clear.
+				// A subsequent set verifies that the old delete no longer masks this key.
 				kv.set('foo', 'new');
 				expect(kv.has('foo')).toBe(true);
 				expect(kv.get('foo')).toBe('new');
 			});
 
-			test('remote set after local delete is not masked by pendingDeletes', () => {
+			test('remote set after local delete is not masked by delete overlay', () => {
 				const ydoc1 = new Y.Doc({ guid: 'test' });
 				const yarray1 = ydoc1.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv1 = new YKeyValueLww(yarray1);
@@ -889,12 +890,12 @@ describe('YKeyValueLww', () => {
 				// Sync client 2's update to client 1
 				Y.applyUpdate(ydoc1, Y.encodeStateAsUpdate(ydoc2));
 
-				// Client 1 should see the remote value: pendingDeletes must not mask it
+				// Client 1 should see the remote value: the delete overlay must not mask it.
 				expect(kv1.has('foo')).toBe(true);
 				expect(kv1.get('foo')).toBe('remote-value');
 			});
 
-			test('set→delete→set triple sequence in batch', () => {
+			test('get() returns final value after set-delete-set in a caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -916,7 +917,7 @@ describe('YKeyValueLww', () => {
 				expect(kv.has('foo')).toBe(true);
 			});
 
-			test('delete→set→delete triple sequence in batch', () => {
+			test('get() returns undefined after delete-set-delete in a caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
@@ -946,38 +947,38 @@ describe('YKeyValueLww', () => {
 				expect(kv.has('never-existed')).toBe(false);
 				expect(kv.get('never-existed')).toBeUndefined();
 
-				// Also test inside a batch
+				// The operation is also a no-op inside a caller-owned transaction.
 				ydoc.transact(() => {
 					kv.delete('also-never-existed');
 					expect(kv.has('also-never-existed')).toBe(false);
 				});
 			});
 
-			test('pendingDeletes beats pending: set then delete in batch', () => {
+			test('delete overlay wins after set then delete in a caller-owned transaction', () => {
 				const ydoc = new Y.Doc({ guid: 'test' });
 				const yarray = ydoc.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv = new YKeyValueLww(yarray);
 
 				kv.set('foo', 'original');
 
-				let getDuringBatch: string | undefined = 'sentinel';
+				let valueDuringTransaction: string | undefined = 'sentinel';
 
 				ydoc.transact(() => {
-					// set() adds to pending, clears pendingDeletes
+					// set() adds a write overlay and clears any delete overlay.
 					kv.set('foo', 'updated');
 					expect(kv.get('foo')).toBe('updated');
 
-					// delete() clears pending, adds to pendingDeletes
+					// delete() clears the write overlay and adds a delete overlay.
 					kv.delete('foo');
-					getDuringBatch = kv.get('foo');
+					valueDuringTransaction = kv.get('foo');
 				});
 
-				// During batch, pendingDeletes should have taken precedence
-				expect(getDuringBatch).toBeUndefined();
+				// During the transaction, the delete overlay should have taken precedence.
+				expect(valueDuringTransaction).toBeUndefined();
 				expect(kv.has('foo')).toBe(false);
 			});
 
-			test('remote add for different key does not clear unrelated pendingDeletes', () => {
+			test('remote add for different key does not clear unrelated delete overlay', () => {
 				const ydoc1 = new Y.Doc({ guid: 'test' });
 				const yarray1 = ydoc1.getArray<YKeyValueLwwEntry<string>>('data');
 				const kv1 = new YKeyValueLww(yarray1);
