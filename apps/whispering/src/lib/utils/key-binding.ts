@@ -288,37 +288,13 @@ export function keyBindingToAccelerator(binding: BindingLike): string | null {
 }
 
 /**
- * A binding resolved for the global backend. A `chord` registers through
- * `tauri-plugin-global-shortcut` and carries the accelerator string it registers
- * under; `unsupported` is any gesture the plugin cannot register (an Fn or
- * modifier-only hold, or a bare key), which is refused as a global shortcut
- * (ADR-0117).
- */
-export type ResolvedBinding =
-	| { tier: 'chord'; accelerator: string }
-	| { tier: 'unsupported' };
-
-/**
- * Resolve a binding for the global backend, computing the accelerator once here
- * so the caller and the plugin registration never re-derive it.
- * {@link isRegistrableChord} is the boolean view for callers that only need the
- * predicate.
- */
-export function resolveBinding(binding: BindingLike): ResolvedBinding {
-	const accelerator = keyBindingToAccelerator(binding);
-	return accelerator !== null
-		? { tier: 'chord', accelerator }
-		: { tier: 'unsupported' };
-}
-
-/**
  * Whether a binding is a registrable global chord: exactly one key plus at least
  * one non-Fn modifier, which `tauri-plugin-global-shortcut` can register with no
  * Accessibility grant. An Fn hold, a modifier-only hold, and a bare key are not
  * registrable global shortcuts.
  */
 export function isRegistrableChord(binding: BindingLike): boolean {
-	return resolveBinding(binding).tier === 'chord';
+	return keyBindingToAccelerator(binding) !== null;
 }
 
 /**

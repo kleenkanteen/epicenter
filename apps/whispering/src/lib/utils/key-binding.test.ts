@@ -7,7 +7,6 @@ import {
 	keyBindingToAccelerator,
 	keyCapability,
 	realizedReach,
-	resolveBinding,
 } from './key-binding';
 
 test('a binding overlaps a superset of itself', () => {
@@ -103,21 +102,6 @@ test('a modifier-only hold has no accelerator', () => {
 
 test('a bare key with no modifier is refused', () => {
 	expect(keyBindingToAccelerator({ modifiers: [], keys: ['keyA'] })).toBeNull();
-});
-
-test('resolveBinding routes a chord to the plugin with its accelerator', () => {
-	expect(
-		resolveBinding({ modifiers: ['meta', 'shift'], keys: ['space'] }),
-	).toEqual({ tier: 'chord', accelerator: 'Shift+Super+Space' });
-});
-
-test('resolveBinding marks Fn and modifier-only holds unsupported', () => {
-	expect(resolveBinding({ modifiers: ['fn'], keys: ['space'] })).toEqual({
-		tier: 'unsupported',
-	});
-	expect(resolveBinding({ modifiers: ['meta'], keys: [] })).toEqual({
-		tier: 'unsupported',
-	});
 });
 
 test('isRegistrableChord names the registrable-chord boundary', () => {

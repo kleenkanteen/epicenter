@@ -11,7 +11,7 @@ import {
 	isEmptyBinding,
 	isRegistrableChord,
 	type KeyBinding,
-	resolveBinding,
+	keyBindingToAccelerator,
 } from '$lib/utils/key-binding';
 import { validateGlobalBinding } from '$lib/utils/reserved-shortcuts';
 import { createShortcuts } from './shortcuts.shared';
@@ -71,13 +71,9 @@ export const systemShortcuts: Shortcuts | null = createShortcuts({
 		const chords: ChordRegistration[] = [];
 		for (const entry of entries) {
 			if (entry.binding === null) continue;
-			const resolved = resolveBinding(entry.binding as KeyBinding);
-			if (resolved.tier === 'chord') {
-				chords.push({
-					commandId: entry.command.id,
-					accelerator: resolved.accelerator,
-				});
-			}
+			const accelerator = keyBindingToAccelerator(entry.binding as KeyBinding);
+			if (accelerator === null) continue;
+			chords.push({ commandId: entry.command.id, accelerator });
 		}
 		// A plugin registration the OS rejects (a chord another app holds) fails
 		// the whole replace-all; surface it instead of partially binding.
