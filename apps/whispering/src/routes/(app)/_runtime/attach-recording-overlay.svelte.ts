@@ -12,9 +12,9 @@ import { dictationLifecycle } from '$lib/state/dictation-lifecycle.svelte';
 
 export function attachRecordingOverlay() {
 	const unlisteners: UnlistenFn[] = [];
-	let destroyed = false;
+	let isDestroyed = false;
 	const trackUnlistener = (unlisten: UnlistenFn) => {
-		if (destroyed) unlisten();
+		if (isDestroyed) unlisten();
 		else unlisteners.push(unlisten);
 	};
 
@@ -28,9 +28,7 @@ export function attachRecordingOverlay() {
 
 	if (tauri) {
 		void recordingOverlayAction
-			.listen((event) =>
-				dispatchPillAction(event.payload),
-			)
+			.listen((event) => dispatchPillAction(event.payload))
 			.then(trackUnlistener);
 		void revealMainWindow
 			.listen(async () => {
@@ -44,7 +42,7 @@ export function attachRecordingOverlay() {
 	}
 
 	return () => {
-		destroyed = true;
+		isDestroyed = true;
 		for (const unlisten of unlisteners) unlisten();
 	};
 }

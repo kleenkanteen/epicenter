@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { projectLifecycleToStatus } from '../src/lib/recording-overlay/projection';
+import type {
+	DictationCapture,
+	DictationFailure,
+	DictationOutcome,
+} from '../src/lib/state/dictation-lifecycle.svelte';
 
 /**
  * Locks the dictation pill's projection invariants (ADR-0039). The projection is
@@ -13,14 +18,19 @@ import { projectLifecycleToStatus } from '../src/lib/recording-overlay/projectio
  * The lifecycle types are structural, so the inputs are plain objects (the
  * `import type` in the projection erases at runtime, leaving a pure function).
  */
-const idle = { kind: 'idle' } as const;
-const manual = { kind: 'recording', trigger: 'manual' } as const;
+const idle = { kind: 'idle' } satisfies DictationCapture;
+const manual = {
+	kind: 'recording',
+	trigger: 'manual',
+} satisfies DictationCapture;
 const vad = (vadState: 'LISTENING' | 'SPEECH_DETECTED') =>
-	({ kind: 'recording', trigger: 'vad', vadState }) as const;
-const failure = { tier: 'transcription', error: { message: 'boom' } } as const;
+	({ kind: 'recording', trigger: 'vad', vadState }) satisfies DictationCapture;
+const failure = {
+	tier: 'transcription',
+	error: { name: 'TestError', message: 'boom' },
+} satisfies DictationFailure;
 
-// biome-ignore lint/suspicious/noExplicitAny: structural lifecycle stand-ins.
-const project = (capture: any, outcome: any) =>
+const project = (capture: DictationCapture, outcome: DictationOutcome) =>
 	projectLifecycleToStatus({ capture, outcome });
 
 describe('dictation pill projection', () => {
@@ -39,8 +49,8 @@ describe('dictation pill projection', () => {
 		expect(project(vad('LISTENING'), { kind: 'none' })).toEqual({
 			phase: 'recording',
 			trigger: 'vad',
-			speaking: false,
-			transcribing: false,
+			isSpeaking: false,
+			isTranscribing: false,
 		});
 	});
 
@@ -48,8 +58,8 @@ describe('dictation pill projection', () => {
 		expect(project(vad('LISTENING'), { kind: 'transcribing' })).toEqual({
 			phase: 'recording',
 			trigger: 'vad',
-			speaking: false,
-			transcribing: true,
+			isSpeaking: false,
+			isTranscribing: true,
 		});
 	});
 
@@ -57,8 +67,8 @@ describe('dictation pill projection', () => {
 		expect(project(vad('SPEECH_DETECTED'), { kind: 'none' })).toEqual({
 			phase: 'recording',
 			trigger: 'vad',
-			speaking: true,
-			transcribing: false,
+			isSpeaking: true,
+			isTranscribing: false,
 		});
 	});
 
@@ -68,8 +78,8 @@ describe('dictation pill projection', () => {
 		).toEqual({
 			phase: 'recording',
 			trigger: 'vad',
-			speaking: true,
-			transcribing: false,
+			isSpeaking: true,
+			isTranscribing: false,
 		});
 	});
 
@@ -79,8 +89,8 @@ describe('dictation pill projection', () => {
 		).toEqual({
 			phase: 'recording',
 			trigger: 'vad',
-			speaking: false,
-			transcribing: false,
+			isSpeaking: false,
+			isTranscribing: false,
 		});
 	});
 

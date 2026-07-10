@@ -55,12 +55,17 @@
 	// always a closed, glanceable token, never a raw error message, so it fits the
 	// fixed-width pill without truncation; the full failure detail lives in the OS
 	// notification and the recordings row (ADR-0039).
-	type ChipTone = 'neutral' | 'success' | 'degraded' | 'failed';
 	type Chip = {
 		Icon: Component<{ class?: string }>;
 		label: string;
-		tone: ChipTone;
+		tone: 'neutral' | 'success' | 'degraded' | 'failed';
 	};
+	const CHIP_TONE_CLASS = {
+		neutral: 'text-white/80',
+		success: 'text-[#7ee2a8]',
+		degraded: 'text-[#f5c97b]',
+		failed: 'text-[#ffb4b4]',
+	} satisfies Record<Chip['tone'], string>;
 
 	// A delivery is a success at both reaches: a clean `output` reads green; the
 	// `clipboard` fallback reads amber, "landed, but not where you asked".
@@ -71,14 +76,16 @@
 			label: 'Copied to clipboard',
 			tone: 'degraded',
 		},
-	} as const satisfies Record<DeliveryReach, Chip>;
+	} satisfies Record<DeliveryReach, Chip>;
 
 	const chip = $derived.by((): Chip | null => {
-		// `recording` renders the meter and `polishing` its own HUD (with an action),
-		// so neither is a plain chip.
-		if (!status || status.phase === 'recording' || status.phase === 'polishing')
-			return null;
+		if (!status) return null;
 		switch (status.phase) {
+			// `recording` renders the meter and `polishing` its own HUD (with an
+			// action), so neither is a plain chip.
+			case 'recording':
+			case 'polishing':
+				return null;
 			case 'transcribing':
 				return {
 					Icon: Spinner,
@@ -93,6 +100,9 @@
 					label: FAILURE_LABEL[status.tier],
 					tone: 'failed',
 				};
+			default:
+				status satisfies never;
+				return null;
 		}
 	});
 
@@ -135,6 +145,8 @@
 		onclick={onReveal}
 	>
 		{#if recording}
+			{@const stopLabel =
+				recording.trigger === 'manual' ? 'Stop recording' : 'Stop listening'}
 			<div class="flex items-center text-white/80">
 				{#if recording.trigger === 'manual'}
 					<MicIcon class="size-4" />
@@ -148,7 +160,7 @@
 			<LevelMeter
 				{level}
 				class="h-5"
-				barClass={recording.trigger === 'vad' && recording.speaking
+				barClass={recording.trigger === 'vad' && recording.isSpeaking
 					? 'bg-[#ffe5ee]'
 					: undefined}
 			/>
@@ -191,12 +203,8 @@
 				<button
 					type="button"
 					class={cn(actionBase, 'bg-red-500/60 text-white hover:bg-red-500/80')}
-					aria-label={recording.trigger === 'manual'
-						? 'Stop recording'
-						: 'Stop listening'}
-					title={recording.trigger === 'manual'
-						? 'Stop recording'
-						: 'Stop listening'}
+					aria-label={stopLabel}
+					title={stopLabel}
 					onclick={(event) => {
 						event.stopPropagation();
 						onStop();
@@ -232,13 +240,11 @@
 			{@const Icon = chip.Icon}
 			<div
 				class={cn(
-					'flex items-center text-white/80',
+					'flex items-center',
 					// A clean delivery reads green; a reduced reach (clipboard/history)
 					// reads amber, "landed, but not where you asked" rather than a clean
 					// success; a failure reads red, paired with the red pill background.
-					chip.tone === 'success' && 'text-[#7ee2a8]',
-					chip.tone === 'degraded' && 'text-[#f5c97b]',
-					chip.tone === 'failed' && 'text-[#ffb4b4]',
+					CHIP_TONE_CLASS[chip.tone],
 				)}
 			>
 				<Icon class="size-4" />

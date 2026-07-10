@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { type UnlistenFn } from '@tauri-apps/api/event';
+	import type { UnlistenFn } from '@tauri-apps/api/event';
 	import { onDestroy, onMount } from 'svelte';
 	import {
 		recordingOverlayAction,
@@ -28,9 +28,9 @@
 	let level = $state(0);
 
 	const unlisteners: UnlistenFn[] = [];
-	let destroyed = false;
+	let isDestroyed = false;
 	const trackUnlistener = (unlisten: UnlistenFn) => {
-		if (destroyed) unlisten();
+		if (isDestroyed) unlisten();
 		else unlisteners.push(unlisten);
 	};
 
@@ -49,12 +49,12 @@
 			// Tell the main window we are ready so it re-sends the latest status.
 			// Without this handshake the status emitted right after window creation
 			// can land before our listener is attached.
-			if (!destroyed) await recordingOverlayReady.emit();
+			if (!isDestroyed) await recordingOverlayReady.emit();
 		})();
 	});
 
 	onDestroy(() => {
-		destroyed = true;
+		isDestroyed = true;
 		for (const unlisten of unlisteners) unlisten();
 	});
 
