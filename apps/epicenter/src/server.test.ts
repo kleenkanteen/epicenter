@@ -9,7 +9,8 @@
  * Key behaviors:
  * - The launch token is accepted only by the bootstrap route
  * - Query APIs and WebSockets require an HttpOnly browser session
- * - `/apps/query/` returns exactly the built Query document
+ * - The four compiled surface routes serve Query or honest bundled placeholders
+ * - Unknown, non-canonical, and traversal-shaped surface paths stay closed
  * - Host, Origin, CSP, frame, and referrer policies are enforced
  * - Malformed WebSocket frames drop silently without killing the socket
  * - The real vite build emits one document with no external asset references
@@ -34,10 +35,14 @@ import {
 	type QueryHostOptions,
 } from './host.ts';
 import {
+	BOOKS_ROUTE,
 	BOOTSTRAP_ROUTE,
+	MAIL_ROUTE,
 	QUERY_ROUTE,
 	SESSION_ROUTE,
 	SESSION_STREAM_ROUTE,
+	SURFACE_ROUTES,
+	WHISPERING_ROUTE,
 } from './routes.ts';
 import {
 	createQueryServer,
@@ -292,6 +297,86 @@ describe('createQueryServer', () => {
 			expect(oldTools.status).toBe(404);
 			const oldWs = await fetch(`${server.url.origin}/ws`);
 			expect(oldWs.status).toBe(404);
+		} finally {
+			await server.stop(true);
+		}
+	});
+
+	test('serves the closed surface table with release-bundled placeholders', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		const server = await serveHost(host);
+		try {
+			expect(
+				Object.values(SURFACE_ROUTES).map(({ id, pattern, windowLabel }) => ({
+					id,
+					pattern,
+					windowLabel,
+				})),
+			).toEqual([
+				{ id: 'query', pattern: '/apps/query/', windowLabel: 'query' },
+				{
+					id: 'whispering',
+					pattern: '/apps/whispering/',
+					windowLabel: 'whispering',
+				},
+				{ id: 'mail', pattern: '/apps/mail/', windowLabel: 'mail' },
+				{ id: 'books', pattern: '/apps/books/', windowLabel: 'books' },
+			]);
+
+			const query = await fetch(QUERY_ROUTE.url(server.url.origin));
+			expect(await query.text()).toBe(PAGE);
+
+			const whispering = await fetch(WHISPERING_ROUTE.url(server.url.origin));
+			expect(await whispering.text()).toContain('dictation is ready');
+			const mail = await fetch(MAIL_ROUTE.url(server.url.origin));
+			expect(await mail.text()).toContain(
+				'the full Mail experience is not included',
+			);
+			const books = await fetch(BOOKS_ROUTE.url(server.url.origin));
+			expect(await books.text()).toContain(
+				'the full Books experience is not included',
+			);
+
+			for (const response of [query, whispering, mail, books]) {
+				expect(response.status).toBe(200);
+				expect(response.headers.get('cache-control')).toBe('no-store');
+				expect(response.headers.get('content-security-policy')).toContain(
+					"default-src 'self'",
+				);
+			}
+		} finally {
+			await server.stop(true);
+		}
+	});
+
+	test('rejects alternate surface request targets without exposing filesystem paths', async () => {
+		await using host = await createTestHost({
+			engine: scriptedEngine([[]]),
+		});
+		const server = await serveHost(host);
+		try {
+			for (const path of [
+				'/apps/unknown/',
+				'/apps/query/extra',
+				'/apps/query/?surface=mail',
+				'/apps/query%2f',
+				'/apps/query/%2e%2e/%2e%2e/package.json',
+				'/apps/query/%252e%252e/%252e%252e/package.json',
+			]) {
+				const response = await fetch(`${server.url.origin}${path}`);
+				expect(response.status).toBe(404);
+				expect(await response.text()).not.toContain('"scripts"');
+			}
+
+			// URL fragments are browser state and are not sent in an HTTP request.
+			// The server therefore sees this as the one canonical Mail path.
+			const browserFragment = await fetch(
+				`${MAIL_ROUTE.url(server.url.origin)}#compose`,
+			);
+			expect(browserFragment.status).toBe(200);
+			expect(await browserFragment.text()).toContain('<h1>Mail</h1>');
 		} finally {
 			await server.stop(true);
 		}

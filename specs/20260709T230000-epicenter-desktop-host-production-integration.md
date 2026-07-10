@@ -470,27 +470,34 @@ The milestone explicitly excludes:
 ### Wave 1: Promote Super Chat to Epicenter
 
 - [x] Rename `apps/super-chat` to `apps/epicenter` without aliases.
-- [ ] Add the Tauri crate and `so.epicenter.app` identity.
+- [x] Add the Tauri crate and `so.epicenter.app` identity.
 - [x] Preserve Bun SPA/API/WebSocket serving.
   > **Note:** Query now lives only at `/apps/query/`; its API and WebSocket are
   > namespaced under `/api/query/`. Tauri will exchange the launch credential
   > for an HttpOnly same-site browser session at `/_epicenter/bootstrap`.
-- [ ] Bind production to 39130 and development to 39131 or `EPICENTER_DEV_PORT`.
-- [ ] Add exact single-instance, readiness, shutdown, and collision behavior.
+- [x] Bind production to 39130 and development to 39131 or `EPICENTER_DEV_PORT`.
+- [x] Add exact single-instance, readiness, shutdown, and collision behavior.
   > **Checkpoint:** Bun now accepts one strict versioned boot frame, validates
   > the Rust-supplied production or development port, emits one versioned ready
   > frame, fails a collision without fallback, and exits cleanly on signal or
   > parent-pipe EOF. Rust port resolution, supervision, and single-instance
   > ownership remain in this wave.
-- [ ] Open Query from the Bun origin in a Tauri WebView.
+- [x] Open Query from the Bun origin in a Tauri WebView.
 - [ ] Prove a Bun-served trusted page can call one harmless focused Rust command.
+  > **Checkpoint:** The remote capability, generated `get_runtime_info`
+  > permission, and live Bun-served invoke call are wired. Visual confirmation
+  > remains open until the locked macOS session is available to Computer Use.
 
 ### Wave 2: Surface routing
 
-- [ ] Add the closed Query, Whispering, Mail, and Books route table.
-- [ ] Add strict deep links and stable create-or-focus window labels.
-- [ ] Add placeholder Mail and Books SPAs.
+- [x] Add the closed Query, Whispering, Mail, and Books route table.
+- [x] Add strict deep links and stable create-or-focus window labels.
+- [x] Add placeholder Mail and Books SPAs.
 - [ ] Prove cold, warm, repeated, minimized, hidden, and Spaces behavior.
+  > **Checkpoint:** Cold Books launch and repeated warm Mail, Books, and
+  > Whispering deep links preserve one Rust instance and one Bun child. The
+  > minimized, hidden, Spaces, and visible-window proof remains open until the
+  > locked macOS session is available to Computer Use.
 
 ### Wave 3: Transplant Whispering native mechanisms
 

@@ -17,10 +17,12 @@ import {
 } from './host.ts';
 import {
 	BOOTSTRAP_ROUTE,
-	QUERY_ROUTE,
 	SESSION_ROUTE,
 	SESSION_STREAM_ROUTE,
+	SURFACE_ROUTES,
+	type SurfaceId,
 } from './routes.ts';
+import { PLACEHOLDER_SURFACE_PAGES } from './surface-pages.ts';
 
 export type QueryServerEvent = {
 	type: 'snapshot';
@@ -57,7 +59,11 @@ export function createQueryServer({
 	const activeUrl = validateOrigin(origin);
 	const activeHost = activeUrl.host;
 	const sessionHashes = new Set<string>();
-	const csp = contentSecurityPolicy(queryPage);
+	const surfacePages = {
+		query: queryPage,
+		...PLACEHOLDER_SURFACE_PAGES,
+	} satisfies Record<SurfaceId, string>;
+	const csp = contentSecurityPolicy(Object.values(surfacePages).join('\n'));
 	const { upgradeWebSocket, websocket } = createBunWebSocket();
 	const app = new Hono();
 
@@ -102,10 +108,19 @@ export function createQueryServer({
 		return c.body(null, 204);
 	});
 
-	app.get(QUERY_ROUTE.pattern, (c) => {
-		c.header('cache-control', 'no-store');
-		return c.html(queryPage);
+	app.use('/apps/*', async (c, next) => {
+		// Deep-link query parameters are not surface identity. Refuse them here
+		// instead of silently letting two URLs name the same application window.
+		if (new URL(c.req.url).search !== '') return c.text('Not Found', 404);
+		await next();
 	});
+	for (const surface of Object.values(SURFACE_ROUTES)) {
+		app.get(surface.pattern, (c) => {
+			c.header('cache-control', 'no-store');
+			return c.html(surfacePages[surface.id]);
+		});
+	}
+	app.get('/apps/*', (c) => c.text('Not Found', 404));
 
 	app.use('/api/query/*', async (c, next) => {
 		const session = getCookie(c, SESSION_COOKIE);

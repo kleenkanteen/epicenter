@@ -11,7 +11,7 @@
 	"app": {
 		"windows": [],
 		"security": {
-			"capabilities": ["trusted-query-production"],
+			"capabilities": ["trusted-epicenter-apps-production"],
 			"csp": "default-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 		}
 	},
@@ -29,6 +29,13 @@
 		"icon": ["icons/icon.png", "icons/icon.icns"],
 		"macOS": {
 			"minimumSystemVersion": "10.15"
+		}
+	},
+	"plugins": {
+		"deep-link": {
+			"desktop": {
+				"schemes": ["epicenter"]
+			}
 		}
 	}
 }

@@ -16,6 +16,7 @@ use tauri::{
     AppHandle, Manager, RunEvent, Runtime, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     WindowEvent, Wry,
 };
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::{
     DialogExt, MessageDialogButtons, MessageDialogKind, MessageDialogResult,
 };
@@ -29,8 +30,49 @@ const DEVELOPMENT_PORT: u16 = 39_131;
 const PROTOCOL_VERSION: u8 = 1;
 const READY_TIMEOUT: Duration = Duration::from_secs(15);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(3);
-const QUERY_LABEL: &str = "query";
-const QUERY_PATH: &str = "/apps/query/";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Surface {
+    Query,
+    Whispering,
+    Mail,
+    Books,
+}
+
+impl Surface {
+    const ALL: [Self; 4] = [Self::Query, Self::Whispering, Self::Mail, Self::Books];
+
+    const fn id(self) -> &'static str {
+        match self {
+            Self::Query => "query",
+            Self::Whispering => "whispering",
+            Self::Mail => "mail",
+            Self::Books => "books",
+        }
+    }
+
+    const fn path(self) -> &'static str {
+        match self {
+            Self::Query => "/apps/query/",
+            Self::Whispering => "/apps/whispering/",
+            Self::Mail => "/apps/mail/",
+            Self::Books => "/apps/books/",
+        }
+    }
+
+    const fn title(self) -> &'static str {
+        match self {
+            Self::Query => "Epicenter: Query",
+            Self::Whispering => "Epicenter: Whispering",
+            Self::Mail => "Epicenter: Mail",
+            Self::Books => "Epicenter: Books",
+        }
+    }
+
+    fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|surface| surface.id() == id)
+    }
+}
 
 type DesktopAppHandle = AppHandle<Wry>;
 
@@ -67,6 +109,8 @@ struct HostState {
     port: std::result::Result<u16, String>,
     next_generation: AtomicU64,
     process: Mutex<Option<ManagedChild>>,
+    active_token: Mutex<Option<String>>,
+    pending_surfaces: Mutex<Vec<Surface>>,
     shutting_down: AtomicBool,
     starting: AtomicBool,
 }
@@ -77,6 +121,8 @@ impl HostState {
             port: port.map_err(|error| format!("{error:#}")),
             next_generation: AtomicU64::new(1),
             process: Mutex::new(None),
+            active_token: Mutex::new(None),
+            pending_surfaces: Mutex::new(Vec::new()),
             shutting_down: AtomicBool::new(false),
             starting: AtomicBool::new(false),
         }
@@ -87,6 +133,54 @@ impl HostState {
             .as_ref()
             .copied()
             .map_err(|error| anyhow!(error.clone()))
+    }
+
+    fn queue_surface(&self, surface: Surface) {
+        let mut pending = self
+            .pending_surfaces
+            .lock()
+            .expect("pending surface lock poisoned");
+        if !pending.contains(&surface) {
+            pending.push(surface);
+        }
+    }
+
+    fn take_pending_surfaces(&self) -> Vec<Surface> {
+        std::mem::take(
+            &mut *self
+                .pending_surfaces
+                .lock()
+                .expect("pending surface lock poisoned"),
+        )
+    }
+
+    fn activate(&self, token: &str) {
+        *self
+            .active_token
+            .lock()
+            .expect("active token lock poisoned") = Some(token.to_string());
+    }
+
+    fn deactivate(&self) {
+        *self
+            .active_token
+            .lock()
+            .expect("active token lock poisoned") = None;
+    }
+
+    fn active_token(&self) -> Option<String> {
+        self.active_token
+            .lock()
+            .expect("active token lock poisoned")
+            .clone()
+    }
+
+    fn token_is_active(&self, token: &str) -> bool {
+        self.active_token
+            .lock()
+            .expect("active token lock poisoned")
+            .as_deref()
+            == Some(token)
     }
 }
 
@@ -117,24 +211,124 @@ pub fn run() {
     tauri::Builder::default()
         // This must remain the first plugin: later plugins and setup must only run
         // in the process that owns the application instance.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            focus_query(app);
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            open_forwarded_surfaces(app, &args);
         }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(HostState::new(port))
         .invoke_handler(tauri::generate_handler![get_runtime_info])
         .setup(|app| {
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                open_deep_links(&handle, &event.urls());
+            });
+
+            let current = app.deep_link().get_current()?;
+            let mut opened_surface = false;
+            if let Some(urls) = current {
+                for url in &urls {
+                    if let Some(surface) = parse_surface_deep_link(url) {
+                        request_surface(app.handle(), surface);
+                        opened_surface = true;
+                    }
+                }
+            }
+            if !opened_surface {
+                request_surface(app.handle(), Surface::Query);
+            }
             request_start(app.handle().clone(), None);
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("failed to build Epicenter")
         .run(|app, event| match event {
-            RunEvent::Reopen { .. } => focus_query(app),
+            RunEvent::Reopen { .. } => request_surface(app, Surface::Query),
             RunEvent::Exit => shutdown_host(app),
             _ => {}
         });
+}
+
+fn open_forwarded_surfaces(app: &DesktopAppHandle, arguments: &[String]) {
+    let surfaces = surfaces_from_arguments(arguments);
+    if surfaces.is_empty() {
+        request_surface(app, Surface::Query);
+    } else {
+        for surface in surfaces {
+            request_surface(app, surface);
+        }
+    }
+}
+
+fn surfaces_from_arguments(arguments: &[String]) -> Vec<Surface> {
+    let mut surfaces = Vec::new();
+    for argument in arguments {
+        let Ok(url) = tauri::Url::parse(argument) else {
+            continue;
+        };
+        let Some(surface) = parse_surface_deep_link(&url) else {
+            continue;
+        };
+        if !surfaces.contains(&surface) {
+            surfaces.push(surface);
+        }
+    }
+    surfaces
+}
+
+fn open_deep_links(app: &DesktopAppHandle, urls: &[tauri::Url]) {
+    for url in urls {
+        if let Some(surface) = parse_surface_deep_link(url) {
+            request_surface(app, surface);
+        }
+    }
+}
+
+fn request_surface(app: &DesktopAppHandle, surface: Surface) {
+    let state = app.state::<HostState>();
+    let Some(token) = state.active_token() else {
+        state.queue_surface(surface);
+        return;
+    };
+    let Ok(port) = state.port() else {
+        return;
+    };
+
+    let window_app = app.clone();
+    let schedule = app.run_on_main_thread(move || {
+        if !window_app.state::<HostState>().token_is_active(&token) {
+            return;
+        }
+        if let Err(error) = show_or_create_surface(&window_app, surface, port, &token) {
+            append_parent_log(
+                &window_app,
+                &format!("open {} surface: {error:#}", surface.id()),
+            );
+        }
+    });
+    if let Err(error) = schedule {
+        append_parent_log(app, &format!("schedule {} surface: {error}", surface.id()));
+    }
+}
+
+fn parse_surface_deep_link(url: &tauri::Url) -> Option<Surface> {
+    if url.scheme() != "epicenter"
+        || url.host_str() != Some("surface")
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+
+    let id = url.path().strip_prefix('/')?;
+    if id.is_empty() || id.contains('/') {
+        return None;
+    }
+    Surface::from_id(id)
 }
 
 fn request_start(app: DesktopAppHandle, initial_error: Option<String>) {
@@ -161,7 +355,7 @@ fn start_until_ready(app: DesktopAppHandle, mut failure: Option<String>) {
 
         if let Some(message) = failure.take() {
             append_parent_log(&app, &message);
-            invalidate_query(&app);
+            invalidate_surfaces(&app);
             match show_failure_dialog(&app, &message) {
                 FailureChoice::Retry => {}
                 FailureChoice::Quit => {
@@ -212,10 +406,17 @@ fn start_once(app: &DesktopAppHandle) -> Result<()> {
         });
     }
 
-    if let Err(error) = create_query_on_main_thread(app, port, &token) {
+    state.activate(&token);
+    let mut surfaces = state.take_pending_surfaces();
+    if surfaces.is_empty() {
+        surfaces.push(Surface::Query);
+    }
+    if let Err(error) = create_surfaces_on_main_thread(app, port, &token, surfaces) {
+        state.deactivate();
         if let Some(child) = take_generation(&state, generation) {
             stop_child(child);
         }
+        invalidate_surfaces(app);
         return Err(error);
     }
 
@@ -385,8 +586,9 @@ fn fail_generation(app: &DesktopAppHandle, generation: u64, message: String) {
     let Some(child) = take_generation(&state, generation) else {
         return;
     };
+    state.deactivate();
     stop_child(child);
-    invalidate_query(app);
+    invalidate_surfaces(app);
     request_start(app.clone(), Some(message));
 }
 
@@ -425,6 +627,7 @@ fn stop_child(mut process: ManagedChild) {
 fn shutdown_host(app: &DesktopAppHandle) {
     let state = app.state::<HostState>();
     state.shutting_down.store(true, Ordering::Release);
+    state.deactivate();
     let process = state
         .process
         .lock()
@@ -435,36 +638,49 @@ fn shutdown_host(app: &DesktopAppHandle) {
     }
 }
 
-fn create_query_on_main_thread(app: &DesktopAppHandle, port: u16, token: &str) -> Result<()> {
+fn create_surfaces_on_main_thread(
+    app: &DesktopAppHandle,
+    port: u16,
+    token: &str,
+    surfaces: Vec<Surface>,
+) -> Result<()> {
     let (sender, receiver) = mpsc::sync_channel(1);
     let app = app.clone();
     let token = token.to_string();
     app.clone().run_on_main_thread(move || {
-        let _ = sender.send(show_or_create_query(&app, port, &token));
+        let result = surfaces
+            .into_iter()
+            .try_for_each(|surface| show_or_create_surface(&app, surface, port, &token));
+        let _ = sender.send(result);
     })?;
     receiver
         .recv()
-        .context("the main thread stopped before creating Query")?
+        .context("the main thread stopped before creating Epicenter surfaces")?
 }
 
-fn show_or_create_query(app: &DesktopAppHandle, port: u16, token: &str) -> Result<()> {
-    if let Some(window) = app.get_webview_window(QUERY_LABEL) {
+fn show_or_create_surface(
+    app: &DesktopAppHandle,
+    surface: Surface,
+    port: u16,
+    token: &str,
+) -> Result<()> {
+    if let Some(window) = app.get_webview_window(surface.id()) {
         focus(window);
         return Ok(());
     }
 
     let origin = origin(port);
-    let url: tauri::Url = format!("{origin}{QUERY_PATH}").parse()?;
+    let url: tauri::Url = format!("{origin}{}", surface.path()).parse()?;
     let initialization_script = initialization_script(&origin, token)?;
-    let window = WebviewWindowBuilder::new(app, QUERY_LABEL, WebviewUrl::External(url))
-        .title("Epicenter: Query")
+    let window = WebviewWindowBuilder::new(app, surface.id(), WebviewUrl::External(url))
+        .title(surface.title())
         .inner_size(1100.0, 760.0)
         .min_inner_size(680.0, 480.0)
         .initialization_script(initialization_script)
         .on_navigation(move |url| is_allowed_navigation(url, port))
         .on_new_window(|_, _| NewWindowResponse::Deny)
         .build()
-        .context("create the Query WebView")?;
+        .with_context(|| format!("create the {} WebView", surface.title()))?;
 
     let close_window = window.clone();
     window.on_window_event(move |event| {
@@ -477,25 +693,21 @@ fn show_or_create_query(app: &DesktopAppHandle, port: u16, token: &str) -> Resul
     Ok(())
 }
 
-fn focus_query<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(window) = app.get_webview_window(QUERY_LABEL) {
-        focus(window);
-    }
-}
-
 fn focus<R: Runtime>(window: WebviewWindow<R>) {
     let _ = window.unminimize();
     let _ = window.show();
     let _ = window.set_focus();
 }
 
-fn invalidate_query(app: &DesktopAppHandle) {
+fn invalidate_surfaces(app: &DesktopAppHandle) {
     let (sender, receiver) = mpsc::sync_channel(1);
     let app = app.clone();
     let _ = app.clone().run_on_main_thread(move || {
-        if let Some(window) = app.get_webview_window(QUERY_LABEL) {
-            if window.destroy().is_err() {
-                let _ = window.hide();
+        for surface in Surface::ALL {
+            if let Some(window) = app.get_webview_window(surface.id()) {
+                if window.destroy().is_err() {
+                    let _ = window.hide();
+                }
             }
         }
         let _ = sender.send(());
@@ -749,6 +961,65 @@ mod tests {
                 PRODUCTION_PORT
             ));
         }
+    }
+
+    #[test]
+    fn surface_table_has_stable_ids_routes_and_titles() {
+        let actual = Surface::ALL.map(|surface| (surface.id(), surface.path(), surface.title()));
+        assert_eq!(
+            actual,
+            [
+                ("query", "/apps/query/", "Epicenter: Query"),
+                ("whispering", "/apps/whispering/", "Epicenter: Whispering"),
+                ("mail", "/apps/mail/", "Epicenter: Mail"),
+                ("books", "/apps/books/", "Epicenter: Books"),
+            ]
+        );
+    }
+
+    #[test]
+    fn deep_links_accept_only_the_closed_surface_route_table() {
+        for (url, expected) in [
+            ("epicenter://surface/query", Surface::Query),
+            ("epicenter://surface/whispering", Surface::Whispering),
+            ("epicenter://surface/mail", Surface::Mail),
+            ("epicenter://surface/books", Surface::Books),
+        ] {
+            assert_eq!(
+                parse_surface_deep_link(&url.parse().unwrap()),
+                Some(expected)
+            );
+        }
+
+        for denied in [
+            "epicenter://surface/unknown",
+            "epicenter://surface/query/",
+            "epicenter://surface/query/extra",
+            "epicenter://surface/query?mode=other",
+            "epicenter://surface/query#other",
+            "epicenter://user@surface/query",
+            "epicenter://user:secret@surface/query",
+            "epicenter://other/query",
+            "https://surface/query",
+        ] {
+            assert_eq!(parse_surface_deep_link(&denied.parse().unwrap()), None);
+        }
+    }
+
+    #[test]
+    fn forwarded_arguments_extract_valid_unique_surface_links() {
+        let arguments = [
+            "/Applications/Epicenter.app/Contents/MacOS/Epicenter",
+            "epicenter://surface/mail",
+            "epicenter://surface/unknown",
+            "epicenter://surface/mail",
+            "epicenter://surface/books",
+        ]
+        .map(String::from);
+        assert_eq!(
+            surfaces_from_arguments(&arguments),
+            vec![Surface::Mail, Surface::Books]
+        );
     }
 
     #[test]
