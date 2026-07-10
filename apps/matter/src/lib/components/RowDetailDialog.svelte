@@ -44,42 +44,38 @@
 	<Dialog.Content
 		class="grid-rows-[auto_minmax(0,1fr)] h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-7xl overflow-hidden p-0 sm:max-w-7xl"
 	>
-		<div class="border-b px-6 py-5">
-			<Dialog.Header class="gap-3 text-left">
-				<div class="flex flex-wrap items-start justify-between gap-4 pr-8">
-					<div class="min-w-0 space-y-2">
-						<Dialog.Title class="truncate font-mono text-xl leading-tight">
-							{row.fileName}
-						</Dialog.Title>
-						<Dialog.Description class="sr-only">
-							Edit frontmatter fields and the Markdown body for {row.fileName}.
-						</Dialog.Description>
-						<div class="flex flex-wrap gap-1.5">
-							<Badge variant={conformance.rowValid ? 'secondary' : 'outline'}>
-								{conformance.rowValid ? 'Ready' : 'Needs attention'}
-							</Badge>
-							<Badge variant="secondary">
-								{cellCounts.ok} of {conformance.cells.length} fields filled
-							</Badge>
-							{#if cellCounts.missingRequired}
-								<Badge
-									class="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-									variant="outline"
-								>
-									{cellCounts.missingRequired} missing
-								</Badge>
-							{/if}
-							{#if cellCounts.invalid}
-								<Badge variant="destructive">{cellCounts.invalid} invalid</Badge>
-							{/if}
-							{#if conformance.extras.length}
-								<Badge variant="outline">{conformance.extras.length} extra keys</Badge>
-							{/if}
-						</div>
-					</div>
+		<Dialog.Header class="gap-3 border-b px-6 py-5 pr-14 text-left">
+			<div class="min-w-0 space-y-2">
+				<Dialog.Title class="truncate font-mono text-xl leading-tight">
+					{row.fileName}
+				</Dialog.Title>
+				<Dialog.Description class="sr-only">
+					Edit frontmatter fields and the Markdown body for {row.fileName}.
+				</Dialog.Description>
+				<div class="flex flex-wrap gap-1.5">
+					<Badge variant={conformance.rowValid ? 'secondary' : 'outline'}>
+						{conformance.rowValid ? 'Ready' : 'Needs attention'}
+					</Badge>
+					<Badge variant="secondary">
+						{cellCounts.ok} of {conformance.cells.length} fields filled
+					</Badge>
+					{#if cellCounts.missingRequired}
+						<Badge
+							class="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+							variant="outline"
+						>
+							{cellCounts.missingRequired} missing
+						</Badge>
+					{/if}
+					{#if cellCounts.invalid}
+						<Badge variant="destructive">{cellCounts.invalid} invalid</Badge>
+					{/if}
+					{#if conformance.extras.length}
+						<Badge variant="outline">{conformance.extras.length} extra keys</Badge>
+					{/if}
 				</div>
-			</Dialog.Header>
-		</div>
+			</div>
+		</Dialog.Header>
 
 		<div class="min-h-0 overflow-y-auto">
 			<div class="mx-auto grid w-full max-w-6xl gap-8 px-6 py-7">

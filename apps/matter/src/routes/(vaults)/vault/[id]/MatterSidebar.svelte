@@ -50,17 +50,15 @@
 </script>
 
 <Sidebar.Root collapsible="offcanvas">
-	<Sidebar.Header>
-		<div class="flex items-center gap-2 px-2 py-1">
-			<div class="flex size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-				<FolderOpenIcon class="size-4" />
-			</div>
-			<div class="min-w-0 flex-1">
-				<div class="truncate text-sm font-semibold">Matter</div>
-				<div class="truncate text-xs text-muted-foreground">Markdown workbench</div>
-			</div>
-			<Sidebar.Trigger tooltip="Toggle navigation" />
+	<Sidebar.Header class="flex-row items-center">
+		<div class="flex size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
+			<FolderOpenIcon class="size-4" />
 		</div>
+		<div class="min-w-0 flex-1">
+			<div class="truncate text-sm font-semibold">Matter</div>
+			<div class="truncate text-xs text-muted-foreground">Markdown workbench</div>
+		</div>
+		<Sidebar.Trigger tooltip="Toggle navigation" />
 	</Sidebar.Header>
 
 	<Sidebar.Content>

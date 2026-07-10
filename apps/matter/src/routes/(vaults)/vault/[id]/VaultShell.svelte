@@ -85,8 +85,7 @@
 	}
 </script>
 
-<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-	<Sidebar.Provider bind:open={sidebarOpen} class="h-full min-h-0">
+<Sidebar.Provider bind:open={sidebarOpen} class="min-h-0 flex-1 overflow-hidden">
 		<MatterSidebar
 			tables={vault.tables}
 			{activeTable}
@@ -188,5 +187,4 @@
 				</Empty.Root>
 			{/await}
 		</Sidebar.Inset>
-	</Sidebar.Provider>
-</div>
+</Sidebar.Provider>
