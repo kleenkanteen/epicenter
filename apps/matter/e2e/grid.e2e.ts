@@ -69,3 +69,31 @@ test('dragging a board card writes the group field through saveField', async ({
 			}),
 		);
 });
+
+test('running SQL returns rows and records the query in recent history', async ({
+	page,
+}) => {
+	await page.goto(`/vault/${VAULT_ID}?panel=sql&table=vault`);
+
+	const recent = page.getByRole('button', { name: 'Recent' });
+	await expect(recent).toBeDisabled();
+	await page.getByRole('button', { name: 'Run query' }).click();
+
+	await expect(page.getByText('card-a', { exact: true })).toBeVisible();
+	await expect(page.getByText('card-b', { exact: true })).toBeVisible();
+	await expect(recent).toBeEnabled();
+
+	await recent.click();
+	await expect(page.getByRole('menuitem')).toContainText('SELECT * FROM "vault"');
+});
+
+test('database reference reveals the generated table definition', async ({
+	page,
+}) => {
+	await page.goto(`/vault/${VAULT_ID}?panel=db&table=vault`);
+
+	await expect(page.getByRole('heading', { name: 'SQLite projection' })).toBeVisible();
+	await expect(page.getByText('Database file', { exact: true })).toBeVisible();
+	await page.locator('[data-slot=accordion-trigger]').click();
+	await expect(page.getByText(/CREATE TABLE "vault"/)).toBeVisible();
+});
