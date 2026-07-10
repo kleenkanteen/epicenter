@@ -219,9 +219,7 @@ function parseRelayToHostFrame(data: string): RelayToHostFrame | undefined {
 }
 
 /** Decode a client's opaque payload into a host command, or nothing. */
-function parseCommandPayload(
-	payload: string,
-): QueryClientCommand | undefined {
+function parseCommandPayload(payload: string): QueryClientCommand | undefined {
 	try {
 		return parseQueryCommand(JSON.parse(payload));
 	} catch {

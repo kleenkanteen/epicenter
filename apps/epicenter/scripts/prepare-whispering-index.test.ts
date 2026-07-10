@@ -22,9 +22,7 @@ describe('gateWhisperingBootstrap', () => {
 	});
 
 	test('refuses an unknown or ambiguous generated bootstrap shape', () => {
-		expect(() => gateWhisperingBootstrap('<html></html>')).toThrow(
-			'found 0',
-		);
+		expect(() => gateWhisperingBootstrap('<html></html>')).toThrow('found 0');
 		expect(() => gateWhisperingBootstrap(`${INDEX}${INDEX}`)).toThrow(
 			'found 2',
 		);

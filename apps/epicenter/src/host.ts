@@ -538,14 +538,10 @@ function createSessionApproval(notify: () => void) {
 }
 
 function defaultDataDir(): string {
-	if (process.env.EPICENTER_QUERY_DATA_DIR) return process.env.EPICENTER_QUERY_DATA_DIR;
+	if (process.env.EPICENTER_QUERY_DATA_DIR)
+		return process.env.EPICENTER_QUERY_DATA_DIR;
 	if (platform() === 'darwin') {
-		return join(
-			homedir(),
-			'Library',
-			'Application Support',
-			'epicenter-query',
-		);
+		return join(homedir(), 'Library', 'Application Support', 'epicenter-query');
 	}
 	const xdgDataHome = process.env.XDG_DATA_HOME;
 	if (xdgDataHome) return join(xdgDataHome, 'epicenter-query');

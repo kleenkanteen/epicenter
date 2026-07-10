@@ -58,9 +58,7 @@ function testDataDir(): string {
 
 const TEST_MODEL = 'test-model';
 
-function createTestHost(
-	options: Omit<QueryHostOptions, 'dataDir' | 'model'>,
-) {
+function createTestHost(options: Omit<QueryHostOptions, 'dataDir' | 'model'>) {
 	return createQueryHost({
 		dataDir: testDataDir(),
 		model: TEST_MODEL,
@@ -722,9 +720,7 @@ describe('parseQueryCommand', () => {
 	});
 
 	test('rejects invoke frames with a missing, empty, or non-string tool name', () => {
-		expect(
-			parseQueryCommand({ type: 'invoke', input: {} }),
-		).toBeUndefined();
+		expect(parseQueryCommand({ type: 'invoke', input: {} })).toBeUndefined();
 		expect(
 			parseQueryCommand({ type: 'invoke', toolName: '', input: {} }),
 		).toBeUndefined();

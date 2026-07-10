@@ -21,7 +21,9 @@ describe('Epicenter-hosted Whispering identity', () => {
 	test('the canonical package is the independently hostable SPA', () => {
 		expect(JSON.parse(read('package.json')).name).toBe('@epicenter/whispering');
 		expect(existsSync(join(ROOT, 'src-tauri'))).toBe(false);
-		expect(existsSync(join(REPO_ROOT, 'apps/epicenter/whispering'))).toBe(false);
+		expect(existsSync(join(REPO_ROOT, 'apps/epicenter/whispering'))).toBe(
+			false,
+		);
 		expect(existsSync(join(REPO_ROOT, 'apps/epicenter/src-tauri'))).toBe(true);
 	});
 
@@ -51,8 +53,6 @@ describe('Epicenter-hosted Whispering identity', () => {
 		const auth = read('src/lib/platform/auth.tauri.ts');
 		expect(auth).toContain('EPICENTER_DESKTOP_OAUTH_CLIENT_ID');
 		expect(auth).toContain('EPICENTER_DESKTOP_TAURI_OAUTH_REDIRECT_URI');
-		expect(auth).not.toContain(
-			'EPICENTER_WHISPERING_TAURI_OAUTH_REDIRECT_URI',
-		);
+		expect(auth).not.toContain('EPICENTER_WHISPERING_TAURI_OAUTH_REDIRECT_URI');
 	});
 });
