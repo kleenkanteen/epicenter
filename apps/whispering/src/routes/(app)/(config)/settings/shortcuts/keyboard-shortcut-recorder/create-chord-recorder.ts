@@ -1,7 +1,12 @@
 import { debounce } from '@epicenter/workspace';
 import { on } from 'svelte/events';
-import type { Key, KeyBinding, Modifier } from '$lib/tauri/commands';
-import { domCodeToKey, eventModifiers } from '$lib/utils/key-binding';
+import {
+	domCodeToKey,
+	eventModifiers,
+	type Key,
+	type KeyBinding,
+	type Modifier,
+} from '$lib/utils/key-binding';
 
 const CAPTURE_WINDOW_MS = 300; // Time to wait for additional keys in a combination.
 
@@ -62,7 +67,7 @@ export function createChordRecorder({
 		// refuse a capture; reset so the next attempt starts clean either way.
 		reset();
 		// The webview recorder yields only bare keys and chords. A capture with no
-		// non-modifier key (a lone modifier tapped, or every non-modifier released
+		// non-modifier key (a lone modifier pressed, or every non-modifier released
 		// past the window leaving only modifiers held) is a modifier-only hold,
 		// which is refused (ADR-0117), so it never commits here: a stored
 		// modifier-only binding would fire on every press of that modifier in-app.

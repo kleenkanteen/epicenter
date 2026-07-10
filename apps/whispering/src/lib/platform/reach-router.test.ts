@@ -1,6 +1,7 @@
+/** Reach routing, backend delegation, and cross-store conflict behavior. */
 import { expect, test } from 'bun:test';
-import type { KeyBinding } from '$lib/tauri/commands';
-import { type CommandReach, createReachRouter } from './reach-router';
+import type { KeyBinding } from '$lib/utils/key-binding';
+import { createReachRouter } from './reach-router';
 import type { ShortcutConflict, Shortcuts } from './types';
 
 /**
@@ -9,15 +10,15 @@ import type { ShortcutConflict, Shortcuts } from './types';
  * `focused` command clamps into the focused store, a `global` command routes to
  * the global store. The full command-ceiling clamp (a chord on a `focused`
  * command) is pinned by `realizedReach`'s own tests, so here it only needs to
- * prove the router consults `command.reach`. `as const satisfies` keeps the
- * literal ids and reaches while checking the shape, matching `commands.ts`.
+ * prove the router consults `command.reach`. `as const` keeps the literal ids
+ * and reaches; each router call checks the shape against the production API.
  */
 const CATALOG = [
 	{ id: 'toggleManualRecording', reach: 'global' },
 	{ id: 'pushToTalk', reach: 'global' },
 	{ id: 'openSettings', reach: 'focused' },
 	{ id: 'cancelRecording', reach: 'global' },
-] as const satisfies readonly CommandReach[];
+] as const;
 
 /**
  * A `Shortcuts` test double that stores bindings in a map and records the calls
@@ -239,7 +240,7 @@ test('the cross-store check refuses only an identical gesture, not a mere overla
 
 	// Cmd+Shift+Space (routed global) merely *contains* bare Space; pressing it
 	// never produces the exact `{Space}` held-set the in-app matcher needs, so it
-	// does not double-fire and is allowed. The focused tier itself refuses only
+	// does not double-fire and is allowed. The focused backend itself refuses only
 	// exact duplicates, and the cross-store check matches that.
 	expect(router.findConflict('cancelRecording', CHORD)).toBeNull();
 });

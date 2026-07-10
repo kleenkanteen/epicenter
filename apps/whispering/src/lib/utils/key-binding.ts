@@ -1,12 +1,119 @@
 /**
- * The shared `KeyBinding` core: parse, serialize, label, and match the
- * structured physical binding both shortcut tiers speak. No Tauri dependency and
- * no DOM side effects; the only DOM contact is reading `KeyboardEvent` fields
+ * The shared `KeyBinding` core: define, parse, serialize, label, and match the
+ * structured physical binding both shortcut reaches speak. No Tauri dependency
+ * and no DOM side effects; the only DOM contact is reading `KeyboardEvent` fields
  * (`.code`, the modifier flags) in {@link domCodeToKey} and {@link eventModifiers},
  * which is the capture side of the same physical-key model.
  */
 
-import type { Key, Modifier } from '$lib/tauri/commands';
+/**
+ * A physical key in position space (`keyD` is the D-position key regardless of
+ * layout). A stable enum so the persisted binding format never drifts; keys
+ * outside this set are not bindable.
+ */
+export type Key =
+	| 'keyA'
+	| 'keyB'
+	| 'keyC'
+	| 'keyD'
+	| 'keyE'
+	| 'keyF'
+	| 'keyG'
+	| 'keyH'
+	| 'keyI'
+	| 'keyJ'
+	| 'keyK'
+	| 'keyL'
+	| 'keyM'
+	| 'keyN'
+	| 'keyO'
+	| 'keyP'
+	| 'keyQ'
+	| 'keyR'
+	| 'keyS'
+	| 'keyT'
+	| 'keyU'
+	| 'keyV'
+	| 'keyW'
+	| 'keyX'
+	| 'keyY'
+	| 'keyZ'
+	| 'num0'
+	| 'num1'
+	| 'num2'
+	| 'num3'
+	| 'num4'
+	| 'num5'
+	| 'num6'
+	| 'num7'
+	| 'num8'
+	| 'num9'
+	| 'f1'
+	| 'f2'
+	| 'f3'
+	| 'f4'
+	| 'f5'
+	| 'f6'
+	| 'f7'
+	| 'f8'
+	| 'f9'
+	| 'f10'
+	| 'f11'
+	| 'f12'
+	| 'f13'
+	| 'f14'
+	| 'f15'
+	| 'f16'
+	| 'f17'
+	| 'f18'
+	| 'f19'
+	| 'f20'
+	| 'f21'
+	| 'f22'
+	| 'f23'
+	| 'f24'
+	| 'space'
+	| 'return'
+	| 'tab'
+	| 'escape'
+	| 'backspace'
+	| 'delete'
+	| 'insert'
+	| 'upArrow'
+	| 'downArrow'
+	| 'leftArrow'
+	| 'rightArrow'
+	| 'home'
+	| 'end'
+	| 'pageUp'
+	| 'pageDown'
+	| 'minus'
+	| 'equal'
+	| 'leftBracket'
+	| 'rightBracket'
+	| 'semiColon'
+	| 'quote'
+	| 'backQuote'
+	| 'backSlash'
+	| 'comma'
+	| 'dot'
+	| 'slash';
+
+/**
+ * A logical modifier. Left and right collapse (ControlLeft and ControlRight both
+ * become `ctrl`). `fn` has no plugin accelerator spelling, so a binding carrying
+ * it is not a registrable global chord.
+ */
+export type Modifier = 'ctrl' | 'alt' | 'shift' | 'meta' | 'fn';
+
+/**
+ * A shortcut binding. A registrable global chord is exactly one key plus at
+ * least one non-Fn modifier; focused shortcuts may also use bare keys.
+ */
+export type KeyBinding = {
+	modifiers: Modifier[];
+	keys: Key[];
+};
 
 /**
  * How far a shortcut fires, ordered `focused < global`. The one reach scale,
@@ -18,9 +125,8 @@ import type { Key, Modifier } from '$lib/tauri/commands';
 export type Reach = 'focused' | 'global';
 
 /**
- * A binding for display/dedup purposes. Accepts both the IPC `KeyBinding`
- * (`keys: Key[]`) and the stored shape (`keys: string[]`, validated structurally
- * in device-config and by name in Rust), so the same helpers serve both.
+ * A binding for display and deduplication. Accepts both `KeyBinding` and the
+ * structurally validated device-config shape (`keys: string[]`).
  */
 export type BindingLike = {
 	modifiers: readonly Modifier[];
@@ -182,37 +288,13 @@ export function keyBindingToAccelerator(binding: BindingLike): string | null {
 }
 
 /**
- * A binding resolved for the global backend. A `chord` registers through
- * `tauri-plugin-global-shortcut` and carries the accelerator string it registers
- * under; `unsupported` is any gesture the plugin cannot register (an Fn or
- * modifier-only hold, or a bare key), which is refused as a global shortcut
- * (ADR-0117).
- */
-export type ResolvedBinding =
-	| { tier: 'chord'; accelerator: string }
-	| { tier: 'unsupported' };
-
-/**
- * Resolve a binding for the global backend, computing the accelerator once here
- * so the caller and the plugin registration never re-derive it.
- * {@link isRegistrableChord} is the boolean view for callers that only need the
- * predicate.
- */
-export function resolveBinding(binding: BindingLike): ResolvedBinding {
-	const accelerator = keyBindingToAccelerator(binding);
-	return accelerator !== null
-		? { tier: 'chord', accelerator }
-		: { tier: 'unsupported' };
-}
-
-/**
  * Whether a binding is a registrable global chord: exactly one key plus at least
  * one non-Fn modifier, which `tauri-plugin-global-shortcut` can register with no
  * Accessibility grant. An Fn hold, a modifier-only hold, and a bare key are not
  * registrable global shortcuts.
  */
 export function isRegistrableChord(binding: BindingLike): boolean {
-	return resolveBinding(binding).tier === 'chord';
+	return keyBindingToAccelerator(binding) !== null;
 }
 
 /**
@@ -223,7 +305,7 @@ export function isRegistrableChord(binding: BindingLike): boolean {
  * that key in every app, and holds are not valid global shortcuts. No shortcut
  * reach needs an Accessibility grant (ADR-0117). Callers pass a non-empty binding.
  */
-export function keyCapability(binding: BindingLike): Reach {
+function keyCapability(binding: BindingLike): Reach {
 	return isRegistrableChord(binding) ? 'global' : 'focused';
 }
 
@@ -309,17 +391,6 @@ function isContainedBy(subset: BindingLike, superset: BindingLike): boolean {
 		subset.modifiers.every((m) => superset.modifiers.includes(m)) &&
 		subset.keys.every((k) => superset.keys.includes(k))
 	);
-}
-
-/**
- * Whether two gestures overlap: one is a subset of the other (including equal).
- * The in-app keydown matcher fires on exact set equality with no prefix
- * resolution, so an overlapping pair is unusable there: the shorter gesture fires
- * first and shadows the longer. The recorder refuses to save a gesture that
- * overlaps another, so a key bound to one gesture cannot appear in any other.
- */
-export function bindingsOverlap(a: BindingLike, b: BindingLike): boolean {
-	return isContainedBy(a, b) || isContainedBy(b, a);
 }
 
 /**
