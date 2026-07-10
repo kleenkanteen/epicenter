@@ -8,7 +8,6 @@
  * needed to change it because this entrypoint reads the env once.
  */
 
-import { join } from 'node:path';
 import { type AgentEngine, createOpenAiAgentEngine } from '@epicenter/client';
 import { createQueryHost, type QueryHost } from './host.ts';
 import { createQueryServer } from './server.ts';
@@ -19,6 +18,7 @@ import {
 	superviseSidecar,
 	watchParentPipe,
 } from './sidecar-runtime.ts';
+import { loadStaticAssets } from './static-assets.ts';
 
 async function main(): Promise<void> {
 	const parentPipe = watchParentPipe(Bun.stdin.stream());
@@ -34,21 +34,19 @@ async function main(): Promise<void> {
 
 		host = await createQueryHost({ engine, model });
 
-		const pageFile = process.env.EPICENTER_QUERY_DIST
-			? Bun.file(join(process.env.EPICENTER_QUERY_DIST, 'index.html'))
-			: Bun.file(new URL('../dist/index.html', import.meta.url));
-		if (!(await pageFile.exists())) {
+		const appsDist = process.env.EPICENTER_APPS_DIST;
+		if (!appsDist) {
 			throw new Error(
-				'The built SPA is missing. Run `bun run --filter @epicenter/epicenter build` first.',
+				'EPICENTER_APPS_DIST must name the release-built Epicenter applications directory.',
 			);
 		}
-		const page = await pageFile.text();
+		const staticAssets = await loadStaticAssets(appsDist);
 		const origin = `http://127.0.0.1:${boot.port}`;
 		const { app, websocket } = createQueryServer({
 			host,
 			origin,
 			launchToken: boot.token,
-			queryPage: page,
+			staticAssets,
 		});
 
 		server = Bun.serve({

@@ -23,6 +23,7 @@ const COMMANDS: &[&str] = &[
     "cancel_recording",
     "delete_recording_artifacts",
     "clear_recording_artifacts",
+    "read_recording_artifact",
     "encode_recording_for_upload",
     "transcribe_recording",
     "prewarm_model",
@@ -87,11 +88,15 @@ fn stage_transcribe_runtime() {
     let staging = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("transcribe-libs");
 
     // A missing runtime directory means this is a statically linked target.
-    // Recreate the staging directory empty so stale shared libraries cannot
-    // leak from a previous cross-platform build.
+    // Remove stale cross-target libraries once, but leave an already-empty
+    // directory untouched so `tauri dev` does not rebuild in a watcher loop.
     let Some(runtime_dir) = env::var_os("DEP_TRANSCRIBE_CPP_RUNTIME_DIR") else {
-        let _ = fs::remove_dir_all(&staging);
-        fs::create_dir_all(&staging).expect("create transcribe-libs staging directory");
+        let has_stale_entries =
+            fs::read_dir(&staging).is_ok_and(|mut entries| entries.next().is_some());
+        if has_stale_entries {
+            fs::remove_dir_all(&staging).expect("remove stale transcribe-libs staging directory");
+            fs::create_dir_all(&staging).expect("create transcribe-libs staging directory");
+        }
         return;
     };
 

@@ -2,7 +2,7 @@
 
 import type { SurfaceId } from './routes.ts';
 
-type PlaceholderSurfaceId = Exclude<SurfaceId, 'query'>;
+type PlaceholderSurfaceId = Exclude<SurfaceId, 'query' | 'whispering'>;
 
 function placeholderPage(title: string, status: string): string {
 	return `<!doctype html>
@@ -33,10 +33,6 @@ function placeholderPage(title: string, status: string): string {
 }
 
 export const PLACEHOLDER_SURFACE_PAGES = {
-	whispering: placeholderPage(
-		'Whispering',
-		'Recording and transcription are being integrated into Epicenter. This build currently shows the final Whispering route without claiming that dictation is ready.',
-	),
 	mail: placeholderPage(
 		'Mail',
 		'Mail has its permanent place in Epicenter, but the full Mail experience is not included in this milestone.',

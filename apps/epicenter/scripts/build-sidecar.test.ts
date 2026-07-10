@@ -2,8 +2,9 @@
  * Epicenter Bun Host Packaging Tests
  *
  * Verifies the compiled Bun child runs without a system Bun on PATH, accepts
- * only the fixed production boot contract, finds packaged Query assets through
- * the Rust-supplied resource path, and exits when the parent pipe closes.
+ * only the fixed production boot contract, finds packaged Query and Whispering
+ * assets through the Rust-supplied resource path, and exits when the parent
+ * pipe closes.
  */
 
 import { expect, test } from 'bun:test';
@@ -52,7 +53,7 @@ async function readReady(
 	}
 }
 
-test('compiled production host serves packaged Query and exits on parent EOF', async () => {
+test('compiled production host serves packaged apps and exits on parent EOF', async () => {
 	const build = Bun.spawn(['bun', 'run', 'build:desktop'], {
 		cwd: appDir,
 		stdout: 'pipe',
@@ -74,7 +75,7 @@ test('compiled production host serves packaged Query and exits on parent EOF', a
 		env: {
 			EPICENTER_DEV_PORT: '49152',
 			EPICENTER_QUERY_DATA_DIR: dataDir,
-			EPICENTER_QUERY_DIST: join(appDir, 'dist'),
+			EPICENTER_APPS_DIST: join(appDir, 'dist'),
 			EPICENTER_QUERY_INFERENCE_URL: 'http://127.0.0.1:1/v1',
 			EPICENTER_QUERY_MODEL: 'unused-model',
 			PATH: '',
@@ -105,6 +106,26 @@ test('compiled production host serves packaged Query and exits on parent EOF', a
 		);
 		expect(query.status).toBe(200);
 		expect(await query.text()).toContain('<title>Query</title>');
+		const whispering = await fetch(
+			`http://127.0.0.1:${PRODUCTION_PORT}/apps/whispering/`,
+		);
+		expect(whispering.status).toBe(200);
+		const whisperingPage = await whispering.text();
+		expect(whisperingPage).toContain('<title>Whispering</title>');
+		const entryPath = whisperingPage.match(
+			/\/apps\/whispering\/_app\/[^" ]+\.js/,
+		)?.[0];
+		expect(entryPath).toBeDefined();
+		const entry = await fetch(
+			`http://127.0.0.1:${PRODUCTION_PORT}${entryPath ?? ''}`,
+		);
+		expect(entry.status).toBe(200);
+		expect(entry.headers.get('content-type')).toContain('text/javascript');
+		const vad = await fetch(
+			`http://127.0.0.1:${PRODUCTION_PORT}/apps/whispering/vad/silero_vad_v5.onnx`,
+		);
+		expect(vad.status).toBe(200);
+		expect((await vad.arrayBuffer()).byteLength).toBeGreaterThan(1_000);
 
 		sidecar.stdin.end();
 		expect(await sidecar.exited).toBe(0);

@@ -9,7 +9,7 @@
  * Key behaviors:
  * - The launch token is accepted only by the bootstrap route
  * - Query APIs and WebSockets require an HttpOnly browser session
- * - The four compiled surface routes serve Query or honest bundled placeholders
+ * - Query and Whispering serve their builds; Mail and Books stay placeholders
  * - Unknown, non-canonical, and traversal-shaped surface paths stay closed
  * - Host, Origin, CSP, frame, and referrer policies are enforced
  * - Malformed WebSocket frames drop silently without killing the socket
@@ -24,7 +24,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,11 +50,14 @@ import {
 	type QuerySessionResponse,
 } from './server.ts';
 import type { ReadyFrame } from './sidecar-runtime.ts';
+import { loadStaticAssets } from './static-assets.ts';
 
 const TOKEN = 'per-launch-secret';
 
 /** A stand-in for the built SPA document; `/` must return it byte-for-byte. */
 const PAGE = '<!doctype html><html><body>Query test page</body></html>';
+const WHISPERING_PAGE =
+	'<!doctype html><html><body>Whispering test application</body></html>';
 
 const queryDir = fileURLToPath(new URL('..', import.meta.url));
 type TestServer = ReturnType<typeof Bun.serve>;
@@ -105,7 +108,7 @@ async function serveHost(host: QueryHost, page: string = PAGE) {
 		host,
 		origin,
 		launchToken: TOKEN,
-		queryPage: page,
+		staticAssets: await createAppsDistFixture(page),
 	});
 	const server = Bun.serve({
 		hostname: '127.0.0.1',
@@ -127,6 +130,28 @@ async function serveHost(host: QueryHost, page: string = PAGE) {
 	if (cookie === undefined) throw new Error('test bootstrap set no cookie');
 	serverAuthentication.set(server, { cookie, origin });
 	return server;
+}
+
+async function createAppsDistFixture(queryPage: string = PAGE) {
+	return loadStaticAssets(writeAppsDistFixture(queryPage));
+}
+
+function writeAppsDistFixture(queryPage: string = PAGE): string {
+	const root = mkdtempSync(join(tmpdir(), 'epicenter-apps-dist-'));
+	mkdirSync(join(root, 'query'), { recursive: true });
+	mkdirSync(join(root, 'whispering', '_app', 'immutable'), { recursive: true });
+	mkdirSync(join(root, 'whispering', 'vad'), { recursive: true });
+	writeFileSync(join(root, 'query', 'index.html'), queryPage);
+	writeFileSync(join(root, 'whispering', 'index.html'), WHISPERING_PAGE);
+	writeFileSync(
+		join(root, 'whispering', '_app', 'immutable', 'entry.js'),
+		'window.whisperingLoaded = true;',
+	);
+	writeFileSync(
+		join(root, 'whispering', 'vad', 'silero_vad_v5.onnx'),
+		'vad-model',
+	);
+	return root;
 }
 
 function conversationOf(event: QueryServerEvent) {
@@ -198,17 +223,95 @@ const settledWith =
 		);
 	};
 
+describe('loadStaticAssets', () => {
+	test('requires both real application documents at startup', async () => {
+		const missingWhispering = mkdtempSync(
+			join(tmpdir(), 'epicenter-missing-whispering-'),
+		);
+		mkdirSync(join(missingWhispering, 'query'), { recursive: true });
+		writeFileSync(join(missingWhispering, 'query', 'index.html'), PAGE);
+		expect(loadStaticAssets(missingWhispering)).rejects.toThrow(
+			/Whispering asset root is missing/,
+		);
+
+		const missingQuery = mkdtempSync(
+			join(tmpdir(), 'epicenter-missing-query-'),
+		);
+		mkdirSync(join(missingQuery, 'whispering'), { recursive: true });
+		writeFileSync(
+			join(missingQuery, 'whispering', 'index.html'),
+			WHISPERING_PAGE,
+		);
+		expect(loadStaticAssets(missingQuery)).rejects.toThrow(
+			/Query index is missing/,
+		);
+	});
+
+	test('resolves nested generated assets and extensionless SPA routes', async () => {
+		const assets = await createAppsDistFixture();
+		const nested = await assets.resolveWhispering(
+			'/apps/whispering/_app/immutable/entry.js',
+		);
+		expect(nested?.contentType).toContain('text/javascript');
+		expect(await nested?.file.text()).toContain('whisperingLoaded');
+
+		const vad = await assets.resolveWhispering(
+			'/apps/whispering/vad/silero_vad_v5.onnx',
+		);
+		expect(await vad?.file.text()).toBe('vad-model');
+
+		const fallback = await assets.resolveWhispering(
+			'/apps/whispering/settings/transcription',
+		);
+		expect(await fallback?.file.text()).toBe(WHISPERING_PAGE);
+		expect(
+			await assets.resolveWhispering('/apps/whispering/_app/missing.js'),
+		).toBeUndefined();
+	});
+
+	test('rejects raw, encoded, double-encoded, and symlink traversal', async () => {
+		const root = writeAppsDistFixture();
+		const outside = mkdtempSync(join(tmpdir(), 'epicenter-outside-assets-'));
+		writeFileSync(join(outside, 'secret.txt'), 'outside secret');
+		symlinkSync(
+			join(outside, 'secret.txt'),
+			join(root, 'whispering', 'linked-secret.txt'),
+		);
+		symlinkSync(
+			join(outside, 'secret.txt'),
+			join(root, 'whispering', 'linked-secret'),
+		);
+		const assets = await loadStaticAssets(root);
+
+		for (const pathname of [
+			'/apps/whispering/../query/index.html',
+			'/apps/whispering/%2e%2e/query/index.html',
+			'/apps/whispering/%252e%252e/query/index.html',
+			'/apps/whispering/%2fetc/passwd',
+			'/apps/whispering/%252fetc/passwd',
+			'/apps/whispering//etc/passwd',
+			'/apps/whispering/..\\query\\index.html',
+			'/apps/whispering/%00index.html',
+			'/apps/whispering/linked-secret.txt',
+			'/apps/whispering/linked-secret',
+		]) {
+			expect(await assets.resolveWhispering(pathname)).toBeUndefined();
+		}
+	});
+});
+
 describe('createQueryServer', () => {
 	test('refuses an empty launch token and non-loopback origins', async () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
+		const staticAssets = await createAppsDistFixture();
 		expect(() =>
 			createQueryServer({
 				host,
 				origin: 'http://127.0.0.1:39130',
 				launchToken: '',
-				queryPage: PAGE,
+				staticAssets,
 			}),
 		).toThrow(/launch token/);
 		for (const origin of [
@@ -222,7 +325,7 @@ describe('createQueryServer', () => {
 					host,
 					origin,
 					launchToken: TOKEN,
-					queryPage: PAGE,
+					staticAssets,
 				}),
 			).toThrow(/exact http:\/\/127\.0\.0\.1/);
 		}
@@ -302,7 +405,7 @@ describe('createQueryServer', () => {
 		}
 	});
 
-	test('serves the closed surface table with release-bundled placeholders', async () => {
+	test('serves Query and Whispering builds plus honest Mail and Books placeholders', async () => {
 		await using host = await createTestHost({
 			engine: scriptedEngine([[]]),
 		});
@@ -329,7 +432,22 @@ describe('createQueryServer', () => {
 			expect(await query.text()).toBe(PAGE);
 
 			const whispering = await fetch(WHISPERING_ROUTE.url(server.url.origin));
-			expect(await whispering.text()).toContain('dictation is ready');
+			expect(await whispering.text()).toBe(WHISPERING_PAGE);
+			const whisperingAsset = await fetch(
+				`${server.url.origin}/apps/whispering/_app/immutable/entry.js?v=1`,
+			);
+			expect(await whisperingAsset.text()).toContain('whisperingLoaded');
+			expect(whisperingAsset.headers.get('content-type')).toContain(
+				'text/javascript',
+			);
+			const vadAsset = await fetch(
+				`${server.url.origin}/apps/whispering/vad/silero_vad_v5.onnx`,
+			);
+			expect(await vadAsset.text()).toBe('vad-model');
+			const clientRoute = await fetch(
+				`${server.url.origin}/apps/whispering/settings/transcription?tab=models`,
+			);
+			expect(await clientRoute.text()).toBe(WHISPERING_PAGE);
 			const mail = await fetch(MAIL_ROUTE.url(server.url.origin));
 			expect(await mail.text()).toContain(
 				'the full Mail experience is not included',
@@ -339,7 +457,15 @@ describe('createQueryServer', () => {
 				'the full Books experience is not included',
 			);
 
-			for (const response of [query, whispering, mail, books]) {
+			for (const response of [
+				query,
+				whispering,
+				whisperingAsset,
+				vadAsset,
+				clientRoute,
+				mail,
+				books,
+			]) {
 				expect(response.status).toBe(200);
 				expect(response.headers.get('cache-control')).toBe('no-store');
 				expect(response.headers.get('content-security-policy')).toContain(
@@ -360,15 +486,22 @@ describe('createQueryServer', () => {
 			for (const path of [
 				'/apps/unknown/',
 				'/apps/query/extra',
-				'/apps/query/?surface=mail',
 				'/apps/query%2f',
 				'/apps/query/%2e%2e/%2e%2e/package.json',
 				'/apps/query/%252e%252e/%252e%252e/package.json',
+				'/apps/whispering/missing.js',
 			]) {
 				const response = await fetch(`${server.url.origin}${path}`);
 				expect(response.status).toBe(404);
 				expect(await response.text()).not.toContain('"scripts"');
 			}
+
+			// Query strings are SPA state, not an alternate server-side surface.
+			const queryState = await fetch(
+				`${QUERY_ROUTE.url(server.url.origin)}?conversation=recent`,
+			);
+			expect(queryState.status).toBe(200);
+			expect(await queryState.text()).toBe(PAGE);
 
 			// URL fragments are browser state and are not sent in an HTTP request.
 			// The server therefore sees this as the one canonical Mail path.
@@ -474,6 +607,7 @@ describe('createQueryServer', () => {
 
 			const pendingEvent = await pending;
 			const [approval] = pendingEvent.snapshot.pendingApprovals;
+			if (!approval) throw new Error('pending snapshot had no approval');
 			expect(approval).toEqual(
 				expect.objectContaining({
 					toolCallId: 'call-approve',
@@ -490,14 +624,14 @@ describe('createQueryServer', () => {
 				secondSocket,
 				(event) =>
 					event.snapshot.pendingApprovals.some(
-						(candidate) => candidate.id === approval!.id,
+						(candidate) => candidate.id === approval.id,
 					),
 				'the rehydrated approval',
 			);
 			secondSocket.send(
 				JSON.stringify({
 					type: 'approve',
-					requestId: approval!.id,
+					requestId: approval.id,
 					approved: true,
 				}),
 			);
@@ -670,13 +804,14 @@ describe('createQueryServer', () => {
 let builtPagePromise: Promise<string> | undefined;
 
 /**
- * Run the real vite build once per test run and return dist/index.html.
+ * Run the real Vite build once per test run and return Query's index document.
  * Memoized because both the built-SPA describe and the sidecar smoke need it,
  * and bun test does not guarantee an ordering contract between describes.
  */
 function buildSpaOnce(): Promise<string> {
 	builtPagePromise ??= (async () => {
-		const build = Bun.spawn(['bun', 'x', 'vite', 'build'], {
+		const outDir = mkdtempSync(join(tmpdir(), 'epicenter-query-build-'));
+		const build = Bun.spawn(['bun', 'x', 'vite', 'build', '--outDir', outDir], {
 			cwd: queryDir,
 			stdout: 'pipe',
 			stderr: 'pipe',
@@ -686,7 +821,7 @@ function buildSpaOnce(): Promise<string> {
 			const stderr = await new Response(build.stderr).text();
 			throw new Error(`vite build exited with ${exitCode}:\n${stderr}`);
 		}
-		return Bun.file(join(queryDir, 'dist', 'index.html')).text();
+		return Bun.file(join(outDir, 'index.html')).text();
 	})();
 	return builtPagePromise;
 }
@@ -865,6 +1000,7 @@ async function exitWithin(
 describe('sidecar end-to-end smoke', () => {
 	test('the spawned entrypoint serves the built SPA and drives a tool-calling turn', async () => {
 		const page = await buildSpaOnce();
+		const appsDist = writeAppsDistFixture(page);
 
 		// The fake OpenAI-compatible backend: first request streams a
 		// `todos__todos_list` tool call, second streams the final sentence.
@@ -897,6 +1033,7 @@ describe('sidecar end-to-end smoke', () => {
 				cwd: queryDir,
 				env: {
 					...process.env,
+					EPICENTER_APPS_DIST: appsDist,
 					// The engine POSTs `${baseURL}/chat/completions`, so the base
 					// carries the `/v1` prefix.
 					EPICENTER_QUERY_INFERENCE_URL: `${inference.url.origin}/v1`,
@@ -988,7 +1125,7 @@ describe('sidecar end-to-end smoke', () => {
 	}, 120_000);
 
 	test('a port collision exits without announcing readiness or falling back', async () => {
-		await buildSpaOnce();
+		const appsDist = writeAppsDistFixture(await buildSpaOnce());
 		const occupied = Bun.serve({
 			hostname: '127.0.0.1',
 			port: 0,
@@ -1001,6 +1138,7 @@ describe('sidecar end-to-end smoke', () => {
 				cwd: queryDir,
 				env: {
 					...process.env,
+					EPICENTER_APPS_DIST: appsDist,
 					EPICENTER_QUERY_INFERENCE_URL: 'http://127.0.0.1:1/v1',
 					EPICENTER_QUERY_MODEL: 'unused-model',
 					EPICENTER_QUERY_DATA_DIR: testDataDir(),
@@ -1027,7 +1165,7 @@ describe('sidecar end-to-end smoke', () => {
 	}, 60_000);
 
 	test('parent-pipe EOF exits and releases the listening port', async () => {
-		await buildSpaOnce();
+		const appsDist = writeAppsDistFixture(await buildSpaOnce());
 		const portProbe = Bun.serve({
 			hostname: '127.0.0.1',
 			port: 0,
@@ -1041,6 +1179,7 @@ describe('sidecar end-to-end smoke', () => {
 				cwd: queryDir,
 				env: {
 					...process.env,
+					EPICENTER_APPS_DIST: appsDist,
 					EPICENTER_QUERY_INFERENCE_URL: 'http://127.0.0.1:1/v1',
 					EPICENTER_QUERY_MODEL: 'unused-model',
 					EPICENTER_QUERY_DATA_DIR: testDataDir(),

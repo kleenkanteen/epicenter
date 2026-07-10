@@ -30,6 +30,7 @@
 		"allow-cancel-recording",
 		"allow-delete-recording-artifacts",
 		"allow-clear-recording-artifacts",
+		"allow-read-recording-artifact",
 		"allow-encode-recording-for-upload",
 		"allow-transcribe-recording",
 		"allow-prewarm-model",

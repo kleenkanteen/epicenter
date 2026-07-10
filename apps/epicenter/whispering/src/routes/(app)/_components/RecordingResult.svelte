@@ -1,0 +1,80 @@
+<!--
+	The result of a finished recording: a copyable, expandable transcript preview
+	and a player for the captured audio. The home recorder and the first-run "try
+	it" step both render this, so the two cannot drift.
+
+	The audio renders whenever the clip exists, independent of the transcript, so a
+	silent or not-yet-transcribed recording still plays back. The playback URL is
+	owned here: the blob store caches it per id, and it is revoked on teardown.
+-->
+<script lang="ts">
+	import { Button } from '@epicenter/ui/button';
+	import TrashIcon from '@lucide/svelte/icons/trash-2';
+	import { createQuery } from '@tanstack/svelte-query';
+	import { onDestroy } from 'svelte';
+	import TextPreviewDialog from '$lib/components/copyable/TextPreviewDialog.svelte';
+	import { rpc } from '$lib/rpc';
+	import { services } from '$lib/services';
+	import { viewTransition } from '$lib/utils/viewTransitions';
+
+	let {
+		recordingId,
+		transcript,
+		rows = 1,
+		onDelete,
+	}: {
+		recordingId: string;
+		transcript: string;
+		/** Visible rows of the transcript preview before it scrolls/expands. */
+		rows?: number;
+		/** When provided, a delete button is shown at the end of the audio row. */
+		onDelete?: () => void;
+	} = $props();
+
+	const audioQuery = createQuery(() => ({
+		...rpc.audio.getPlaybackUrl(() => recordingId).options,
+		enabled: !!recordingId,
+	}));
+	onDestroy(() => {
+		if (recordingId) services.blobs.audio.revokeUrl(recordingId);
+	});
+</script>
+
+<div class="flex w-full flex-col gap-2">
+	<TextPreviewDialog
+		id={viewTransition.recording(recordingId).transcript}
+		title="Transcript"
+		label="transcript"
+		text={transcript}
+		{rows}
+		disabled={!transcript.trim()}
+	/>
+	<!-- Delete is a companion action on the audio row, mirroring the copy button
+	     on the transcript row above: content stretches, its action caps the row.
+	     Icon-only with a tooltip; the confirmation dialog carries the words. -->
+	{#if audioQuery.data || onDelete}
+		<div class="flex w-full items-center gap-2">
+			{#if audioQuery.data}
+				<audio
+					style:view-transition-name={viewTransition.recording(recordingId)
+						.audio}
+					src={audioQuery.data}
+					controls
+					class="h-8 min-w-0 flex-1"
+				></audio>
+			{/if}
+			{#if onDelete}
+				<Button
+					class="ml-auto"
+					variant="ghost-destructive"
+					size="icon-sm"
+					tooltip="Delete recording"
+					aria-label="Delete recording"
+					onclick={onDelete}
+				>
+					<TrashIcon class="size-4" />
+				</Button>
+			{/if}
+		</div>
+	{/if}
+</div>

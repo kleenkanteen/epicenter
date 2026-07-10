@@ -1,7 +1,7 @@
 //! Durable recording artifact: a 16 kHz mono IEEE-float WAV file written to
-//! `<appDataDir>/recordings/{id}.wav`. This path matches the JS file-system
-//! blob store (`PATHS.DB.RECORDING_AUDIO`) so history playback, deletion, and
-//! the `convertFileSrc` URL flow work without an extra copy.
+//! `<appDataDir>/recordings/{id}.wav`. The native layer owns the directory;
+//! history playback crosses a focused id-to-bytes command rather than exposing
+//! paths or a generic filesystem capability to the WebView.
 //!
 //! JS never sees raw PCM samples on the wire. The IPC shape is the small
 //! `RecordingArtifact` JSON handle returned by `stop_recording`; later
@@ -120,9 +120,12 @@ fn recording_path(app: &AppHandle, id: &str) -> Result<PathBuf, RecorderError> {
 /// Returns an error if no audio file exists. Callers should map that to
 /// a user-facing "recording not found" message.
 fn find_recording_path(app: &AppHandle, id: &str) -> Result<PathBuf, RecorderError> {
+    find_recording_path_in(&recordings_dir(app)?, id)
+}
+
+fn find_recording_path_in(dir: &Path, id: &str) -> Result<PathBuf, RecorderError> {
     validate_recording_id(id)?;
-    let dir = recordings_dir(app)?;
-    let entries = std::fs::read_dir(&dir).map_err(|e| {
+    let entries = std::fs::read_dir(dir).map_err(|e| {
         RecorderError::failed(format!("read recordings dir {}: {e}", dir.display()))
     })?;
     let prefix = format!("{id}.");
@@ -244,6 +247,17 @@ pub fn read_artifact_samples(app: &AppHandle, id: &str) -> Result<Vec<f32>, Reco
         .map_err(|e| RecorderError::failed(format!("read artifact {}: {e}", path.display())))?;
     decode_to_pcm16k_mono(&bytes)
         .map_err(|e| RecorderError::failed(format!("decode artifact {}: {e}", path.display())))
+}
+
+/// Read an artifact as its original container bytes for WebView playback.
+///
+/// The caller supplies only the recording id. Path resolution and traversal
+/// rejection stay inside this module, so the IPC boundary never grants the
+/// frontend path discovery or arbitrary file read authority.
+pub fn read_artifact_bytes(app: &AppHandle, id: &str) -> Result<Vec<u8>, RecorderError> {
+    let path = find_recording_path(app, id)?;
+    std::fs::read(&path)
+        .map_err(|e| RecorderError::failed(format!("read artifact {}: {e}", path.display())))
 }
 
 /// Delete recording artifacts by recording id.
@@ -369,6 +383,31 @@ mod tests {
         assert_eq!(recording_id_from_artifact_filename("abc.wav"), Some("abc"));
         assert_eq!(recording_id_from_artifact_filename("abc.webm"), Some("abc"));
         assert_eq!(recording_id_from_artifact_filename("abc.md"), None);
+    }
+
+    #[test]
+    fn id_scoped_read_returns_only_the_exact_artifact() {
+        let dir =
+            std::env::temp_dir().join(format!("epicenter-artifact-read-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create artifact test directory");
+        std::fs::write(dir.join("recording.wav"), b"exact").expect("write exact artifact");
+        std::fs::write(dir.join("recording-extra.wav"), b"other").expect("write prefixed artifact");
+
+        let path = find_recording_path_in(&dir, "recording").expect("resolve artifact");
+
+        assert_eq!(std::fs::read(path).expect("read artifact"), b"exact");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn id_scoped_read_rejects_traversal_before_touching_the_directory() {
+        let missing_dir = std::env::temp_dir().join("epicenter-missing-artifact-directory");
+
+        let error = find_recording_path_in(&missing_dir, "../outside")
+            .expect_err("traversal must fail validation first");
+
+        assert!(error.to_string().contains("traversal"));
     }
 
     /// Measures the file round-trip the live path pays today: WAV write + fsync,

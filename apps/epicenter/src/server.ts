@@ -22,6 +22,7 @@ import {
 	SURFACE_ROUTES,
 	type SurfaceId,
 } from './routes.ts';
+import type { EpicenterStaticAssets } from './static-assets.ts';
 import { PLACEHOLDER_SURFACE_PAGES } from './surface-pages.ts';
 
 export type QueryServerEvent = {
@@ -40,8 +41,8 @@ export type QueryServerOptions = {
 	origin: string;
 	/** Per-launch credential received from Rust over stdin. */
 	launchToken: string;
-	/** The built Query SPA document. */
-	queryPage: string;
+	/** Release-built documents and the contained Whispering asset resolver. */
+	staticAssets: EpicenterStaticAssets;
 };
 
 const SESSION_COOKIE = 'epicenter_session';
@@ -51,7 +52,7 @@ export function createQueryServer({
 	host,
 	origin,
 	launchToken,
-	queryPage,
+	staticAssets,
 }: QueryServerOptions) {
 	if (launchToken === '') {
 		throw new Error('Epicenter refuses to serve without a launch token.');
@@ -60,7 +61,8 @@ export function createQueryServer({
 	const activeHost = activeUrl.host;
 	const sessionHashes = new Set<string>();
 	const surfacePages = {
-		query: queryPage,
+		query: staticAssets.queryPage,
+		whispering: staticAssets.whisperingPage,
 		...PLACEHOLDER_SURFACE_PAGES,
 	} satisfies Record<SurfaceId, string>;
 	const csp = contentSecurityPolicy(Object.values(surfacePages).join('\n'));
@@ -108,18 +110,25 @@ export function createQueryServer({
 		return c.body(null, 204);
 	});
 
-	app.use('/apps/*', async (c, next) => {
-		// Deep-link query parameters are not surface identity. Refuse them here
-		// instead of silently letting two URLs name the same application window.
-		if (new URL(c.req.url).search !== '') return c.text('Not Found', 404);
-		await next();
-	});
-	for (const surface of Object.values(SURFACE_ROUTES)) {
+	for (const surface of [
+		SURFACE_ROUTES.query,
+		SURFACE_ROUTES.mail,
+		SURFACE_ROUTES.books,
+	]) {
 		app.get(surface.pattern, (c) => {
 			c.header('cache-control', 'no-store');
 			return c.html(surfacePages[surface.id]);
 		});
 	}
+	app.get('/apps/whispering/*', async (c) => {
+		const asset = await staticAssets.resolveWhispering(
+			new URL(c.req.url).pathname,
+		);
+		if (!asset) return c.text('Not Found', 404);
+		c.header('cache-control', 'no-store');
+		c.header('content-type', asset.contentType);
+		return c.body(asset.file.stream());
+	});
 	app.get('/apps/*', (c) => c.text('Not Found', 404));
 
 	app.use('/api/query/*', async (c, next) => {

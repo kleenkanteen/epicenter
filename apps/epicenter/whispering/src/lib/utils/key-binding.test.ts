@@ -1,0 +1,237 @@
+import { expect, test } from 'bun:test';
+import {
+	type BindingLike,
+	bindingsOverlap,
+	domCodeToKey,
+	isRegistrableChord,
+	keyBindingToAccelerator,
+	keyCapability,
+	realizedReach,
+	resolveBinding,
+} from './key-binding';
+
+test('a binding overlaps a superset of itself', () => {
+	// Fn (push-to-talk) is contained by Fn+Space, so the pair is unusable.
+	expect(
+		bindingsOverlap(
+			{ modifiers: ['fn'], keys: [] },
+			{ modifiers: ['fn'], keys: ['space'] },
+		),
+	).toBe(true);
+});
+
+test('overlap is symmetric', () => {
+	expect(
+		bindingsOverlap(
+			{ modifiers: ['fn'], keys: ['space'] },
+			{ modifiers: ['fn'], keys: [] },
+		),
+	).toBe(true);
+});
+
+test('equal bindings overlap', () => {
+	expect(
+		bindingsOverlap(
+			{ modifiers: ['meta'], keys: ['dot'] },
+			{ modifiers: ['meta'], keys: ['dot'] },
+		),
+	).toBe(true);
+});
+
+test('a modifier-only hold is contained by any chord that adds to it', () => {
+	expect(
+		bindingsOverlap(
+			{ modifiers: ['meta'], keys: [] },
+			{ modifiers: ['meta'], keys: ['dot'] },
+		),
+	).toBe(true);
+});
+
+test('the shipped defaults do not overlap each other', () => {
+	// Two gestures ship bound by default: toggle and cancel. Push-to-talk ships
+	// unbound, so it cannot collide.
+	const toggle: BindingLike = { modifiers: ['meta', 'shift'], keys: ['space'] };
+	const cancel: BindingLike = { modifiers: ['meta'], keys: ['dot'] };
+	expect(bindingsOverlap(toggle, cancel)).toBe(false);
+});
+
+test('sibling chords sharing a modifier but differing in key do not overlap', () => {
+	// Two Ctrl+Shift chords differing only in their final key (e.g. a user-bound
+	// Ctrl+Shift+Space vs the Windows Ctrl+Shift+. cancel default).
+	expect(
+		bindingsOverlap(
+			{ modifiers: ['ctrl', 'shift'], keys: ['space'] },
+			{ modifiers: ['ctrl', 'shift'], keys: ['dot'] },
+		),
+	).toBe(false);
+});
+
+test('a chord maps to a global-hotkey accelerator', () => {
+	// meta -> Super, space -> Space: the default macOS toggle. Modifiers emit in
+	// the shared fixed order (shift before meta), which the parser accepts in any
+	// order anyway.
+	expect(
+		keyBindingToAccelerator({ modifiers: ['meta', 'shift'], keys: ['space'] }),
+	).toBe('Shift+Super+Space');
+});
+
+test('modifiers serialize in a fixed order regardless of input order', () => {
+	expect(
+		keyBindingToAccelerator({ modifiers: ['shift', 'ctrl'], keys: ['dot'] }),
+	).toBe('Control+Shift+Period');
+});
+
+test('letter and digit keys map to Code tokens', () => {
+	expect(keyBindingToAccelerator({ modifiers: ['ctrl'], keys: ['keyD'] })).toBe(
+		'Control+KeyD',
+	);
+	expect(keyBindingToAccelerator({ modifiers: ['alt'], keys: ['num1'] })).toBe(
+		'Alt+Digit1',
+	);
+});
+
+test('an Fn binding has no accelerator', () => {
+	// Fn has no accelerator spelling, so it is not a registrable chord.
+	expect(
+		keyBindingToAccelerator({ modifiers: ['fn'], keys: ['space'] }),
+	).toBeNull();
+});
+
+test('a modifier-only hold has no accelerator', () => {
+	expect(keyBindingToAccelerator({ modifiers: ['meta'], keys: [] })).toBeNull();
+});
+
+test('a bare key with no modifier is refused', () => {
+	expect(keyBindingToAccelerator({ modifiers: [], keys: ['keyA'] })).toBeNull();
+});
+
+test('resolveBinding routes a chord to the plugin with its accelerator', () => {
+	expect(
+		resolveBinding({ modifiers: ['meta', 'shift'], keys: ['space'] }),
+	).toEqual({ tier: 'chord', accelerator: 'Shift+Super+Space' });
+});
+
+test('resolveBinding marks Fn and modifier-only holds unsupported', () => {
+	expect(resolveBinding({ modifiers: ['fn'], keys: ['space'] })).toEqual({
+		tier: 'unsupported',
+	});
+	expect(resolveBinding({ modifiers: ['meta'], keys: [] })).toEqual({
+		tier: 'unsupported',
+	});
+});
+
+test('isRegistrableChord names the registrable-chord boundary', () => {
+	// A chord (one key plus a non-Fn modifier) is the only registrable global
+	// shape; Fn holds, modifier-only holds, and bare keys are not.
+	expect(
+		isRegistrableChord({ modifiers: ['meta', 'shift'], keys: ['space'] }),
+	).toBe(true);
+	expect(isRegistrableChord({ modifiers: ['fn'], keys: ['space'] })).toBe(false);
+	expect(isRegistrableChord({ modifiers: ['meta'], keys: [] })).toBe(false);
+	expect(isRegistrableChord({ modifiers: [], keys: ['keyA'] })).toBe(false);
+});
+
+test('domCodeToKey maps physical codes to our Key space', () => {
+	expect(domCodeToKey('KeyD')).toBe('keyD');
+	expect(domCodeToKey('Digit1')).toBe('num1');
+	expect(domCodeToKey('Space')).toBe('space');
+	expect(domCodeToKey('Enter')).toBe('return');
+	expect(domCodeToKey('Period')).toBe('dot');
+	expect(domCodeToKey('BracketLeft')).toBe('leftBracket');
+	expect(domCodeToKey('F5')).toBe('f5');
+});
+
+test('domCodeToKey rejects modifier codes and anything off the chord alphabet', () => {
+	// Modifiers are read from the event's flags, not its code.
+	expect(domCodeToKey('MetaLeft')).toBeNull();
+	expect(domCodeToKey('ShiftRight')).toBeNull();
+	expect(domCodeToKey('ControlLeft')).toBeNull();
+	// Outside the alphabet keyBindingToAccelerator can spell.
+	expect(domCodeToKey('Numpad1')).toBeNull();
+	expect(domCodeToKey('Lang1')).toBeNull();
+});
+
+test('domCodeToKey is the inverse of acceleratorKey for every chord key', () => {
+	// Every key a chord can carry round-trips: Key -> accelerator code -> Key. This
+	// is what guarantees a webview-captured code always lands on a bindable Key.
+	const keys = [
+		'keyA',
+		'keyZ',
+		'num0',
+		'num9',
+		'f1',
+		'f12',
+		'space',
+		'return',
+		'comma',
+		'slash',
+		'leftBracket',
+		'semiColon',
+	] as const;
+	for (const key of keys) {
+		const code = keyBindingToAccelerator({ modifiers: ['ctrl'], keys: [key] })
+			?.split('+')
+			.at(-1);
+		expect(code).toBeDefined();
+		expect(domCodeToKey(code as string)).toBe(key);
+	}
+});
+
+test('keyCapability: a chord reaches global', () => {
+	expect(keyCapability({ modifiers: ['meta', 'shift'], keys: ['space'] })).toBe(
+		'global',
+	);
+});
+
+test('keyCapability: a bare key caps at focused', () => {
+	// A global bare key would swallow that key in every app, so it can only act
+	// in-app no matter the platform.
+	expect(keyCapability({ modifiers: [], keys: ['space'] })).toBe('focused');
+});
+
+test('keyCapability: Fn and modifier-only holds are not global (refused)', () => {
+	// Refused as a product surface (ADR-0117); they are not registrable chords, so
+	// they reach at most in-app.
+	expect(keyCapability({ modifiers: ['fn'], keys: [] })).toBe('focused');
+	expect(keyCapability({ modifiers: ['fn'], keys: ['space'] })).toBe('focused');
+	expect(keyCapability({ modifiers: ['meta'], keys: [] })).toBe('focused');
+});
+
+// The worked table from ADR-0052: realizedReach = min(command, key, platform).
+test('realizedReach: a global command on a bare key on web is focused', () => {
+	expect(
+		realizedReach('global', { modifiers: [], keys: ['space'] }, 'focused'),
+	).toBe('focused');
+});
+
+test('realizedReach: a global command on a chord on desktop is global', () => {
+	expect(
+		realizedReach(
+			'global',
+			{ modifiers: ['meta', 'shift'], keys: ['space'] },
+			'global',
+		),
+	).toBe('global');
+});
+
+test('realizedReach: a global command on a bare key on desktop is focused', () => {
+	// The key shape, not the platform, is the binding floor here.
+	expect(
+		realizedReach('global', { modifiers: [], keys: ['space'] }, 'global'),
+	).toBe('focused');
+});
+
+test('realizedReach: a focused command on a chord on desktop stays focused', () => {
+	// The command's nature is the floor: a capable chord cannot escape it.
+	expect(
+		realizedReach('focused', { modifiers: ['meta'], keys: ['comma'] }, 'global'),
+	).toBe('focused');
+});
+
+test('realizedReach: a refused Fn hold never reaches global', () => {
+	// A hold is not a registrable chord, so its key capability caps at focused
+	// regardless of the platform ceiling.
+	expect(
+		realizedReach('global', { modifiers: ['fn'], keys: [] }, 'global'),
+	).toBe('focused');
+});

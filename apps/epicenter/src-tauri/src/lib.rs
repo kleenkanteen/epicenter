@@ -29,7 +29,7 @@ pub mod recorder;
 use recorder::commands::{
     cancel_recording, clear_recording_artifacts, close_recording_session,
     delete_recording_artifacts, enumerate_recording_devices, get_current_recording_id,
-    init_recording_session, start_recording, stop_recording,
+    init_recording_session, read_recording_artifact, start_recording, stop_recording,
 };
 use recorder::recorder::Recorder;
 
@@ -287,7 +287,6 @@ fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
 #[cfg(test)]
 mod export_bindings {
     #[test]
-    #[ignore = "regenerate after the Whispering SPA transplant is stable"]
     fn export_types() {
         super::make_specta_builder()
             .export(
@@ -311,8 +310,11 @@ pub fn run() {
     let port = configured_port();
     let specta_builder = make_specta_builder();
     let specta_handler = tauri_specta::Builder::invoke_handler(&specta_builder);
-    let native_handler = tauri::generate_handler![get_runtime_info, encode_recording_for_upload]
-        as fn(tauri::ipc::Invoke<tauri::Wry>) -> bool;
+    let native_handler = tauri::generate_handler![
+        get_runtime_info,
+        encode_recording_for_upload,
+        read_recording_artifact
+    ] as fn(tauri::ipc::Invoke<tauri::Wry>) -> bool;
     let log_plugin = tauri_plugin_log::Builder::new()
         .level(log::LevelFilter::Info)
         .level_for("epicenter::transcription", log::LevelFilter::Debug)
@@ -350,7 +352,7 @@ pub fn run() {
         .invoke_handler(move |invoke| {
             if matches!(
                 invoke.message.command(),
-                "get_runtime_info" | "encode_recording_for_upload"
+                "get_runtime_info" | "encode_recording_for_upload" | "read_recording_artifact"
             ) {
                 native_handler(invoke)
             } else {
@@ -580,15 +582,10 @@ fn launch_host(app: &DesktopAppHandle, port: u16) -> Result<LaunchedHost> {
     let mut command = host_command(app)?;
     command
         .env("EPICENTER_QUERY_DATA_DIR", &data_dir)
+        .env("EPICENTER_APPS_DIST", apps_dist(app)?)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::from(log.try_clone()?));
-
-    #[cfg(not(debug_assertions))]
-    command.env(
-        "EPICENTER_QUERY_DIST",
-        app.path().resource_dir()?.join("query-dist"),
-    );
 
     let mut child = command
         .spawn()
@@ -633,6 +630,19 @@ fn launch_host(app: &DesktopAppHandle, port: u16) -> Result<LaunchedHost> {
         stdout,
         token,
     })
+}
+
+#[cfg(debug_assertions)]
+fn apps_dist(_app: &DesktopAppHandle) -> Result<PathBuf> {
+    Ok(std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .context("Epicenter src-tauri directory has no app parent")?
+        .join("dist"))
+}
+
+#[cfg(not(debug_assertions))]
+fn apps_dist(app: &DesktopAppHandle) -> Result<PathBuf> {
+    Ok(app.path().resource_dir()?.join("apps-dist"))
 }
 
 #[cfg(debug_assertions)]

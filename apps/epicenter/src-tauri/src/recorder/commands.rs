@@ -1,11 +1,12 @@
 use crate::recorder::artifact::{
-    clear_artifacts, delete_artifacts, write_artifact, RecordingArtifact,
+    clear_artifacts, delete_artifacts, read_artifact_bytes, write_artifact, RecordingArtifact,
 };
 use crate::recorder::error::RecorderError;
 use crate::recorder::recorder::{Recorder, Result};
 use log::{debug, info, warn};
 use serde::Serialize;
 use std::sync::Mutex;
+use tauri::ipc::Response;
 use tauri::{AppHandle, Emitter, State};
 
 const RECORDER_STATE_CHANGED: &str = "recorder:state-changed";
@@ -200,4 +201,21 @@ pub async fn clear_recording_artifacts(app_handle: AppHandle) -> Result<u32> {
     tokio::task::spawn_blocking(move || clear_artifacts(&app_handle))
         .await
         .map_err(|e| RecorderError::failed(format!("Task join error: {e}")))?
+}
+
+/// Read one recording artifact as a raw IPC byte body.
+///
+/// This command deliberately accepts an app-owned id rather than a path. Its
+/// raw response lives outside tauri-specta and has a handwritten TypeScript
+/// wrapper, matching `encode_recording_for_upload`.
+#[tauri::command]
+pub async fn read_recording_artifact(
+    recording_id: String,
+    app_handle: AppHandle,
+) -> std::result::Result<Response, String> {
+    tauri::async_runtime::spawn_blocking(move || read_artifact_bytes(&app_handle, &recording_id))
+        .await
+        .map_err(|e| format!("background artifact read failed: {e}"))?
+        .map(Response::new)
+        .map_err(|e| e.to_string())
 }
