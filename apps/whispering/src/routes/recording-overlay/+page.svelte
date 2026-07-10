@@ -53,8 +53,7 @@
 	}
 
 	function focusMainWindow() {
-		// Clicking the pill body raises the main window (the shared reveal).
-		void revealMainWindow.emit({});
+		void revealMainWindow.emit();
 	}
 </script>
 

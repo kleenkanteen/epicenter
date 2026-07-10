@@ -1,8 +1,8 @@
 <script lang="ts">
+	import { Spinner } from '@epicenter/ui/spinner';
 	import { cn } from '@epicenter/ui/utils';
 	import AudioLinesIcon from '@lucide/svelte/icons/audio-lines';
 	import CheckIcon from '@lucide/svelte/icons/check';
-	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import MicIcon from '@lucide/svelte/icons/mic';
 	import SquareIcon from '@lucide/svelte/icons/square';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
@@ -38,8 +38,7 @@
 		onCancel: () => void;
 		/** Skip the in-flight Polish pass and deliver the raw transcript now. */
 		onShipRaw: () => void;
-		/** Reveal Whispering by raising the main window (desktop). Omitted on web,
-		 * where the app window is already in front. */
+		/** Reveal Whispering by raising the main window (desktop). */
 		onReveal?: () => void;
 	} = $props();
 
@@ -61,18 +60,17 @@
 	// notification and the recordings row (ADR-0039).
 	type ChipTone = 'neutral' | 'success' | 'degraded' | 'failed';
 	type Chip = {
-		Icon: typeof CheckIcon;
+		icon: typeof CheckIcon | 'spinner';
 		label: string;
 		tone: ChipTone;
-		spin?: boolean;
 	};
 
 	// A delivery is a success at both reaches: a clean `output` reads green; the
 	// `clipboard` fallback reads amber, "landed, but not where you asked".
 	const DELIVERED_CHIP = {
-		output: { Icon: CheckIcon, label: 'Delivered', tone: 'success' },
+		output: { icon: CheckIcon, label: 'Delivered', tone: 'success' },
 		clipboard: {
-			Icon: CheckIcon,
+			icon: CheckIcon,
 			label: 'Copied to clipboard',
 			tone: 'degraded',
 		},
@@ -86,16 +84,15 @@
 		switch (status.phase) {
 			case 'transcribing':
 				return {
-					Icon: LoaderCircleIcon,
+					icon: 'spinner',
 					label: 'Transcribing',
 					tone: 'neutral',
-					spin: true,
 				};
 			case 'delivered':
 				return DELIVERED_CHIP[status.reach];
 			case 'failed':
 				return {
-					Icon: TriangleAlertIcon,
+					icon: TriangleAlertIcon,
 					label: FAILURE_LABEL[status.tier],
 					tone: 'failed',
 				};
@@ -110,8 +107,6 @@
 		'flex size-6 cursor-pointer items-center justify-center rounded-full bg-white/10 text-white/90 transition duration-150 ease-out hover:scale-[1.08] active:scale-95';
 
 	function handleStop(event: MouseEvent) {
-		// Don't let a button click bubble to the pill's focus-main handler:
-		// stop/cancel should only stop/cancel, never reveal the main window.
 		event.stopPropagation();
 		onStop();
 	}
@@ -127,10 +122,9 @@
 	}
 </script>
 
-<!-- The pill is non-focusable on desktop (an overlay window) and decorative on
-     web, so it can never receive keyboard focus; clicking its body (not a
-     button) just brings the main window forward. Keyboard handlers are moot
-     here, hence the a11y ignores. -->
+<!-- The desktop pill lives in a non-focusable overlay window. Clicking its body
+     asks the main window to reveal itself; the nested controls stop propagation
+     so stop, cancel, and ship-raw never reveal it as a side effect. -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 {#if status}
@@ -139,7 +133,7 @@
 			// 40px-tall pill, shared look. gap-2.5 spaces the chip icon from its label;
 			// in recording it is only the floor (justify-between distributes wider). The
 			// width differs by phase (next arg).
-			'box-border flex h-10 items-center gap-2.5 rounded-full px-2.5 text-white/90 shadow-[0_6px_20px_rgba(0,0,0,0.35)] backdrop-blur-md select-none',
+			'box-border flex h-10 items-center gap-2.5 rounded-full px-2.5 text-white/90 backdrop-blur-md select-none',
 			// Recording is a wider bar: the mic pins the left edge and stop the right,
 			// with the meter spread between them (justify-between). The text chips hug
 			// their content, capped wide enough for the longest label ("Transcription
@@ -153,10 +147,6 @@
 			chip?.tone === 'failed'
 				? 'border border-red-500/55 bg-[#3c1216]/90'
 				: 'border border-white/10 bg-[#0f0f11]/80',
-			// Clickable only where it can reveal the main window: desktop, where onReveal
-			// is wired. On web the app window is already in front, so onReveal is omitted
-			// and the body shows no pointer or tooltip (the action buttons stop
-			// propagation, so only the empty areas would have triggered it).
 			onReveal && 'cursor-pointer',
 		)}
 		title={onReveal ? 'Open Whispering' : undefined}
@@ -230,7 +220,7 @@
 			     mask the ~1s AI pass, with a single ship-raw control to skip it and take
 			     the raw transcript now (ADR-0099). Unlike a chip, it carries an action. -->
 			<div class="flex items-center text-white/80">
-				<LoaderCircleIcon class="size-4 animate-spin" />
+				<Spinner class="size-4 text-white/80" />
 			</div>
 			<span class="min-w-0 truncate text-[13px] font-medium">Polishing…</span>
 			<button
@@ -246,7 +236,6 @@
 			<!-- One chip block for every non-recording phase. A failure is glanceable
 			     by design: the terse label, no action; detail and retry live on the
 			     recordings row (ADR-0039). -->
-			{@const Icon = chip.Icon}
 			<div
 				class={cn(
 					'flex items-center text-white/80',
@@ -258,7 +247,12 @@
 					chip.tone === 'failed' && 'text-[#ffb4b4]',
 				)}
 			>
-				<Icon class="size-4 {chip.spin ? 'animate-spin' : ''}" />
+				{#if chip.icon === 'spinner'}
+					<Spinner class="size-4" />
+				{:else}
+					{@const Icon = chip.icon}
+					<Icon class="size-4" />
+				{/if}
 			</div>
 			<!-- The label takes only its text's width in the snug chip. Labels are
 			     closed, short tokens that fit the fixed-width pill; truncate's ellipsis

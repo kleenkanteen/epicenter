@@ -1,6 +1,6 @@
 <script lang="ts">
+	import { Spinner } from '@epicenter/ui/spinner';
 	import { cn } from '@epicenter/ui/utils';
-	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 
 	// A VAD session's capture state, shown beside the pill's live meter as one
 	// small mark: a dot that is dim while merely listening (armed, hearing sound
@@ -39,7 +39,7 @@
 
 <span class="inline-flex items-center justify-center" {title} aria-hidden="true">
 	{#if signals.transcribing}
-		<LoaderCircleIcon class="size-3.5 animate-spin text-white/50" />
+		<Spinner class="size-3.5 text-white/50" />
 	{:else}
 		<span
 			class={cn(
