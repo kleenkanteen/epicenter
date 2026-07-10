@@ -11,8 +11,8 @@
 	} from '@epicenter/matter-core';
 
 	// The one "what is wrong" surface for the whole vault, a pure selector over the live
-	// VaultIntegrity. It re-decides nothing: `toViolations` and `summarize` read the same assessed
-	// cells the grid renders, so the panel and the grid can never disagree.
+	// VaultIntegrity. It re-decides nothing: `toViolations` and `summarize` read the same vault
+	// assessment the grid renders, so the panel and the grid can never disagree.
 	let { integrity }: { integrity: VaultIntegrity } = $props();
 
 	const summary = $derived(summarize(integrity));
@@ -26,7 +26,11 @@
 		),
 	);
 
-	const clean = $derived(violations.length === 0 && fatals.length === 0);
+	const unreadableFiles = $derived(summary.unreadableFiles);
+	const issueCount = $derived(
+		violations.length + fatals.length + unreadableFiles.length,
+	);
+	const clean = $derived(issueCount === 0);
 
 	/** One human line per violation, expected computed at the edge for an invalid value. */
 	function describe(violation: Violation): string {
@@ -55,9 +59,8 @@
 		{:else}
 			<TriangleAlertIcon class="size-3.5 text-amber-600 dark:text-amber-400" />
 			<span>
-				{violations.length + fatals.length}
-				{violations.length + fatals.length === 1 ? 'issue' : 'issues'} · {summary
-					.totals.ready} ready
+				{issueCount}
+				{issueCount === 1 ? 'issue' : 'issues'} · {summary.totals.ready} ready
 			</span>
 		{/if}
 	</div>
@@ -71,6 +74,12 @@
 						{table.status === 'unreadable' ? "can't read" : 'invalid contract'}:
 						{'message' in table ? table.message : ''}
 					</span>
+				</li>
+			{/each}
+			{#each unreadableFiles as file (`${file.table}/${file.fileName}`)}
+				<li class="flex gap-2 text-destructive">
+					<span class="font-mono">{file.table}/{file.fileName}</span>
+					<span class="text-muted-foreground">can't read: {file.message}</span>
 				</li>
 			{/each}
 			{#each violations as violation, index (index)}
