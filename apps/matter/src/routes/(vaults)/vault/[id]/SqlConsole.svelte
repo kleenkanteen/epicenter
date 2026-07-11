@@ -10,6 +10,7 @@
 	import * as Empty from '@epicenter/ui/empty';
 	import * as Kbd from '@epicenter/ui/kbd';
 	import * as SectionHeader from '@epicenter/ui/section-header';
+	import { Spinner } from '@epicenter/ui/spinner';
 	import * as Table from '@epicenter/ui/table';
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import HistoryIcon from '@lucide/svelte/icons/history';
@@ -122,7 +123,7 @@
 					]),
 					EditorView.lineWrapping,
 					sql(),
-					placeholder('SELECT * FROM ...'),
+					placeholder('SELECT * FROM …'),
 					consoleTheme,
 				],
 			}),
@@ -189,11 +190,14 @@
 				onclick={() => run(editorView?.state.doc.toString() ?? '')}
 				disabled={running}
 			>
-				<PlayIcon />
-				{running ? 'Running...' : 'Run query'}
+				{#if running}<Spinner />{:else}<PlayIcon />{/if}
+				{running ? 'Running…' : 'Run query'}
 			</Button>
 		</div>
-		<div class="bg-background" bind:this={container}></div>
+		<div
+			class="bg-background focus-within:ring-[3px] focus-within:ring-inset focus-within:ring-ring/20"
+			bind:this={container}
+		></div>
 	</section>
 
 	{#if error}
@@ -207,8 +211,10 @@
 	<SectionHeader.Root class="flex items-center justify-between gap-3 border-b px-3 py-2">
 		<div class="min-w-0">
 			<SectionHeader.Title level={2}>Results</SectionHeader.Title>
-			<SectionHeader.Description>
-				{result ? 'Latest query result' : 'Results appear here after a query runs'}
+			<SectionHeader.Description role="status" aria-live="polite">
+				{result
+					? `Latest query result: ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}${capped ? `, first ${CONSOLE_LIMIT}` : ''}`
+					: 'Results appear here after a query runs'}
 			</SectionHeader.Description>
 		</div>
 		{#if result}
