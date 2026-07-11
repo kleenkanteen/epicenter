@@ -85,6 +85,12 @@
 	}
 </script>
 
+<a
+	href="#matter-main"
+	class="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:ring-2 focus:ring-ring"
+>
+	Skip to workspace
+</a>
 <Sidebar.Provider bind:open={sidebarOpen} class="min-h-0 flex-1 overflow-hidden">
 		<MatterSidebar
 			tables={vault.tables}
@@ -92,7 +98,7 @@
 			{activeSurface}
 			collapseOnNavigate={isNarrow.current}
 		/>
-		<Sidebar.Inset class="min-h-0 overflow-hidden">
+		<Sidebar.Inset id="matter-main" tabindex={-1} class="min-h-0 overflow-hidden">
 			<header class="flex min-h-12 items-center gap-2 border-b px-3">
 				<Sidebar.Trigger class="shrink-0" />
 				<h1

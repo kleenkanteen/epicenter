@@ -81,7 +81,7 @@
 			<div class="mx-auto grid w-full max-w-6xl gap-8 px-6 py-7">
 				<section class="grid gap-3">
 					<SectionHeader.Root>
-						<SectionHeader.Title level={4}>Frontmatter</SectionHeader.Title>
+						<SectionHeader.Title level={3}>Frontmatter</SectionHeader.Title>
 					</SectionHeader.Root>
 					<div class="grid gap-2">
 						{#each conformance.cells as cell (cell.field.name)}
@@ -113,7 +113,7 @@
 				{#if conformance.extras.length}
 					<section class="grid gap-3">
 						<SectionHeader.Root>
-							<SectionHeader.Title level={4}>Extra keys</SectionHeader.Title>
+							<SectionHeader.Title level={3}>Extra keys</SectionHeader.Title>
 						</SectionHeader.Root>
 						<div class="grid gap-2">
 							{#each conformance.extras as extra (extra.key)}
@@ -139,7 +139,7 @@
 				<section class="grid gap-3">
 					<div class="flex items-center justify-between gap-3">
 						<SectionHeader.Root>
-							<SectionHeader.Title level={4}>Body</SectionHeader.Title>
+							<SectionHeader.Title level={3}>Body</SectionHeader.Title>
 						</SectionHeader.Root>
 						<div class="flex items-center gap-2">
 							<Label for="matter-vim-mode" class="text-xs text-muted-foreground">Vim</Label>
