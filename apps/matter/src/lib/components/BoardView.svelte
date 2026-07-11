@@ -48,6 +48,7 @@
 	// payload: it is a card this board just rendered, so its identity never leaves the
 	// process and `drop` acts on a trusted card, not an arbitrary browser payload.
 	let draggedCard = $state<BoardCard>();
+	let moveAnnouncement = $state('');
 
 	function canDropOn(columnValue: string | null): boolean {
 		return (
@@ -71,6 +72,7 @@
 		if (groupByField === undefined) return false;
 		const edit = boardDropEditFor({ card, groupByField, columnValue });
 		if (!edit) return false;
+		moveAnnouncement = `Moving ${edit.fileName} to ${columnValue ?? 'Unassigned'}.`;
 		void table.saveField(edit.fileName, edit.key, edit.value);
 		return true;
 	}
@@ -108,6 +110,7 @@
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col">
+	<p class="sr-only" role="status" aria-live="polite">{moveAnnouncement}</p>
 	<header class="flex items-center gap-2 border-b px-3 py-2">
 		<Badge variant="secondary">{cardCount} rows</Badge>
 		<Badge variant="secondary">grouped by {projection.groupBy}</Badge>

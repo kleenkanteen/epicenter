@@ -80,6 +80,7 @@ test('arrow keys move a focused board card through saveField', async ({
 	await card.focus();
 	await expect(card).toHaveAttribute('aria-keyshortcuts', 'ArrowLeft ArrowRight');
 	await card.press('ArrowRight');
+	await expect(page.getByRole('status')).toHaveText('Moving card-a.md to done.');
 
 	await expect
 		.poll(() => page.evaluate(() => window.__E2E_WRITES__ ?? []))
