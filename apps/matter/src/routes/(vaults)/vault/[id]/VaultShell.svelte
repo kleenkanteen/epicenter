@@ -159,7 +159,7 @@
 						<Empty.Content>
 							<Button onclick={adopt} disabled={adopting}>
 								<LayersIcon />
-								{adopting ? 'Adopting...' : 'Adopt this folder as a table'}
+								{adopting ? 'Adopting…' : 'Adopt this folder as a table'}
 							</Button>
 							{#if adoptError}
 								<p class="text-sm text-destructive">{adoptError}</p>
