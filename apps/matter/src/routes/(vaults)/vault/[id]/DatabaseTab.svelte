@@ -61,7 +61,12 @@
 						</Item.Description>
 					</Item.Content>
 					<Item.Actions>
-						<CopyButton text={dbPath} size="icon-sm" tabindex={0} />
+						<CopyButton
+							text={dbPath}
+							size="icon-sm"
+							tabindex={0}
+							aria-label="Copy database path"
+						/>
 					</Item.Actions>
 				</Item.Root>
 				<Item.Root variant="outline" size="sm">
@@ -76,7 +81,12 @@
 						</Item.Description>
 					</Item.Content>
 					<Item.Actions>
-						<CopyButton text={sqliteCommand} size="icon-sm" tabindex={0} />
+						<CopyButton
+							text={sqliteCommand}
+							size="icon-sm"
+							tabindex={0}
+							aria-label="Copy terminal command"
+						/>
 					</Item.Actions>
 				</Item.Root>
 			</Item.Group>
@@ -110,7 +120,10 @@
 								</span>
 							</Accordion.Trigger>
 							<Accordion.Content class="pb-4">
-								<Snippet text={schema.ddl} />
+								<Snippet
+									text={schema.ddl}
+									copyLabel="Copy {schema.name} schema"
+								/>
 							</Accordion.Content>
 						</Accordion.Item>
 					{/each}
