@@ -67,14 +67,43 @@
 		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 	}
 
+	function moveCard(card: BoardCard, columnValue: string | null): boolean {
+		if (groupByField === undefined) return false;
+		const edit = boardDropEditFor({ card, groupByField, columnValue });
+		if (!edit) return false;
+		void table.saveField(edit.fileName, edit.key, edit.value);
+		return true;
+	}
+
 	function drop(event: DragEvent, columnValue: string | null): void {
 		const card = draggedCard;
 		draggedCard = undefined;
-		if (!card || groupByField === undefined) return;
-		const edit = boardDropEditFor({ card, groupByField, columnValue });
-		if (!edit) return;
+		if (!card || !moveCard(card, columnValue)) return;
 		event.preventDefault();
-		void table.saveField(edit.fileName, edit.key, edit.value);
+	}
+
+	function moveCardWithKeyboard(
+		event: KeyboardEvent,
+		card: BoardCard,
+		columnValue: string | null,
+	): void {
+		const direction =
+			event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0;
+		if (direction === 0) return;
+
+		const currentIndex = columns.findIndex(
+			(column) => column.value === columnValue,
+		);
+		for (
+			let index = currentIndex + direction;
+			index >= 0 && index < columns.length;
+			index += direction
+		) {
+			const target = columns[index]!.value;
+			if (!canDropOn(target) || !moveCard(card, target)) continue;
+			event.preventDefault();
+			return;
+		}
 	}
 </script>
 
@@ -129,9 +158,13 @@
 										variant="outline"
 										size="sm"
 										role="listitem"
+										tabindex={0}
+										aria-label="{card.row.fileName}, {column.value ?? 'Unassigned'}. Use Left or Right arrow to move."
+										aria-keyshortcuts="ArrowLeft ArrowRight"
 										draggable={true}
 										data-board-card={card.row.fileName}
 										ondragstart={(event) => dragStart(event, card)}
+										onkeydown={(event) => moveCardWithKeyboard(event, card, column.value)}
 										class="cursor-grab items-stretch active:cursor-grabbing"
 									>
 										<Item.Content class="min-w-0">
