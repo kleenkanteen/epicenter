@@ -358,8 +358,10 @@
 							<InputGroup.Addon><SearchIcon /></InputGroup.Addon>
 							<InputGroup.Input
 								bind:value={query.match}
+								name="search"
 								placeholder="Search rows"
 								spellcheck={false}
+								autocomplete="off"
 								aria-label="Full-text search row bodies and text fields"
 							/>
 						</InputGroup.Root>
@@ -370,6 +372,7 @@
 						</InputGroup.Addon>
 						<InputGroup.Input
 							bind:value={query.where}
+							name="where"
 							placeholder="status = 'ready'"
 							spellcheck={false}
 							autocapitalize="off"
