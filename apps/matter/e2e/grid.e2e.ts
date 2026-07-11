@@ -37,6 +37,7 @@ test('editing a title cell writes the markdown file (write path)', async ({
 	await page.getByRole('button', { name: 'Card A' }).click();
 
 	const input = page.locator('input:focus');
+	await expect(input).toHaveAttribute('aria-label', 'title');
 	await input.fill('Card A edited');
 	await input.press('Enter'); // commit via saveField
 
@@ -70,6 +71,26 @@ test('dragging a board card writes the group field through saveField', async ({
 		);
 });
 
+test('arrow keys move a focused board card through saveField', async ({
+	page,
+}) => {
+	await page.goto(`/vault/${VAULT_ID}?view=pipeline`);
+
+	const card = page.locator('[data-board-card="card-a.md"]');
+	await card.focus();
+	await expect(card).toHaveAttribute('aria-keyshortcuts', 'ArrowLeft ArrowRight');
+	await card.press('ArrowRight');
+
+	await expect
+		.poll(() => page.evaluate(() => window.__E2E_WRITES__ ?? []))
+		.toContainEqual(
+			expect.objectContaining({
+				fileName: 'card-a.md',
+				content: expect.stringContaining('status: done'),
+			}),
+		);
+});
+
 test('running SQL returns rows and records the query in recent history', async ({
 	page,
 }) => {
@@ -81,6 +102,7 @@ test('running SQL returns rows and records the query in recent history', async (
 
 	await expect(page.getByText('card-a', { exact: true })).toBeVisible();
 	await expect(page.getByText('card-b', { exact: true })).toBeVisible();
+	await expect(page.getByRole('status')).toHaveText('Latest query result: 2 rows');
 	await expect(recent).toBeEnabled();
 
 	await recent.click();
@@ -94,6 +116,42 @@ test('database reference reveals the generated table definition', async ({
 
 	await expect(page.getByRole('heading', { name: 'SQLite projection' })).toBeVisible();
 	await expect(page.getByText('Database file', { exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Copy database path' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Copy terminal command' })).toBeVisible();
 	await page.locator('[data-slot=accordion-trigger]').click();
 	await expect(page.getByText(/CREATE TABLE "vault"/)).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Copy vault schema' })).toBeVisible();
+});
+
+test('collapsed navigation leaves focus on visible workspace controls', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 720, height: 900 });
+	await page.goto(`/vault/${VAULT_ID}`);
+	await expect(page.locator('[data-slot=sidebar]')).toHaveAttribute(
+		'data-state',
+		'collapsed',
+	);
+
+	await page.keyboard.press('Tab');
+	await expect(page.getByRole('link', { name: 'Skip to workspace' })).toBeFocused();
+	await page.keyboard.press('Tab');
+	await expect(
+		page.getByRole('main').getByRole('button', { name: 'Toggle Sidebar' }),
+	).toBeFocused();
+});
+
+test('row editor preserves heading hierarchy', async ({ page }) => {
+	await page.goto(`/vault/${VAULT_ID}`);
+	await page.getByRole('button', { name: 'Open row detail' }).first().click();
+
+	await expect(
+		page.getByRole('heading', { name: 'card-a.md', level: 2 }),
+	).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Frontmatter', level: 3 }),
+	).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Body', level: 3 }),
+	).toBeVisible();
 });
