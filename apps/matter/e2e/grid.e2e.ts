@@ -78,9 +78,14 @@ test('arrow keys move a focused board card through saveField', async ({
 
 	const card = page.locator('[data-board-card="card-a.md"]');
 	await card.focus();
-	await expect(card).toHaveAttribute('aria-keyshortcuts', 'ArrowLeft ArrowRight');
+	await expect(card).toHaveAttribute(
+		'aria-keyshortcuts',
+		'ArrowLeft ArrowRight',
+	);
 	await card.press('ArrowRight');
-	await expect(page.getByRole('status')).toHaveText('Moving card-a.md to done.');
+	await expect(page.getByRole('status')).toHaveText(
+		'Moving card-a.md to done.',
+	);
 
 	await expect
 		.poll(() => page.evaluate(() => window.__E2E_WRITES__ ?? []))
@@ -103,11 +108,15 @@ test('running SQL returns rows and records the query in recent history', async (
 
 	await expect(page.getByText('card-a', { exact: true })).toBeVisible();
 	await expect(page.getByText('card-b', { exact: true })).toBeVisible();
-	await expect(page.getByRole('status')).toHaveText('Latest query result: 2 rows');
+	await expect(page.getByRole('status')).toHaveText(
+		'Latest query result: 2 rows',
+	);
 	await expect(recent).toBeEnabled();
 
 	await recent.click();
-	await expect(page.getByRole('menuitem')).toContainText('SELECT * FROM "vault"');
+	await expect(page.getByRole('menuitem')).toContainText(
+		'SELECT * FROM "vault"',
+	);
 });
 
 test('database reference reveals the generated table definition', async ({
@@ -115,13 +124,21 @@ test('database reference reveals the generated table definition', async ({
 }) => {
 	await page.goto(`/vault/${VAULT_ID}?panel=db&table=vault`);
 
-	await expect(page.getByRole('heading', { name: 'SQLite projection' })).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'SQLite projection' }),
+	).toBeVisible();
 	await expect(page.getByText('Database file', { exact: true })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Copy database path' })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Copy terminal command' })).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Copy database path' }),
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Copy terminal command' }),
+	).toBeVisible();
 	await page.locator('[data-slot=accordion-trigger]').click();
 	await expect(page.getByText(/CREATE TABLE "vault"/)).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Copy vault schema' })).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Copy vault schema' }),
+	).toBeVisible();
 });
 
 test('collapsed navigation leaves focus on visible workspace controls', async ({
@@ -135,7 +152,9 @@ test('collapsed navigation leaves focus on visible workspace controls', async ({
 	);
 
 	await page.keyboard.press('Tab');
-	await expect(page.getByRole('link', { name: 'Skip to workspace' })).toBeFocused();
+	await expect(
+		page.getByRole('link', { name: 'Skip to workspace' }),
+	).toBeFocused();
 	await page.keyboard.press('Tab');
 	await expect(
 		page.getByRole('main').getByRole('button', { name: 'Toggle Sidebar' }),
