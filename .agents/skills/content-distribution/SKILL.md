@@ -42,16 +42,19 @@ series has a good name.
 
 ## Default Workflow
 
-1. Select one real `pages/` source and preserve its thesis, evidence, and voice.
+1. Select one real `pages/` source and identify the public expression to shape.
 2. Choose the channel and recipe for the desired audience promise and payload.
    Read their bodies; they are editable collaboration guidance, not persisted
    artifact provenance.
 3. Create one artifact through the canonical publishing model or app. Its UUIDv7
    filename is opaque identity; its frontmatter points to exactly one `page`.
 4. Work with the author until the artifact body is the complete platform-ready
-   payload. Keep incomplete drafts editable; do not invent status fields.
+   payload. The draft may select, condense, reorder, and frame page material while
+   preserving the selected claim and representing its scope honestly. Keep
+   incomplete drafts editable; do not invent status fields.
 5. Invoke explicit deterministic tools only when the recipe calls for them.
-6. Preview the actual delivery surface.
+6. For a `*/blog` target, suggest one lowercase-hyphenated artifact `slug`; let
+   the author revise it before approval. Preview the actual delivery surface.
 7. Approve the payload and exact publishing and sharing checklists. Approval is
    the freeze boundary.
 8. Publish manually, through supervised computer use, or through the
@@ -59,10 +62,18 @@ series has a good name.
 9. Record the verified public URL at its approved target. Resolve every other
    leaf by publishing, sharing, or deliberately skipping it.
 
-## Identity Follows Payload Sameness
+## Drafting Shapes; Production Reproduces
 
-One unchanged payload sent to several declared platforms is one artifact with
-several receipts. A meaningful platform-specific rewrite is another artifact.
+Editorial adaptation ends at approval. The artifact body is the durable public
+expression. After approval, destination tools and renderers reproduce that
+artifact exactly; they do not summarize, rewrite, or silently select from it.
+
+## Identity Follows the Frozen Expression
+
+One unchanged expression sent to several declared platforms is one artifact with
+several receipts. Sameness includes the body and every frozen production input,
+including caption, renderer, kit, and authored slug when present. A meaningful
+platform-specific rewrite or address change is another artifact.
 
 ```txt
 same video.mp4 → Instagram + TikTok + YouTube
@@ -73,7 +84,7 @@ LinkedIn argument ≠ X thread
 ```
 
 Do not duplicate an identical artifact just to attach another URL. Do not force
-divergent payloads into one artifact merely because they share an idea.
+divergent frozen expressions into one artifact merely because they share an idea.
 
 ## Recipes Compose Tools; They Are Not Plugins
 
@@ -104,7 +115,7 @@ bun run vault video plan <artifact-id>
 infisical run --env prod --path /vault -- bun run vault video narrate <artifact-id>
 bun run vault video preview <artifact-id>
 
-bun run vault publication record <artifact-id> <platform> <public-url>
+bun run vault publication record <artifact-id> <target> <public-url>
 ```
 
 `video preview` always builds the coherent short-video outputs: video, cover, and
@@ -115,13 +126,22 @@ For a personal-site article, the blog repository owns its external workflow:
 
 ```bash
 cd ../blog
-bun run article preview <artifact-id>
-bun run article publish <artifact-id>
+bun run article preview <artifact-id> <channel/blog>
+bun run article publish <artifact-id> <channel/blog>
 ```
 
 Article publish deploys and verifies the expected public page, then asks the
 vault to record the blog receipt. For manual platforms, copy or upload the payload,
 capture the resulting URL, then run `vault publication record`.
+
+The artifact slug is authored intent; the successful receipt URL is public fact.
+A controlled blog derives the newest successful artifact for a page as canonical
+and permanently redirects every earlier successful path directly to it. Do not
+add page-derived slugs, alias lists, per-target vanity slugs, or a second canonical
+pointer.
+
+Sharing records that this artifact reached a person or group. It does not record
+which public receipt was pasted or the exact outgoing message.
 
 ## What Is Live
 
@@ -139,8 +159,6 @@ bun run vault page show <page>
 
 ## Do Not
 
-- Do not use the retired `variants/`, `placements`, format matrix, dated version
-  filenames, or `published_at` draft slots.
 - Do not add a provider registry, OAuth layer, retry ledger, remote sync, or
   universal recipe runner.
 - Do not generate fake vulnerability, lessons, metrics, or personal stories.
