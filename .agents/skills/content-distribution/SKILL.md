@@ -30,7 +30,7 @@ import platform state, or maintain a provider synchronization engine.
 Define a channel from the follower's expectation of the next post:
 
 ```txt
-I enjoyed this post. If I follow, am I likely to enjoy the next one?
+I enjoyed this post. If I follow, will I enjoy the next one?
 ```
 
 A channel is one predictable audience promise, not one topic, format, platform,
