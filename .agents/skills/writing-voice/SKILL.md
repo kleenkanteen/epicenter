@@ -8,7 +8,11 @@ metadata:
 
 # Writing Voice
 
-Write for the ear, not just the eyes. Prose should sound like a person explaining something to a colleague.
+## Write for the Ear
+
+Compose prose as speech the writer would naturally say and stand behind.
+Preserve their cadence, vocabulary, emotional temperature, and strength of
+claim.
 
 This skill owns house voice, punctuation judgment, and anti-AI prose. Other writing skills own artifact shape, not a competing voice.
 
@@ -27,16 +31,16 @@ Use the artifact skill for artifact-specific best practices: [technical-articles
 
 For PRs and commits, keep the prose clear and direct. Product and personal-voice guidance belongs to public writing, not reviewer-facing PRs or commits.
 
-## Voice Pass
+## Ear Pass
 
-Before shipping substantial prose:
+After the draft has a coherent shape, read it at speaking speed.
 
-1. Read it out loud.
-2. If it sounds like a press release, corporate memo, or generic AI answer, rewrite it.
-3. Lead with the point.
-4. Replace abstract claims with concrete mechanisms.
-5. Match the user's tone and pacing.
-6. Check punctuation.
+1. Mark where the rhythm catches, the language turns generic, or the sentence
+   becomes something the writer would not naturally say or stand behind.
+2. Revise the marked passages while preserving the writer's vocabulary,
+   emotional temperature, and strength of claim. Keep intentional roughness or
+   unusual phrasing when smoothing it would make the prose less recognizable.
+3. Stop when the prose sounds natural and specific, not merely smooth.
 
 ## Default Style
 
