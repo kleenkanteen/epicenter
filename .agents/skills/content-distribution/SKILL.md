@@ -1,6 +1,6 @@
 ---
 name: content-distribution
-description: Turn one real idea, vault page, article, photo, screenshot, code diff, spec excerpt, or diagram into platform-native artifacts for LinkedIn, X, Reddit, TikTok, Instagram Reels, YouTube Shorts, Medium, Substack, or a personal-site article. Use when creating or editing vault artifacts, choosing a recipe, preparing a platform payload, publishing or recording a public URL, or figuring out what is live for a page.
+description: Turn one real idea, vault page, article, photo, screenshot, code diff, spec excerpt, or diagram into platform-native artifacts for LinkedIn, X, Reddit, TikTok, Instagram Reels, YouTube Shorts, Medium, Substack, or a personal-site article. Use when defining or revising audience channels, creating or editing vault artifacts, choosing a recipe, preparing a platform payload, publishing or recording a public URL, or figuring out what is live for a page.
 ---
 
 # Content Distribution
@@ -12,34 +12,52 @@ publishing and rendering vocabulary.
 
 ## Product Sentence
 
-One authored page can yield several deliberately shaped artifacts. A recipe
-guides the collaboration; the artifact holds the durable payload; successful
-publications are embedded receipts that freeze it.
+One authored page can yield several deliberately shaped artifacts. A channel
+names the audience promise, a recipe guides the collaboration, and the artifact
+holds the durable payload plus its approved destination checklists.
 
 ```txt
-channel ──1:N──► recipe ──1:N──► artifact ◄──N:1── page
-                                    └── publications[platform]
+channel/recipe prose ──agent proposes──► artifact ◄──N:1── page
+                                           ├── publishing[target]
+                                           └── sharing.targets[target]
 ```
 
 The vault is curated and flows downward. It does not mirror every remote post,
 import platform state, or maintain a provider synchronization engine.
 
+## Channel Boundary Test
+
+Define a channel from the follower's expectation of the next post:
+
+```txt
+I enjoyed this post. If I follow, am I likely to enjoy the next one?
+```
+
+A channel is one predictable audience promise, not one topic, format, platform,
+or level of technical depth. Split when the same follower would routinely reject
+the next post because it serves a different desired outcome. Keep varied topics
+together when the same person wants them for the same reason. Route by follower
+promise before account name, and do not create an account merely because a
+series has a good name.
+
 ## Default Workflow
 
 1. Select one real `pages/` source and preserve its thesis, evidence, and voice.
-2. Choose the recipe for the desired audience promise and payload. Read the
-   recipe body; it is editable collaboration guidance, not executable provenance.
+2. Choose the channel and recipe for the desired audience promise and payload.
+   Read their bodies; they are editable collaboration guidance, not persisted
+   artifact provenance.
 3. Create one artifact through the canonical publishing model or app. Its UUIDv7
-   filename is opaque identity; its frontmatter points to exactly one `page` and
-   `recipe`.
+   filename is opaque identity; its frontmatter points to exactly one `page`.
 4. Work with the author until the artifact body is the complete platform-ready
    payload. Keep incomplete drafts editable; do not invent status fields.
 5. Invoke explicit deterministic tools only when the recipe calls for them.
-6. Preview the actual delivery surface. The person approves the external action.
-7. Publish manually, through supervised computer use, or through the destination's
-   own deployment command.
-8. Record the resulting public URL. The first receipt freezes the artifact;
-   later receipts may append only for an absent platform declared by the recipe.
+6. Preview the actual delivery surface.
+7. Approve the payload and exact publishing and sharing checklists. Approval is
+   the freeze boundary.
+8. Publish manually, through supervised computer use, or through the
+   destination's own deployment command.
+9. Record the verified public URL at its approved target. Resolve every other
+   leaf by publishing, sharing, or deliberately skipping it.
 
 ## Identity Follows Payload Sameness
 
@@ -114,9 +132,10 @@ bun run vault page show <page>
 ```
 
 - No artifact: captured page, not in flight.
-- Artifact without receipts: editable draft.
-- Artifact with at least one receipt: frozen public payload.
-- A correction or second send to the same platform: create another artifact.
+- Artifact without `approved_on`: editable draft.
+- Approved artifact with unresolved leaves: frozen payload in flight.
+- Approved artifact with every leaf terminal: resolved payload.
+- A meaningful payload correction: create another artifact.
 
 ## Do Not
 
@@ -128,4 +147,5 @@ bun run vault page show <page>
 - Do not let platform advice override the source thesis.
 - Do not publish or record a receipt before explicit approval and a verified
   public URL.
-- Do not edit a frozen artifact or an existing receipt; create a new artifact.
+- Do not edit an approved artifact or an existing terminal fact; create a new
+  artifact for a meaningful payload change.
