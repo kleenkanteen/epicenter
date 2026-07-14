@@ -280,8 +280,8 @@ Each bullet may become its own wave if its diff is easier to review alone.
 
 - [x] Reword `agent-instructions` around its broader owner boundary.
 - [x] Reword `ui-design` around direction discovery through implementation.
-- [ ] Slim `first-read-review` after comparing duplicated mechanics with its cited skills.
-- [ ] Decide whether any progress-summary or notebook-explanation requirement must move into a surviving owner.
+- [x] Keep `first-read-review` intact after the mechanical rename; defer any compression until evidence shows a specific duplicated mechanic.
+- [x] Move artifact-specific explanation requirements into their owners and leave ordinary summaries and explanations to stock behavior.
 
 ### Later Removal Waves
 
