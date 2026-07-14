@@ -6,7 +6,7 @@ after extracting or merging a skill, after adding a description trigger, or on a
 cadence over a named cluster (for example the review/simplify cluster:
 `post-implementation-review`, `collapse-pass`, `fresh-context-review`,
 `greenfield-clean-breaks`, `radical-options`, `asymmetric-wins`,
-`approachability-audit`, `one-sentence-test`).
+`first-read-review`, `one-sentence-test`).
 
 This complements, does not replace:
 
