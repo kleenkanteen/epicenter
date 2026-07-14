@@ -1,6 +1,6 @@
 ---
 name: ui-design
-description: 'Design, explore, implement, polish, redesign, and review Epicenter interfaces from product direction through component-system collapse. Use when co-designing a screen, comparing UI directions or comparable apps, turning a rough feature idea into a buildable Svelte surface, choosing @epicenter/ui components, changing packages/ui, or replacing class-heavy markup and local interface primitives. Not for a tiny CSS-only repair unless it reveals a broader pattern.'
+description: 'Design, explore, implement, polish, redesign, and review Epicenter interfaces from product direction through component-system collapse. Use when co-designing a screen, asking "what do other apps do", comparing UI directions or comparable apps, turning a rough feature idea into a buildable Svelte surface, choosing @epicenter/ui components, changing packages/ui, or replacing class-heavy markup and local interface primitives. Not for a tiny CSS-only repair unless it reveals a broader pattern.'
 metadata:
   author: epicenter
   version: '1.0'
