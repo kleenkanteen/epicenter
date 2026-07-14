@@ -285,10 +285,10 @@ Each bullet may become its own wave if its diff is easier to review alone.
 
 ### Later Removal Waves
 
-- [ ] Remove `agent-instruction-hygiene` and its shim.
-- [ ] Remove `co-design` and `comparable-apps` and their shims.
-- [ ] Remove `progress-summary` and `notebook-explanation` and their shims if the reviewed steerability decision still holds.
-- [ ] Remove all stale names, links, and routing claims.
+- [x] Remove `agent-instruction-hygiene` and its shim.
+- [x] Remove `co-design` and `comparable-apps` and their shims.
+- [x] Remove `progress-summary` and `notebook-explanation` and their shims after preserving the artifact-specific requirements that still steer behavior.
+- [x] Remove all stale names, links, and routing claims from surviving skills.
 
 ### Completion
 
