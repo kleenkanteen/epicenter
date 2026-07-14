@@ -271,7 +271,7 @@ Every wave stops for review before staging and committing.
 
 - [x] Rename `skill-creator` to `agent-instructions` without rewriting its body.
 - [x] Rename `approachability-audit` to `first-read-review` without rewriting its body.
-- [ ] Copy instruction-placement guidance verbatim into its proposed final reference while leaving the old entrypoint intact.
+- [x] Copy instruction-placement guidance verbatim into its proposed final reference while leaving the old entrypoint intact.
 - [ ] Copy UI direction and comparison guidance verbatim into `ui-design` references while leaving old entrypoints intact.
 
 Each bullet may become its own wave if its diff is easier to review alone.
