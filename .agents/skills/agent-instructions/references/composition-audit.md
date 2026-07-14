@@ -11,8 +11,8 @@ cadence over a named cluster (for example the review/simplify cluster:
 This complements, does not replace:
 
 - `references/evaluation.md` owns single-skill trigger evals and traces.
-- `agent-instruction-hygiene` owns placement (AGENTS.md vs skill vs reference vs
-  delete) for one instruction.
+- `references/instruction-placement.md` owns placement (AGENTS.md vs skill vs
+  reference vs delete) for one instruction.
 - This file owns the *system* view: do these skills route cleanly and avoid
   re-teaching each other's bodies.
 

@@ -278,7 +278,7 @@ Each bullet may become its own wave if its diff is easier to review alone.
 
 ### Later Synthesis Waves
 
-- [ ] Reword `agent-instructions` around its broader owner boundary.
+- [x] Reword `agent-instructions` around its broader owner boundary.
 - [ ] Reword `ui-design` around direction discovery through implementation.
 - [ ] Slim `first-read-review` after comparing duplicated mechanics with its cited skills.
 - [ ] Decide whether any progress-summary or notebook-explanation requirement must move into a surviving owner.
