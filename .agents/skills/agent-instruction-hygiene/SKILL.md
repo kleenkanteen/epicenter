@@ -10,7 +10,7 @@ pointed at the smallest durable instruction that changes behavior.
 
 ## Compose With
 
-- `skill-creator` owns skill format, discovery, validation, and update mechanics.
+- `agent-instructions` owns skill format, discovery, validation, and update mechanics.
 - `writing-voice` owns prose tone and punctuation.
 - `greenfield-clean-breaks` owns clean-break, greenfield, compatibility-refusal,
   and ideal-shape review.

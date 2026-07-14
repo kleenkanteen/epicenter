@@ -1,11 +1,11 @@
 ---
-name: skill-creator
+name: agent-instructions
 description: Create, revise, audit, evaluate, and validate Vercel-backed Agent Skills for this repository. Use when writing a new skill, improving or stress-testing an existing skill, tuning skill descriptions, deciding what belongs in SKILL.md, references, scripts, or assets, validating discovery, or reviewing whether a skill should exist.
 ---
 
-# Skill Creator
+# Agent Instructions
 
-Skill Creator owns creation and maintenance of project-local skills under `.agents/skills`.
+Agent Instructions owns creation and maintenance of project-local skills under `.agents/skills`.
 
 The Vercel `skills` CLI is the source of truth for format and discovery. Do not maintain a separate local validator unless the user explicitly asks for one.
 

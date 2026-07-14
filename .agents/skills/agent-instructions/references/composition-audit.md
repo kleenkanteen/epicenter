@@ -43,7 +43,7 @@ For each phrase you say out loud as a trigger, exactly one description should
 claim it. More than one is an over-trigger.
 
 ```bash
-bun run skill-creator/scripts/audit-routing-collisions.ts "asymmetric wins"
+bun run agent-instructions/scripts/audit-routing-collisions.ts "asymmetric wins"
 ```
 
 The script searches only the `description` field in each skill's frontmatter.
@@ -184,11 +184,11 @@ did") or add a near-miss clause ("for a plain code question, answer directly").
 
 ## Judgment Pass
 
-After the mechanical pass, ask the skill-creator questions per skill, then two
+After the mechanical pass, ask the agent-instructions questions per skill, then two
 cluster questions the single-skill eval cannot see:
 
 ```txt
-Per skill (from skill-creator):
+Per skill (from agent-instructions):
   What repeated failure does this prevent?
   Which spoken phrase should trigger it?
   Which near-miss phrase must not?
@@ -239,7 +239,7 @@ A self-paced loop invocation:
 
 ```txt
 /loop Audit the review/simplify skill cluster for composition health.
-Load skill-creator and read references/composition-audit.md. Run detectors 1-9,
+Load agent-instructions and read references/composition-audit.md. Run detectors 1-9,
 then the judgment pass. Report findings in the output shape and fix only
 mechanical, grounded ones (collisions, dead links, copied bodies). Escalate
 ambiguous triggers to references/evaluation.md. Stop when a full pass finds
